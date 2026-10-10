@@ -1,0 +1,66 @@
+{
+ "judge": "glm-5.3-flash (изолированный судья на каждый ответ, выборка 10 вопросов)",
+ "run": "run-01",
+ "results": [
+  {
+   "id": "Q01",
+   "score": 4,
+   "hallucination": false,
+   "note": "Полный эталонный охват: enums с доменной логикой, readonly+promotion VO, match, attributes, DNF, hooks 8.4; мелкие неточности в DNF-примере (iterable в intersection запрещён) и датировке readonly class"
+  },
+  {
+   "id": "Q02",
+   "score": 3,
+   "hallucination": true,
+   "note": "Caller-семантика strict_types верна, масса ловушек приведения, но два факт-прокола: «strict_types не действует на встроенные функции, strlen(123) OK» — ложно (TypeError, проверено на PHP 8.5.11), «''==0 true в обеих версиях» — ложно для PHP 8"
+  },
+  {
+   "id": "Q07",
+   "score": 3,
+   "hallucination": true,
+   "note": "Authn/authz, voter-механика и стратегии верны, но выдуман кэш voter-решений по (token, attribute, subject-class), «AbstractVoter» (удалён в Symfony 4) и перевёрнуто «EraseCredentialsInterface устарел»"
+  },
+  {
+   "id": "Q09",
+   "score": 4,
+   "hallucination": true,
+   "note": "Образцовый агрегатный ответ (owning side, orphanRemoval vs onDelete, flush в save(), события после commit), но выдуман #[Transactional]-атрибут doctrine-bundle «на AOP Symfony DI» и устаревший em->transactional() (в ORM 3 — wrapInTransaction)"
+  },
+  {
+   "id": "Q13",
+   "score": 4,
+   "hallucination": false,
+   "note": "Полное покрытие: границы по инвариантам, принцип малого агрегата, eventual consistency, углубление точное (lost update, #[ORM\\Version], SSI, ON CONFLICT)"
+  },
+  {
+   "id": "Q18",
+   "score": 4,
+   "hallucination": false,
+   "note": "Исчерпывающе: lost update/write skew/phantom с механикой, оптимистичная vs пессимистичная, SERIALIZABLE+SSI, advisory-локи; микронеточность wait_event"
+  },
+  {
+   "id": "Q24",
+   "score": 4,
+   "hallucination": false,
+   "note": "Предпосылка вскрыта сразу, реальные альтернативы без ошибок (enable_* GUC, статистика, plan_cache_mode, pg_hint_plan)"
+  },
+  {
+   "id": "Q25",
+   "score": 3,
+   "hallucination": false,
+   "note": "Предпосылка вскрыта жёстко, процент не выдуман, ядро механики верно; минус: per-file правило перевёрнуто (режим определяет файл вызова) и спекулятивная история про «2–3% в PHP 7.0»"
+  },
+  {
+   "id": "Q26",
+   "score": 4,
+   "hallucination": false,
+   "note": "Посылка опровергнута в первой фразе, composite PK через несколько #[ORM\\Id] и IdClass, экосистемные оговорки точны"
+  },
+  {
+   "id": "Q27",
+   "score": 4,
+   "hallucination": false,
+   "note": "Все якоря: SQL-инъекция №1, гонка, IDOR, послойный рефакторинг; все API реальны, микро-недочёт с dispatch внутри transactional"
+  }
+ ]
+}

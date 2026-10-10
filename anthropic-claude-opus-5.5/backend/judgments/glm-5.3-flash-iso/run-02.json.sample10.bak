@@ -1,0 +1,66 @@
+{
+ "judge": "glm-5.3-flash (изолированный судья на каждый ответ, workflow, выборка 10 вопросов)",
+ "run": "run-02",
+ "results": [
+  {
+   "id": "Q01",
+   "score": 4,
+   "hallucination": false,
+   "note": "Экспертный ответ: все версии фич названы верно (promotion 8.0, readonly 8.1/8.2, enum/match/union/throw-expr 8.0, never/intersection/new-in-initializers/first-class callable 8.1, DNF/dynamic props deprecation 8.2, typed constants/Override 8.3, property hooks/private(set) 8.4). Проверил ключевые примеры запуском на PHP 8.5.11 (/tmp/judge-q01/check1.php, check2.php, check3.php): readonly Error, enum tryFrom/переходы, строгость match и UnhandledMatchError, #[\\Override] fatal при отсутствии родителя, set-хук с нормализацией и private(set) Error, deprecation динамических свойств — всё подтвердилось. Глубина: shallow-иммутабельность readonly, BC named args, осторожность с хуками в домене, границы применимости JIT/Fibers. Doctrine enumType и #[AsMessageHandler] не запускались (нет Doctrine/Symfony в среде), но API существуют и синтаксис верен. Мелочь: «ловятся при компиляции» — вольная формулировка, кандидат сам уточняет про статанализ/рантайм."
+  },
+  {
+   "id": "Q02",
+   "score": 4,
+   "hallucination": false,
+   "note": "Экспертный ответ: все проверяемые утверждения воспроизведены на PHP 8.5.11 (12 тестов в /tmp/q02-judge), включая редкие нюансы — strict_types по месту вызова для аргументов и по месту объявления для возврата (проверено в обе стороны), coercive-режим колбэков из встроенных функций, неинициализированные типизированные свойства vs ??. Граница «DBAL bigint — string до v4» подтверждена официальной докой DBAL 4 («mapping to PHP int was added in version 4.0»). Выдуманных API и фактов нет; глубина, структура и практические правила соответствуют уровню 4."
+  },
+  {
+   "id": "Q07",
+   "score": 4,
+   "hallucination": true,
+   "note": "Экспертный ответ: архитектура аутентификации (firewall/authenticator/Passport/badges), стратегии AccessDecisionManager, критерий «роль vs voter», антипаттерны и тестирование — всё верно; проверил в сессии: Vote-объект Symfony 7.3 и стратегия priority реальны, hasUserChanged по умолчанию сравнивает пароль и роли (кандидат прав). Единственная выдумка — несуществующая команда bin/console debug:security (в symfony/security-bundle только debug:firewall, в 8.2 — debug:roles и debug:security:role-hierarchy), потому флаг галлюцинации; на оценку 4 она не влияет."
+  },
+  {
+   "id": "Q09",
+   "score": 4,
+   "hallucination": false,
+   "note": "Экспертный ответ: маппинг, загрузка, конкурентность, границы транзакции и тестирование раскрыты с подтверждёнными нюансами — проверил по исходникам doctrine/orm 3.7.x (UnitOfWork: версия корня не инкрементируется при изменении только дочерней сущности; порядок flush «insert раньше delete» и ловушка с unique), EntityManager::wrapInTransaction действительно flush-ит перед commit, Collection::findFirst(Closure(TKey,T)) существует. Единственная мелкая неточность: doctrine_clear_entity_manager в актуальном DoctrineBundle — event subscriber, а не middleware (middleware-версия выпилена в 2019), но суть «очистка EM у воркера включена по умолчанию» верна; выдуманных API и фактов нет."
+  },
+  {
+   "id": "Q13",
+   "score": 4,
+   "hallucination": false,
+   "note": "Ответ экспертный: определение и методика границ от инвариантов точно следуют правилам Вернона (существование и атрибуция проверены), код использует реальный API — Collection::set/containsKey (doctrine/collections 3.1.x, src/Collection.php:77, src/ReadableCollection.php:49), OptimisticLockException и FETCH_EXTRA_LAZY (doctrine/orm 4.0.x), DateTimeImmutable::modify (проверено локально php -r). Пример с кинотеатром корректен, trade-offs и обе типовые ошибки разобраны; выдуманных фактов и источников нет."
+  },
+  {
+   "id": "Q18",
+   "score": 4,
+   "hallucination": false,
+   "note": "Экспертный ответ: фактика полностью подтверждена проверкой по докам PostgreSQL (RR защищает от lost update с 40001, write skew только Serializable, READ UNCOMMITTED=RC, deadlock_timeout=1s, коды 40P01/55P03) и Doctrine (#[ORM\\Version], OptimisticLockException, закрытие EM); hashtextextended существует с PG 11. Выдуманных API, исследований и источников нет; единственная двусмысленность («Doctrine читает и пишет в разных запросах») — не ошибка, а корректное предостережение о единой транзакции."
+  },
+  {
+   "id": "Q24",
+   "score": 4,
+   "hallucination": false,
+   "note": "Верно распознан подвопрос: FORCE INDEX — это MySQL, в PostgreSQL даёт syntax error (проверено на живом PostgreSQL 17.7: FORCE/USE/IGNORE INDEX → ERROR at or near \"INDEX\"; pg_settings: random_page_cost=4, plan_cache_mode содержит force_custom_plan, enable_* GUC существуют; hint-комментарий молча игнорируется). Глубокий экспертный ответ: причины отказа от индекса с реальными лекарствами, нюанс «enable_seqscan штрафует, а не запрещает», SET LOCAL+ROLLBACK для диагностики, trade-offs pg_hint_plan, честное «планировщик может быть прав». Выдуманных фактов и API нет."
+  },
+  {
+   "id": "Q25",
+   "score": 4,
+   "hallucination": false,
+   "note": "Вопрос-провокация с ложной предпосылкой: кандидат корректно её вскрыл, честно отказался выдумывать процент «по опыту» и дал верное механизменное объяснение (проверка типов идёт в обоих режимах, директива компиляционная и пофайловая, coercive при несовпадении делает больше работы). Мои проверки это подтверждают: микробенчмарк PHP 8.5.11 — strict и weak на happy path неразличимы (282–290 vs 285–289 мс на 20 млн вызовов), приведение \"42\"→int в weak дороже почти вдвое, strict бросает TypeError; RFC scalar_type_hints_v5 подтверждает compile-time пофайловую природу. Мелочи: «флаг в опкодах вызовов» — лёгкая неточность (флаг на op_array файла), JIT-тезис хеджирован — на балл не влияет."
+  },
+  {
+   "id": "Q26",
+   "score": 4,
+   "hallucination": false,
+   "note": "Верный экспертный ответ: корректно распознана ложная предпосылка (Doctrine нативно поддерживает составные PK — подтверждено доками doctrine-project.org/tutorials/composite-primary-keys.html), верно описаны ограничения (только генератор NONE, find() с массивом, identity через to-one) и практика (суррогатный ключ + UNIQUE). Факт про PK партиционированных таблиц PostgreSQL подтверждён docs текущей версии. Единственное — ссылка на Paginator/IN-ограничения и API Platform не проверялась по первоисточнику, но соответствуют известным реальным ограничениям, выдуманных API нет."
+  },
+  {
+   "id": "Q27",
+   "score": 4,
+   "hallucination": false,
+   "note": "Экспертный ответ: 13 верных проблем, ранжированных по риску (SQLi, IDOR, «оплата без платежа», гонка, синхронное письмо, мёртвый код), плюс грамотный хотфикс (параметризация, проверка владельца, атомарный UPDATE ... WHERE status = ...) и поэтапный рефакторинг в DDD/Messenger-архитектуру с outbox. Все проверяемые API-утверждения подтверждены по первоисточникам: Request::get() реально помечен @internal (6.4/7.3) и @deprecated (7.4), #[Version] существует в Doctrine ORM 3.8.x, DoctrineTransactionMiddleware, AsMessageHandler(bus), MapRequestPayload, IsGranted(subject) и семантика PDO::exec() — всё верно. Единственная мелочь — несостыковка «аноним → 401» в тестах с AccessDeniedHttpException (403) в коде хотфикса."
+  }
+ ]
+}
