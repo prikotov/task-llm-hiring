@@ -63,4 +63,5 @@ python3 interview/judge.py --run qwen3.8/backend/run-01 --judge clef
 
 Дмитрий Прикотов: [prikotov.pro](https://prikotov.pro/) ·
 [Telegram @prikotov](https://t.me/prikotov).
-Отчёт исследования и статья — в репозитории prikotov/artifacts.
+Итоговый отчёт по роли backend: `reports/REPORT.html`
+(собирается `interview/build_report.py` из сырых данных этого репозитория).
