@@ -997,6 +997,11 @@ DeepSeek, GigaChat и YandexGPT через родные API провайдеро
 (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/runner_ru_cloud.py">runner_ru_cloud.py</a>).
 Для каждой модели делается несколько независимых прогонов (до пяти на серию).</p>
 <h3>Оценка</h3>
+<p>Ответы оцениваются по протоколам постфактум, каждый ответ отдельно. К
+каждому вопросу написана карточка эталона: чек-лист сильного ответа, красные
+флаги, образец и шкала 0–4
+(<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/rubrics/backend/Q01.md">пример
+карточки</a>). Сама оценка идёт в три яруса, от дешёвых проверок к дорогим.</p>
 <div class=flow>
 <div class=step><b>Ярус 0: эмбеддинги bge-m3</b>бесплатно: близость к ответам SOTA-эталонов (Opus 5.5, GPT-6.1 Sol). Ниже 0.78 вердикт «плохо» без судьи.</div>
 <div class=arrow>→</div>
@@ -1004,13 +1009,34 @@ DeepSeek, GigaChat и YandexGPT через родные API провайдеро
 <div class=arrow>→</div>
 <div class="step hot"><b>Ярус 2: GLM-5.3-Flash</b>только по триггеру: изолированный судья на ответ, факты проверяет запуском кода.</div>
 </div>
-<p class=sub>Триггер перехода в ярус 2: need_review &gt; 0.3 или p-галлюцинаций &gt; 0.3, эскалация 41% при точности 83% и полноте 82% на размеченном корпусе. Дешёвый судья хорошо ранжирует серии (Спирмен 0.92 с баллами судьи GLM-5.3-Flash по средним баллам серий; на отдельных ответах слабее, см. §7), но сжимает шкалу и слеп к галлюцинациям внутри грамотного текста, поэтому финальное слово за ярусом 2. Для итоговых таблиц он проверил все 30 ответов на знания каждой серии (§4),
-триггер остаётся штатным режимом для новых прогонов.<br>
-Скрипты ярусов: <a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/embed_compare.py">embed_compare.py</a>
-(ярус 0), <a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/judge.py">judge.py</a>
-(ярус 1), <a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/judge_glm.py">judge_glm.py</a>
-(ярус 2); карточки эталонов судьи в
-<a href="https://github.com/prikotov/task-llm-hiring/tree/main/interview/rubrics/backend">rubrics/backend</a>.</p>
+<p>Ярус 0
+(<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/embed_compare.py">embed_compare.py</a>)
+отсеивает дно бесплатно: эмбеддинги bge-m3 меряют близость ответа к ответам
+SOTA-эталонов (Opus 5.5, GPT-6.1 Sol), ниже 0.78 вердикт «плохо» без судьи.
+Ярус 1 (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/judge.py">judge.py</a>)
+судит каждый ответ изолированно: decision-модель clef получает вопрос и ответ
+кандидата, ставит балл 0–4 по критериям шкалы и вероятность галлюцинаций,
+а добавочный вопрос «нужен ли более знающий судья?» даёт признак need_review
+(<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/judge_escalation.py">judge_escalation.py</a>).
+Ярус 2 (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/judge_glm.py">judge_glm.py</a>)
+подключается по триггеру: need_review &gt; 0.3 или p-галлюцинаций &gt; 0.3
+(эскалация 41% при точности 83% и полноте 82% на размеченном корпусе). Судья
+GLM-5.3-Flash запускается изолированно на один вопрос-ответ, с якорями
+чек-листа из карточки эталона; спорные утверждения он проверяет запуском
+кода (PHP 8.5, PostgreSQL в docker) и возвращает вердикт: балл, признак
+галлюцинации, мотивировка.</p>
+<p>Вердикты каждого прогона лежат рядом с ним в папке judgments: таблицы
+яруса 1
+(<a href="https://github.com/prikotov/task-llm-hiring/blob/main/muse-glimmer/backend/judgments/decision-clef-run-01.csv">пример</a>)
+и вердикты яруса 2 в glm-5.3-flash-iso/
+(<a href="https://github.com/prikotov/task-llm-hiring/blob/main/muse-glimmer/backend/judgments/glm-5.3-flash-iso/run-01.json">пример</a>).
+В итоговые таблицы этого отчёта вошли вердикты яруса 2 по всем 30 ответам
+на знания каждой серии (§4),
+триггер остаётся штатным режимом для новых прогонов.</p>
+<p class=sub>Дешёвый судья хорошо ранжирует серии (Спирмен 0.92 с баллами
+судьи GLM-5.3-Flash по средним баллам серий; на отдельных ответах слабее,
+см. §7), но сжимает шкалу и слеп к галлюцинациям внутри грамотного текста,
+поэтому финальное слово за ярусом 2.</p>
 
 <h2 id=models><span class=no>3</span>Модели</h2>
 <p class=lead>Кто участвовал и почему: состав отражает вопросы исследования, от потолка облаков и честной цены до локальных кандидатов, российских облаков и негативных контролей.</p>
