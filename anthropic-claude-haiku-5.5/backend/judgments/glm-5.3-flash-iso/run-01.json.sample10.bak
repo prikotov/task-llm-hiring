@@ -1,0 +1,66 @@
+{
+ "judge": "glm-5.3-flash (изолированный судья на каждый ответ, workflow, выборка 10 вопросов)",
+ "run": "run-01",
+ "results": [
+  {
+   "id": "Q01",
+   "score": 3,
+   "hallucination": false,
+   "note": "Верно и уверенно: 10 возможностей PHP 8.0/8.1 с примерами, все примеры исполняемы — прогнал их на PHP 8.5.11 (readonly-ошибка дословно «Cannot modify readonly property Money::$amount», match строгое сравнение + UnhandledMatchError, enum::from, never, интерсекция, nullsafe, strict_types TypeError — всё подтверждено). Оценка 3, а не 4: нет границ применимости и типовых ошибок (from vs tryFrom/ValueError, readonly-классы 8.2+, покрытие 8.2+ в целом отсутствует), и неточна фраза «атрибуты проверяются компилятором» — типы их аргументов проверяются только при Reflection/стат-анализе, а не при компиляции. Выдуманных API или фактов нет."
+  },
+  {
+   "id": "Q02",
+   "score": 4,
+   "hallucination": false,
+   "note": "Экспертный, фактически точный ответ: проверил исполнением на PHP 8.5.11 оба файла-примера — все утверждения подтвердились (coercive/strict, семантика файла-вызывающего, int→float widening, касты, ловушки ==/in_array, ключи массивов с deprecation 8.1, переполнение во float, json_decode, union-типы, uninitialized-свойства, never, implicit nullable deprecated в 8.4). Глубина с нюансами и версиями, структура «спасает/удивляет», практические рекомендации; выдуманных API и фактов нет."
+  },
+  {
+   "id": "Q07",
+   "score": 4,
+   "hallucination": false,
+   "note": "Все API подтверждены доками Symfony (voters.html, security.html) и исходником VoterInterface: Voter/supports/voteOnAttribute, IsGranted c subject, denyAccessUnlessGranted, Passport, role_hierarchy, access_control, стратегии decision manager с дефолтом affirmative, ACCESS_ABSTAIN. Ответ структурный, с корректными примерами, границами применимости ролей vs voters и типовыми ошибками — экспертный уровень; мелкие пробелы (IS_AUTHENTICATED_FULLY vs REMEMBERED, авто-регистрация voter-сервисов) не снижают балл."
+  },
+  {
+   "id": "Q09",
+   "score": 4,
+   "hallucination": false,
+   "note": "Экспертный ответ: полный корректный маппинг агрегата (OneToMany + cascade persist + orphanRemoval, инкапсуляция коллекции через toArray, синхронизация обеих сторон связи), правильная граница транзакции (wrapInTransaction, один flush на use case, flush вне домена и репозитория) и 7 реальных подводных камней с границами применимости. Все упомянутые API подтверждены доками Doctrine (wrapInTransaction делает flush перед коммитом, OptimisticLockException, порядок inserts→updates→deletes); выдуманных фактов нет. Мелкие упущения: не упомянута ловушка переприсваивания коллекции целиком; optimistic locking на корне подан как полная защита от гонок без оговорки о не-инкрементировании версии при изменении только дочерних."
+  },
+  {
+   "id": "Q13",
+   "score": 4,
+   "hallucination": false,
+   "note": "Экспертный ответ: точное определение агрегата (корень, инварианты, транзакционная согласованность, ссылки по ID), корректные эвристики границ, каноничный пример Order/OrderLine с фиксацией цены снимком Money, типовая ошибка «границы по таблицам/FK» с последствиями (оптимистичные блокировки, N+1) и фиксом через доменные события + eventual consistency. Проверил php -l фрагмента — синтаксис валиден; DomainException — реальный SPL-класс; выдуманных API/источников нет. Мелочь: иллюстративный код реализует лишь один из трёх заявленных инвариантов."
+  },
+  {
+   "id": "Q18",
+   "score": 4,
+   "hallucination": false,
+   "note": "Экспертный ответ: названы lost update, write skew, аномалии изоляции, deadlock; 6 механизмов защиты с trade-offs и границами применимости, фреймворк выбора и «последний барьер» — ограничения БД. Все API подтверждены официальной документацией Doctrine (#[Version], OptimisticLockException, LockMode::PESSIMISTIC_WRITE); галлюцинаций нет. Минус к глубине: пример write skew терминологически неточен (обе транзакции пишут одну строку — это скорее check-then-act/lost update), не упомянуты SKIP LOCKED/advisory locks и то, что в PG REPEATABLE READ тоже прерывается по concurrent update."
+  },
+  {
+   "id": "Q24",
+   "score": 4,
+   "hallucination": false,
+   "note": "Вопрос с ложной предпосылкой распознан безошибочно: FORCE INDEX — это MySQL/MariaDB (вместе с USE/IGNORE INDEX), в PostgreSQL его нет. Ответ верен и глубок: философия планировщика без хинтов, полный набор альтернатив (ANALYZE, CREATE STATISTICS, профиль индекса, переписывание запроса, enable_seqscan только для диагностики, random_page_cost/effective_cache_size, pg_hint_plan как крайняя мера) с границами применимости и методикой через EXPLAIN (ANALYZE, BUFFERS). Все упомянутые API/настройки проверены по документации PostgreSQL и репозиторию pg_hint_plan — существуют, галлюцинаций нет."
+  },
+  {
+   "id": "Q25",
+   "score": 4,
+   "hallucination": false,
+   "note": "Провокация с ложной предпосылкой распознана: честный отказ назвать процент без измерений, верный механизм (пофайловость strict_types, коэрция в weak-режиме как лишняя работа, отсутствие влияния на opcache/JIT), границы применимости (горячие циклы), методология замера (PhpBench, Blackfire/Tideways/Xdebug — все инструменты реальны, проверено поиском) и trade-off корректности. Галлюцинаций нет; единственная недостающая деталь — порядок величины, но выдумывать его было бы хуже."
+  },
+  {
+   "id": "Q26",
+   "score": 4,
+   "hallucination": false,
+   "note": "Ложная предпосылка корректно отвергнута (составные ключи поддерживаются; ограничение — только автогенерация), рабочий пример #[ORM\\Id] на ManyToOne соответствует документированному паттерну Doctrine, перечислены реальные стратегии (суррогатный ключ + UNIQUE, embeddable-id) и типовые подводные камни с trade-offs. Выдуманных API/фактов нет; единственная мелкая неточность — категоричность про прокси (Order может быть взят из identity map)."
+  },
+  {
+   "id": "Q27",
+   "score": 4,
+   "hallucination": false,
+   "note": "Экспертный ответ: верно и глубоко — инъекция, IDOR, инварианты статуса, транзакции/гонки, синхронная почта, тестируемость, приоритизация и план рефакторинга на реальных Symfony/DDD-механизмах (IsGranted с subject, MapEntity, агрегат с OrderPaid, optimistic locking, Messenger, маппинг исключений). Единственный подозрительный тезис — про stacked queries в PDO query() — подтвердил по исходнику php-src (ext/pdo_mysql/mysql_driver.c:699-705: CLIENT_MULTI_STATEMENTS включён по умолчанию, fallback 1). Мелочи: фраза о гонке подразумевает проверку статуса, которой в исходном коде нет; CSRF для state-changing эндпоинта не упомянут."
+  }
+ ]
+}
