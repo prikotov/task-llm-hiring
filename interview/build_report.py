@@ -330,6 +330,73 @@ def radar_svg(topics, self_v, our_v, judge_v=None, w=250, h=210) -> str:
 
 
 
+def point_name(m) -> str:
+    """Имя точки на картах: базовая метка + режим (с мышлением / с промптом)."""
+    name = m["label"]
+    if m.get("primer"):
+        name += " (с промптом)"
+    elif m["folder"] == "ornith-1.5-35b":
+        name += " (с мышлением)" if m["series"] != "think-off" else " (без мышления)"
+    return name
+
+
+def place_labels(pts):
+    """Авторазмещение подписей точек: вокруг каждой точки перебираются
+    кандидатные позиции; штраф — площадь пересечения с уже размещёнными
+    подписями и с чужими точками (чужие точки дешевле, ×0.55). При равном
+    штрафе выигрывает более близкая к точке позиция. pts: key, x, y, r, w,
+    xmin/xmax/ymin/ymax (границы поля). Возвращает key → (x, anchor, y)."""
+    cands = []
+    for dx, dy in ((10, 4), (-10, 4), (10, -6), (-10, -6)):
+        cands.append((dx, dy, "start" if dx > 0 else "end"))
+    for dist in (8, 14, 22, 32, 44, 58):
+        cands.append((0, -dist, "middle"))
+        cands.append((0, dist, "middle"))
+    for dist in (22, 34, 46):
+        cands.append((dist, 4, "start"))
+        cands.append((-dist, 4, "end"))
+        cands.append((dist, -6, "start"))
+        cands.append((-dist, -6, "end"))
+    placed = []
+    dots = [(p["x"] - p["r"], p["y"] - p["r"], p["x"] + p["r"], p["y"] + p["r"])
+            for p in pts]
+    def label_box(p, dx, dy, anchor):
+        if anchor == "start":
+            bx0, bx1 = p["x"] + dx, p["x"] + dx + p["w"]
+        elif anchor == "end":
+            bx0, bx1 = p["x"] + dx - p["w"], p["x"] + dx
+        else:  # middle: подпись центрирована по точке
+            bx0, bx1 = p["x"] + dx - p["w"] / 2, p["x"] + dx + p["w"] / 2
+        return bx0, p["y"] + dy - 10, bx1, p["y"] + dy + 3
+    out = {}
+    for i, p in enumerate(pts):
+        best = None
+        for ci, (dx, dy, anchor) in enumerate(cands):
+            bx0, by0, bx1, by1 = label_box(p, dx, dy, anchor)
+            if bx0 < p["xmin"] or bx1 > p["xmax"] or by0 < p["ymin"] or by1 > p["ymax"]:
+                continue
+            area = 0.0
+            for L in placed:
+                ox = min(bx1, L[2] + 2) - max(bx0, L[0] - 2)
+                oy = min(by1, L[3] + 2) - max(by0, L[1] - 2)
+                if ox > 0 and oy > 0:
+                    area += ox * oy
+            for j, D in enumerate(dots):
+                if j == i:
+                    continue
+                ox = min(bx1, D[2]) - max(bx0, D[0])
+                oy = min(by1, D[3]) - max(by0, D[1])
+                if ox > 0 and oy > 0:
+                    area += 0.55 * ox * oy
+            score = (round(area, 1), ci)
+            if best is None or score < best[0]:
+                best = (score, dx, dy, anchor)
+        _, dx, dy, anchor = best
+        placed.append(label_box(p, dx, dy, anchor))
+        out[p["key"]] = (p["x"] + dx, anchor, p["y"] + dy)
+    return out
+
+
 def quality_price_scatter(models) -> str:
     """Распределение моделей: качество (балл судьи) против цены сессии."""
     import math
@@ -350,67 +417,23 @@ def quality_price_scatter(models) -> str:
     def py(score):
         return MT + (YMAX - score) / (YMAX - YMIN) * PH
 
-    # ручные сдвиги подписей, где точки кучкуются
-    NUDGE = {"ornith-1.5 35B (без мышления)": (0, -9), "medgemma 27B": (0, 12), "ornith-1.5 35B (с мышлением)": (0, -8),
-             "gemma4 e2b 4.6B": (0, 12), "GigaChat-2 Max": (0, 12),
-             "GPT-6 Luna": (0, -8), "Claude Haiku 5.5": (0, 12),
-             "huihui abliterated 27B": (10, -11), "qwen3.8 27B": (10, 13),
-             "orcarouter 27B uncensored": (12, 15)}
-
-    # подписи: авторазмещение — первая позиция без столкновений (занятые подписи
-    # и крупные точки учитываются); NUDGE задаёт предпочтительный сдвиг
-    NUDGE = {"medgemma 27B": (0, 14), "GPT-6 Luna": (0, -8), "Claude Haiku 5.5": (0, 14),
-             "ornith-1.5 35B (без мышления)": (0, -10)}
-
     def dot_r(share):
         return 7 + min(share / 0.5, 1) * 8
 
-    placed = []
-    def rects_overlap(a, b, pad=3):
-        return not (a[2] + pad < b[0] or b[2] + pad < a[0] or
-                    a[3] + pad < b[1] or b[3] + pad < a[1])
-
-    label_geo = {}
+    pts = []
     for m in models:
         if m["glm"] is None:
             continue
         c = max(m["cost"], XMIN)
         x = ML + (math.log10(c) - math.log10(XMIN)) / (math.log10(XMAX) - math.log10(XMIN)) * PW
         y = MT + (YMAX - m["glm"]) / (YMAX - YMIN) * PH
-        name = m["label"]
-        if m["folder"] == "ornith-1.5-35b":
-            name += " (с мышлением)" if m["series"] != "think-off" else " (без мышления)"
-        w = len(name) * 6.1 + 4
         share = m["glm_hall"] / m["glm_n"] if m["glm_hall"] is not None else 0
-        r = dot_r(share)
-        ndx, ndy = NUDGE.get(name, (0, 0))
-        candidates = [(10, 4 + ndy, "start"), (-10, 4 + ndy, "end"),
-                      (0, -(r + 8 + ndy), "middle"), (0, r + 14, "middle"),
-                      (-16 - r, 4 + ndy, "end"), (16 + r, 4 + ndy, "start"),
-                      (0, -(r + 20 + ndy), "middle"), (0, r + 26, "middle")]
-        chosen = None
-        best = None
-        for tx_off, ty_off, anchor in candidates:
-            if anchor == "start":
-                tx0, tx1 = x + tx_off, x + tx_off + w
-            else:
-                tx0, tx1 = x + tx_off - w, x + tx_off
-            box = (tx0, y + ty_off - 10, tx1, y + ty_off + 3)
-            if box[0] < ML - 50 or box[2] > ML + PW + 8 or box[1] < MT - 6 or box[3] > MT + PH + 6:
-                continue
-            ov = sum(1 for o in placed if rects_overlap(box, o, 0))
-            if ov == 0:
-                chosen = (tx_off, ty_off, anchor, box)
-                break
-            if best is None or ov < best[0]:
-                best = (ov, tx_off, ty_off, anchor, box)
-        if chosen is None:
-            # чистых позиций нет — берём с минимальным перекрытием
-            _, tx_off, ty_off, anchor, box = best
-            chosen = (tx_off, ty_off, anchor, box)
-        tx_off, ty_off, anchor, box = chosen
-        placed.append(box)
-        label_geo[(m["folder"], m["series"])] = (x + tx_off, anchor, y + ty_off)
+        pts.append({"key": (m["folder"], m["series"], bool(m.get("primer"))),
+                    "x": x, "y": y, "r": dot_r(share) + 1,
+                    "w": len(point_name(m)) * 5.2 + 6,
+                    "xmin": ML - 30, "xmax": ML + PW + 8,
+                    "ymin": MT - 6, "ymax": MT + PH + 6})
+    label_geo = place_labels(pts)
 
     svg = []
     # точки рисуются от крупных к мелким: мелкие чистые поверх крупных грязных,
@@ -447,10 +470,7 @@ def quality_price_scatter(models) -> str:
             seen_groups.append((hue, gname))
         x, y = px(m["cost"]), py(m["glm"])
         fx = (x - ML) / PW   # доля по горизонтали: для направления тултипа
-        name = m["label"]
-        if m["folder"] == "ornith-1.5-35b":
-            mode = "с мышлением" if m["series"] != "think-off" else "без мышления"
-            name += f" ({mode})"
+        name = point_name(m)
         # диаметр точки кодирует долю галлюцинаций: 0% → 7px, ≥50% → 15px
         hall_share = m["glm_hall"] / m["glm_n"] if m["glm_hall"] is not None else 0
         r_dot = 7 + min(hall_share / 0.5, 1) * 8
@@ -471,7 +491,7 @@ def quality_price_scatter(models) -> str:
                        f'fill="{fill}"{bold} text-anchor="start">{s}</text>')
         # тултип показывается только на самом кружке (.dot), не на подписи
         op = 0.45 if hall_share >= 0.4 else 0.8   # грязные точки полупрозрачны: видно наложения
-        tx, anchor, ty = label_geo[(m["folder"], m["series"])]
+        tx, anchor, ty = label_geo[(m["folder"], m["series"], bool(m.get("primer")))]
         # подпись окрашена в цвет группы точки — привязка читается без выносок
         svg.append(f'<g class="pt">'
                    f'<circle class="dot" cx="{x:.0f}" cy="{y:.0f}" r="{r_dot:.1f}" fill="{hue}" '
@@ -481,7 +501,7 @@ def quality_price_scatter(models) -> str:
                    f'<g class="tip">' + "".join(tip) + '</g></g>')
     svg.append(f'<text x="{ML+PW/2:.0f}" y="{H-16}" text-anchor="middle" font-size="12.5" fill="#66707f">'
                f'цена полного собеседования, $ — лог-шкала (шаг деления ×10); Сбер ₽0 прижат к левому краю</text>')
-    svg.append(f'<text x=16 y={MT+PH/2:.0f} font-size=12.5 fill=#66707f transform=rotate(-90 16 {MT+PH/2:.0f})>'
+    svg.append(f'<text x=16 y={MT+PH/2:.0f} font-size=12.5 fill=#66707f transform="rotate(-90 16 {MT+PH/2:.0f})">'
                f'балл модели</text>')
     return ('<h3>Карта моделей: качество и цена</h3>'
             '<p>Каждая точка — строка таблицы выше: по вертикали балл модели (шкала — в плашке §1), '
@@ -525,7 +545,7 @@ def stability_html(models) -> str:
                 per_q.setdefault(q, []).append(float(r["score"]))
         rng = {q: max(v) - min(v) for q, v in per_q.items() if len(v) > 1}
         if len(rng) >= 10:
-            title = THINK_TITLE.get(m["series"], m["series"])
+            title = "с промптом" if m.get("primer") else THINK_TITLE.get(m["series"], m["series"])
             series.append({"label": f"{m['label']} ({title})", "rng": rng})
     if len(series) < 2:
         return ""
@@ -637,18 +657,20 @@ def stability_html(models) -> str:
         '<h3>Постоянство ответов</h3>'
         '<p class=lead>Насколько модель отвечает одинаково от прогона к прогону: '
         'разброс балла одного и того же вопроса между прогонами. '
-        'Только модели с несколькими прогонами (локальные, 3–5 прогонов).</p>'
+        'Только строки с несколькими прогонами: локальные модели в стандартных режимах '
+        'и их варианты с системным промптом (3–5 прогонов); у облачных моделей, '
+        'muse-glimmer и негативных контролей прогон один, мерить нечего.</p>'
         + strip +
-        '<p class=sub>Свеча это распределение вопросов одной модели в одном режиме: тело охватывает половину вопросов '
+        '<p class=sub>Свеча это распределение вопросов одной строки таблицы: тело охватывает половину вопросов '
         'в середине распределения (между квартилями), усы ведут к минимальному и максимальному '
         'расхождению, тёмная риска это медиана. У самых постоянных моделей медиана 1–2% от максимального балла '
         '% шкалы, но почти у каждой есть вопросы, гуляющие на четверть шкалы и больше.</p>'
         + radar +
-        '<p class=sub>Каждый радар это одна модель в одном режиме: луч темы показывает средний размах её '
+        '<p class=sub>Каждый радар это одна строка таблицы: луч темы показывает средний размах её '
         f'ответов в этой теме; единая шкала для всех радаров, 100% = 4 балла (кольцо = {rmax:.0f}%). '
         f'Наименее воспроизводимая тема почти у всех моделей — {worst.lower()}. '
-        'Терракотовая окружность это медиана модели (число в заголовке карточки): лучи вне '
-        'неё гуляют больше типичного вопроса этой модели, внутри меньше.</p>')
+        'Терракотовая окружность это медиана этой строки (число в заголовке карточки): лучи вне '
+        'неё гуляют больше типичного вопроса этой строки, внутри меньше.</p>')
 
 
 def quality_speed_scatter(models) -> str:
@@ -674,51 +696,17 @@ def quality_speed_scatter(models) -> str:
     def dot_r(tok):
         return 7 + min(max((tok - TMIN) / (TMAX - TMIN), 0), 1) * 8
 
-    def series_name(m):
-        name = m["label"]
-        if m["folder"] == "ornith-1.5-35b":
-            name += " (с мышлением)" if m["series"] != "think-off" else " (без мышления)"
-        return name
-
-    placed = []
-    def rects_overlap(a, b, pad=3):
-        return not (a[2] + pad < b[0] or b[2] + pad < a[0] or
-                    a[3] + pad < b[1] or b[3] + pad < a[1])
-
-    label_geo = {}
+    pts = []
     for m in models:
         if m["glm"] is None:
             continue
-        x, y = px(m["dur_min"]), py(m["glm"])
-        name = series_name(m)
-        w = len(name) * 6.1 + 4
-        r = dot_r(m["out_tok"])
-        candidates = [(10, 4, "start"), (-10, 4, "end"),
-                      (0, -(r + 8), "middle"), (0, r + 14, "middle"),
-                      (-16 - r, 4, "end"), (16 + r, 4, "start"),
-                      (0, -(r + 20), "middle"), (0, r + 26, "middle")]
-        chosen = None
-        best = None
-        for tx_off, ty_off, anchor in candidates:
-            if anchor == "start":
-                tx0, tx1 = x + tx_off, x + tx_off + w
-            else:
-                tx0, tx1 = x + tx_off - w, x + tx_off
-            box = (tx0, y + ty_off - 10, tx1, y + ty_off + 3)
-            if box[0] < ML - 50 or box[2] > ML + PW + 8 or box[1] < MT - 6 or box[3] > MT + PH + 6:
-                continue
-            ov = sum(1 for o in placed if rects_overlap(box, o, 0))
-            if ov == 0:
-                chosen = (tx_off, ty_off, anchor, box)
-                break
-            if best is None or ov < best[0]:
-                best = (ov, tx_off, ty_off, anchor, box)
-        if chosen is None:
-            _, tx_off, ty_off, anchor, box = best
-            chosen = (tx_off, ty_off, anchor, box)
-        tx_off, ty_off, anchor, box = chosen
-        placed.append(box)
-        label_geo[(m["folder"], m["series"])] = (x + tx_off, anchor, y + ty_off)
+        pts.append({"key": (m["folder"], m["series"], bool(m.get("primer"))),
+                    "x": px(m["dur_min"]), "y": py(m["glm"]),
+                    "r": dot_r(m["out_tok"]) + 1,
+                    "w": len(point_name(m)) * 5.2 + 6,
+                    "xmin": ML - 30, "xmax": ML + PW + 8,
+                    "ymin": MT - 6, "ymax": MT + PH + 6})
+    label_geo = place_labels(pts)
 
     svg = []
     draw_order = sorted([m for m in models if m["glm"] is not None],
@@ -744,7 +732,7 @@ def quality_speed_scatter(models) -> str:
         hue, gname = GROUPS[m["kind"]]
         x, y = px(m["dur_min"]), py(m["glm"])
         fx = (x - ML) / PW
-        name = series_name(m)
+        name = point_name(m)
         r_dot = dot_r(m["out_tok"])
         tip_lines = [name, f"балл {m['glm']:.2f} · {m['dur_min']:.0f} мин",
                      f"~{m['out_tok']/1000:.0f} тыс. выходных токенов"]
@@ -758,7 +746,7 @@ def quality_speed_scatter(models) -> str:
             fill = "#ffffff" if i == 0 else "#c8d4e4"
             tip.append(f'<text x="{tx + 8:.0f}" y="{y - 30 + i*15:.0f}" font-size="11.5" '
                        f'fill="{fill}"{bold} text-anchor="start">{s}</text>')
-        tx, anchor, ty = label_geo[(m["folder"], m["series"])]
+        tx, anchor, ty = label_geo[(m["folder"], m["series"], bool(m.get("primer")))]
         svg.append(f'<g class="pt">'
                    f'<circle class="dot" cx="{x:.0f}" cy="{y:.0f}" r="{r_dot:.1f}" fill="{hue}" '
                    f'fill-opacity="0.8" stroke="#fff" stroke-width="1.5" />'
@@ -767,7 +755,7 @@ def quality_speed_scatter(models) -> str:
                    f'<g class="tip">' + "".join(tip) + '</g></g>')
     svg.append(f'<text x="{ML+PW/2:.0f}" y="{H-16}" text-anchor="middle" font-size="12.5" fill="#66707f">'
                f'длительность полного собеседования, минуты; диаметр точки — выходные токены сессии</text>')
-    svg.append(f'<text x=16 y={MT+PH/2:.0f} font-size=12.5 fill=#66707f transform=rotate(-90 16 {MT+PH/2:.0f})>'
+    svg.append(f'<text x=16 y={MT+PH/2:.0f} font-size=12.5 fill=#66707f transform="rotate(-90 16 {MT+PH/2:.0f})">'
                f'балл модели</text>')
     return ('<h3>Карта моделей: качество и скорость</h3>'
             '<p>Каждая точка — строка таблицы выше: по вертикали балл модели, по горизонтали '
@@ -801,7 +789,9 @@ def quality_triangle_3d(models) -> str:
         if m["glm"] is None:
             continue
         name = m["label"]
-        if m["folder"] == "ornith-1.5-35b":
+        if m.get("primer"):
+            name += " (с промптом)"
+        elif m["folder"] == "ornith-1.5-35b":
             name += " (с мышлением)" if m["series"] != "think-off" else " (без мышления)"
         cost = max(m["cost"], 0.01)
         data.append({"name": name, "score": m["glm"], "cost": round(cost, 4),
@@ -813,7 +803,7 @@ def quality_triangle_3d(models) -> str:
 <p>«Железное» правило управления проектами «быстро, качественно, дёшево —
 выберите любые два» работает и здесь. Три оси — цена сессии, балл оценки качества и время
 полного собеседования в минутах; цена сжата логарифмически, чтобы копеечные шарики не
-слипались на фоне Opus. Каждый шарик изображает одну модель в одном режиме работы (строку таблицы результатов: например, у ornith-1.5 35B два шарика, с мышлением и без), а радиус шарика кодирует объём выходных токенов. Сцену можно вращать
+слипались на фоне Opus. Каждый шарик изображает одну модель в одном режиме работы (строку таблицы результатов: например, у ornith-1.5 35B три шарика — без мышления, с мышлением и с системным промптом), а радиус шарика кодирует объём выходных токенов. Сцену можно вращать
 мышью, приближать колесом; золотой каркасный многогранник у вершины оси качества —
 маркер недостижимого идеала (максимально дёшево + быстро + качественно), и вокруг него пусто.</p>
 <div id="tri3d" style="position:relative;height:540px;border:1px solid var(--line);border-radius:12px;background:#fff">
@@ -1756,7 +1746,7 @@ def build(models, sessions, primer, low_json=None):
                     "huihui_ai-Qwen3.8-abliterated-latest": "14/15",
                     "ornith-1.5-35b": "11/15"}  # разметка: reports/provocations-primer-v2.csv
         entry = dict(folder=folder, label=plabel, series="think-off", kind="local",
-                     runs=[], qv=2, primer=True,
+                     runs=sorted(v2_runs), qv=2, primer=True,
                      clef=round(pm["score"], 2), p_hall=round(pm.get("hall", 0), 3),
                      run_sigma=None, prov=prov_map.get(folder, "—"),
                      dur_min=round(statistics.mean(durs) / 60, 1) if durs else None,
@@ -1851,10 +1841,10 @@ def build(models, sessions, primer, low_json=None):
         note += '<br>' + sber_footnote(sber_items, wrap=False)
     table += '<div class=note>' + note + '</div>'
     table += self_assessment_html(models)
-    table += stability_html(models)
-    table += quality_price_scatter(models)
-    table += quality_speed_scatter(models)
-    table += quality_triangle_3d(models)
+    table += stability_html(models + prompt_rows)
+    table += quality_price_scatter(models + prompt_rows)
+    table += quality_speed_scatter(models + prompt_rows)
+    table += quality_triangle_3d(models + prompt_rows)
 
     # --- секция промпта ---
     def pget(model, series, key="score", default="—"):
