@@ -1010,7 +1010,7 @@ DeepSeek, GigaChat и YandexGPT через родные API провайдеро
 <div class=flow>
 <div class=step><b>Ярус 1: Decision-модель - clef</b>локально, дёшево и быстро, один запрос на ответ: quality (балл 0–4), hallucination (галлюцинации), need_review (нужен ли старший судья), unsure (неуверенность), factcheck_zone (факт-проверка).</div>
 <div class=arrow>→</div>
-<div class="step hot"><b>Ярус 2: LLM модель - GLM-5.3-Flash</b>только по триггеру: изолированный судья на ответ, факты проверяет запуском кода.</div>
+<div class="step hot"><b>Ярус 2: LLM модель - GLM-5.3-Flash</b>по триггеру (need_review или hallucination &gt; 0.3): изолированный запуск на один ответ, факты проверяет запуском кода (PHP, PostgreSQL), выносит вердикт с мотивировкой.</div>
 </div>
 <p>Ярус 1 (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/score.py">score.py</a>)
 оценивает каждый ответ изолированно, одним запросом: decision-модель clef
