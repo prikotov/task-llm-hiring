@@ -789,6 +789,152 @@ document.querySelectorAll('svg.scatter g.pt').forEach(function (pt) {
 </script>""")
 
 
+def quality_triangle_3d(models) -> str:
+    """3D-карта моделей: цена × качество × скорость (three.js с CDN, орбита и зум);
+    радиус сферы кодирует выходные токены, маркер — «идеальный угол» железного
+    треугольника (быстро + качественно + дёшево)."""
+    import json as _json
+    import math as _math
+    GROUPS = {"cloud": "#315f9e", "local": "#2f7d54", "ru": "#5b9bd5", "negctrl": "#b3543f"}
+    data = []
+    for m in models:
+        if m["glm"] is None:
+            continue
+        name = m["label"]
+        if m["folder"] == "ornith-1.5-35b":
+            name += " (с мышлением)" if m["series"] != "think-off" else " (без мышления)"
+        cost = max(m["cost"], 0.01)
+        data.append({"name": name, "score": m["glm"], "cost": round(cost, 4),
+                     "dur": m["dur_min"], "tok": m["out_tok"],
+                     "color": GROUPS[m["kind"]]})
+    payload = _json.dumps(data, ensure_ascii=False)
+
+    html = """<h3>Треугольник: быстро, качественно, дёшево</h3>
+<p>Классическое «железное» правило управления проектами: «быстро, качественно, дёшево —
+выберите любые два». Три оси — цена сессии (лог-шкала), балл судьи и минуты полного
+собеседования; шарик — серия, радиус кодирует выходные токены. Сцену можно вращать
+мышью, приближать колесом; маркер в дальнем углу — недостижимый идеал
+(максимально дёшево + быстро + качественно), и вокруг него пусто.</p>
+<div id="tri3d" style="position:relative;height:540px;border:1px solid var(--line);border-radius:12px;background:#fff">
+  <div id="tri3d-fallback" style="padding:24px;color:#66707f;font-size:14px">
+    3D-сцена не загрузилась: для неё нужен интернет (three.js с CDN).
+  </div>
+</div>
+<p class=sub>Точки цветом повторяют группы карт выше: синие облака, зелёные локальные,
+голубые российские, терракотовые негативные контроли. Наведите курсор на шарик —
+карточка с баллом, ценой, минутами и токенами.</p>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function () {
+  if (typeof THREE === 'undefined') return;   // CDN недоступен — текст-заглушка остаётся
+  var host = document.getElementById('tri3d');
+  host.innerHTML = '';
+  var DATA = __DATA__;
+  var W = host.clientWidth || 920, H = 540;
+  var scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xffffff);
+  var camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 200);
+  camera.position.set(16, 12, 18);
+  var renderer = new THREE.WebGLRenderer({antialias: true});
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(window.devicePixelRatio || 1);
+  host.appendChild(renderer.domElement);
+  var controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.target.set(5, 4.5, 5);
+  controls.enableDamping = true;
+  // сцена: куб 10×10×10, x = цена (лог, дёшево ближе), y = качество, z = минуты
+  var S = 10;
+  function vx(cost) { return Math.max(0, Math.min(S, (Math.log10(cost) + 2) / 2.75 * S)); }
+  function vy(score) { return Math.max(0, Math.min(S, (score - 1.5) / 2.75 * S)); }
+  function vz(min) { return Math.max(0, Math.min(S, min / 32 * S)); }
+  var grid = new THREE.GridHelper(S, 10, 0xdde3ea, 0xe9edf2);
+  grid.position.set(S / 2, 0, S / 2); scene.add(grid);
+  function axis(a, b) {
+    var g = new THREE.BufferGeometry().setFromPoints([a, b]);
+    scene.add(new THREE.Line(g, new THREE.LineBasicMaterial({color: 0x8b95a3})));
+  }
+  axis(new THREE.Vector3(0, 0, 0), new THREE.Vector3(S, 0, 0));
+  axis(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, S, 0));
+  axis(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, S));
+  function label(text, color, x, y, z, scale) {
+    var cv = document.createElement('canvas');
+    cv.width = 512; cv.height = 96;
+    var ctx = cv.getContext('2d');
+    ctx.font = 'bold 42px "Segoe UI", sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 10; ctx.strokeText(text, 256, 48);
+    ctx.fillStyle = color; ctx.fillText(text, 256, 48);
+    var sp = new THREE.Sprite(new THREE.SpriteMaterial({map: new THREE.CanvasTexture(cv), transparent: true}));
+    sp.scale.set(scale * 4.4, scale * 0.83, 1);
+    sp.position.set(x, y, z);
+    scene.add(sp);
+    return sp;
+  }
+  label('цена → (лог)', '#315f9e', S + 1.6, 0.6, 0, 1.05);
+  label('качество ↑', '#2f7d54', 0.6, S + 1.1, 0, 1.05);
+  label('скорость → (минуты)', '#b3543f', 0.6, 0.6, S + 2.2, 1.05);
+  // идеальный угол: дёшево (x=0) + качественно (y=S) + быстро (z=0)
+  var ideal = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.55),
+      new THREE.MeshBasicMaterial({color: 0xd4a017, wireframe: true}));
+  ideal.position.set(0.8, S - 0.8, 0.8);
+  scene.add(ideal);
+  label('идеал: быстро · качественно · дёшево', '#d4a017', 2.6, S + 0.5, 1.6, 0.95);
+  var raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2(), hovered = null;
+  var tip = document.createElement('div');
+  tip.style.cssText = 'position:absolute;display:none;pointer-events:none;background:#1d2433;'
+      + 'color:#fff;padding:7px 10px;border-radius:8px;font-size:12px;line-height:1.5;'
+      + 'box-shadow:0 2px 8px rgba(20,30,50,.25);white-space:nowrap;z-index:5';
+  host.appendChild(tip);
+  var spheres = [];
+  DATA.forEach(function (m) {
+    var r = 0.42 + Math.max(0, Math.min(1, (m.tok - 35000) / 145000)) * 0.95;
+    var mesh = new THREE.Mesh(
+        new THREE.SphereGeometry(r, 24, 18),
+        new THREEMeshMaterialSafe(m.color));
+    mesh.position.set(vx(m.cost), vy(m.score), vz(m.dur));
+    mesh.userData = m;
+    scene.add(mesh);
+    spheres.push(mesh);
+    label(m.name, m.color, mesh.position.x, mesh.position.y + r + 0.55, mesh.position.z, 0.62);
+  });
+  function THREEMeshMaterialSafe(hex) {
+    return new THREE.MeshLambertMaterial({color: new THREE.Color(hex), transparent: true, opacity: 0.92});
+  }
+  scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+  var dl = new THREE.DirectionalLight(0xffffff, 0.5);
+  dl.position.set(6, 12, 8); scene.add(dl);
+  function onMove(e) {
+    var b = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((e.clientX - b.left) / b.width) * 2 - 1;
+    mouse.y = -((e.clientY - b.top) / b.height) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    var hit = raycaster.intersectObjects(spheres)[0];
+    if (hit) {
+      hovered = hit.object;
+      var m = hovered.userData;
+      tip.innerHTML = '<b>' + m.name + '</b><br>балл ' + m.score.toFixed(2)
+          + ' · $' + m.cost + ' · ' + Math.round(m.dur) + ' мин'
+          + '<br>~' + Math.round(m.tok / 1000) + ' тыс. выходных токенов';
+      tip.style.display = 'block';
+      tip.style.left = Math.min(e.clientX - b.left + 16, b.width - 220) + 'px';
+      tip.style.top = (e.clientY - b.top + 12) + 'px';
+    } else { hovered = null; tip.style.display = 'none'; }
+  }
+  host.addEventListener('mousemove', onMove);
+  host.addEventListener('mouseleave', function () { tip.style.display = 'none'; });
+  (function animate() {
+    requestAnimationFrame(animate);
+    ideal.rotation.y += 0.01;
+    controls.update();
+    renderer.render(scene, camera);
+  })();
+})();
+</script>"""
+    return html.replace("__DATA__", payload)
+
+
 def self_assessment_html(models) -> str:
     topics = [t[0] for t in SELF_TOPICS]
     QWEN_FAMILY = {"qwen3.8", "huihui_ai-Qwen3.8-abliterated-latest",
@@ -1678,6 +1824,7 @@ def build(models, sessions, primer, low_json=None):
     table += stability_html(models)
     table += quality_price_scatter(models)
     table += quality_speed_scatter(models)
+    table += quality_triangle_3d(models)
 
     # --- секция промпта ---
     def pget(model, series, key="score", default="—"):

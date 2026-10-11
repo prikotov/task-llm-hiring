@@ -632,6 +632,128 @@ document.querySelectorAll('svg.scatter g.pt').forEach(function (pt) {
   });
   dot.addEventListener('mouseleave', function () { tip.style.display = 'none'; });
 });
+</script><h3>Треугольник: быстро, качественно, дёшево</h3>
+<p>Классическое «железное» правило управления проектами: «быстро, качественно, дёшево —
+выберите любые два». Три оси — цена сессии (лог-шкала), балл судьи и минуты полного
+собеседования; шарик — серия, радиус кодирует выходные токены. Сцену можно вращать
+мышью, приближать колесом; маркер в дальнем углу — недостижимый идеал
+(максимально дёшево + быстро + качественно), и вокруг него пусто.</p>
+<div id="tri3d" style="position:relative;height:540px;border:1px solid var(--line);border-radius:12px;background:#fff">
+  <div id="tri3d-fallback" style="padding:24px;color:#66707f;font-size:14px">
+    3D-сцена не загрузилась: для неё нужен интернет (three.js с CDN).
+  </div>
+</div>
+<p class=sub>Точки цветом повторяют группы карт выше: синие облака, зелёные локальные,
+голубые российские, терракотовые негативные контроли. Наведите курсор на шарик —
+карточка с баллом, ценой, минутами и токенами.</p>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function () {
+  if (typeof THREE === 'undefined') return;   // CDN недоступен — текст-заглушка остаётся
+  var host = document.getElementById('tri3d');
+  host.innerHTML = '';
+  var DATA = [{"name": "Opus 5.5", "score": 4.0, "cost": 5.8236, "dur": 29.3, "tok": 177035, "color": "#315f9e"}, {"name": "GPT-6.1 Sol", "score": 3.95, "cost": 0.6219, "dur": 14.2, "tok": 41905, "color": "#315f9e"}, {"name": "Haiku 5.5", "score": 3.85, "cost": 0.1823, "dur": 6.3, "tok": 67902, "color": "#315f9e"}, {"name": "GPT-6 Luna", "score": 3.88, "cost": 0.03, "dur": 6.4, "tok": 35968, "color": "#315f9e"}, {"name": "DeepSeek V4.1 Flash", "score": 3.7, "cost": 0.2492, "dur": 11.9, "tok": 159056, "color": "#315f9e"}, {"name": "ornith-1.5 35B (без мышления)", "score": 2.7, "cost": 0.0216, "dur": 3.1, "tok": 45502, "color": "#2f7d54"}, {"name": "ornith-1.5 35B (с мышлением)", "score": 3.35, "cost": 0.0869, "dur": 12.4, "tok": 128316, "color": "#2f7d54"}, {"name": "qwen3.8 27B", "score": 3.2, "cost": 0.0626, "dur": 8.9, "tok": 65687, "color": "#2f7d54"}, {"name": "muse-glimmer 28B", "score": 3.53, "cost": 0.0646, "dur": 9.2, "tok": 24778, "color": "#2f7d54"}, {"name": "huihui abliterated 27B", "score": 3.22, "cost": 0.0588, "dur": 8.4, "tok": 63397, "color": "#2f7d54"}, {"name": "orcarouter 27B uncensored", "score": 3.37, "cost": 0.1153, "dur": 16.4, "tok": 66833, "color": "#2f7d54"}, {"name": "ornith-1.5 9B", "score": 2.43, "cost": 0.0831, "dur": 11.8, "tok": 93048, "color": "#2f7d54"}, {"name": "GigaChat-2 Max", "score": 2.78, "cost": 0.01, "dur": 11.0, "tok": 36929, "color": "#315f9e"}, {"name": "GigaChat-3 Ultra", "score": 3.38, "cost": 0.01, "dur": 10.9, "tok": 58865, "color": "#315f9e"}, {"name": "YandexGPT Pro 5", "score": 2.02, "cost": 4.7008, "dur": 3.6, "tok": 17159, "color": "#315f9e"}, {"name": "medgemma 27B", "score": 2.67, "cost": 0.144, "dur": 20.5, "tok": 55430, "color": "#b3543f"}, {"name": "gemma4 e2b 4.6B", "score": 2.42, "cost": 0.0236, "dur": 3.4, "tok": 32332, "color": "#b3543f"}];
+  var W = host.clientWidth || 920, H = 540;
+  var scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xffffff);
+  var camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 200);
+  camera.position.set(16, 12, 18);
+  var renderer = new THREE.WebGLRenderer({antialias: true});
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(window.devicePixelRatio || 1);
+  host.appendChild(renderer.domElement);
+  var controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.target.set(5, 4.5, 5);
+  controls.enableDamping = true;
+  // сцена: куб 10×10×10, x = цена (лог, дёшево ближе), y = качество, z = минуты
+  var S = 10;
+  function vx(cost) { return Math.max(0, Math.min(S, (Math.log10(cost) + 2) / 2.75 * S)); }
+  function vy(score) { return Math.max(0, Math.min(S, (score - 1.5) / 2.75 * S)); }
+  function vz(min) { return Math.max(0, Math.min(S, min / 32 * S)); }
+  var grid = new THREE.GridHelper(S, 10, 0xdde3ea, 0xe9edf2);
+  grid.position.set(S / 2, 0, S / 2); scene.add(grid);
+  function axis(a, b) {
+    var g = new THREE.BufferGeometry().setFromPoints([a, b]);
+    scene.add(new THREE.Line(g, new THREE.LineBasicMaterial({color: 0x8b95a3})));
+  }
+  axis(new THREE.Vector3(0, 0, 0), new THREE.Vector3(S, 0, 0));
+  axis(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, S, 0));
+  axis(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, S));
+  function label(text, color, x, y, z, scale) {
+    var cv = document.createElement('canvas');
+    cv.width = 512; cv.height = 96;
+    var ctx = cv.getContext('2d');
+    ctx.font = 'bold 42px "Segoe UI", sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 10; ctx.strokeText(text, 256, 48);
+    ctx.fillStyle = color; ctx.fillText(text, 256, 48);
+    var sp = new THREE.Sprite(new THREE.SpriteMaterial({map: new THREE.CanvasTexture(cv), transparent: true}));
+    sp.scale.set(scale * 4.4, scale * 0.83, 1);
+    sp.position.set(x, y, z);
+    scene.add(sp);
+    return sp;
+  }
+  label('цена → (лог)', '#315f9e', S + 1.6, 0.6, 0, 1.05);
+  label('качество ↑', '#2f7d54', 0.6, S + 1.1, 0, 1.05);
+  label('скорость → (минуты)', '#b3543f', 0.6, 0.6, S + 2.2, 1.05);
+  // идеальный угол: дёшево (x=0) + качественно (y=S) + быстро (z=0)
+  var ideal = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.55),
+      new THREE.MeshBasicMaterial({color: 0xd4a017, wireframe: true}));
+  ideal.position.set(0.8, S - 0.8, 0.8);
+  scene.add(ideal);
+  label('идеал: быстро · качественно · дёшево', '#d4a017', 2.6, S + 0.5, 1.6, 0.95);
+  var raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2(), hovered = null;
+  var tip = document.createElement('div');
+  tip.style.cssText = 'position:absolute;display:none;pointer-events:none;background:#1d2433;'
+      + 'color:#fff;padding:7px 10px;border-radius:8px;font-size:12px;line-height:1.5;'
+      + 'box-shadow:0 2px 8px rgba(20,30,50,.25);white-space:nowrap;z-index:5';
+  host.appendChild(tip);
+  var spheres = [];
+  DATA.forEach(function (m) {
+    var r = 0.42 + Math.max(0, Math.min(1, (m.tok - 35000) / 145000)) * 0.95;
+    var mesh = new THREE.Mesh(
+        new THREE.SphereGeometry(r, 24, 18),
+        new THREEMeshMaterialSafe(m.color));
+    mesh.position.set(vx(m.cost), vy(m.score), vz(m.dur));
+    mesh.userData = m;
+    scene.add(mesh);
+    spheres.push(mesh);
+    label(m.name, m.color, mesh.position.x, mesh.position.y + r + 0.55, mesh.position.z, 0.62);
+  });
+  function THREEMeshMaterialSafe(hex) {
+    return new THREE.MeshLambertMaterial({color: new THREE.Color(hex), transparent: true, opacity: 0.92});
+  }
+  scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+  var dl = new THREE.DirectionalLight(0xffffff, 0.5);
+  dl.position.set(6, 12, 8); scene.add(dl);
+  function onMove(e) {
+    var b = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((e.clientX - b.left) / b.width) * 2 - 1;
+    mouse.y = -((e.clientY - b.top) / b.height) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    var hit = raycaster.intersectObjects(spheres)[0];
+    if (hit) {
+      hovered = hit.object;
+      var m = hovered.userData;
+      tip.innerHTML = '<b>' + m.name + '</b><br>балл ' + m.score.toFixed(2)
+          + ' · $' + m.cost + ' · ' + Math.round(m.dur) + ' мин'
+          + '<br>~' + Math.round(m.tok / 1000) + ' тыс. выходных токенов';
+      tip.style.display = 'block';
+      tip.style.left = Math.min(e.clientX - b.left + 16, b.width - 220) + 'px';
+      tip.style.top = (e.clientY - b.top + 12) + 'px';
+    } else { hovered = null; tip.style.display = 'none'; }
+  }
+  host.addEventListener('mousemove', onMove);
+  host.addEventListener('mouseleave', function () { tip.style.display = 'none'; });
+  (function animate() {
+    requestAnimationFrame(animate);
+    ideal.rotation.y += 0.01;
+    controls.update();
+    renderer.render(scene, camera);
+  })();
+})();
 </script>
 
 <h2 id=honesty><span class=no>5</span>Достоверность (галлюцинации)</h2>
