@@ -1111,11 +1111,7 @@ true значит «есть хотя бы одна выдуманная дет�
 отдельная таблица эскалационных признаков
 (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/muse-glimmer/backend/judgments/escalation-clef-run-01.csv">пример</a>)
 и вердикты яруса 2 в glm-5.3-flash-iso/
-(<a href="https://github.com/prikotov/task-llm-hiring/blob/main/muse-glimmer/backend/judgments/glm-5.3-flash-iso/run-01.json">пример</a>).
-В колонках таблиц исследования старые имена: score это quality, conf это
-уверенность в балле, hall_p это hallucination; столбцы от has_code до
-contradictions это семь вероятностных метрик эксперимента §7, в целевом
-score.py их нет.</p>
+(<a href="https://github.com/prikotov/task-llm-hiring/blob/main/muse-glimmer/backend/judgments/glm-5.3-flash-iso/run-01.json">пример</a>).</p>
 <div class=note><b>Ремарка.</b> Описанное выше это система, к которой стремимся.
 В самом исследовании оценка и эскалация шли двумя раздельными вызовами
 clef, с прежней формулировкой need_review, а судья яруса 2 проверил сплошь
@@ -1256,7 +1252,7 @@ clef, с прежней формулировкой need_review, а судья я
 (запуск примеров кандидатов), PostgreSQL 17.7 (docker), официальная
 документация Symfony, Doctrine, PostgreSQL. Автор не аффилирован с
 упомянутыми компаниями; модели публично доступные версии октября 2026.
-<br><br>Методика и сырые данные: <a href="https://github.com/prikotov/task-llm-hiring">github.com/prikotov/task-llm-hiring</a> (вопросник, раннеры, скрипты судейства, все транскрипты и вердикты).
+<br><br>Методика и сырые данные: <a href="https://github.com/prikotov/task-llm-hiring">github.com/prikotov/task-llm-hiring</a> (вопросник, раннеры, скрипты судейства, все транскрипты и вердикты). В колонках таблиц-вердиктов исследования старые имена: score это quality, conf это уверенность в балле, hall_p это hallucination; столбцы от has_code до contradictions это семь вероятностных метрик эксперимента с судьями (§7), в целевом score.py их нет.
 </footer>
 </div></body></html>
 """
