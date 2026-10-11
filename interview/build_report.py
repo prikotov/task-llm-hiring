@@ -1001,7 +1001,7 @@ DeepSeek, GigaChat и YandexGPT через родные API провайдеро
 каждого вопроса есть чек-лист якорей: 🟢 зелёный свет (2–4 признака сильного
 ответа) и 🚩 красный флаг (1–2 признака слабого)
 (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/rubrics/backend/checklists.json">чек-листы
-всех вопросов</a>); полные карточки эталона с 🟢 зелёным светом, 🚩 красными
+всех вопросов</a>); полные карточки эталона с зелёным светом, красными
 флагами, образцом ответа и шкалой 0–4 написаны вручную для двух вопросов как
 калибровка судейства
 (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/rubrics/backend/Q01.md">пример
