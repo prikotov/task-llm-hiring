@@ -834,14 +834,16 @@ def quality_triangle_3d(models) -> str:
   var W = host.clientWidth || 920, H = 540;
   var scene = new THREE.Scene();
   scene.background = new THREE.Color(0xffffff);
-  var camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 200);
-  camera.position.set(13, 14, 17);
+  var FR = 11;                       // полуширина ортокамеры: размеры шаров не зависят от расстояния
+  var aspect = W / H;
+  var camera = new THREE.OrthographicCamera(-FR * aspect, FR * aspect, FR, -FR, 0.1, 200);
+  camera.position.set(14, 15, 18);
   var renderer = new THREE.WebGLRenderer({antialias: true});
   renderer.setSize(W, H);
   renderer.setPixelRatio(window.devicePixelRatio || 1);
   host.appendChild(renderer.domElement);
   var controls = new THREE.OrbitControls(camera, renderer.domElement);
-  controls.target.set(4.5, 6.5, 3.5);
+  controls.target.set(4.5, 6.0, 3.5);
   controls.enableDamping = true;
   // сцена: куб 10×10×10, x = цена (лог, дёшево ближе), y = качество, z = минуты
   var S = 10;
@@ -868,7 +870,8 @@ def quality_triangle_3d(models) -> str:
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 9; ctx.strokeText(text, w / 2, 38);
     ctx.fillStyle = color; ctx.fillText(text, w / 2, 38);
-    var sp = new THREE.Sprite(new THREE.SpriteMaterial({map: new THREE.CanvasTexture(cv), transparent: true}));
+    var sp = new THREE.Sprite(new THREE.SpriteMaterial({map: new THREE.CanvasTexture(cv), transparent: true, depthTest: false}));
+    sp.renderOrder = 10;
     var k = height / 72;
     sp.scale.set(w * k, height, 1);
     sp.position.set(x, y, z);
@@ -893,7 +896,7 @@ def quality_triangle_3d(models) -> str:
   host.appendChild(tip);
   var spheres = [];
   DATA.forEach(function (m) {
-    var r = 0.2 + Math.sqrt(Math.max(0, Math.min(1, (m.tok - 35000) / 145000))) * 0.45;
+    var r = 0.16 + Math.sqrt(Math.max(0, Math.min(1, (m.tok - 35000) / 145000))) * 0.34;
     var mesh = new THREE.Mesh(
         new THREE.SphereGeometry(r, 24, 18),
         new THREEMeshMaterialSafe(m.color));
@@ -901,7 +904,7 @@ def quality_triangle_3d(models) -> str:
     mesh.userData = m;
     scene.add(mesh);
     spheres.push(mesh);
-    label(m.name, m.color, mesh.position.x, mesh.position.y + r + 0.42, mesh.position.z, 0.5);
+    label(m.name, m.color, mesh.position.x, mesh.position.y + r + 0.34, mesh.position.z, 0.42);
   });
   function THREEMeshMaterialSafe(hex) {
     return new THREE.MeshLambertMaterial({color: new THREE.Color(hex), transparent: true, opacity: 0.92});
