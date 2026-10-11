@@ -531,9 +531,9 @@ def stability_html(models) -> str:
         return ""
     all_vals = [v for s in series for v in s["rng"].values()]
 
-    # --- полосовая диаграмма: распределение размахов по вопросам ---
+    # --- свечи: распределение размахов вопросов по моделям ---
     xmax = max(0.75, math.ceil(max(all_vals) * 4) / 4)
-    W, ML, MR, MT, RH = 940, 232, 128, 26, 48
+    W, ML, MR, MT, RH = 940, 232, 128, 26, 52
     H = MT + RH * len(series) + 46
     PW = W - ML - MR
     px = lambda v: ML + PW * (v / xmax)
@@ -552,15 +552,19 @@ def stability_html(models) -> str:
         y = MT + RH * i + RH / 2
         vals = sorted(s["rng"].values())
         med = statistics.median(vals)
+        q1 = statistics.quantiles(vals, n=4)[0] if len(vals) >= 4 else vals[0]
+        q3 = statistics.quantiles(vals, n=4)[2] if len(vals) >= 4 else vals[-1]
         svg.append(f'<text x="{ML - 10}" y="{y + 4:.0f}" text-anchor="end" font-size="13" '
                    f'fill="#1d2433">{s["label"]}</text>')
+        # ус: тонкая линия от минимума до максимума
         svg.append(f'<line x1="{px(vals[0]):.1f}" y1="{y:.0f}" x2="{px(vals[-1]):.1f}" y2="{y:.0f}" '
-                   f'stroke="#aab3bf" stroke-width="2"/>')
-        for j, q in enumerate(sorted(s["rng"], key=lambda x: (s["rng"][x], x))):
-            dy = ((j * 37) % 13 - 6) * 0.85
-            svg.append(f'<circle cx="{px(s["rng"][q]):.1f}" cy="{y + dy:.1f}" r="3.2" '
-                       f'fill="#2f7d54" fill-opacity="0.5"/>')
-        svg.append(f'<rect x="{px(med) - 1.2:.1f}" y="{y - 11:.0f}" width="2.5" height="22" fill="#1d2433"/>')
+                   f'stroke="#aab3bf" stroke-width="1.6"/>')
+        # тело: половина вопросов в середине (от 1-го до 3-го квартиля)
+        bw = max(3.0, px(q3) - px(q1))
+        svg.append(f'<rect x="{px(q1):.1f}" y="{y - 9:.0f}" width="{bw:.1f}" height="18" rx="3.5" '
+                   f'fill="#2f7d54" fill-opacity="0.75"/>')
+        # риска медианы
+        svg.append(f'<rect x="{px(med) - 1.3:.1f}" y="{y - 12:.0f}" width="2.6" height="24" fill="#1d2433"/>')
         svg.append(f'<text x="{W - MR + 10:.0f}" y="{y + 4:.0f}" font-size="12.5" fill="#66707f">'
                    f'медиана {med:.2f} · макс {vals[-1]:.2f}</text>')
     svg.append("</svg>")
@@ -619,9 +623,10 @@ def stability_html(models) -> str:
         'разброс балла одного и того же вопроса между прогонами серии. '
         'Только серии с несколькими прогонами (локальные, 3–5 прогонов).</p>'
         + strip +
-        '<p class=sub>Точка это вопрос, риска это медиана, линия это размах от минимального '
-        'до максимального расхождения. У самых постоянных серий медиана 0.05–0.08 балла, '
-        'но почти в каждой серии есть вопросы, гуляющие на балл и больше.</p>'
+        '<p class=sub>Свеча это распределение вопросов серии: тело охватывает половину вопросов '
+        'в середине распределения (между квартилями), усы ведут к минимальному и максимальному '
+        'расхождению, тёмная риска это медиана. У самых постоянных серий медиана 0.05–0.08 '
+        'балла, но почти у каждой есть вопросы, гуляющие на балл и больше.</p>'
         + radar +
         '<p class=sub>Радар показывает те же расхождения, усреднённые по темам интервью: '
         '<span style="color:#2f7d54">■ зелёный это лучшая серия темы</span>, '
