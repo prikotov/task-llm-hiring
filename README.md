@@ -32,7 +32,9 @@ YandexGPT через родные API, DeepSeek через родной API.
 |---|---|
 | `interview/roles/backend/questions.json` | вопросник бэкендера (v2); старые версии рядом как `questions.vN.json` |
 | `interview/runner*.py` | раннеры собесов: ollama, OpenRouter, родные API (GigaChat, YandexGPT, DeepSeek) |
-| `interview/judge*.py` | судьи: clef (ярус 1), GLM-5.3-Flash (ярус 2), сравнение decision-моделей |
+| `interview/score.py` | оценка ярусом 1: балл, галлюцинации и эскалация, одним запросом на ответ |
+| `interview/judge_glm.py` | судья яруса 2: GLM-5.3-Flash с проверкой фактов кодом |
+| `interview/judge*.py` | эксперименты сравнения decision-моделей; `judge_openrouter.py` deprecated (пробный путь, не развивается; провайдеры — в score.py) |
 | `interview/rubrics/backend/` | карточки эталонов судьи по вопросам |
 | `interview/build_report.py` | сборка итогового отчёта из сырых данных |
 | `<модель>/backend/run-XX/` | протоколы собесов: `session.json` (messages, thinking, тайминги) и `transcript.md` |
