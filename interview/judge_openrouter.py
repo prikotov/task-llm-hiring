@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """Судейство ответов собеса внешними decision-моделями через OpenRouter.
 
+Транспортный адаптер к score.py: формулировки всех вопросов и state общие
+(импортируются из score.py), своё здесь только облако. Путь закрыт
+исследованием (reports/COMPARE-jev.md: локальный clef не хуже, траты
+не обоснованы), скрипт оставлен для воспроизводимости серий §7.
+
 POST https://openrouter.ai/api/alpha/decisions (Decisions API, формат как у
 нашего /v1/systemone: state + карта вопросов noul/score). Один запрос на ответ,
 все вопросы сразу: quality (score 0-4), hallucination (noul) + 7 метрик
-(judge_metrics) + 3 эскалационных (score.py --escalate). Формулировки идентичны
-локальным скриптам — результаты сравнимы с сериями clef/clef-flash.
+(judge_metrics) + 3 эскалационных. Формулировки идентичны локальному score.py.
 
 Доступ: домашний IP заблокирован WAF OpenRouter, поэтому запросы идут через
 прокси (curl). Ключ: env OPENROUTER_KEY_FILE (путь к файлу с ключом).
@@ -31,11 +35,13 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from score import build_tasks, SCORE_CRITERIA
+from score import build_tasks, build_state, QUESTIONS
+
+# Транспортный адаптер: формулировки вопросов и state общие с score.py,
+# своё здесь только облако (прокси, ключ, бюджет, usage) и формат выходов.
+BASIC_KEYS = ("quality", "hallucination")
+ESCALATION_KEYS = ("need_review", "unsure", "factcheck_zone")
 from judge_metrics import METRICS
-from score import QUESTIONS as ALL_QUESTIONS
-ESCALATION = {k: v for k, v in ALL_QUESTIONS.items()
-               if k in ('need_review', 'unsure', 'factcheck_zone')}
 
 API_URL = "https://openrouter.ai/api/alpha/decisions"
 
@@ -55,16 +61,9 @@ ESCALATION_COLS = ["question", "need_review", "unsure", "factcheck_zone"]
 
 
 def build_questions() -> dict:
-    q = {
-        "quality": {"type": "score",
-                    "instructions": "Оцени качество ответа кандидата на вопрос собеседования",
-                    "criteria": SCORE_CRITERIA},
-        "hallucination": {"type": "noul",
-                          "instructions": "Содержит ли ответ выдуманные факты, несуществующие API/классы/методы или фальшивые источники?",
-                          "criteria": {"false": "Выдуманного нет", "true": "Есть выдуманные факты, API или источники"}},
-    }
+    q = {k: QUESTIONS[k] for k in BASIC_KEYS}
     q.update(METRICS)
-    q.update(ESCALATION)
+    q.update({k: QUESTIONS[k] for k in ESCALATION_KEYS})
     return q
 
 
@@ -85,9 +84,8 @@ def call_curl(model: str, state: str, questions: dict, key: str, proxy: str,
 
 
 def ask(model: str, task: dict, questions: dict, key: str, proxy: str,
-        timeout: int, retries: int = 5) -> tuple:
-    state = (f"Вопрос технического собеседования PHP/Symfony/Doctrine/PostgreSQL/DDD-разработчика:\n"
-             f"{task['question']}\n\nОТВЕТ КАНДИДАТА:\n{task['answer']}")
+         timeout: int, retries: int = 5) -> tuple:
+    state = build_state(task)
     last_err = ""
     for attempt in range(retries):
         code, body = call_curl(model, state, questions, key, proxy, timeout)
@@ -116,7 +114,7 @@ def parse_row(task_id: str, answers: dict) -> dict:
         spec = METRICS[k]
         d[k] = val(k, "noul" if spec["type"] == "noul" else "score")
     e = {"question": task_id,
-         **{k: val(k, "noul") for k in ESCALATION}}
+         **{k: val(k, "noul") for k in ESCALATION_KEYS}}
     return d, e
 
 
