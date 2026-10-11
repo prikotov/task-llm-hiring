@@ -57,10 +57,9 @@ YandexGPT через родные API, DeepSeek через родной API.
 python3 interview/runner.py --questions interview/roles/backend/questions.json \
     --model qwen3.8:27b --runs 5
 
-# оценка ярусом 1: decision-модель clef по протоколу прогона (балл и галлюцинации)
+# оценка ярусом 1: decision-модель clef по протоколу прогона,
+# одним запросом на ответ: балл, галлюцинации и эскалационные признаки
 python3 interview/score.py --run qwen3.8/backend/run-01 --judge clef
-# и эскалационные вопросы по тому же прогону (need_review)
-python3 interview/score.py --run qwen3.8/backend/run-01 --escalate
 ```
 
 Судья яруса 2 (GLM-5.3-Flash) запускается скриптом `interview/judge_glm.py`

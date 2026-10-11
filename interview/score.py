@@ -4,17 +4,19 @@
 clef не судья, а оценщик: проставляет балл и вероятности; судья — ярус 2
 (judge_glm.py, LLM с проверкой фактов запуском кода).
 
-Два режима, каждый ответ оценивается изолированно (state = вопрос + ответ
-кандидата; follow-up с контекстом родительского вопроса):
-- по умолчанию: балл 0–4 по критериям шкалы + вероятность галлюцинаций
-  → <модель>/<роль>/judgments/<judge>/<run>.json
-- --escalate: вопросы эскалации отдельным вызовом по каждому ответу
-  (need_review, unsure, factcheck_zone)
-  → <модель>/<роль>/judgments/escalation-<judge>-<run>.csv
+Один запрос на каждый ответ (state = вопрос + ответ кандидата; follow-up с
+контекстом родительского вопроса), пять вопросов сразу:
+quality (балл 0–4), hallucination, need_review, unsure, factcheck_zone.
+Выходы:
+- <модель>/<роль>/judgments/<judge>/<run>.json — балл и вероятность галлюцинаций
+- <модель>/<роль>/judgments/escalation-<judge>-<run>.csv — эскалационные признаки
 
-Примеры:
+Историческая справка: в исследовании (октябрь 2026) оценка и эскалация шли
+двумя раздельными вызовами (judge.py + judge_escalation.py); объединение в
+один запрос — методология после отчёта.
+
+Пример:
     python3 score.py --run ../ornith-1.5-35b/backend/run-06 --judge clef
-    python3 score.py --run ../ornith-1.5-9b/backend/run-01 --escalate
 """
 
 import argparse
@@ -35,7 +37,21 @@ SCORE_CRITERIA = [
     "4 — экспертный: верно и глубоко, с нюансами, типовыми ошибками и границами применимости",
 ]
 
-ESCALATION_QUESTIONS = {
+QUESTIONS = {
+    "quality": {
+        "type": "score",
+        "instructions": "Оцени качество ответа кандидата на вопрос собеседования",
+        "criteria": SCORE_CRITERIA,
+    },
+    "hallucination": {
+        "type": "noul",
+        "instructions": ("Содержит ли ответ выдуманные факты, несуществующие "
+                         "API/классы/методы или фальшивые источники?"),
+        "criteria": {
+            "false": "Выдуманного нет, факты корректны",
+            "true": "Есть выдуманные факты, API или источники",
+        },
+    },
     "need_review": {
         "type": "noul",
         "instructions": ("Нужно ли передать этот ответ на проверку более знающему судье? "
@@ -44,17 +60,20 @@ ESCALATION_QUESTIONS = {
                          "статистика, внутренности реализаций), или если ты не уверен, "
                          "что сам можешь верно оценить этот ответ."),
         "criteria": {"false": "Проверка старшей моделью не нужна: всё проверено мной уверенно",
-                     "true": "Нужна проверка старшей моделью"}},
+                     "true": "Нужна проверка старшей моделью"},
+    },
     "unsure": {
         "type": "noul",
         "instructions": "Есть ли у тебя неуверенность в том, что ты верно понимаешь правильность этого ответа?",
-        "criteria": {"false": "Уверен в оценке", "true": "Есть неуверенность"}},
+        "criteria": {"false": "Уверен в оценке", "true": "Есть неуверенность"},
+    },
     "factcheck_zone": {
         "type": "noul",
         "instructions": ("Содержит ли ответ утверждения, которые нельзя оценить без "
                          "сверки с документацией или запуска кода?"),
         "criteria": {"false": "Нет, всё оцениваемо по общим знаниям",
-                     "true": "Да, есть такие утверждения"}},
+                     "true": "Да, есть такие утверждения"},
+    },
 }
 
 
@@ -76,55 +95,32 @@ def build_tasks(session: dict) -> list:
     return tasks
 
 
+def score_task(judge_model: str, task: dict, timeout: int) -> dict:
+    """Один вызов: балл, галлюцинации и эскалационные признаки."""
+    state = (f"Ты оцениваешь ответ кандидата на техническом собеседовании "
+             f"PHP/Symfony/Doctrine/PostgreSQL/DDD-разработчика.\n\n"
+             f"ВОПРОС:\n{task['question']}\n\nОТВЕТ КАНДИДАТА:\n{task['answer']}")
+    r = post_systemone({"model": judge_model, "state": state,
+                        "questions": QUESTIONS}, timeout)
+    a = r["answers"]
+    noul = lambda k: round(a[k].get("noul", -1), 3) if k in a else -1
+    return {
+        "id": task["id"], "kind": task["kind"],
+        "score": round(a["quality"].get("score", -1), 2),
+        "score_confidence": a["quality"].get("confidence"),
+        "hallucination_p": noul("hallucination"),
+        "need_review": noul("need_review"),
+        "unsure": noul("unsure"),
+        "factcheck_zone": noul("factcheck_zone"),
+    }
+
+
 def post_systemone(payload: dict, timeout: int) -> dict:
     req = urllib.request.Request(
         f"{BASE_URL}/v1/systemone",
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
         headers={"Content-Type": "application/json"})
     return json.loads(urllib.request.urlopen(req, timeout=timeout).read())
-
-
-def score_task(judge_model: str, task: dict, timeout: int) -> dict:
-    state = (f"Ты оцениваешь ответ кандидата на техническом собеседовании "
-             f"PHP/Symfony/Doctrine/PostgreSQL/DDD-разработчика.\n\n"
-             f"ВОПРОС:\n{task['question']}\n\nОТВЕТ КАНДИДАТА:\n{task['answer']}")
-    payload = {
-        "model": judge_model,
-        "state": state,
-        "questions": {
-            "quality": {
-                "type": "score",
-                "instructions": "Оцени качество ответа кандидата на вопрос собеседования",
-                "criteria": SCORE_CRITERIA,
-            },
-            "hallucination": {
-                "type": "noul",
-                "instructions": ("Содержит ли ответ выдуманные факты, несуществующие "
-                                 "API/классы/методы или фальшивые источники?"),
-                "criteria": {
-                    "false": "Выдуманного нет, факты корректны",
-                    "true": "Есть выдуманные факты, API или источники",
-                },
-            },
-        },
-    }
-    r = post_systemone(payload, timeout)
-    a = r["answers"]
-    return {
-        "id": task["id"], "kind": task["kind"],
-        "score": round(a["quality"].get("score", -1), 2),
-        "score_confidence": a["quality"].get("confidence"),
-        "hallucination_p": round(a["hallucination"].get("noul", -1), 3),
-    }
-
-
-def escalate_task(judge_model: str, task: dict, timeout: int) -> dict:
-    state = (f"Вопрос технического собеседования PHP/Symfony/Doctrine/PostgreSQL/DDD:\n"
-             f"{task['question']}\n\nОТВЕТ КАНДИДАТА:\n{task['answer']}")
-    r = post_systemone({"model": judge_model, "state": state,
-                        "questions": ESCALATION_QUESTIONS}, timeout)
-    return {"question": task["id"],
-            **{k: round(v.get("noul", -1), 3) for k, v in r["answers"].items()}}
 
 
 def main() -> int:
@@ -134,8 +130,6 @@ def main() -> int:
     p.add_argument("--run", required=True, help="папка прогона с session.json")
     p.add_argument("--judge", default="clef",
                    help="decision-модель-оценщик (clef/clef-flash)")
-    p.add_argument("--escalate", action="store_true",
-                   help="вопросы эскалации вместо оценки балла (need_review и др.)")
     p.add_argument("--base-url", default=BASE_URL)
     p.add_argument("--timeout", type=int, default=600)
     p.add_argument("--limit", type=int, default=None)
@@ -152,11 +146,9 @@ def main() -> int:
     t0 = time.monotonic()
     for i, task in enumerate(tasks, 1):
         try:
-            fn = escalate_task if args.escalate else score_task
-            r = fn(args.judge, task, args.timeout)
+            r = score_task(args.judge, task, args.timeout)
         except Exception as e:
-            key = "question" if args.escalate else "id"
-            r = {key: task["id"], "kind": task.get("kind"), "error": str(e)[:200]}
+            r = {"id": task["id"], "kind": task.get("kind"), "error": str(e)[:200]}
         results.append(r)
         if i % 10 == 0 or i == len(tasks):
             print(f"  {i}/{len(tasks)} ({time.monotonic()-t0:.0f}s)", flush=True)
@@ -164,25 +156,24 @@ def main() -> int:
     # Результаты лежат у модели: <models-root>/<модель>/<роль>/judgments/
     out_dir = run_dir.parent / "judgments"
     out_dir.mkdir(parents=True, exist_ok=True)
-    if args.escalate:
-        out = out_dir / f"escalation-{args.judge}-{run_dir.name}.csv"
-        with open(out, "w", newline="", encoding="utf-8-sig") as f:
-            w = csv.DictWriter(f, fieldnames=["question", "need_review", "unsure",
-                                              "factcheck_zone", "error"],
-                               extrasaction="ignore")
-            w.writeheader()
-            w.writerows(results)
-    else:
-        out = out_dir / args.judge / f"{run_dir.name}.json"
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(json.dumps({
-            "judge": args.judge, "run": str(run_dir), "model": session["model"],
-            "judged_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
-            "results": results}, ensure_ascii=False, indent=2))
+    jout = out_dir / args.judge / f"{run_dir.name}.json"
+    jout.parent.mkdir(parents=True, exist_ok=True)
+    jout.write_text(json.dumps({
+        "judge": args.judge, "run": str(run_dir), "model": session["model"],
+        "judged_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "results": results}, ensure_ascii=False, indent=2))
+    eout = out_dir / f"escalation-{args.judge}-{run_dir.name}.csv"
+    with open(eout, "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.DictWriter(f, fieldnames=["question", "need_review", "unsure",
+                                          "factcheck_zone", "error"],
+                           extrasaction="ignore")
+        w.writeheader()
+        w.writerows({"question": r["id"], **r} for r in results)
 
-    ok = [r for r in results if "error" not in r and ("score" in r or "need_review" in r)]
-    print(f"готово: {out}")
-    if ok and not args.escalate:
+    ok = [r for r in results if "error" not in r]
+    print(f"готово: {jout}")
+    print(f"       : {eout}")
+    if ok:
         avg = sum(r["score"] for r in ok) / len(ok)
         print(f"оценено {len(ok)}/{len(results)}, средний балл {avg:.2f}")
     return 0
