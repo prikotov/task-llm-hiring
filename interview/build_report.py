@@ -1007,22 +1007,23 @@ DeepSeek, GigaChat и YandexGPT через родные API провайдеро
 (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/rubrics/backend/Q01.md">пример
 карточки</a>). Сама оценка идёт в три яруса, от дешёвых проверок к дорогим.</p>
 <div class=flow>
-<div class=step><b>Ярус 0: эмбеддинги bge-m3</b>бесплатно: близость к ответам SOTA-эталонов (Opus 5.5, GPT-6.1 Sol). Ниже 0.78 вердикт «плохо» без судьи.</div>
+<div class=step><b>Ярус 0: эмбеддинги bge-m3</b>дёшево и быстро: близость к ответам SOTA-эталонов (Opus 5.5, GPT-6.1 Sol). Ниже 0.78 вердикт «плохо» без судьи.</div>
 <div class=arrow>→</div>
-<div class=step><b>Ярус 1: clef, decision-модель</b>локально и бесплатно: балл, вероятность галлюцинаций, самоотчёт о зоне незнания (need_review).</div>
+<div class=step><b>Ярус 1: clef, decision-модель</b>локально, дёшево и быстро: балл, вероятность галлюцинаций, самоотчёт о зоне незнания (need_review).</div>
 <div class=arrow>→</div>
 <div class="step hot"><b>Ярус 2: GLM-5.3-Flash</b>только по триггеру: изолированный судья на ответ, факты проверяет запуском кода.</div>
 </div>
 <p>Ярус 0
 (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/embed_compare.py">embed_compare.py</a>)
-отсеивает дно бесплатно: эмбеддинги bge-m3 меряют близость ответа к ответам
-SOTA-эталонов (Opus 5.5, GPT-6.1 Sol), ниже 0.78 вердикт «плохо» без судьи.
-Ярус 1 (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/judge.py">judge.py</a>)
+отсеивает дно дёшево и быстро: эмбеддинги bge-m3 меряют близость ответа к
+ответам SOTA-эталонов (Opus 5.5, GPT-6.1 Sol), ниже 0.78 вердикт «плохо»
+без судьи.</p>
+<p>Ярус 1 (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/judge.py">judge.py</a>)
 судит каждый ответ изолированно: decision-модель clef получает вопрос и ответ
 кандидата, ставит балл 0–4 по критериям шкалы и вероятность галлюцинаций,
 а добавочный вопрос «нужен ли более знающий судья?» даёт признак need_review
-(<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/judge_escalation.py">judge_escalation.py</a>).
-Ярус 2 (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/judge_glm.py">judge_glm.py</a>)
+(<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/judge_escalation.py">judge_escalation.py</a>).</p>
+<p>Ярус 2 (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/judge_glm.py">judge_glm.py</a>)
 подключается по триггеру: need_review &gt; 0.3 или p-галлюцинаций &gt; 0.3
 (эскалация 41% при точности 83% и полноте 82% на размеченном корпусе). Судья
 GLM-5.3-Flash запускается изолированно на один вопрос-ответ, с якорями
@@ -1122,7 +1123,7 @@ GLM-5.3-Flash запускается изолированно на один во
 <tr><td>clef-flash 9B</td><td>дешёвый первый экран</td><td><b>Отклонён как оценщик</b>: corr 0.06–0.09 с судьёй GLM-5.3-Flash; годится только на грубые бинарные признаки</td></tr>
 <tr><td>clef bf16 (облако)</td><td>вдруг квантование портит?</td><td><b>Не нужно</b>: идентичен локальному Q4 (corr 0.98–0.99); облако к тому же режет контекст судьи до 2K токенов</td></tr>
 <tr><td>Jev 1.13 (typesafe)</td><td>лидер внешних бенчей decision-моделей</td><td><b>Проиграл</b> в PHP-домене: corr 0.51, AUC 0.89, 4 из 10 ошибок, эскалация перегрета (медиана 0.54). Согласуется с внешним бенчем, где Clef победил колонку Programming</td></tr>
-<tr><td>bge-m3 (эмбеддинги)</td><td>бесплатная замена судье</td><td><b>Только фильтр дна</b>: ниже 0.78 близости к SOTA плохой ответ; но тема ≠ истинность, галлюцинация на нужную тему «похожа» на правду больше безупречного ответа</td></tr>
+<tr><td>bge-m3 (эмбеддинги)</td><td>дешёвая и быстрая замена судье</td><td><b>Только фильтр дна</b>: ниже 0.78 близости к SOTA плохой ответ; но тема ≠ истинность, галлюцинация на нужную тему «похожа» на правду больше безупречного ответа</td></tr>
 <tr><td>mxbai / e5 / nomic</td><td>альтернативы яруса 0</td><td>mxbai непригоден (corr 0.13–0.25), e5 сжимает диапазон (контекст 512; инструкции и чанкинг не помогли), nomic запасной</td></tr>
 <tr><td>GLM-5.3-Flash low / max</td><td>судья GLM-5.3-Flash (ярус 2)</td><td><b>Оба приняты с ролями</b>: low для рутины (97% совпадений с max в ±1, −70% токенов), max для финальных вердиктов (ловит тонкие фабрикации, low теряет ~17% из них)</td></tr>
 </table>
