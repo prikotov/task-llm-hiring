@@ -570,53 +570,59 @@ def stability_html(models) -> str:
     svg.append("</svg>")
     strip = "".join(svg)
 
-    # --- радар: расхождения по темам интервью, лучший и худший ---
+    # --- радары по моделям: средний размах ответов по темам ---
     SECMAP = {"PHP 8": "PHP 8", "ООП и принципы": "ООП", "Symfony": "Symfony",
               "Doctrine": "Doctrine", "PostgreSQL": "PostgreSQL",
               "DDD": "DDD и чистая арх.", "Чистая архитектура": "DDD и чистая арх.",
               "Тестирование": "Тесты и конкурент.", "Конкурентность": "Тесты и конкурент.",
-              "Git и процесс": "Git", "Провокации": "Провокации"}
+              "Git и процесс": "Git", "Провокации": "Провокации",
+              "Мини-код-ревью": "Мини-код-ревью"}
+    SHORT = {"PHP 8": "PHP 8", "ООП": "ООП", "Symfony": "Symfony", "Doctrine": "Doctrine",
+             "PostgreSQL": "Postgres", "DDD и чистая арх.": "DDD",
+             "Тесты и конкурент.": "Тесты", "Git": "Git", "Провокации": "Провок.",
+             "Мини-код-ревью": "Ревью"}
     qs = json.loads((ROOT / "interview" / "roles" / "backend" / "questions.json").read_text())["questions"]
     qsec = {q["id"]: q["section"] for q in qs}
-    by_topic = {}
+    per_series = []
     for s in series:
         acc = {}
         for q, r in s["rng"].items():
-            base_q = q.split(".")[0]
-            topic = SECMAP.get(qsec.get(base_q, "?"), qsec.get(base_q, "?"))
+            topic = SECMAP.get(qsec.get(q.split(".")[0], "?"), "?")
             acc.setdefault(topic, []).append(r)
-        for topic, vs in acc.items():
-            by_topic.setdefault(topic, []).append(sum(vs) / len(vs))
-    topics = sorted(by_topic, key=lambda k: -max(by_topic[k]))
-    rmax = max(0.2, math.ceil(max(max(v) for v in by_topic.values()) * 10) / 10)
-    RW, RHt = 620, 560
-    cx, cy, R = RW / 2, RHt / 2 + 4, 170
+        per_series.append({topic: sum(v) / len(v) for topic, v in acc.items()})
+    topics = sorted(per_series[0], key=lambda k: -sum(p.get(k, 0) for p in per_series))
+    rmax = max(0.2, math.ceil(max(v for p in per_series for v in p.values()) * 10) / 10)
+    RW, RHt, R = 300, 288, 92
+    cx, cy = RW / 2, RHt / 2 + 12
     pt = lambda i, r: (cx + r * math.cos(math.pi * 2 * i / len(topics) - math.pi / 2),
                        cy + r * math.sin(math.pi * 2 * i / len(topics) - math.pi / 2))
-    rr = lambda v: R * v / rmax
-    rsvg = [f'<svg viewBox="0 0 {RW} {RHt}" style="width:100%;max-width:{RW}px;font-family:inherit">']
-    for f in (0.25, 0.5, 0.75, 1.0):
-        pts = " ".join(f"{pt(i, R * f)[0]:.1f},{pt(i, R * f)[1]:.1f}" for i in range(len(topics)))
-        rsvg.append(f'<polygon points="{pts}" fill="none" stroke="#e4e7ec"/>')
-        rsvg.append(f'<text x="{cx + 4:.0f}" y="{cy - R * f + 4:.0f}" font-size="10.5" fill="#9aa3ad">{rmax * f:.1f}</text>')
-    for i, topic in enumerate(topics):
-        x, y = pt(i, R)
-        rsvg.append(f'<line x1="{cx:.0f}" y1="{cy:.0f}" x2="{x:.1f}" y2="{y:.1f}" stroke="#e4e7ec"/>')
-        lx, ly = pt(i, R + 26)
-        anc = "middle" if abs(lx - cx) < 12 else ("start" if lx > cx else "end")
-        rsvg.append(f'<text x="{lx:.1f}" y="{ly + 4:.0f}" text-anchor="{anc}" font-size="12.5" fill="#1d2433" '
-                    f'stroke="#fafbfc" stroke-width="3" paint-order="stroke">{topic}</text>')
-    for vals, color in (([max(v) for v in by_topic.values()], "#b3543f"),
-                        ([min(v) for v in by_topic.values()], "#2f7d54")):
-        pts = " ".join(f"{pt(i, rr(v))[0]:.1f},{pt(i, rr(v))[1]:.1f}" for i, v in enumerate(vals))
-        rsvg.append(f'<polygon points="{pts}" fill="{color}" fill-opacity="0.15" stroke="{color}" stroke-width="2"/>')
+    cards = []
+    for s, pmeans in zip(series, per_series):
+        rsvg = [f'<svg viewBox="0 0 {RW} {RHt}" style="width:100%;max-width:{RW}px;font-family:inherit">',
+                f'<text x="{cx:.0f}" y="18" text-anchor="middle" font-size="13.5" font-weight="600" '
+                f'fill="#1d2433">{s["label"]}</text>']
+        for f in (0.5, 1.0):
+            pts = " ".join(f"{pt(i, R * f)[0]:.1f},{pt(i, R * f)[1]:.1f}" for i in range(len(topics)))
+            rsvg.append(f'<polygon points="{pts}" fill="none" stroke="#e4e7ec"/>')
+        rsvg.append(f'<text x="{cx + 4:.0f}" y="{cy - R + 3:.0f}" font-size="10" fill="#9aa3ad">{rmax * 0.5:.1f}</text>')
+        for i, topic in enumerate(topics):
+            x, y = pt(i, R)
+            rsvg.append(f'<line x1="{cx:.0f}" y1="{cy:.0f}" x2="{x:.1f}" y2="{y:.1f}" stroke="#e4e7ec"/>')
+            lx, ly = pt(i, R + 15)
+            anc = "middle" if abs(lx - cx) < 12 else ("start" if lx > cx else "end")
+            rsvg.append(f'<text x="{lx:.1f}" y="{ly + 3:.0f}" text-anchor="{anc}" font-size="10.5" '
+                        f'fill="#1d2433" stroke="#fafbfc" stroke-width="3" paint-order="stroke">{SHORT.get(topic, topic)}</text>')
+        vals = [pmeans.get(topic, 0) for topic in topics]
+        pts = " ".join(f"{pt(i, R * v / rmax)[0]:.1f},{pt(i, R * v / rmax)[1]:.1f}" for i, v in enumerate(vals))
+        rsvg.append(f'<polygon points="{pts}" fill="#2f7d54" fill-opacity="0.16" stroke="#2f7d54" stroke-width="2"/>')
         for i, v in enumerate(vals):
-            x, y = pt(i, rr(v))
-            rsvg.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3.4" fill="{color}"/>')
-    rsvg.append("</svg>")
-    radar = "".join(rsvg)
+            x, y = pt(i, R * v / rmax)
+            rsvg.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3" fill="#2f7d54"/>')
+        rsvg.append("</svg>")
+        cards.append(f'<div class=scard>{"".join(rsvg)}</div>')
+    radar = '<div class=sgrid>' + "".join(cards) + "</div>"
 
-    worst = max(by_topic, key=lambda k: max(by_topic[k]))
+    worst = max(topics, key=lambda k: sum(pm.get(k, 0) for pm in per_series) / len(per_series))
     return (
         '<h3>Постоянство ответов</h3>'
         '<p class=lead>Насколько модель отвечает одинаково от прогона к прогону: '
@@ -628,10 +634,9 @@ def stability_html(models) -> str:
         'расхождению, тёмная риска это медиана. У самых постоянных серий медиана 0.05–0.08 '
         'балла, но почти у каждой есть вопросы, гуляющие на балл и больше.</p>'
         + radar +
-        '<p class=sub>Радар показывает те же расхождения, усреднённые по темам интервью: '
-        '<span style="color:#2f7d54">■ зелёный это лучшая серия темы</span>, '
-        '<span style="color:#b3543f">■ красный худшая</span>. '
-        f'Наименее воспроизводимая тема почти во всех сериях — {worst.lower()}.</p>')
+        '<p class=sub>Каждый радар это одна серия: луч темы показывает средний размах её '
+        'ответов в этой теме, шкала едина для всех радаров (до {rmax:.1f} балла). '
+        f'Наименее воспроизводимая тема почти у всех серий — {worst.lower()}.</p>')
 
 
 def self_assessment_html(models) -> str:
