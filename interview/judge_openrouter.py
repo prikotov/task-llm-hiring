@@ -8,8 +8,8 @@ POST https://openrouter.ai/api/alpha/decisions (Decisions API, формат ка
 локальным скриптам — результаты сравнимы с сериями clef/clef-flash.
 
 Доступ: домашний IP заблокирован WAF OpenRouter, поэтому запросы идут через
-прокси (curl). Ключ: ~/.config/models-research/openrouter.key (вне workspace).
-Прокси: ~/.config/models-research/proxy или env OPENROUTER_PROXY.
+прокси (curl). Ключ: env OPENROUTER_KEY_FILE (путь к файлу с ключом).
+Прокси: env OPENROUTER_PROXY (адрес) или OPENROUTER_PROXY_FILE (файл с адресом).
 
 Вывод (в папке модели, как у остальных судей):
     <run>/../judgments/decision-<name>-<run>.csv
@@ -36,7 +36,15 @@ from judge_metrics import METRICS
 from judge_escalation import QUESTIONS as ESCALATION
 
 API_URL = "https://openrouter.ai/api/alpha/decisions"
-CFG_DIR = Path.home() / ".config" / "models-research"
+
+
+def read_secret(env_name: str) -> str:
+    """Читает файл по пути из env (ключи и адрес прокси в git не живут)."""
+    path = os.environ.get(env_name)
+    if not path:
+        raise RuntimeError(f"задайте {env_name} — путь к файлу с секретом "
+                           "(вне workspace; где лежит — см. локальный AGENTS.md)")
+    return Path(path).read_text().strip()
 
 DECISION_COLS = ["question", "score", "conf", "hall_p",
                  "has_code", "structured", "depth", "names_api",
@@ -119,9 +127,8 @@ def main() -> int:
     p.add_argument("--max-cost", type=float, default=2.0, help="стоп по бюджету, $")
     args = p.parse_args()
 
-    key = (CFG_DIR / "openrouter.key").read_text().strip()
-    proxy = os.environ.get("OPENROUTER_PROXY",
-                           (CFG_DIR / "proxy").read_text().strip())
+    key = read_secret("OPENROUTER_KEY_FILE")
+    proxy = os.environ.get("OPENROUTER_PROXY") or read_secret("OPENROUTER_PROXY_FILE")
     questions = build_questions()
 
     run_dir = Path(args.run)

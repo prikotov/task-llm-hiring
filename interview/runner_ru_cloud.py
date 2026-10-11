@@ -2,8 +2,8 @@
 """Раннер собеса для российских облаков: GigaChat (Сбер) и YandexGPT (Яндекс).
 
 Протокол тот же (один чат, только messages, без system prompt). Ключи
-читаются напрямую из ~/MyProjects/TasK/Development/.env.dev.local —
-хозяин ключей тот же; в workspace ключи не копируем.
+читаются из env-файла, путь задаётся переменной MODELS_RU_ENV (файл вне
+workspace — внутренние пути в git не живут, см. локальный AGENTS.md).
 
 Провайдеры:
   gigachat: OAuth (Basic-ключ → access_token, ~30 мин), модели GigaChat-2-Max…
@@ -31,7 +31,7 @@ from runner import (INTERVIEWER_FALLBACK, MAX_CLARIFICATIONS,
                     looks_like_clarification, slugify)
 from runner_openrouter import render_transcript, append_ledger, wait_cache_ttl
 
-TASK_ENV = Path.home() / "MyProjects" / "TasK" / "Development" / ".env.dev.local"
+TASK_ENV = os.environ.get("MODELS_RU_ENV")  # путь к env-файлу с ключами облаков
 
 GIGA_OAUTH = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
 # docs: с 16.07.2026 api.giga.chat — единый URL для физлиц и юрлиц;
@@ -49,11 +49,14 @@ TARIFFS = {"yandexfm": (1.2, 1.2, 1.2), "gigachat": None}
 # (api-docs.deepseek.com, октябрь 2026). Кэш автоматический, промпт-режим.
 TARIFFS_USD = {"deepseek": (0.30, 0.006, 1.20)}
 MAX_COST_USD = 5.0
-YANDEX_FOLDER = "b1gvln02oo3us3oomdfg"  # из TasK (совпадает с сервис-аккаунтом ключа)
+YANDEX_FOLDER = os.environ.get("YANDEXFM_FOLDER_ID", "")  # ID каталога Яндекса
 
 
 def env_value(name: str) -> str:
-    for line in TASK_ENV.read_text().splitlines():
+    if not TASK_ENV:
+        raise RuntimeError("задайте MODELS_RU_ENV — путь к env-файлу с ключами "
+                           "(вне workspace; где лежит — см. локальный AGENTS.md)")
+    for line in Path(TASK_ENV).read_text().splitlines():
         if line.startswith(name + "="):
             return line.split("=", 1)[1].strip()
     raise RuntimeError(f"{name} не найден в {TASK_ENV}")
@@ -372,6 +375,9 @@ def main() -> int:
     elif a.provider == "deepseek":
         prov, model = DeepSeek(a.effort), a.model or "deepseek-flash"
     else:
+        if not YANDEX_FOLDER:
+            raise RuntimeError("задайте YANDEXFM_FOLDER_ID — ID каталога Яндекса "
+                               "(см. локальный AGENTS.md)")
         prov, model = YandexFm(), a.model or f"gpt://{YANDEX_FOLDER}/yandexgpt/latest"
     _qdata = json.loads(Path(a.questions).read_text(encoding="utf-8"))
     q_version = _qdata.get("version") if isinstance(_qdata, dict) else None

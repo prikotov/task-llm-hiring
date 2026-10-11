@@ -29,10 +29,18 @@ from runner import (INTERVIEWER_FALLBACK, MAX_CLARIFICATIONS,
                     looks_like_clarification, slugify, resolve_out_root)
 
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
-CFG_DIR = Path.home() / ".config" / "models-research"
 SPEND_LEDGER = SCRIPT_DIR.parent / "reports" / "openrouter-spend.csv"
 LEDGER_COLS = ["date", "model", "purpose", "requests", "input_tokens",
                "output_tokens", "cost_usd"]
+
+
+def read_secret(env_name: str) -> str:
+    """Читает файл по пути из env (ключи и адрес прокси в git не живут)."""
+    path = os.environ.get(env_name)
+    if not path:
+        raise RuntimeError(f"задайте {env_name} — путь к файлу с секретом "
+                           "(вне workspace; где лежит — см. локальный AGENTS.md)")
+    return Path(path).read_text().strip()
 
 
 def call_openrouter(payload: dict, key: str, proxy: str, timeout: int) -> tuple:
@@ -317,9 +325,8 @@ def main() -> int:
     p.add_argument("--timeout", type=int, default=300)
     args = p.parse_args()
 
-    key = (CFG_DIR / "openrouter.key").read_text().strip()
-    proxy = os.environ.get("OPENROUTER_PROXY",
-                           (CFG_DIR / "proxy").read_text().strip())
+    key = read_secret("OPENROUTER_KEY_FILE")
+    proxy = os.environ.get("OPENROUTER_PROXY") or read_secret("OPENROUTER_PROXY_FILE")
     _qdata = json.loads(Path(args.questions).read_text(encoding="utf-8"))
     q_version = _qdata.get("version") if isinstance(_qdata, dict) else None
     questions = _qdata["questions"] if isinstance(_qdata, dict) else _qdata
