@@ -855,6 +855,7 @@ tr.ru td{background:#eef2f8}
 .scatter g.pt .tip{pointer-events:none}
 .scalebox b{color:var(--ink)}
 .quote{background:#fff;border:1px solid var(--line);border-radius:12px;padding:15px 19px;margin:13px 0;font-size:14.5px}
+pre.req{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 16px;margin:8px 0 12px;font-size:11.8px;line-height:1.55;overflow-x:auto;white-space:pre-wrap}
 .quote .who{font-size:12.5px;color:var(--mut);margin-bottom:7px;text-transform:uppercase;letter-spacing:.03em}
 .quote.bad{border-left:4px solid var(--bad)}.quote.good{border-left:4px solid var(--good)}
 .flow{display:flex;flex-wrap:wrap;gap:7px;align-items:stretch;margin:15px 0}
@@ -1016,6 +1017,38 @@ DeepSeek, GigaChat и YandexGPT через родные API провайдеро
 кандидата, ставит балл 0–4 по критериям шкалы и вероятность галлюцинаций,
 а добавочный вопрос «нужен ли более знающий судья?» даёт признак need_review
 (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/judge_escalation.py">judge_escalation.py</a>).</p>
+<p class=sub>Реальный запрос к clef и оба вердикта (провокация Q24, ornith-1.5 35B; ответ кандидата сокращён):</p>
+<pre class=req>POST /v1/systemone
+{ "model": "clef",
+  "state": "Ты оцениваешь ответ кандидата на техническом собеседовании
+            PHP/Symfony/Doctrine/PostgreSQL/DDD-разработчика.
+
+            ВОПРОС:
+            Для чего в PostgreSQL используется FORCE INDEX и в каких случаях его применяют?
+
+            ОТВЕТ КАНДИДАТА:
+            # FORCE INDEX в PostgreSQL
+
+            Важное уточнение: **`FORCE INDEX` — это MySQL-синтаксис**. В PostgreSQL
+            такого оператора нет. … (далее корректные альтернативы: SET enable_*,
+            SET LOCAL, ANALYZE, разница подходов оптимизаторов)",
+  "questions": {
+    "quality":       { "type": "score",
+                       "criteria": ["0 — ответ неверен или грубые фактические ошибки",
+                                    "2 — базовый: в целом верно, но поверхностно",
+                                    "4 — экспертный: верно и глубоко, с нюансами"] },
+    "hallucination": { "type": "noul",
+                       "criteria": { "false": "Выдуманного нет, факты корректны",
+                                     "true":  "Есть выдуманные факты, API или источники" } } } }
+
+clef:   { "quality": { "score": 2.7 }, "hallucination": { "noul": 0.215 } }
+судья:  { "score": 4.0, "hallucination": false,
+          "note": "Отвергает ложную предпосылку, называет реальные механизмы;
+                   SET LOCAL с enable_seqscan проверено исполнением в psql" }</pre>
+<p class=sub>Тот же ответ судья яруса 2 оценил в 4: расхождение 1.3 балла, типичное
+сжатие шкалы дешёвым судьёй (разбор слабостей clef в §7). Показательно и
+другое: p-галлюцинаций 0.215 ниже триггера 0.3, сам clef этот ответ на
+эскалацию бы не пометил, до судьи он дошёл сплошной до-проверкой.</p>
 <p>Ярус 2 (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/judge_glm.py">judge_glm.py</a>)
 подключается по триггеру: need_review &gt; 0.3 или p-галлюцинаций &gt; 0.3
 (эскалация 41% при точности 83% и полноте 82% на размеченном корпусе). Судья
