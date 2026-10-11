@@ -46,7 +46,7 @@ YandexGPT через родные API, DeepSeek через родной API.
 
 | Переменная | Что задаёт | Кто читает |
 |---|---|---|
-| `OLLAMA_BASE_URL` | адрес сервера ollama (дефолт `http://localhost:11434`) | `runner.py`, `judge.py`, `embed_compare.py` |
+| `OLLAMA_BASE_URL` | адрес сервера ollama (дефолт `http://localhost:11434`) | `runner.py`, `score.py`, `embed_compare.py` |
 | `MODELS_RU_ENV` | путь к env-файлу с ключами GigaChat/Яндекс/DeepSeek (`GIGACHAT_AUTHORIZATION_KEY`, `YANDEXFM_API_KEY`, `DEEPSEEK_API_KEY`) | `runner_ru_cloud.py` |
 | `YANDEXFM_FOLDER_ID` | ID каталога Яндекса для `gpt://<folder>/yandexgpt/latest` | `runner_ru_cloud.py` |
 | `OPENROUTER_KEY_FILE` | путь к файлу с ключом OpenRouter | `runner_openrouter.py`, `judge_openrouter.py` |
@@ -57,8 +57,10 @@ YandexGPT через родные API, DeepSeek через родной API.
 python3 interview/runner.py --questions interview/roles/backend/questions.json \
     --model qwen3.8:27b --runs 5
 
-# судья яруса 1: decision-модель clef по протоколу прогона
-python3 interview/judge.py --run qwen3.8/backend/run-01 --judge clef
+# оценка ярусом 1: decision-модель clef по протоколу прогона (балл и галлюцинации)
+python3 interview/score.py --run qwen3.8/backend/run-01 --judge clef
+# и эскалационные вопросы по тому же прогону (need_review)
+python3 interview/score.py --run qwen3.8/backend/run-01 --escalate
 ```
 
 Судья яруса 2 (GLM-5.3-Flash) запускается скриптом `interview/judge_glm.py`

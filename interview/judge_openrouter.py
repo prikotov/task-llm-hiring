@@ -4,7 +4,7 @@
 POST https://openrouter.ai/api/alpha/decisions (Decisions API, формат как у
 нашего /v1/systemone: state + карта вопросов noul/score). Один запрос на ответ,
 все вопросы сразу: quality (score 0-4), hallucination (noul) + 7 метрик
-(judge_metrics) + 3 эскалационных (judge_escalation). Формулировки идентичны
+(judge_metrics) + 3 эскалационных (score.py --escalate). Формулировки идентичны
 локальным скриптам — результаты сравнимы с сериями clef/clef-flash.
 
 Доступ: домашний IP заблокирован WAF OpenRouter, поэтому запросы идут через
@@ -31,9 +31,9 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from judge import build_tasks, SCORE_CRITERIA
+from score import build_tasks, SCORE_CRITERIA
 from judge_metrics import METRICS
-from judge_escalation import QUESTIONS as ESCALATION
+from score import ESCALATION_QUESTIONS as ESCALATION
 
 API_URL = "https://openrouter.ai/api/alpha/decisions"
 

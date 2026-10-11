@@ -1012,14 +1012,14 @@ DeepSeek, GigaChat и YandexGPT через родные API провайдеро
 <div class=arrow>→</div>
 <div class="step hot"><b>Ярус 2: GLM-5.3-Flash</b>только по триггеру: изолированный судья на ответ, факты проверяет запуском кода.</div>
 </div>
-<p>Ярус 1 (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/judge.py">judge.py</a>)
-судит каждый ответ изолированно: decision-модель clef получает вопрос и ответ
+<p>Ярус 1 (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/score.py">score.py</a>)
+оценивает каждый ответ изолированно: decision-модель clef получает вопрос и ответ
 кандидата, ставит балл 0–4 по критериям шкалы и вероятность галлюцинаций,
 а добавочный вопрос «нужен ли более знающий судья?» даёт признак need_review
-(<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/judge_escalation.py">judge_escalation.py</a>).
+(режим --escalate того же score.py).
 Оба вызова идут по каждому ответу без условий; условие появляется только на
 выходе: значения выше порога передают ответ ярусу 2.</p>
-<p class=sub><b>Запрос балла и галлюцинаций</b> (judge.py; провокация Q24, muse-glimmer 28B, ответ кандидата сокращён):</p>
+<p class=sub><b>Запрос балла и галлюцинаций</b> (score.py; провокация Q24, muse-glimmer 28B, ответ кандидата сокращён):</p>
 <pre class=req>POST /v1/systemone
 { "model": "clef",
   "state": "Ты оцениваешь ответ кандидата на техническом собеседовании
@@ -1046,7 +1046,7 @@ DeepSeek, GigaChat и YandexGPT через родные API провайдеро
 <p class=sub><b>Ответ clef:</b> noul это вероятность выдуманного от 0 до 1, не бинарный флаг.</p>
 <pre class=req>{ "answers": { "quality":      { "score": 3.43 },
                "hallucination": { "noul": 0.245 } } }</pre>
-<p class=sub><b>Запрос эскалации</b> (judge_escalation.py, отдельный вызов той же clef):</p>
+<p class=sub><b>Запрос эскалации</b> (score.py --escalate, отдельный вызов той же clef):</p>
 <pre class=req>POST /v1/systemone
 { "model": "clef",
   "state": "Вопрос технического собеседования PHP/Symfony/Doctrine/PostgreSQL/DDD:
