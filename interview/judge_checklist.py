@@ -14,7 +14,7 @@ import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from judge import BASE_URL
+from score import BASE_URL
 
 CHECKLISTS = json.load(open(Path(__file__).parent / 'rubrics/backend/checklists.json'))
 
