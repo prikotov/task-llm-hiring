@@ -506,6 +506,129 @@ document.querySelectorAll('svg.scatter g.pt').forEach(function (pt) {
             + '. Диаметр точки кодирует долю ответов с галлюцинациями (чем больше, тем грязнее). Ось Y обрезана от 1.5: моделей ниже не было.</p>')
 
 
+def stability_html(models) -> str:
+    """Постоянство ответов: разброс балла одного и того же вопроса между
+    прогонами серии (размах, 0–4) — распределение по моделям и по темам."""
+    import math, statistics
+    series = []
+    for m in models:
+        if len(m["runs"]) < 2:
+            continue
+        base = ROOT / m["folder"] / "backend" / "judgments"
+        per_q = {}
+        for run in m["runs"]:
+            d = {r["question"]: r for r in csv.DictReader(
+                open(base / f"decision-clef-{run}.csv", encoding="utf-8-sig"))}
+            for q, r in d.items():
+                if r.get("error") or q not in KNOW:
+                    continue
+                per_q.setdefault(q, []).append(float(r["score"]))
+        rng = {q: max(v) - min(v) for q, v in per_q.items() if len(v) > 1}
+        if len(rng) >= 10:
+            title = THINK_TITLE.get(m["series"], m["series"])
+            series.append({"label": f"{m['label']} ({title})", "rng": rng})
+    if len(series) < 2:
+        return ""
+    all_vals = [v for s in series for v in s["rng"].values()]
+
+    # --- полосовая диаграмма: распределение размахов по вопросам ---
+    xmax = max(0.75, math.ceil(max(all_vals) * 4) / 4)
+    W, ML, MR, MT, RH = 940, 232, 128, 26, 48
+    H = MT + RH * len(series) + 46
+    PW = W - ML - MR
+    px = lambda v: ML + PW * (v / xmax)
+    order = sorted(series, key=lambda s: statistics.median(s["rng"].values()))
+    svg = [f'<svg viewBox="0 0 {W} {H}" style="width:100%;max-width:{W}px;font-family:inherit">']
+    step = 0.25 if xmax <= 1.0 else 0.5
+    v = 0.0
+    while v <= xmax + 1e-9:
+        x = px(v)
+        svg.append(f'<line x1="{x:.0f}" y1="{MT - 6}" x2="{x:.0f}" y2="{H - 46}" stroke="#e4e7ec"/>'
+                   f'<text x="{x:.0f}" y="{H - 30}" text-anchor="middle" font-size="12" fill="#66707f">{v:.2f}</text>')
+        v = round(v + step, 2)
+    svg.append(f'<text x="{ML + PW / 2:.0f}" y="{H - 10}" text-anchor="middle" font-size="12.5" '
+               f'fill="#66707f">размах балла одного вопроса между прогонами, шкала 0–4</text>')
+    for i, s in enumerate(order):
+        y = MT + RH * i + RH / 2
+        vals = sorted(s["rng"].values())
+        med = statistics.median(vals)
+        svg.append(f'<text x="{ML - 10}" y="{y + 4:.0f}" text-anchor="end" font-size="13" '
+                   f'fill="#1d2433">{s["label"]}</text>')
+        svg.append(f'<line x1="{px(vals[0]):.1f}" y1="{y:.0f}" x2="{px(vals[-1]):.1f}" y2="{y:.0f}" '
+                   f'stroke="#aab3bf" stroke-width="2"/>')
+        for j, q in enumerate(sorted(s["rng"], key=lambda x: (s["rng"][x], x))):
+            dy = ((j * 37) % 13 - 6) * 0.85
+            svg.append(f'<circle cx="{px(s["rng"][q]):.1f}" cy="{y + dy:.1f}" r="3.2" '
+                       f'fill="#2f7d54" fill-opacity="0.5"/>')
+        svg.append(f'<rect x="{px(med) - 1.2:.1f}" y="{y - 11:.0f}" width="2.5" height="22" fill="#1d2433"/>')
+        svg.append(f'<text x="{W - MR + 10:.0f}" y="{y + 4:.0f}" font-size="12.5" fill="#66707f">'
+                   f'медиана {med:.2f} · макс {vals[-1]:.2f}</text>')
+    svg.append("</svg>")
+    strip = "".join(svg)
+
+    # --- радар: расхождения по темам интервью, лучший и худший ---
+    SECMAP = {"PHP 8": "PHP 8", "ООП и принципы": "ООП", "Symfony": "Symfony",
+              "Doctrine": "Doctrine", "PostgreSQL": "PostgreSQL",
+              "DDD": "DDD и чистая арх.", "Чистая архитектура": "DDD и чистая арх.",
+              "Тестирование": "Тесты и конкурент.", "Конкурентность": "Тесты и конкурент.",
+              "Git и процесс": "Git", "Провокации": "Провокации"}
+    qs = json.loads((ROOT / "interview" / "roles" / "backend" / "questions.json").read_text())["questions"]
+    qsec = {q["id"]: q["section"] for q in qs}
+    by_topic = {}
+    for s in series:
+        acc = {}
+        for q, r in s["rng"].items():
+            base_q = q.split(".")[0]
+            topic = SECMAP.get(qsec.get(base_q, "?"), qsec.get(base_q, "?"))
+            acc.setdefault(topic, []).append(r)
+        for topic, vs in acc.items():
+            by_topic.setdefault(topic, []).append(sum(vs) / len(vs))
+    topics = sorted(by_topic, key=lambda k: -max(by_topic[k]))
+    rmax = max(0.2, math.ceil(max(max(v) for v in by_topic.values()) * 10) / 10)
+    RW, RHt = 620, 560
+    cx, cy, R = RW / 2, RHt / 2 + 4, 170
+    pt = lambda i, r: (cx + r * math.cos(math.pi * 2 * i / len(topics) - math.pi / 2),
+                       cy + r * math.sin(math.pi * 2 * i / len(topics) - math.pi / 2))
+    rr = lambda v: R * v / rmax
+    rsvg = [f'<svg viewBox="0 0 {RW} {RHt}" style="width:100%;max-width:{RW}px;font-family:inherit">']
+    for f in (0.25, 0.5, 0.75, 1.0):
+        pts = " ".join(f"{pt(i, R * f)[0]:.1f},{pt(i, R * f)[1]:.1f}" for i in range(len(topics)))
+        rsvg.append(f'<polygon points="{pts}" fill="none" stroke="#e4e7ec"/>')
+        rsvg.append(f'<text x="{cx + 4:.0f}" y="{cy - R * f + 4:.0f}" font-size="10.5" fill="#9aa3ad">{rmax * f:.1f}</text>')
+    for i, topic in enumerate(topics):
+        x, y = pt(i, R)
+        rsvg.append(f'<line x1="{cx:.0f}" y1="{cy:.0f}" x2="{x:.1f}" y2="{y:.1f}" stroke="#e4e7ec"/>')
+        lx, ly = pt(i, R + 26)
+        anc = "middle" if abs(lx - cx) < 12 else ("start" if lx > cx else "end")
+        rsvg.append(f'<text x="{lx:.1f}" y="{ly + 4:.0f}" text-anchor="{anc}" font-size="12.5" fill="#1d2433" '
+                    f'stroke="#fafbfc" stroke-width="3" paint-order="stroke">{topic}</text>')
+    for vals, color in (([max(v) for v in by_topic.values()], "#b3543f"),
+                        ([min(v) for v in by_topic.values()], "#2f7d54")):
+        pts = " ".join(f"{pt(i, rr(v))[0]:.1f},{pt(i, rr(v))[1]:.1f}" for i, v in enumerate(vals))
+        rsvg.append(f'<polygon points="{pts}" fill="{color}" fill-opacity="0.15" stroke="{color}" stroke-width="2"/>')
+        for i, v in enumerate(vals):
+            x, y = pt(i, rr(v))
+            rsvg.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3.4" fill="{color}"/>')
+    rsvg.append("</svg>")
+    radar = "".join(rsvg)
+
+    worst = max(by_topic, key=lambda k: max(by_topic[k]))
+    return (
+        '<h3>Постоянство ответов</h3>'
+        '<p class=lead>Насколько модель отвечает одинаково от прогона к прогону: '
+        'разброс балла одного и того же вопроса между прогонами серии. '
+        'Только серии с несколькими прогонами (локальные, 3–5 прогонов).</p>'
+        + strip +
+        '<p class=sub>Точка это вопрос, риска это медиана, линия это размах от минимального '
+        'до максимального расхождения. У самых постоянных серий медиана 0.05–0.08 балла, '
+        'но почти в каждой серии есть вопросы, гуляющие на балл и больше.</p>'
+        + radar +
+        '<p class=sub>Радар показывает те же расхождения, усреднённые по темам интервью: '
+        '<span style="color:#2f7d54">■ зелёный это лучшая серия темы</span>, '
+        '<span style="color:#b3543f">■ красный худшая</span>. '
+        f'Наименее воспроизводимая тема почти во всех сериях — {worst.lower()}.</p>')
+
+
 def self_assessment_html(models) -> str:
     topics = [t[0] for t in SELF_TOPICS]
     QWEN_FAMILY = {"qwen3.8", "huihui_ai-Qwen3.8-abliterated-latest",
@@ -1344,6 +1467,7 @@ def build(models, sessions, primer, low_json=None):
     if sber_items:
         note += '<br>' + sber_footnote(sber_items, wrap=False)
     table += '<div class=note>' + note + '</div>'
+    table += stability_html(models)
     table += self_assessment_html(models)
     table += quality_price_scatter(models)
 
