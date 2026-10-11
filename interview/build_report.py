@@ -1313,7 +1313,7 @@ clef, с прежней формулировкой need_review, а судья я
 
 <h2 id=results><span class=no>4</span>Результаты</h2>
 <p class=lead>Канонические серии: у локальных мышление выключено, у облаков effort low (исключение ornith-9B, у которой мышление всегда включено). Обе серии ornith-35B разобраны в §6. У Сбера и Яндекса reasoning-ручки в API нет, поэтому «не настраивается»: модель работает в своём базовом режиме. Баллы обеих шкал и галлюцинации — только по вопросам на знания, 30 ответов из 41 (детали в сноске 2). Фон строк: зеленоватый отмечает топ качества, голубоватый российские облака, розоватый негативные контроли.</p>
-<p class=sub style="margin:-6px 0 10px">Строки отсортированы по баллу судьи GLM-5.3-Flash; каждая серия проверена им по всем 30 вопросам на знания одного прогона, постоянство по прогонам контролирует clef (±).</p>
+<p class=sub style="margin:-6px 0 10px">Строки отсортированы по баллу судьи GLM-5.3-Flash; каждая каноническая серия проверена им по всем 30 вопросам на знания одного прогона, постоянство по прогонам контролирует clef (±). Серии с системным промптом (§6) добавлены отдельными строками: судья их не проверял, кроме контрольной ornith-1.5 35B.</p>
 <!--TABLE-->
 
 <h2 id=honesty><span class=no>5</span>Достоверность (галлюцинации)</h2>
@@ -1414,7 +1414,43 @@ def build(models, sessions, primer, low_json=None):
     rows = []
     sber_items = []   # (folder, ₽без кэша, ₽с кэшем, токены) — по порядку появления
     sber_no = {}      # folder → номер сноски в этой таблице
-    for m in sorted(models, key=lambda x: -(x["glm"] or x["clef"])):
+    # серии с системным промптом (§6) — строками в таблицу результатов
+    prompt_rows = []
+    for folder, plabel in [("ornith-1.5-35b", "ornith-1.5 35B"), ("qwen3.8", "qwen3.8 27B"),
+                           ("orcarouter-Qwen3.8-27B-Uncensored-latest", "orcarouter 27B"),
+                           ("huihui_ai-Qwen3.8-abliterated-latest", "huihui abliterated 27B"),
+                           ("gemma4-26b", "gemma4 26B")]:
+        pm = primer.get((folder, "primer-v2"), {})
+        if not pm:
+            continue
+        durs, toks = [], []
+        for sj in sorted((ROOT / folder / "backend").glob("run-*/session.json")):
+            s = json.loads(sj.read_text())
+            if s.get("primer"):
+                durs.append(sum(tt["duration_s"] for tt in s["turns"]))
+                u = s.get("usage", {})
+                toks.append(u.get("output_tokens")
+                            or sum(tt.get("eval_count") or 0 for tt in s["turns"]))
+        cost = (statistics.mean(durs) / 3600 * (LOCAL_KWH * RUB_KWH + AMORT_RUB_H) / RUB_USD
+                if durs else 0)
+        entry = dict(folder=folder, label=plabel, series="think-off", kind="local",
+                     runs=[], qv=2, primer=True,
+                     clef=round(pm["score"], 2), p_hall=round(pm.get("hall", 0), 3),
+                     run_sigma=None, prov="—",
+                     dur_min=round(statistics.mean(durs) / 60, 1) if durs else None,
+                     out_tok=round(statistics.mean(toks)) if toks else None, cost=cost,
+                     glm=None, glm_hall=None, glm_n=None, glm_level=None,
+                     glm_note="не проверялся судьём")
+        if folder == "ornith-1.5-35b":
+            g = [v for v in json.loads((ROOT / folder / "backend" / "judgments" /
+                                        "glm-5.3-flash-iso" / "run-17.json").read_text())["results"]
+                 if v["id"] in KNOW]
+            entry.update(glm=round(sum(v["score"] for v in g) / len(g), 2),
+                         glm_hall=sum(1 for v in g if v["hallucination"]), glm_n=len(g),
+                         glm_level="max", glm_note=f"все {len(g)} ответов на знания")
+        prompt_rows.append(entry)
+
+    for m in sorted(models + prompt_rows, key=lambda x: -(x["glm"] or x["clef"])):
         if m["folder"] in FREEMIUM:
             quota, _ = FREEMIUM[m["folder"]]
             tin, tout = BUSINESS_RUB_1M[m["folder"]]
@@ -1449,10 +1485,10 @@ def build(models, sessions, primer, low_json=None):
         row_cls = ("neg" if m["kind"] == "negctrl"
                    else "top" if m["folder"] in TOP_ROW
                    else "ru" if m["folder"] in RU_ROWS else "")
-        qv_tag = ' <span class="badge b">вопросник v1</span>' if m.get("qv") == 1 else ""
         rows.append(f"""<tr{' class=' + row_cls if row_cls else ''}>
-<td><b>{m['label']}</b><div class=sub>{badge}{qv_tag}</div></td>
+<td><b>{m['label']}</b><div class=sub>{badge}</div></td>
 <td>{THINK_TITLE.get(m['series'], m['series'])}</td>
+<td>{'с промптом' if m.get('primer') else 'без'}</td>
 <td>{bar(m['clef'], 4)}{f'<div class=sub>±{m["run_sigma"]:.2f} по прогонам</div>' if m.get("run_sigma") is not None else ''}</td>
 <td>{glm_cell}<div class=sub>{glm_sub}</div></td>
 <td class=num>{m['prov']}</td>
@@ -1460,7 +1496,7 @@ def build(models, sessions, primer, low_json=None):
 <td class=num>{m['dur_min']} мин<div class=sub>{m['out_tok']:,} вых. токенов за сессию</div></td>
 <td class=num>{cost}</td></tr>""")
     table = ('<table><tr><th>Модель</th><th>Режим</th><th>clef-балл<sup>1</sup></th>'
-             '<th>Балл судьи<sup>2</sup></th><th>Провокации<sup>3</sup></th>'
+             '<th>Системный промпт</th><th>Балл судьи<sup>2</sup></th><th>Провокации<sup>3</sup></th>'
              '<th>halluc.<sup>4</sup></th><th>Длительность<sup>5</sup></th>'
              '<th>Цена<sup>6</sup></th></tr>'
              + "\n".join(rows) + "</table>")
@@ -1477,9 +1513,9 @@ def build(models, sessions, primer, low_json=None):
             'считаются по вопросам на знания — 30 ответов из 41: разминка, вопросы '
             'о работе с задачами и процессе и финал собеса не учитываются — выдумывать '
             'в них нечего. Это подмножество одинаково в версиях вопросника (v1 — 32 '
-            'основных вопроса без финальной секции, v2 — 35; плашку «вопросник v1» '
-            'носит серия, прошедшая до её появления), поэтому серии v1/v2 сравнимы '
-            'напрямую.<br>'
+            'основных вопроса без финальной секции, v2 — 35; ранние серии — обе '
+            'серии ornith-1.5 35B, qwen3.8, huihui, orcarouter — проходили v1), '
+            'поэтому серии v1/v2 сравнимы напрямую.<br>'
             '<sup>3</sup> Провокации: доля распознанных ложных предпосылок по сериям.<br>'
             '<sup>4</sup> halluc. (hallucination): вероятность галлюцинаций в ответе по расчёту clef (ярус 1).<br>'
             '<sup>5</sup> Длительность и токены даны на одну сессию (для серий среднее '
