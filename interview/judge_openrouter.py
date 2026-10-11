@@ -43,7 +43,7 @@ def read_secret(env_name: str) -> str:
     path = os.environ.get(env_name)
     if not path:
         raise RuntimeError(f"задайте {env_name} — путь к файлу с секретом "
-                           "(вне workspace; где лежит — см. локальный AGENTS.md)")
+                           "(какие бывают — см. README, «Быстрый старт»)")
     return Path(path).read_text().strip()
 
 DECISION_COLS = ["question", "score", "conf", "hall_p",
