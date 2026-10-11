@@ -95,12 +95,17 @@ def build_tasks(session: dict) -> list:
     return tasks
 
 
+def build_state(task: dict) -> str:
+    """Единый state для оценки; используется и локальным score.py, и адаптерами
+    (judge_openrouter.py), чтобы формулировки не расходились."""
+    return (f"Ты оцениваешь ответ кандидата на техническом собеседовании "
+            f"PHP/Symfony/Doctrine/PostgreSQL/DDD-разработчика.\n\n"
+            f"ВОПРОС:\n{task['question']}\n\nОТВЕТ КАНДИДАТА:\n{task['answer']}")
+
+
 def score_task(judge_model: str, task: dict, timeout: int) -> dict:
     """Один вызов: балл, галлюцинации и эскалационные признаки."""
-    state = (f"Ты оцениваешь ответ кандидата на техническом собеседовании "
-             f"PHP/Symfony/Doctrine/PostgreSQL/DDD-разработчика.\n\n"
-             f"ВОПРОС:\n{task['question']}\n\nОТВЕТ КАНДИДАТА:\n{task['answer']}")
-    r = post_systemone({"model": judge_model, "state": state,
+    r = post_systemone({"model": judge_model, "state": build_state(task),
                         "questions": QUESTIONS}, timeout)
     a = r["answers"]
     noul = lambda k: round(a[k].get("noul", -1), 3) if k in a else -1
