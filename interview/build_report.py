@@ -606,7 +606,9 @@ def load_metrics():
     out = []
     for m in MODELS:
         scores, hps, nrs, durs, out_toks = [], [], [], [], []
+        run_means = []
         for run in m["runs"]:
+            run_scores = []
             base = ROOT / m["folder"] / "backend" / "judgments"
             d = {r["question"]: r for r in csv.DictReader(
                 open(base / f"decision-clef-{run}.csv", encoding="utf-8-sig"))}
@@ -617,8 +619,10 @@ def load_metrics():
                 if r.get("error") or q not in KNOW:
                     continue
                 scores.append(float(r["score"])); hps.append(float(r["hall_p"]))
+                run_scores.append(float(r["score"]))
                 if q in e and not e[q].get("error"):
                     nrs.append(float(e[q]["need_review"]))
+            run_means.append(statistics.mean(run_scores))
             s = json.loads((ROOT / m["folder"] / "backend" / run / "session.json").read_text())
             durs.append(sum(t["duration_s"] for t in s["turns"]))
             u = s.get("usage", {})
@@ -647,6 +651,7 @@ def load_metrics():
                 LOCAL_KWH * RUB_KWH + AMORT_RUB_H) / RUB_USD
         out.append({**m,
                     "clef": round(statistics.mean(scores), 2),
+                    "run_sigma": round(statistics.stdev(run_means), 2) if len(run_means) > 1 else None,
                     "p_hall": round(statistics.mean(hps), 3),
                     "need_rev": round(statistics.mean(nrs), 2) if nrs else None,
                     "dur_min": round(statistics.mean(durs) / 60, 1),
@@ -998,7 +1003,7 @@ ollama с выгрузкой из памяти до и после каждого
 с reasoning effort low (сопоставимо с выключенным мышлением локальных),
 DeepSeek, GigaChat и YandexGPT через родные API провайдеров
 (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/runner_ru_cloud.py">runner_ru_cloud.py</a>).
-Для каждой модели делается несколько независимых прогонов (до пяти на серию).</p>
+Для каждой модели делается несколько независимых прогонов (до пяти на серию); показатели серии усредняются по прогонам, а разброс средних прогонов служит метрикой постоянства ответов модели.</p>
 <h3>Оценка</h3>
 <p>Ответы оцениваются по протоколам постфактум, каждый ответ отдельно. У
 каждого вопроса есть чек-лист якорей: 🟢 зелёный свет (2–4 признака сильного
@@ -1114,10 +1119,11 @@ true значит «есть хотя бы одна выдуманная дет�
 (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/muse-glimmer/backend/judgments/glm-5.3-flash-iso/run-01.json">пример</a>).</p>
 <div class=note><b>Ремарка.</b> Описанное выше это система, к которой стремимся.
 В самом исследовании оценка и эскалация шли двумя раздельными вызовами
-clef, с прежней формулировкой need_review, а судья яруса 2 проверил сплошь
-все 30 ответов на знания каждой серии, а не только ответы выше порога:
-сплошной прогон собрал эталонную разметку, на которой калибруются триггеры
-и улучшается методика оценки (§7). В таблицах §4 стоят баллы сплошного
+clef, с прежней формулировкой need_review, а судья яруса 2 сплошь проверил
+все 30 ответов на знания в одном прогоне каждой серии (все прогоны серии
+судит дешёвый ярус, его балл усредняется), а не только ответы выше порога:
+сплошная проверка собрала эталонную разметку, на которой калибруются
+триггеры и улучшается методика оценки (§7). В таблицах §4 стоят баллы этого
 прогона.</div>
 <h2 id=models><span class=no>3</span>Модели</h2>
 <p class=lead>Кто участвовал и почему: состав отражает вопросы исследования, от потолка облаков и честной цены до локальных кандидатов, российских облаков и негативных контролей.</p>
@@ -1162,7 +1168,7 @@ clef, с прежней формулировкой need_review, а судья я
 
 <h2 id=results><span class=no>4</span>Результаты</h2>
 <p class=lead>Канонические серии: у локальных мышление выключено, у облаков effort low (исключение ornith-9B, у которой мышление всегда включено). Обе серии ornith-35B разобраны в §6. У Сбера и Яндекса reasoning-ручки в API нет, поэтому «не настраивается»: модель работает в своём базовом режиме. Баллы обеих шкал и галлюцинации — только по вопросам на знания, 30 ответов из 41 (детали в сноске 2). Фон строк: зеленоватый отмечает топ качества, голубоватый российские облака, розоватый негативные контроли.</p>
-<p class=sub style="margin:-6px 0 10px">Строки отсортированы по баллу судьи GLM-5.3-Flash; все серии проверены им по всем 30 вопросам на знания.</p>
+<p class=sub style="margin:-6px 0 10px">Строки отсортированы по баллу судьи GLM-5.3-Flash; каждая серия проверена им по всем 30 вопросам на знания одного прогона, постоянство по прогонам контролирует clef (±).</p>
 <!--TABLE-->
 
 <h2 id=honesty><span class=no>5</span>Достоверность (галлюцинации)</h2>
@@ -1302,7 +1308,7 @@ def build(models, sessions, primer, low_json=None):
         rows.append(f"""<tr{' class=' + row_cls if row_cls else ''}>
 <td><b>{m['label']}</b><div class=sub>{badge}{qv_tag}</div></td>
 <td>{THINK_TITLE.get(m['series'], m['series'])}</td>
-<td>{bar(m['clef'], 4)}</td>
+<td>{bar(m['clef'], 4)}{f'<div class=sub>±{m["run_sigma"]:.2f} по прогонам</div>' if m.get("run_sigma") is not None else ''}</td>
 <td>{glm_cell}<div class=sub>{glm_sub}</div></td>
 <td class=num>{m['prov']}</td>
 <td>{bar(m['p_hall'], 0.4, '{:.2f}', '#b3543f')}</td>
@@ -1313,11 +1319,11 @@ def build(models, sessions, primer, low_json=None):
              '<th>halluc.<sup>4</sup></th><th>Длительность<sup>5</sup></th>'
              '<th>Цена<sup>6</sup></th></tr>'
              + "\n".join(rows) + "</table>")
-    note = ('<sup>1</sup> clef: средний балл дешёвого судьи (ярус 1) по ответам серии на вопросы о знаниях.<br>'
+    note = ('<sup>1</sup> clef: средний балл дешёвого судьи (ярус 1) по ответам всех прогонов серии на вопросы о знаниях; ± это стандартное отклонение средних прогонов, метрика постоянства ответов (у серий с одним прогоном разброса нет).<br>'
             '<sup>2</sup> Балл судьи. GLM-5.3-Flash, ярус 2: каждый ответ проверяет отдельная '
             'изолированная GLM-5.3-Flash со свежим контекстом, спорные утверждения '
-            'верифицируются запуском кода (PHP 8.5, PostgreSQL). Проверены все ответы '
-            'каждой серии. Уровень рассуждений судьи — max; состав: локальные '
+            'верифицируются запуском кода (PHP 8.5, PostgreSQL). Проверены все 30 ответов на знания одного прогона каждой серии. '
+            'Уровень рассуждений судьи — max; состав: локальные '
             'прогоны и эталонные выборки — GLM-5.3-Flash, сплошная до-проверка '
             'облачных прогонов — GLM-5.3 (low↔max совпадают на 97% в ±1 балл, §7); '
             '«галл.» считает ответы с хотя '
