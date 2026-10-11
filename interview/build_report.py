@@ -997,7 +997,9 @@ def self_assessment_html(models) -> str:
         else:
             delta = "—"
         name = m["label"]
-        if m["folder"] == "ornith-1.5-35b":
+        if m.get("primer"):
+            name += ' <span class=sub>(с промптом)</span>'
+        elif m["folder"] == "ornith-1.5-35b":
             mode = "с мышлением" if m["series"] != "think-off" else "без мышления"
             name += f' <span class=sub>({mode})</span>'
         return (f'<div class=scard>'
@@ -1023,10 +1025,10 @@ def self_assessment_html(models) -> str:
             'самооценки и итоговых баллов, '
             'единая база для всех моделей.</p>'
             '<p><b>Эффект Даннинга-Крюгера воспроизводится почти идеально:</b> корреляция силы модели '
-            '(clef) с перекосом самооценки, Пирсон r = −0.90 и Спирмен ρ = −0.90 (n = 17). Сильные '
+            '(clef) с перекосом самооценки, Пирсон r = −0.89 и Спирмен ρ = −0.91 (n = 18). Сильные '
             'модели себя недооценивают (Opus −1.5, Haiku −1.6, Sol −1.2), слабые переоценивают '
             '(YandexGPT Pro 5 +2.7 при худшем знании стека, gemma4-e2b +2.2), середина откалибрована '
-            'в ноль (Ultra, qwen3.8, muse, 9B). Отдельно стоит DeepSeek: сила почти уровня облака при почти '
+            'в ноль (Ultra, qwen3.8, muse, 9B, gemma4 26B). Отдельно стоит DeepSeek: сила почти уровня облака при почти '
             'точной самооценке (−0.4). Подробнее об эффекте у больших языковых моделей читайте в '
             '<a href="https://prikotov.pro/blog/effekt-danninga-kryugera-u-bolshikh-yazykovykh-modelei-llm">'
             'блоге автора</a>.</p>'
@@ -1747,6 +1749,7 @@ def build(models, sessions, primer, low_json=None):
                     "ornith-1.5-35b": "11/15"}  # разметка: reports/provocations-primer-v2.csv
         entry = dict(folder=folder, label=plabel, series="think-off", kind="local",
                      runs=sorted(v2_runs), qv=2, primer=True,
+                     glm_run=sorted(v2_runs)[0],
                      clef=round(pm["score"], 2), p_hall=round(pm.get("hall", 0), 3),
                      run_sigma=None, prov=prov_map.get(folder, "—"),
                      dur_min=round(statistics.mean(durs) / 60, 1) if durs else None,
@@ -1840,7 +1843,8 @@ def build(models, sessions, primer, low_json=None):
     if sber_items:
         note += '<br>' + sber_footnote(sber_items, wrap=False)
     table += '<div class=note>' + note + '</div>'
-    table += self_assessment_html(models)
+    table += self_assessment_html(models + [p for p in prompt_rows
+                                             if p["folder"] == "gemma4-26b"])
     table += stability_html(models + prompt_rows)
     table += quality_price_scatter(models + prompt_rows)
     table += quality_speed_scatter(models + prompt_rows)
