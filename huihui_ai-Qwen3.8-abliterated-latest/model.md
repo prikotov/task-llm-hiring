@@ -1,6 +1,6 @@
 # huihui_ai/Qwen3.8-abliterated:latest
 
-Источник: ollama на nserv (`http://nserv:11434`).
+Источник: ollama на ollama-host (`http://ollama-host:11434`).
 
 - Архитектура/семейство: qwen35
 - Параметры: 27.3B

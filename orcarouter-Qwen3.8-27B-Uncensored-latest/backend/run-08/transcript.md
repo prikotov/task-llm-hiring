@@ -1,7 +1,7 @@
 # Собес: `orcarouter/Qwen3.8-27B-Uncensored:latest` · роль: backend — run-08
 
 - Дата: 2026-10-07T09:33:29.354375+00:00
-- Сервер: http://nserv:11434 · keep_alive: 30m · think: off · num_ctx: 131072
+- Сервер: http://ollama-host:11434 · keep_alive: 30m · think: off · num_ctx: 131072
 - Вопросов: 35
 
 ## Настройка интервьюера (system)

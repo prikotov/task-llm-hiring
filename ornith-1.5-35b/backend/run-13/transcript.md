@@ -1,7 +1,7 @@
 # Собес: `ornith-1.5:35b` · роль: backend — run-13
 
 - Дата: 2026-10-07T06:36:01.522742+00:00
-- Сервер: http://nserv:11434 · keep_alive: 30m · think: off · num_ctx: 131072
+- Сервер: http://ollama-host:11434 · keep_alive: 30m · think: off · num_ctx: 131072
 - Вопросов: 32
 
 ## Настройка интервьюера (system)

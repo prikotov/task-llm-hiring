@@ -7,7 +7,7 @@
   `gigachat.devices.sberbank.ru` остаётся для GigaChat-2)
 - Модель: `GigaChat-3-Ultra` — **доступна только физическим лицам и только
   во Freemium** (юрлицам не продаётся, платного пакета нет)
-- Ключ — OAuth Basic из `~/MyProjects/TasK/Development/.env.dev.local`
+- Ключ — OAuth Basic из `<env-файл с ключами>`
   (scope GIGACHAT_API_PERS), раннер `interview/runner_ru_cloud.py
   --provider gigachat --model GigaChat-3-Ultra`
 - Freemium-квота Ultra: **50 млн токенов на 12 мес**

@@ -4,7 +4,7 @@
 Корпус: 363 ответа 9 моделей (канонические прогоны, clef-баллы известны).
 Метод: косинус близости эмбеддинга ответа к эмбеддингу ответа SOTA
 (sol run-01 / opus run-02) на тот же вопрос; сравнение симметричное,
-без query/passage-префиксов. Эмбеддеры — nserv: bge-m3, e5-large-instruct
+без query/passage-префиксов. Эмбеддеры — ollama-host: bge-m3, e5-large-instruct
 (jeffh q8_0), mxbai-embed-large, nomic-v2-moe.
 CSV: `reports/embeddings-<модель>.csv`.
 

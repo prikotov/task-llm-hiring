@@ -1,7 +1,7 @@
 # Собес: `huihui_ai/Qwen3.8-abliterated:latest` · роль: backend — run-04
 
 - Дата: 2026-10-07T03:26:24.201162+00:00
-- Сервер: http://nserv:11434 · keep_alive: 30m · think: off · num_ctx: 131072
+- Сервер: http://ollama-host:11434 · keep_alive: 30m · think: off · num_ctx: 131072
 - Вопросов: 32
 
 ---
