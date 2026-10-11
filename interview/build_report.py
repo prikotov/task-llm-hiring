@@ -620,7 +620,7 @@ def stability_html(models) -> str:
                         f'fill="#1d2433" stroke="#fafbfc" stroke-width="3" paint-order="stroke">{SHORT.get(topic, topic)}</text>')
         rm = R * med_pct / rmax
         rsvg.append(f'<circle cx="{cx:.0f}" cy="{cy:.0f}" r="{rm:.1f}" fill="none" '
-                    f'stroke="#b3543f" stroke-opacity="0.8" stroke-width="1.8"/>')
+                    f'stroke="#b3543f" stroke-dasharray="2.5,2.5" stroke-width="1.7"/>')
         vals = [pmeans.get(topic, 0) / 4 * 100 for topic in topics]
         pts = " ".join(f"{pt(i, R * v / rmax)[0]:.1f},{pt(i, R * v / rmax)[1]:.1f}" for i, v in enumerate(vals))
         rsvg.append(f'<polygon points="{pts}" fill="#2f7d54" fill-opacity="0.16" stroke="#2f7d54" stroke-width="2"/>')
