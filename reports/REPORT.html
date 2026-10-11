@@ -710,17 +710,14 @@ document.querySelectorAll('svg.scatter g.pt').forEach(function (pt) {
       new THREE.MeshBasicMaterial({color: 0xd4a017, wireframe: true}));
   ideal.position.set(0.8, S - 0.8, 0.8);
   scene.add(ideal);
-  label('идеал: быстро · качественно · дёшево', '#d4a017', 3.4, S + 0.3, 1.6, 0.55);
+
   var raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2(), hovered = null;
   var tip = document.createElement('div');
   tip.style.cssText = 'position:absolute;display:none;pointer-events:none;background:#1d2433;'
       + 'color:#fff;padding:7px 10px;border-radius:8px;font-size:12px;line-height:1.5;'
       + 'box-shadow:0 2px 8px rgba(20,30,50,.25);white-space:nowrap;z-index:5';
   host.appendChild(tip);
-  var spheres = [], nameLabels = [];
-  var labelLayer = document.createElement('div');
-  labelLayer.style.cssText = 'position:absolute;inset:0;pointer-events:none;overflow:hidden';
-  host.appendChild(labelLayer);
+  var spheres = [];
   DATA.forEach(function (m) {
     var r = 0.16 + Math.sqrt(Math.max(0, Math.min(1, (m.tok - 35000) / 145000))) * 0.34;
     var mesh = new THREE.Mesh(
@@ -730,45 +727,8 @@ document.querySelectorAll('svg.scatter g.pt').forEach(function (pt) {
     mesh.userData = m;
     scene.add(mesh);
     spheres.push(mesh);
-    var el = document.createElement('div');
-    el.textContent = m.name;
-    el.style.cssText = 'position:absolute;pointer-events:none;white-space:nowrap;'
-        + 'font:600 11.5px "Segoe UI",sans-serif;color:' + m.color + ';'
-        + 'text-shadow:-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,1px 1px 0 #fff,0 0 4px #fff';
-    labelLayer.appendChild(el);
-    nameLabels.push({el: el, obj: mesh, r: r, w: 0});
+    label(m.name, m.color, mesh.position.x, mesh.position.y + r + 0.3, mesh.position.z, 0.42);
   });
-  var tmpV = new THREE.Vector3();
-  function updateLabels() {
-    var placed = [];
-    nameLabels.forEach(function (L) {
-      tmpV.copy(L.obj.position); tmpV.y += L.r + 0.1; tmpV.project(camera);
-      L.sx = (tmpV.x * 0.5 + 0.5) * W;
-      L.sy = (-tmpV.y * 0.5 + 0.5) * H;
-      L.behind = tmpV.z > 1;
-      L.w = L.el.offsetWidth || 90;
-    });
-    nameLabels.filter(function (L) { return !L.behind; })
-      .sort(function (a, b) { return a.sy - b.sy; })
-      .forEach(function (L) {
-        var x = Math.max(L.w / 2 + 2, Math.min(W - L.w / 2 - 2, L.sx));
-        var y = L.sy;
-        for (var it = 0; it < 60; it++) {
-          var clash = null;
-          placed.forEach(function (r2) {
-            if (Math.abs(x - r2.x) < (L.w + r2.w) / 2 + 3 && Math.abs(y - r2.y) < 15) clash = r2;
-          });
-          if (!clash) break;
-          y = clash.y + 15;
-        }
-        placed.push({x: x, y: y, w: L.w});
-        L.el.style.left = x + 'px';
-        L.el.style.top = y + 'px';
-        L.el.style.transform = 'translate(-50%,-100%)';
-        L.el.style.display = 'block';
-      });
-    nameLabels.forEach(function (L) { if (L.behind) L.el.style.display = 'none'; });
-  }
   function THREEMeshMaterialSafe(hex) {
     return new THREE.MeshLambertMaterial({color: new THREE.Color(hex), transparent: true, opacity: 0.92});
   }
@@ -799,7 +759,6 @@ document.querySelectorAll('svg.scatter g.pt').forEach(function (pt) {
     ideal.rotation.y += 0.01;
     controls.update();
     renderer.render(scene, camera);
-    updateLabels();
   })();
 })();
 </script>
