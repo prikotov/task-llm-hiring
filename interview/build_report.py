@@ -49,21 +49,21 @@ MODELS = [
                                  "мышления, генерация вчетверо дольше (см. §6)"),
     dict(folder="qwen3.8", label="qwen3.8 27B", vendor="локально",
          kind="local", series="think-off", runs=[f"run-{i:02d}" for i in range(6, 11)], qv=1,
-         glm_run="run-06", prov="—", series_note=""),
+         glm_run="run-06", prov="15/15", series_note=""),
     dict(folder="muse-glimmer", label="muse-glimmer 28B", vendor="локально",
          kind="local", series="think-off", runs=["run-01"], glm_run="run-01",
          prov="3/3", series_note=""),
     dict(folder="huihui_ai-Qwen3.8-abliterated-latest", label="huihui abliterated 27B",
          vendor="локально", kind="local", series="think-off",
          runs=[f"run-{i:02d}" for i in range(1, 6)], glm_run="run-01",
-         prov="—", series_note="", qv=1),
+         prov="13/15", series_note="", qv=1),
     dict(folder="orcarouter-Qwen3.8-27B-Uncensored-latest", label="orcarouter 27B uncensored",
          vendor="локально", kind="local", series="think-off",
          runs=[f"run-{i:02d}" for i in range(1, 6)], glm_run="run-01",
-         prov="—", series_note="", qv=1),
+         prov="15/15", series_note="", qv=1),
     dict(folder="ornith-1.5-9b", label="ornith-1.5 9B", vendor="локально",
          kind="local", series="think-on", runs=[f"run-{i:02d}" for i in range(1, 6)],
-         glm_run="run-01", prov="—", series_note="у 9B мышление работает и включено"),
+         glm_run="run-01", prov="15/15", series_note="у 9B мышление работает и включено"),
     dict(folder="gigachat", label="GigaChat-2 Max", vendor="Сбер (API)",
          kind="cloud", series="базовый", runs=["run-01"], glm_run="run-01",
          prov="2/3", series_note="принял предпосылку Q26 с выдуманным обоснованием"),
@@ -1454,6 +1454,9 @@ def build(models, sessions, primer, low_json=None):
                              glm_hall=sum(1 for v in g if v["hallucination"]), glm_n=len(g),
                              glm_level=GLM_JUDGE_LEVEL.get(folder, "max"),
                              glm_note=f"все {len(g)} ответов на знания")
+                pq = [v["score"] for v in g if v["id"] in ("Q24", "Q25", "Q26")]
+                if len(pq) == 3:
+                    entry["prov"] = f"{sum(1 for s in pq if s >= 3)}/3*"
         prompt_rows.append(entry)
 
     for m in sorted(models + prompt_rows, key=lambda x: -(x["glm"] or x["clef"])):
@@ -1522,7 +1525,7 @@ def build(models, sessions, primer, low_json=None):
             'основных вопроса без финальной секции, v2 — 35; ранние серии — обе '
             'серии ornith-1.5 35B, qwen3.8, huihui, orcarouter — проходили v1), '
             'поэтому серии v1/v2 сравнимы напрямую.<br>'
-            '<sup>3</sup> Провокации: доля распознанных ложных предпосылок по сериям.<br>'
+            '<sup>3</sup> Провокации: доля распознанных ложных предпосылок по сериям; звёздочка — по вердиктам судьи одного прогона (балл 3 и выше на провокации).<br>'
             '<sup>4</sup> halluc. (hallucination): вероятность галлюцинаций в ответе по расчёту clef (ярус 1).<br>'
             '<sup>5</sup> Длительность и токены даны на одну сессию (для серий среднее '
             'по прогонам); локальные считают время чистой генерации без загрузки модели.<br>'
