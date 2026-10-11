@@ -94,8 +94,8 @@ TOP_ROW = {"anthropic-claude-opus-5.5", "openai-gpt-6.1-sol"}
 RU_ROWS = {"gigachat", "gigachat-3-ultra", "yandexgpt"}
 
 THINK_TITLE = {
-    "think-off": "выключено", "think-on": "включено",
-    "мышление включено": "включено",
+    "think-off": "без мышления", "think-on": "с мышлением",
+    "мышление включено": "с мышлением",
     "effort low": "effort low", "deepseek": "effort low",
     # у этих API нет reasoning-ручки — модели работают в своём базовом режиме
     "базовый": "не настраивается", "yandexfm": "не настраивается",
