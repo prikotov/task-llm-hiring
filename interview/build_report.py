@@ -532,22 +532,23 @@ def stability_html(models) -> str:
     all_vals = [v for s in series for v in s["rng"].values()]
 
     # --- свечи: распределение размахов вопросов по моделям ---
-    xmax = max(0.75, math.ceil(max(all_vals) * 4) / 4)
+    PCT = lambda v: v / 4 * 100          # размах в % шкалы 0–4
+    xmax = max(20.0, math.ceil(max(all_vals) / 4 * 100 / 5) * 5)
     W, ML, MR, MT, RH = 940, 232, 128, 26, 52
     H = MT + RH * len(series) + 46
     PW = W - ML - MR
-    px = lambda v: ML + PW * (v / xmax)
+    px = lambda v: ML + PW * (v / xmax)   # v уже в процентах
     order = sorted(series, key=lambda s: statistics.median(s["rng"].values()))
     svg = [f'<svg viewBox="0 0 {W} {H}" style="width:100%;max-width:{W}px;font-family:inherit">']
-    step = 0.25 if xmax <= 1.0 else 0.5
+    step = 5.0 if xmax <= 25 else 10.0
     v = 0.0
     while v <= xmax + 1e-9:
         x = px(v)
         svg.append(f'<line x1="{x:.0f}" y1="{MT - 6}" x2="{x:.0f}" y2="{H - 46}" stroke="#e4e7ec"/>'
-                   f'<text x="{x:.0f}" y="{H - 30}" text-anchor="middle" font-size="12" fill="#66707f">{v:.2f}</text>')
-        v = round(v + step, 2)
+                   f'<text x="{x:.0f}" y="{H - 30}" text-anchor="middle" font-size="12" fill="#66707f">{v:.0f}%</text>')
+        v = round(v + step, 1)
     svg.append(f'<text x="{ML + PW / 2:.0f}" y="{H - 10}" text-anchor="middle" font-size="12.5" '
-               f'fill="#66707f">размах балла одного вопроса между прогонами, шкала 0–4</text>')
+               f'fill="#66707f">размах балла одного вопроса между прогонами, % шкалы (0–4 = 100%)</text>')
     for i, s in enumerate(order):
         y = MT + RH * i + RH / 2
         vals = sorted(s["rng"].values())
@@ -557,16 +558,16 @@ def stability_html(models) -> str:
         svg.append(f'<text x="{ML - 10}" y="{y + 4:.0f}" text-anchor="end" font-size="13" '
                    f'fill="#1d2433">{s["label"]}</text>')
         # ус: тонкая линия от минимума до максимума
-        svg.append(f'<line x1="{px(vals[0]):.1f}" y1="{y:.0f}" x2="{px(vals[-1]):.1f}" y2="{y:.0f}" '
+        svg.append(f'<line x1="{px(PCT(vals[0])):.1f}" y1="{y:.0f}" x2="{px(PCT(vals[-1])):.1f}" y2="{y:.0f}" '
                    f'stroke="#aab3bf" stroke-width="1.6"/>')
         # тело: половина вопросов в середине (от 1-го до 3-го квартиля)
-        bw = max(3.0, px(q3) - px(q1))
-        svg.append(f'<rect x="{px(q1):.1f}" y="{y - 9:.0f}" width="{bw:.1f}" height="18" rx="3.5" '
+        bw = max(3.0, px(PCT(q3)) - px(PCT(q1)))
+        svg.append(f'<rect x="{px(PCT(q1)):.1f}" y="{y - 9:.0f}" width="{bw:.1f}" height="18" rx="3.5" '
                    f'fill="#2f7d54" fill-opacity="0.75"/>')
         # риска медианы
-        svg.append(f'<rect x="{px(med) - 1.3:.1f}" y="{y - 12:.0f}" width="2.6" height="24" fill="#1d2433"/>')
+        svg.append(f'<rect x="{px(PCT(med)) - 1.3:.1f}" y="{y - 12:.0f}" width="2.6" height="24" fill="#1d2433"/>')
         svg.append(f'<text x="{W - MR + 10:.0f}" y="{y + 4:.0f}" font-size="12.5" fill="#66707f">'
-                   f'медиана {med:.2f} · макс {vals[-1]:.2f}</text>')
+                   f'медиана {PCT(med):.1f}% · макс {PCT(vals[-1]):.0f}%</text>')
     svg.append("</svg>")
     strip = "".join(svg)
 
@@ -591,7 +592,7 @@ def stability_html(models) -> str:
             acc.setdefault(topic, []).append(r)
         per_series.append({topic: sum(v) / len(v) for topic, v in acc.items()})
     topics = sorted(per_series[0], key=lambda k: -sum(p.get(k, 0) for p in per_series))
-    rmax = max(0.2, math.ceil(max(v for p in per_series for v in p.values()) * 10) / 10)
+    rmax = max(5.0, math.ceil(max(v for p in per_series for v in p.values()) / 4 * 100 / 5) * 5)
     RW, RHt, R = 300, 288, 92
     cx, cy = RW / 2, RHt / 2 + 12
     pt = lambda i, r: (cx + r * math.cos(math.pi * 2 * i / len(topics) - math.pi / 2),
@@ -604,7 +605,7 @@ def stability_html(models) -> str:
         for f in (0.5, 1.0):
             pts = " ".join(f"{pt(i, R * f)[0]:.1f},{pt(i, R * f)[1]:.1f}" for i in range(len(topics)))
             rsvg.append(f'<polygon points="{pts}" fill="none" stroke="#e4e7ec"/>')
-        rsvg.append(f'<text x="{cx + 4:.0f}" y="{cy - R + 3:.0f}" font-size="10" fill="#9aa3ad">{rmax * 0.5:.1f}</text>')
+        rsvg.append(f'<text x="{cx + 4:.0f}" y="{cy - R + 3:.0f}" font-size="10" fill="#9aa3ad">{rmax * 0.5:.0f}%</text>')
         for i, topic in enumerate(topics):
             x, y = pt(i, R)
             rsvg.append(f'<line x1="{cx:.0f}" y1="{cy:.0f}" x2="{x:.1f}" y2="{y:.1f}" stroke="#e4e7ec"/>')
@@ -612,7 +613,7 @@ def stability_html(models) -> str:
             anc = "middle" if abs(lx - cx) < 12 else ("start" if lx > cx else "end")
             rsvg.append(f'<text x="{lx:.1f}" y="{ly + 3:.0f}" text-anchor="{anc}" font-size="10.5" '
                         f'fill="#1d2433" stroke="#fafbfc" stroke-width="3" paint-order="stroke">{SHORT.get(topic, topic)}</text>')
-        vals = [pmeans.get(topic, 0) for topic in topics]
+        vals = [pmeans.get(topic, 0) / 4 * 100 for topic in topics]
         pts = " ".join(f"{pt(i, R * v / rmax)[0]:.1f},{pt(i, R * v / rmax)[1]:.1f}" for i, v in enumerate(vals))
         rsvg.append(f'<polygon points="{pts}" fill="#2f7d54" fill-opacity="0.16" stroke="#2f7d54" stroke-width="2"/>')
         for i, v in enumerate(vals):
@@ -631,11 +632,11 @@ def stability_html(models) -> str:
         + strip +
         '<p class=sub>Свеча это распределение вопросов серии: тело охватывает половину вопросов '
         'в середине распределения (между квартилями), усы ведут к минимальному и максимальному '
-        'расхождению, тёмная риска это медиана. У самых постоянных серий медиана 0.05–0.08 '
-        'балла, но почти у каждой есть вопросы, гуляющие на балл и больше.</p>'
+        'расхождению, тёмная риска это медиана. У самых постоянных серий медиана 1–2% '
+        '% шкалы, но почти у каждой есть вопросы, гуляющие на четверть шкалы и больше.</p>'
         + radar +
         '<p class=sub>Каждый радар это одна серия: луч темы показывает средний размах её '
-        'ответов в этой теме, шкала едина для всех радаров (до {rmax:.1f} балла). '
+        'ответов в этой теме, шкала едина для всех радаров (до {rmax:.0f}% шкалы). '
         f'Наименее воспроизводимая тема почти у всех серий — {worst.lower()}.</p>')
 
 
@@ -1452,7 +1453,7 @@ def build(models, sessions, primer, low_json=None):
              '<th>halluc.<sup>4</sup></th><th>Длительность<sup>5</sup></th>'
              '<th>Цена<sup>6</sup></th></tr>'
              + "\n".join(rows) + "</table>")
-    note = ('<sup>1</sup> clef: средний балл дешёвого судьи (ярус 1) по ответам всех прогонов серии на вопросы о знаниях; ± это стандартное отклонение средних прогонов, то есть стабильность средней оценки серии (у серий с одним прогоном разброса нет). Отдельные ответы менее постоянны: средний разброс балла одного вопроса между прогонами 0.08–0.23 (максимум у ornith-1.5 35B без мышления, до ±1.1 на провокации Q24); при усреднении по 30 вопросам эти колебания гасятся.<br>'
+    note = ('<sup>1</sup> clef: средний балл дешёвого судьи (ярус 1) по ответам всех прогонов серии на вопросы о знаниях; ± это стандартное отклонение средних прогонов, то есть стабильность средней оценки серии (у серий с одним прогоном разброса нет). Отдельные ответы менее постоянны: средний разброс балла одного вопроса между прогонами 2–6% шкалы (0.08–0.23 балла) (максимум у ornith-1.5 35B без мышления, до 28% шкалы на провокации Q24 у ornith-1.5 35B без мышления); при усреднении по 30 вопросам эти колебания гасятся.<br>'
             '<sup>2</sup> Балл судьи. GLM-5.3-Flash, ярус 2: каждый ответ проверяет отдельная '
             'изолированная GLM-5.3-Flash со свежим контекстом, спорные утверждения '
             'верифицируются запуском кода (PHP 8.5, PostgreSQL). Проверены все 30 ответов на знания одного прогона каждой серии. '
