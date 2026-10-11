@@ -12,12 +12,13 @@ Follow-up судится с контекстом родительского во
 
 import argparse
 import json
+import os
 import sys
 import time
 import urllib.request
 from pathlib import Path
 
-BASE_URL = "http://nserv:11434"
+BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
 
 SCORE_CRITERIA = [
     "0 — ответ неверен, отсутствует или содержит грубые фактические ошибки",
