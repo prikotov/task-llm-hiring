@@ -1478,8 +1478,8 @@ def build(models, sessions, primer, low_json=None):
     if sber_items:
         note += '<br>' + sber_footnote(sber_items, wrap=False)
     table += '<div class=note>' + note + '</div>'
-    table += stability_html(models)
     table += self_assessment_html(models)
+    table += stability_html(models)
     table += quality_price_scatter(models)
 
     # --- секция промпта ---
