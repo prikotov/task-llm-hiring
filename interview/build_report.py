@@ -564,8 +564,8 @@ def stability_html(models) -> str:
         bw = max(3.0, px(PCT(q3)) - px(PCT(q1)))
         svg.append(f'<rect x="{px(PCT(q1)):.1f}" y="{y - 9:.0f}" width="{bw:.1f}" height="18" rx="3.5" '
                    f'fill="#2f7d54" fill-opacity="0.75"/>')
-        # риска медианы: белая прорезь по телу свечи
-        svg.append(f'<rect x="{px(PCT(med)) - 1.4:.1f}" y="{y - 9:.0f}" width="2.8" height="18" fill="#fafbfc"/>')
+        # риска медианы: тёмно-зелёная вертикаль в тон телу
+        svg.append(f'<rect x="{px(PCT(med)) - 1.4:.1f}" y="{y - 9:.0f}" width="2.8" height="18" rx="1.2" fill="#1e5c38"/>')
         svg.append(f'<text x="{W - MR + 10:.0f}" y="{y + 4:.0f}" font-size="12.5" fill="#66707f">'
                    f'медиана {PCT(med):.1f}% · макс {PCT(vals[-1]):.0f}%</text>')
     svg.append("</svg>")
