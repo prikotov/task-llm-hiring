@@ -1313,7 +1313,7 @@ clef, с прежней формулировкой need_review, а судья я
 
 <h2 id=results><span class=no>4</span>Результаты</h2>
 <p class=lead>Канонические серии: у локальных мышление выключено, у облаков effort low (исключение ornith-9B, у которой мышление всегда включено). Обе серии ornith-35B разобраны в §6. У Сбера и Яндекса reasoning-ручки в API нет, поэтому «не настраивается»: модель работает в своём базовом режиме. Баллы обеих шкал и галлюцинации — только по вопросам на знания, 30 ответов из 41 (детали в сноске 2). Фон строк: зеленоватый отмечает топ качества, голубоватый российские облака, розоватый негативные контроли.</p>
-<p class=sub style="margin:-6px 0 10px">Строки отсортированы по баллу судьи GLM-5.3-Flash; каждая каноническая серия проверена им по всем 30 вопросам на знания одного прогона, постоянство по прогонам контролирует clef (±). Серии с системным промптом (§6) добавлены отдельными строками: судья их не проверял, кроме контрольной ornith-1.5 35B.</p>
+<p class=sub style="margin:-6px 0 10px">Строки отсортированы по баллу судьи GLM-5.3-Flash; каждая каноническая серия проверена им по всем 30 вопросам на знания одного прогона, постоянство по прогонам контролирует clef (±). Серии с системным промптом (§6) добавлены отдельными строками; судьёй из них проверены ornith-1.5 35B и orcarouter 27B.</p>
 <!--TABLE-->
 
 <h2 id=honesty><span class=no>5</span>Достоверность (галлюцинации)</h2>
@@ -1445,13 +1445,15 @@ def build(models, sessions, primer, low_json=None):
                      out_tok=round(statistics.mean(toks)) if toks else None, cost=cost,
                      glm=None, glm_hall=None, glm_n=None, glm_level=None,
                      glm_note="не проверялся судьём")
-        if folder == "ornith-1.5-35b":
-            g = [v for v in json.loads((ROOT / folder / "backend" / "judgments" /
-                                        "glm-5.3-flash-iso" / "run-17.json").read_text())["results"]
-                 if v["id"] in KNOW]
-            entry.update(glm=round(sum(v["score"] for v in g) / len(g), 2),
-                         glm_hall=sum(1 for v in g if v["hallucination"]), glm_n=len(g),
-                         glm_level="max", glm_note=f"все {len(g)} ответов на знания")
+        glm_file = (ROOT / folder / "backend" / "judgments" / "glm-5.3-flash-iso"
+                    / f"{sorted(v2_runs)[0]}.json")
+        if glm_file.exists():
+            g = [v for v in json.loads(glm_file.read_text())["results"] if v["id"] in KNOW]
+            if g:
+                entry.update(glm=round(sum(v["score"] for v in g) / len(g), 2),
+                             glm_hall=sum(1 for v in g if v["hallucination"]), glm_n=len(g),
+                             glm_level=GLM_JUDGE_LEVEL.get(folder, "max"),
+                             glm_note=f"все {len(g)} ответов на знания")
         prompt_rows.append(entry)
 
     for m in sorted(models + prompt_rows, key=lambda x: -(x["glm"] or x["clef"])):
