@@ -658,13 +658,13 @@ document.querySelectorAll('svg.scatter g.pt').forEach(function (pt) {
   var scene = new THREE.Scene();
   scene.background = new THREE.Color(0xffffff);
   var camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 200);
-  camera.position.set(16, 12, 18);
+  camera.position.set(13, 14, 17);
   var renderer = new THREE.WebGLRenderer({antialias: true});
   renderer.setSize(W, H);
   renderer.setPixelRatio(window.devicePixelRatio || 1);
   host.appendChild(renderer.domElement);
   var controls = new THREE.OrbitControls(camera, renderer.domElement);
-  controls.target.set(5, 4.5, 5);
+  controls.target.set(4.5, 6.5, 3.5);
   controls.enableDamping = true;
   // сцена: куб 10×10×10, x = цена (лог, дёшево ближе), y = качество, z = минуты
   var S = 10;
@@ -680,30 +680,34 @@ document.querySelectorAll('svg.scatter g.pt').forEach(function (pt) {
   axis(new THREE.Vector3(0, 0, 0), new THREE.Vector3(S, 0, 0));
   axis(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, S, 0));
   axis(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, S));
-  function label(text, color, x, y, z, scale) {
+  function label(text, color, x, y, z, height) {
     var cv = document.createElement('canvas');
-    cv.width = 512; cv.height = 96;
     var ctx = cv.getContext('2d');
     ctx.font = 'bold 42px "Segoe UI", sans-serif';
+    var w = Math.ceil(ctx.measureText(text).width) + 36;
+    cv.width = w; cv.height = 72;
+    ctx = cv.getContext('2d');
+    ctx.font = 'bold 42px "Segoe UI", sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 10; ctx.strokeText(text, 256, 48);
-    ctx.fillStyle = color; ctx.fillText(text, 256, 48);
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 9; ctx.strokeText(text, w / 2, 38);
+    ctx.fillStyle = color; ctx.fillText(text, w / 2, 38);
     var sp = new THREE.Sprite(new THREE.SpriteMaterial({map: new THREE.CanvasTexture(cv), transparent: true}));
-    sp.scale.set(scale * 4.4, scale * 0.83, 1);
+    var k = height / 72;
+    sp.scale.set(w * k, height, 1);
     sp.position.set(x, y, z);
     scene.add(sp);
     return sp;
   }
-  label('цена → (лог)', '#315f9e', S + 1.6, 0.6, 0, 1.05);
-  label('качество ↑', '#2f7d54', 0.6, S + 1.1, 0, 1.05);
-  label('скорость → (минуты)', '#b3543f', 0.6, 0.6, S + 2.2, 1.05);
+  label('цена → (лог)', '#315f9e', S + 2.4, 0.5, 0, 0.6);
+  label('качество ↑', '#2f7d54', 1.2, S + 0.9, 0, 0.6);
+  label('скорость → (минуты)', '#b3543f', 1.2, 0.5, S + 2.0, 0.6);
   // идеальный угол: дёшево (x=0) + качественно (y=S) + быстро (z=0)
   var ideal = new THREE.Mesh(
       new THREE.OctahedronGeometry(0.55),
       new THREE.MeshBasicMaterial({color: 0xd4a017, wireframe: true}));
   ideal.position.set(0.8, S - 0.8, 0.8);
   scene.add(ideal);
-  label('идеал: быстро · качественно · дёшево', '#d4a017', 2.6, S + 0.5, 1.6, 0.95);
+  label('идеал: быстро · качественно · дёшево', '#d4a017', 3.4, S + 0.3, 1.6, 0.55);
   var raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2(), hovered = null;
   var tip = document.createElement('div');
   tip.style.cssText = 'position:absolute;display:none;pointer-events:none;background:#1d2433;'
@@ -712,7 +716,7 @@ document.querySelectorAll('svg.scatter g.pt').forEach(function (pt) {
   host.appendChild(tip);
   var spheres = [];
   DATA.forEach(function (m) {
-    var r = 0.28 + Math.max(0, Math.min(1, (m.tok - 35000) / 145000)) * 0.55;
+    var r = 0.2 + Math.sqrt(Math.max(0, Math.min(1, (m.tok - 35000) / 145000))) * 0.45;
     var mesh = new THREE.Mesh(
         new THREE.SphereGeometry(r, 24, 18),
         new THREEMeshMaterialSafe(m.color));
@@ -720,7 +724,7 @@ document.querySelectorAll('svg.scatter g.pt').forEach(function (pt) {
     mesh.userData = m;
     scene.add(mesh);
     spheres.push(mesh);
-    label(m.name, m.color, mesh.position.x, mesh.position.y + r + 0.55, mesh.position.z, 0.62);
+    label(m.name, m.color, mesh.position.x, mesh.position.y + r + 0.42, mesh.position.z, 0.5);
   });
   function THREEMeshMaterialSafe(hex) {
     return new THREE.MeshLambertMaterial({color: new THREE.Color(hex), transparent: true, opacity: 0.92});
