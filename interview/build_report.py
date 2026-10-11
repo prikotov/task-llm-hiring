@@ -1437,10 +1437,14 @@ def build(models, sessions, primer, low_json=None):
                         or sum(tt.get("eval_count") or 0 for tt in s["turns"]))
         cost = (statistics.mean(durs) / 3600 * (LOCAL_KWH * RUB_KWH + AMORT_RUB_H) / RUB_USD
                 if durs else 0)
+        prov_map = {"gemma4-26b": "15/15", "qwen3.8": "15/15",
+                    "orcarouter-Qwen3.8-27B-Uncensored-latest": "14/15",
+                    "huihui_ai-Qwen3.8-abliterated-latest": "14/15",
+                    "ornith-1.5-35b": "11/15"}  # разметка: reports/provocations-primer-v2.csv
         entry = dict(folder=folder, label=plabel, series="think-off", kind="local",
                      runs=[], qv=2, primer=True,
                      clef=round(pm["score"], 2), p_hall=round(pm.get("hall", 0), 3),
-                     run_sigma=None, prov="—",
+                     run_sigma=None, prov=prov_map.get(folder, "—"),
                      dur_min=round(statistics.mean(durs) / 60, 1) if durs else None,
                      out_tok=round(statistics.mean(toks)) if toks else None, cost=cost,
                      glm=None, glm_hall=None, glm_n=None, glm_level=None,
@@ -1454,10 +1458,6 @@ def build(models, sessions, primer, low_json=None):
                              glm_hall=sum(1 for v in g if v["hallucination"]), glm_n=len(g),
                              glm_level=GLM_JUDGE_LEVEL.get(folder, "max"),
                              glm_note=f"все {len(g)} ответов на знания")
-                pq = [v["score"] for v in g if v["id"] in ("Q24", "Q25", "Q26")]
-                if len(pq) == 3:
-                    k3 = sum(1 for s in pq if s >= 3)
-                    entry["prov"] = f"{k3}/3" + '<div class=sub>по судье</div>'
 
         prompt_rows.append(entry)
 
@@ -1527,7 +1527,7 @@ def build(models, sessions, primer, low_json=None):
             'основных вопроса без финальной секции, v2 — 35; ранние серии — обе '
             'серии ornith-1.5 35B, qwen3.8, huihui, orcarouter — проходили v1), '
             'поэтому серии v1/v2 сравнимы напрямую.<br>'
-            '<sup>3</sup> Провокации: доля распознанных ложных предпосылок. Канонические серии — разметка транскриптов всех прогонов серии (X из 3×N); серии с промптом — по вердиктам судьи одного прогона (X из 3, вскрыта = балл судьи 3 и выше).<br>'
+            '<sup>3</sup> Провокации: доля распознанных ложных предпосылок, разметка транскриптов всех прогонов серии (X из 3×N; разметка промпт-серий — reports/provocations-primer-v2.csv).<br>'
             '<sup>4</sup> halluc. (hallucination): вероятность галлюцинаций в ответе по расчёту clef (ярус 1).<br>'
             '<sup>5</sup> Длительность и токены даны на одну сессию (для серий среднее '
             'по прогонам); локальные считают время чистой генерации без загрузки модели.<br>'
