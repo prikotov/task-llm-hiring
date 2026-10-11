@@ -2,10 +2,10 @@
 
 ## Характеристики
 
-- Провайдер: Яндекс (AI Studio), URI `gpt://<folder-id>/yandexgpt/latest`;
+- Провайдер: Яндекс (AI Studio), URI `gpt://b1gvln02oo3us3oomdfg/yandexgpt/latest`;
   по детализации биллинга алиас резолвится в **YandexGPT Pro 5 (SyncAPI)** —
   API эхом возвращает сам URI, точное имя видно только в чеке
-- Доступ: ключ из `<env-файл с ключами>` (в workspace
+- Доступ: ключ из `~/MyProjects/TasK/Development/.env.dev.local` (в workspace
   не копируется), раннер `interview/runner_ru_cloud.py --provider yandexfm`
 - Тариф (детализация биллинга 2026-10-09): **плоский ₽1.20/1k токенов любого
   типа** — вход, кэш, выход (71.62k кэш → ₽85.94, 16.41k вх → ₽19.70,

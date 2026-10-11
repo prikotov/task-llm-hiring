@@ -1,7 +1,7 @@
 # Собес: `orcarouter/Qwen3.8-27B-Uncensored:latest` · роль: backend — run-04
 
 - Дата: 2026-10-07T02:29:00.693202+00:00
-- Сервер: http://ollama-host:11434 · keep_alive: 30m · think: off · num_ctx: 131072
+- Сервер: http://nserv:11434 · keep_alive: 30m · think: off · num_ctx: 131072
 - Вопросов: 32
 
 ---

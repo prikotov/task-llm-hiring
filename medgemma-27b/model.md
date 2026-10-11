@@ -1,4 +1,4 @@
-# medgemma:27b (ollama-host)
+# medgemma:27b (nserv)
 
 ## Характеристики
 

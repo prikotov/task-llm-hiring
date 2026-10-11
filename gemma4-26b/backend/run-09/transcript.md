@@ -1,7 +1,7 @@
 # Собес: `gemma4:26b` · роль: backend — run-09
 
 - Дата: 2026-10-07T10:58:02.641693+00:00
-- Сервер: http://ollama-host:11434 · keep_alive: 30m · think: off · num_ctx: 131072
+- Сервер: http://nserv:11434 · keep_alive: 30m · think: off · num_ctx: 131072
 - Вопросов: 35
 
 ## Настройка интервьюера (system)

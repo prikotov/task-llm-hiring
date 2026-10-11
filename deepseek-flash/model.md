@@ -5,7 +5,7 @@
 - Провайдер: DeepSeek, `https://api.deepseek.com/chat/completions`,
   модель `deepseek-flash` = **DeepSeek-V4.1-Flash** (контекст 1M,
   вывод до 393k, thinking встроен)
-- Ключ — `DEEPSEEK_API_KEY` из `<env-файл с ключами>`
+- Ключ — `DEEPSEEK_API_KEY` из `~/MyProjects/TasK/Development/.env.dev.local`
   (в workspace не копируется), раннер `interview/runner_ru_cloud.py
   --provider deepseek --model deepseek-flash`
 - `reasoning_effort: low` — стандарт облачных серий проекта; размышления

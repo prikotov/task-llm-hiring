@@ -1,4 +1,4 @@
-# muse-glimmer (ollama-host)
+# muse-glimmer (nserv)
 
 ## Характеристики
 
