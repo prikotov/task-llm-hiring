@@ -27,7 +27,7 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
-from judge import build_tasks, BASE_URL
+from score import build_tasks, BASE_URL
 
 # (папка, прогон, метка) — канонические прогоны с судейством clef
 CORPUS = [
