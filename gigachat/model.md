@@ -3,7 +3,7 @@
 ## Характеристики
 
 - Провайдер: Сбер, доступ — `gigachat.devices.sberbank.ru/api/v1` (OAuth
-  Basic-ключ из `~/MyProjects/TasK/Development/.env.dev.local`, ключи
+  Basic-ключ из `<env-файл с ключами>`, ключи
   в workspace не копируются)
 - Модель: `GigaChat-2-Max`, собес от 2026-10-09
 - Раннер: `interview/runner_ru_cloud.py` (провайдер gigachat)

@@ -1,4 +1,4 @@
-# Собес: `gpt://b1gvln02oo3us3oomdfg/yandexgpt/latest` · роль: backend — run-01
+# Собес: `gpt://<folder-id>/yandexgpt/latest` · роль: backend — run-01
 
 - Дата: 2026-10-09T02:59:38.134055+00:00
 - Backend: OpenRouter · reasoning effort: None
