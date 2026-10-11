@@ -651,6 +651,144 @@ def stability_html(models) -> str:
         'неё гуляют больше типичного вопроса этой серии, внутри меньше.</p>')
 
 
+def quality_speed_scatter(models) -> str:
+    """Карта моделей: качество (балл судьи) против скорости (минуты собеса);
+    диаметр точки кодирует выходные токены сессии."""
+    W, H = 920, 540
+    ML, MR, MT, MB = 64, 24, 28, 58
+    PW, PH = W - ML - MR, H - MT - MB
+    XMIN, XMAX = 0, 32.0            # минуты полного собеседования
+    YMIN, YMAX = 1.5, 4.25
+    QX, QY = 10.0, 3.0              # пороги квадрантов: 10 минут и 3.0 балла
+    TMIN, TMAX = 30000, 180000      # диапазон выходных токенов для диаметра
+
+    GROUPS = {"cloud": ("#315f9e", "облако"), "local": ("#2f7d54", "локальные"),
+              "ru": ("#5b9bd5", "русские"), "negctrl": ("#b3543f", "негативные контроли")}
+
+    def px(v):
+        return ML + (max(v, XMIN) - XMIN) / (XMAX - XMIN) * PW
+
+    def py(score):
+        return MT + (YMAX - score) / (YMAX - YMIN) * PH
+
+    def dot_r(tok):
+        return 7 + min(max((tok - TMIN) / (TMAX - TMIN), 0), 1) * 8
+
+    def series_name(m):
+        name = m["label"]
+        if m["folder"] == "ornith-1.5-35b":
+            name += " (с мышлением)" if m["series"] != "think-off" else " (без мышления)"
+        return name
+
+    placed = []
+    def rects_overlap(a, b, pad=3):
+        return not (a[2] + pad < b[0] or b[2] + pad < a[0] or
+                    a[3] + pad < b[1] or b[3] + pad < a[1])
+
+    label_geo = {}
+    for m in models:
+        if m["glm"] is None:
+            continue
+        x, y = px(m["dur_min"]), py(m["glm"])
+        name = series_name(m)
+        w = len(name) * 6.1 + 4
+        r = dot_r(m["out_tok"])
+        candidates = [(10, 4, "start"), (-10, 4, "end"),
+                      (0, -(r + 8), "middle"), (0, r + 14, "middle"),
+                      (-16 - r, 4, "end"), (16 + r, 4, "start"),
+                      (0, -(r + 20), "middle"), (0, r + 26, "middle")]
+        chosen = None
+        best = None
+        for tx_off, ty_off, anchor in candidates:
+            if anchor == "start":
+                tx0, tx1 = x + tx_off, x + tx_off + w
+            else:
+                tx0, tx1 = x + tx_off - w, x + tx_off
+            box = (tx0, y + ty_off - 10, tx1, y + ty_off + 3)
+            if box[0] < ML - 50 or box[2] > ML + PW + 8 or box[1] < MT - 6 or box[3] > MT + PH + 6:
+                continue
+            ov = sum(1 for o in placed if rects_overlap(box, o, 0))
+            if ov == 0:
+                chosen = (tx_off, ty_off, anchor, box)
+                break
+            if best is None or ov < best[0]:
+                best = (ov, tx_off, ty_off, anchor, box)
+        if chosen is None:
+            _, tx_off, ty_off, anchor, box = best
+            chosen = (tx_off, ty_off, anchor, box)
+        tx_off, ty_off, anchor, box = chosen
+        placed.append(box)
+        label_geo[(m["folder"], m["series"])] = (x + tx_off, anchor, y + ty_off)
+
+    svg = []
+    draw_order = sorted([m for m in models if m["glm"] is not None],
+                        key=lambda m: -m["out_tok"])
+    for gv in (2.0, 2.5, 3.0, 3.5, 4.0):
+        y = py(gv)
+        svg.append(f'<line x1={ML} y1={y:.0f} x2={ML+PW} y2={y:.0f} stroke="#e4e7ec"/>'
+                   f'<text x={ML-10} y={y+4:.0f} text-anchor=end font-size=12 fill=#66707f>{gv}</text>')
+    for xv in (5, 10, 15, 20, 25, 30):
+        x = px(xv)
+        svg.append(f'<line x1="{x:.0f}" y1="{MT}" x2="{x:.0f}" y2="{MT+PH}" stroke="#e4e7ec"/>'
+                   f'<text x="{x:.0f}" y="{MT+PH+20}" text-anchor="middle" font-size="12" '
+                   f'fill="#66707f">{xv}</text>')
+    xq, yq = px(QX), py(QY)
+    svg.append(f'<line x1={xq:.0f} y1={MT} x2={xq:.0f} y2={MT+PH} stroke="#aab3bf" stroke-dasharray="6,4"/>')
+    svg.append(f'<line x1={ML} y1={yq:.0f} x2={ML+PW} y2={yq:.0f} stroke="#aab3bf" stroke-dasharray="6,4"/>')
+    for cx, cy, anc, txt in [(ML+10, MT+18, "start", "хорошо и быстро"),
+                             (ML+PW-10, MT+18, "end", "хорошо и медленно"),
+                             (ML+10, MT+PH-12, "start", "плохо и быстро"),
+                             (ML+PW-10, MT+PH-12, "end", "плохо и медленно")]:
+        svg.append(f'<text x={cx} y={cy} text-anchor={anc} font-size=12.5 font-style=italic fill=#9aa3ad>{txt}</text>')
+    for m in draw_order:
+        hue, gname = GROUPS[m["kind"]]
+        x, y = px(m["dur_min"]), py(m["glm"])
+        fx = (x - ML) / PW
+        name = series_name(m)
+        r_dot = dot_r(m["out_tok"])
+        tip_lines = [name, f"балл {m['glm']:.2f} · {m['dur_min']:.0f} мин",
+                     f"~{m['out_tok']/1000:.0f} тыс. выходных токенов"]
+        tip_w = max(len(s) for s in tip_lines) * 6.4 + 16
+        tip_left = fx > 0.72
+        tx = x - 14 - tip_w if tip_left else x + 14
+        tip = [f'<rect x="{tx:.0f}" y="{y-46:.0f}" width="{tip_w:.0f}" height="{20 + 14*len(tip_lines):.0f}" '
+               f'rx="7" fill="#1d2433" fill-opacity="0.95"/>']
+        for i, s in enumerate(tip_lines):
+            bold = ' font-weight="bold"' if i == 0 else ''
+            fill = "#ffffff" if i == 0 else "#c8d4e4"
+            tip.append(f'<text x="{tx + 8:.0f}" y="{y - 30 + i*15:.0f}" font-size="11.5" '
+                       f'fill="{fill}"{bold} text-anchor="start">{s}</text>')
+        tx, anchor, ty = label_geo[(m["folder"], m["series"])]
+        svg.append(f'<g class="pt">'
+                   f'<circle class="dot" cx="{x:.0f}" cy="{y:.0f}" r="{r_dot:.1f}" fill="{hue}" '
+                   f'fill-opacity="0.8" stroke="#fff" stroke-width="1.5" />'
+                   f'<text x="{tx:.0f}" y="{ty:.0f}" text-anchor="{anchor}" font-size="11" '
+                   f'fill="{hue}">{name}</text>'
+                   f'<g class="tip">' + "".join(tip) + '</g></g>')
+    svg.append(f'<text x="{ML+PW/2:.0f}" y="{H-16}" text-anchor="middle" font-size="12.5" fill="#66707f">'
+               f'длительность полного собеседования, минуты; диаметр точки — выходные токены сессии</text>')
+    svg.append(f'<text x=16 y={MT+PH/2:.0f} font-size=12.5 fill=#66707f transform=rotate(-90 16 {MT+PH/2:.0f})>'
+               f'балл модели</text>')
+    return ('<h3>Карта моделей: качество и скорость</h3>'
+            '<p>Каждая точка — серия из таблицы выше: по вертикали балл модели, по горизонтали '
+            'минуты полного собеседования, диаметр точки кодирует объём выходных токенов '
+            '(многословность). Пунктир делит поле на зоны: порог качества 3.0 балла, порог '
+            'скорости 10 минут.</p>'
+            + f'<svg class="scatter" width="{W}" height="{H}" viewBox="0 0 {W} {H}" style="max-width:100%">'
+            + "".join(svg) + '<g class="tip-layer"></g></svg>'
+            + """<script>
+document.querySelectorAll('svg.scatter g.pt').forEach(function (pt) {
+  var dot = pt.querySelector('.dot'), tip = pt.querySelector('.tip');
+  if (!dot || !tip) return;
+  dot.addEventListener('mouseenter', function () {
+    pt.closest('svg').querySelector('.tip-layer').appendChild(tip);
+    tip.style.display = 'block';
+  });
+  dot.addEventListener('mouseleave', function () { tip.style.display = 'none'; });
+});
+</script>""")
+
+
 def self_assessment_html(models) -> str:
     topics = [t[0] for t in SELF_TOPICS]
     QWEN_FAMILY = {"qwen3.8", "huihui_ai-Qwen3.8-abliterated-latest",
@@ -1539,6 +1677,7 @@ def build(models, sessions, primer, low_json=None):
     table += self_assessment_html(models)
     table += stability_html(models)
     table += quality_price_scatter(models)
+    table += quality_speed_scatter(models)
 
     # --- секция промпта ---
     def pget(model, series, key="score", default="—"):
