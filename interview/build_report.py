@@ -598,7 +598,9 @@ def stability_html(models) -> str:
     pt = lambda i, r: (cx + r * math.cos(math.pi * 2 * i / len(topics) - math.pi / 2),
                        cy + r * math.sin(math.pi * 2 * i / len(topics) - math.pi / 2))
     cards = []
-    for s, pmeans in zip(series, per_series):
+    radar_order = sorted(zip(series, per_series),
+                         key=lambda sp: statistics.median(sp[0]["rng"].values()))
+    for s, pmeans in radar_order:
         rsvg = [f'<svg viewBox="0 0 {RW} {RHt}" style="width:100%;max-width:{RW}px;font-family:inherit">',
                 f'<text x="{cx:.0f}" y="18" text-anchor="middle" font-size="13.5" font-weight="600" '
                 f'fill="#1d2433">{s["label"]}</text>']
