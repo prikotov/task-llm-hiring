@@ -1447,7 +1447,7 @@ def build(models, sessions, primer, low_json=None):
 <td>{bar(m['p_hall'], 0.4, '{:.2f}', '#b3543f')}</td>
 <td class=num>{m['dur_min']} мин<div class=sub>{m['out_tok']:,} вых. токенов за сессию</div></td>
 <td class=num>{cost}</td></tr>""")
-    table = ('<table><tr><th>Модель</th><th>Мышление</th><th>clef-балл<sup>1</sup></th>'
+    table = ('<table><tr><th>Модель</th><th>Режим</th><th>clef-балл<sup>1</sup></th>'
              '<th>Балл судьи<sup>2</sup></th><th>Провокации<sup>3</sup></th>'
              '<th>halluc.<sup>4</sup></th><th>Длительность<sup>5</sup></th>'
              '<th>Цена<sup>6</sup></th></tr>'
