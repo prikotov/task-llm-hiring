@@ -615,6 +615,12 @@ def stability_html(models) -> str:
             anc = "middle" if abs(lx - cx) < 12 else ("start" if lx > cx else "end")
             rsvg.append(f'<text x="{lx:.1f}" y="{ly + 3:.0f}" text-anchor="{anc}" font-size="10.5" '
                         f'fill="#1d2433" stroke="#fafbfc" stroke-width="3" paint-order="stroke">{SHORT.get(topic, topic)}</text>')
+        med_pct = statistics.median(s["rng"].values()) / 4 * 100
+        rm = R * med_pct / rmax
+        rsvg.append(f'<circle cx="{cx:.0f}" cy="{cy:.0f}" r="{rm:.1f}" fill="none" '
+                    f'stroke="#1d2433" stroke-opacity="0.55" stroke-dasharray="4,4" stroke-width="1.4"/>')
+        rsvg.append(f'<text x="{cx + rm * 0.72 + 4:.1f}" y="{cy + rm * 0.72 + 10:.1f}" font-size="9.5" '
+                    f'fill="#9aa3ad" stroke="#fafbfc" stroke-width="3" paint-order="stroke">медиана {med_pct:.1f}%</text>')
         vals = [pmeans.get(topic, 0) / 4 * 100 for topic in topics]
         pts = " ".join(f"{pt(i, R * v / rmax)[0]:.1f},{pt(i, R * v / rmax)[1]:.1f}" for i, v in enumerate(vals))
         rsvg.append(f'<polygon points="{pts}" fill="#2f7d54" fill-opacity="0.16" stroke="#2f7d54" stroke-width="2"/>')
@@ -639,7 +645,9 @@ def stability_html(models) -> str:
         + radar +
         '<p class=sub>Каждый радар это одна серия: луч темы показывает средний размах её '
         f'ответов в этой теме, шкала едина для всех радаров (до {rmax:.0f}% шкалы). '
-        f'Наименее воспроизводимая тема почти у всех серий — {worst.lower()}.</p>')
+        f'Наименее воспроизводимая тема почти у всех серий — {worst.lower()}. '
+        'Пунктирная окружность это медиана серии: лучи вне неё гуляют больше типичного '
+        'вопроса, внутри меньше.</p>')
 
 
 def self_assessment_html(models) -> str:
