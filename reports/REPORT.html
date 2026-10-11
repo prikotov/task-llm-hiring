@@ -692,6 +692,14 @@ document.querySelectorAll('svg.scatter g.pt').forEach(function (pt) {
   function axis(a, b) {
     var g = new THREE.BufferGeometry().setFromPoints([a, b]);
     scene.add(new THREE.Line(g, new THREE.LineBasicMaterial({color: 0x8b95a3})));
+    // стрелка на конце оси, направление a → b
+    var dir = b.clone().sub(a).normalize();
+    var cone = new THREE.Mesh(
+        new THREE.ConeGeometry(0.18, 0.5, 12),
+        new THREE.MeshBasicMaterial({color: 0x8b95a3}));
+    cone.position.copy(b);
+    cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+    scene.add(cone);
   }
   axis(new THREE.Vector3(0, 0, 0), new THREE.Vector3(S, 0, 0));
   axis(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, S, 0));
