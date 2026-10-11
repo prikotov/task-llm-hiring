@@ -1423,14 +1423,18 @@ def build(models, sessions, primer, low_json=None):
         pm = primer.get((folder, "primer-v2"), {})
         if not pm:
             continue
+        # прогоны финальной версии промпта: run-иды из decision-all (у ornith в папке
+        # лежат и прогоны ранней версии v1, их не усредняем)
+        v2_runs = {r["run"] for r in csv.DictReader(
+            open(ROOT / "reports" / "decision-all.csv", encoding="utf-8-sig"))
+            if r["judge"] == "clef" and r["model"] == folder and r["series"] == "primer-v2"}
         durs, toks = [], []
-        for sj in sorted((ROOT / folder / "backend").glob("run-*/session.json")):
-            s = json.loads(sj.read_text())
-            if s.get("primer"):
-                durs.append(sum(tt["duration_s"] for tt in s["turns"]))
-                u = s.get("usage", {})
-                toks.append(u.get("output_tokens")
-                            or sum(tt.get("eval_count") or 0 for tt in s["turns"]))
+        for run in sorted(v2_runs):
+            s = json.loads((ROOT / folder / "backend" / run / "session.json").read_text())
+            durs.append(sum(tt["duration_s"] for tt in s["turns"]))
+            u = s.get("usage", {})
+            toks.append(u.get("output_tokens")
+                        or sum(tt.get("eval_count") or 0 for tt in s["turns"]))
         cost = (statistics.mean(durs) / 3600 * (LOCAL_KWH * RUB_KWH + AMORT_RUB_H) / RUB_USD
                 if durs else 0)
         entry = dict(folder=folder, label=plabel, series="think-off", kind="local",
