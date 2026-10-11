@@ -18,7 +18,7 @@ import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from judge import build_tasks, BASE_URL, SCORE_CRITERIA
+from score import build_tasks, BASE_URL, SCORE_CRITERIA
 
 # Дополнительные метрики: noul (вероятность «да») + score (уровневая).
 NoulQ = dict  # question spec

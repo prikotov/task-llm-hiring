@@ -18,7 +18,7 @@ import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from judge import build_tasks, BASE_URL, SCORE_CRITERIA
+from score import build_tasks, BASE_URL, SCORE_CRITERIA
 from judge_metrics import METRICS
 
 QUESTIONS = {

@@ -94,8 +94,8 @@ TOP_ROW = {"anthropic-claude-opus-5.5", "openai-gpt-6.1-sol"}
 RU_ROWS = {"gigachat", "gigachat-3-ultra", "yandexgpt"}
 
 THINK_TITLE = {
-    "think-off": "выключено", "think-on": "включено",
-    "мышление включено": "включено",
+    "think-off": "без мышления", "think-on": "с мышлением",
+    "мышление включено": "с мышлением",
     "effort low": "effort low", "deepseek": "effort low",
     # у этих API нет reasoning-ручки — модели работают в своём базовом режиме
     "базовый": "не настраивается", "yandexfm": "не настраивается",
@@ -506,6 +506,150 @@ document.querySelectorAll('svg.scatter g.pt').forEach(function (pt) {
             + '. Диаметр точки кодирует долю ответов с галлюцинациями (чем больше, тем грязнее). Ось Y обрезана от 1.5: моделей ниже не было.</p>')
 
 
+def stability_html(models) -> str:
+    """Постоянство ответов: разброс балла одного и того же вопроса между
+    прогонами серии (размах, 0–4) — распределение по моделям и по темам."""
+    import math, statistics
+    series = []
+    for m in models:
+        if len(m["runs"]) < 2:
+            continue
+        base = ROOT / m["folder"] / "backend" / "judgments"
+        per_q = {}
+        for run in m["runs"]:
+            d = {r["question"]: r for r in csv.DictReader(
+                open(base / f"decision-clef-{run}.csv", encoding="utf-8-sig"))}
+            for q, r in d.items():
+                if r.get("error") or q not in KNOW:
+                    continue
+                per_q.setdefault(q, []).append(float(r["score"]))
+        rng = {q: max(v) - min(v) for q, v in per_q.items() if len(v) > 1}
+        if len(rng) >= 10:
+            title = THINK_TITLE.get(m["series"], m["series"])
+            series.append({"label": f"{m['label']} ({title})", "rng": rng})
+    if len(series) < 2:
+        return ""
+    all_vals = [v for s in series for v in s["rng"].values()]
+
+    # --- свечи: распределение размахов вопросов по моделям ---
+    PCT = lambda v: v / 4 * 100          # размах в % шкалы 0–4
+    xmax = max(20.0, math.ceil(max(all_vals) / 4 * 100 / 5) * 5)
+    W, ML, MR, MT, RH = 940, 232, 128, 26, 52
+    H = MT + RH * len(series) + 46
+    PW = W - ML - MR
+    px = lambda v: ML + PW * (v / xmax)   # v уже в процентах
+    order = sorted(series, key=lambda s: statistics.median(s["rng"].values()))
+    svg = [f'<svg viewBox="0 0 {W} {H}" style="width:100%;max-width:{W}px;font-family:inherit">']
+    step = 5.0 if xmax <= 25 else 10.0
+    v = 0.0
+    while v <= xmax + 1e-9:
+        x = px(v)
+        svg.append(f'<line x1="{x:.0f}" y1="{MT - 6}" x2="{x:.0f}" y2="{H - 46}" stroke="#e4e7ec"/>'
+                   f'<text x="{x:.0f}" y="{H - 30}" text-anchor="middle" font-size="12" fill="#66707f">{v:.0f}%</text>')
+        v = round(v + step, 1)
+    svg.append(f'<text x="{ML + PW / 2:.0f}" y="{H - 10}" text-anchor="middle" font-size="12.5" '
+               f'fill="#66707f">расхождение ответа на вопрос между прогонами, 100% = 4 балла</text>')
+    for i, s in enumerate(order):
+        y = MT + RH * i + RH / 2
+        vals = sorted(s["rng"].values())
+        med = statistics.median(vals)
+        q1 = statistics.quantiles(vals, n=4)[0] if len(vals) >= 4 else vals[0]
+        q3 = statistics.quantiles(vals, n=4)[2] if len(vals) >= 4 else vals[-1]
+        svg.append(f'<text x="{ML - 10}" y="{y + 4:.0f}" text-anchor="end" font-size="13" '
+                   f'fill="#1d2433">{s["label"]}</text>')
+        # ус: тонкая линия от минимума до максимума
+        svg.append(f'<line x1="{px(PCT(vals[0])):.1f}" y1="{y:.0f}" x2="{px(PCT(vals[-1])):.1f}" y2="{y:.0f}" '
+                   f'stroke="#aab3bf" stroke-width="1.6"/>')
+        # тело: половина вопросов в середине (от 1-го до 3-го квартиля)
+        bw = max(3.0, px(PCT(q3)) - px(PCT(q1)))
+        svg.append(f'<rect x="{px(PCT(q1)):.1f}" y="{y - 9:.0f}" width="{bw:.1f}" height="18" rx="3.5" '
+                   f'fill="#2f7d54" fill-opacity="0.75"/>')
+        # риска медианы: тёмно-зелёная вертикаль в тон телу
+        svg.append(f'<rect x="{px(PCT(med)) - 1.4:.1f}" y="{y - 9:.0f}" width="2.8" height="18" rx="1.2" fill="#1e5c38"/>')
+        svg.append(f'<text x="{W - MR + 10:.0f}" y="{y + 4:.0f}" font-size="12.5" fill="#66707f">'
+                   f'медиана {PCT(med):.1f}% · макс {PCT(vals[-1]):.0f}%</text>')
+    svg.append("</svg>")
+    strip = "".join(svg)
+
+    # --- радары по моделям: средний размах ответов по темам ---
+    SECMAP = {"PHP 8": "PHP 8", "ООП и принципы": "ООП", "Symfony": "Symfony",
+              "Doctrine": "Doctrine", "PostgreSQL": "PostgreSQL",
+              "DDD": "DDD и чистая арх.", "Чистая архитектура": "DDD и чистая арх.",
+              "Тестирование": "Тесты и конкурент.", "Конкурентность": "Тесты и конкурент.",
+              "Git и процесс": "Git", "Провокации": "Провокации",
+              "Мини-код-ревью": "Мини-код-ревью"}
+    SHORT = {"PHP 8": "PHP 8", "ООП": "ООП", "Symfony": "Symfony", "Doctrine": "Doctrine",
+             "PostgreSQL": "Postgres", "DDD и чистая арх.": "DDD",
+             "Тесты и конкурент.": "Тесты", "Git": "Git", "Провокации": "Провок.",
+             "Мини-код-ревью": "Ревью"}
+    qs = json.loads((ROOT / "interview" / "roles" / "backend" / "questions.json").read_text())["questions"]
+    qsec = {q["id"]: q["section"] for q in qs}
+    per_series = []
+    for s in series:
+        acc = {}
+        for q, r in s["rng"].items():
+            topic = SECMAP.get(qsec.get(q.split(".")[0], "?"), "?")
+            acc.setdefault(topic, []).append(r)
+        per_series.append({topic: sum(v) / len(v) for topic, v in acc.items()})
+    topics = sorted(per_series[0], key=lambda k: -sum(p.get(k, 0) for p in per_series))
+    rmax = max(5.0, math.ceil(max(v for p in per_series for v in p.values()) / 4 * 100 / 5) * 5)
+    RW, RHt, R = 300, 288, 92
+    cx, cy = RW / 2, RHt / 2 + 12
+    pt = lambda i, r: (cx + r * math.cos(math.pi * 2 * i / len(topics) - math.pi / 2),
+                       cy + r * math.sin(math.pi * 2 * i / len(topics) - math.pi / 2))
+    cards = []
+    radar_order = sorted(zip(series, per_series),
+                         key=lambda sp: statistics.median(sp[0]["rng"].values()))
+    for s, pmeans in radar_order:
+        rsvg = [f'<svg viewBox="0 0 {RW} {RHt}" style="width:100%;max-width:{RW}px;font-family:inherit">',
+                f'<text x="{cx:.0f}" y="18" text-anchor="middle" font-size="13.5" font-weight="600" '
+                f'fill="#1d2433">{s["label"]}</text>']
+        for f in (0.5, 1.0):
+            pts = " ".join(f"{pt(i, R * f)[0]:.1f},{pt(i, R * f)[1]:.1f}" for i in range(len(topics)))
+            rsvg.append(f'<polygon points="{pts}" fill="none" stroke="#e4e7ec"/>')
+        rsvg.append(f'<text x="{cx + 4:.0f}" y="{cy - R + 3:.0f}" font-size="10" fill="#9aa3ad">{rmax * 0.5:.0f}%</text>')
+        for i, topic in enumerate(topics):
+            x, y = pt(i, R)
+            rsvg.append(f'<line x1="{cx:.0f}" y1="{cy:.0f}" x2="{x:.1f}" y2="{y:.1f}" stroke="#e4e7ec"/>')
+            lx, ly = pt(i, R + 15)
+            anc = "middle" if abs(lx - cx) < 12 else ("start" if lx > cx else "end")
+            rsvg.append(f'<text x="{lx:.1f}" y="{ly + 3:.0f}" text-anchor="{anc}" font-size="10.5" '
+                        f'fill="#1d2433" stroke="#fafbfc" stroke-width="3" paint-order="stroke">{SHORT.get(topic, topic)}</text>')
+        med_pct = statistics.median(s["rng"].values()) / 4 * 100
+        rm = R * med_pct / rmax
+        rsvg.append(f'<circle cx="{cx:.0f}" cy="{cy:.0f}" r="{rm:.1f}" fill="none" '
+                    f'stroke="#1d2433" stroke-opacity="0.55" stroke-dasharray="4,4" stroke-width="1.4"/>')
+        rsvg.append(f'<text x="{cx + rm * 0.72 + 4:.1f}" y="{cy + rm * 0.72 + 10:.1f}" font-size="9.5" '
+                    f'fill="#9aa3ad" stroke="#fafbfc" stroke-width="3" paint-order="stroke">медиана {med_pct:.1f}%</text>')
+        vals = [pmeans.get(topic, 0) / 4 * 100 for topic in topics]
+        pts = " ".join(f"{pt(i, R * v / rmax)[0]:.1f},{pt(i, R * v / rmax)[1]:.1f}" for i, v in enumerate(vals))
+        rsvg.append(f'<polygon points="{pts}" fill="#2f7d54" fill-opacity="0.16" stroke="#2f7d54" stroke-width="2"/>')
+        for i, v in enumerate(vals):
+            x, y = pt(i, R * v / rmax)
+            rsvg.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3" fill="#2f7d54"/>')
+        rsvg.append("</svg>")
+        cards.append(f'<div class=scard>{"".join(rsvg)}</div>')
+    radar = '<div class=sgrid>' + "".join(cards) + "</div>"
+
+    worst = max(topics, key=lambda k: sum(pm.get(k, 0) for pm in per_series) / len(per_series))
+    return (
+        '<h3>Постоянство ответов</h3>'
+        '<p class=lead>Насколько модель отвечает одинаково от прогона к прогону: '
+        'разброс балла одного и того же вопроса между прогонами серии. '
+        'Только серии с несколькими прогонами (локальные, 3–5 прогонов).</p>'
+        + strip +
+        '<p class=sub>Свеча это распределение вопросов серии: тело охватывает половину вопросов '
+        'в середине распределения (между квартилями), усы ведут к минимальному и максимальному '
+        'расхождению, тёмная риска это медиана. У самых постоянных серий медиана 1–2% от максимального балла '
+        '% шкалы, но почти у каждой есть вопросы, гуляющие на четверть шкалы и больше.</p>'
+        + radar +
+        '<p class=sub>Каждый радар это одна серия: луч темы показывает средний размах её '
+        f'ответов в этой теме; единая шкала для всех радаров, 100% = 4 балла (кольцо = {rmax:.0f}%). '
+        f'Наименее воспроизводимая тема почти у всех серий — {worst.lower()}. '
+        'Пунктирная окружность это медиана серии: лучи вне неё гуляют больше типичного '
+        'вопроса, внутри меньше.</p>')
+
+
 def self_assessment_html(models) -> str:
     topics = [t[0] for t in SELF_TOPICS]
     QWEN_FAMILY = {"qwen3.8", "huihui_ai-Qwen3.8-abliterated-latest",
@@ -606,7 +750,9 @@ def load_metrics():
     out = []
     for m in MODELS:
         scores, hps, nrs, durs, out_toks = [], [], [], [], []
+        run_means = []
         for run in m["runs"]:
+            run_scores = []
             base = ROOT / m["folder"] / "backend" / "judgments"
             d = {r["question"]: r for r in csv.DictReader(
                 open(base / f"decision-clef-{run}.csv", encoding="utf-8-sig"))}
@@ -617,8 +763,10 @@ def load_metrics():
                 if r.get("error") or q not in KNOW:
                     continue
                 scores.append(float(r["score"])); hps.append(float(r["hall_p"]))
+                run_scores.append(float(r["score"]))
                 if q in e and not e[q].get("error"):
                     nrs.append(float(e[q]["need_review"]))
+            run_means.append(statistics.mean(run_scores))
             s = json.loads((ROOT / m["folder"] / "backend" / run / "session.json").read_text())
             durs.append(sum(t["duration_s"] for t in s["turns"]))
             u = s.get("usage", {})
@@ -647,6 +795,7 @@ def load_metrics():
                 LOCAL_KWH * RUB_KWH + AMORT_RUB_H) / RUB_USD
         out.append({**m,
                     "clef": round(statistics.mean(scores), 2),
+                    "run_sigma": round(statistics.stdev(run_means), 2) if len(run_means) > 1 else None,
                     "p_hall": round(statistics.mean(hps), 3),
                     "need_rev": round(statistics.mean(nrs), 2) if nrs else None,
                     "dur_min": round(statistics.mean(durs) / 60, 1),
@@ -822,11 +971,13 @@ header p.gap{margin-top:32px}
 h2{font-size:24px;margin:44px 0 4px;letter-spacing:-.01em}
 h2 .no{color:var(--mut);font-weight:400;margin-right:8px}
 h3{font-size:17.5px;margin:26px 0 2px}
+h4{font-size:15.5px;margin:18px 0 2px;color:var(--ink)}
 .lead{color:var(--mut);margin:0 0 14px;font-size:15px}
 header .lead{color:#fff}
 header p a{color:#cfe0f7;text-decoration:underline}
 p{margin:10px 0}
 .sub{font-size:12.5px;color:var(--mut);margin-top:3px;line-height:1.5}
+.excap{font-size:15px;color:var(--ink);margin:12px 0 -4px;line-height:1.5}
 table{border-collapse:collapse;width:100%;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 2px rgba(20,30,50,.07);margin:14px 0}
 th{background:#eef1f6;text-align:left;font-size:12.5px;text-transform:uppercase;letter-spacing:.03em;color:#46536a;padding:10px 12px;border-bottom:2px solid var(--line)}
 td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top;font-size:14.5px}
@@ -855,6 +1006,7 @@ tr.ru td{background:#eef2f8}
 .scatter g.pt .tip{pointer-events:none}
 .scalebox b{color:var(--ink)}
 .quote{background:#fff;border:1px solid var(--line);border-radius:12px;padding:15px 19px;margin:13px 0;font-size:14.5px}
+pre.req{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 16px;margin:8px 0 12px;font-size:11.8px;line-height:1.55;overflow-x:auto;white-space:pre-wrap}
 .quote .who{font-size:12.5px;color:var(--mut);margin-bottom:7px;text-transform:uppercase;letter-spacing:.03em}
 .quote.bad{border-left:4px solid var(--bad)}.quote.good{border-left:4px solid var(--good)}
 .flow{display:flex;flex-wrap:wrap;gap:7px;align-items:stretch;margin:15px 0}
@@ -923,7 +1075,7 @@ Symfony, Doctrine, PostgreSQL, DDD, чистую архитектуру, тес�
 Формат прост: один чат, один вопрос, один ответ, без инструментов,
 файлов и system prompt. Так мы изучаем базовые знания модели, то, что
 у неё зашито в весах при обучении, а не то, что ей могло бы дать окружение.</p>
-<p>Ответы оцениваются в три яруса; контрольные вердикты выносит
+<p>Ответы судит дешёвая decision-модель, а контрольные вердикты выносит
 изолированный судья GLM-5.3-Flash, который сверяет спорные утверждения
 запуском кода на PHP 8.5 и запросами к настоящему PostgreSQL.</p>
 <p class=gap>Этот отчёт для тех, кто выбирает модель под задачи и понимает
@@ -995,53 +1147,128 @@ ollama с выгрузкой из памяти до и после каждого
 с reasoning effort low (сопоставимо с выключенным мышлением локальных),
 DeepSeek, GigaChat и YandexGPT через родные API провайдеров
 (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/runner_ru_cloud.py">runner_ru_cloud.py</a>).
-Для каждой модели делается несколько независимых прогонов (до пяти на серию).</p>
+Для каждой модели делается несколько независимых прогонов (до пяти на серию); показатели серии усредняются по прогонам. Постоянство меряется на двух уровнях: разброс средних прогонов показывает стабильность оценки серии, а разброс балла одного и того же вопроса между прогонами показывает постоянство отдельного ответа.</p>
 <h3>Оценка</h3>
 <p>Ответы оцениваются по протоколам постфактум, каждый ответ отдельно. У
-каждого вопроса есть чек-лист якорей: 2–4 признака сильного ответа и 1–2
-слабого
+каждого вопроса есть чек-лист якорей: 🟢 зелёный свет (2–4 признака сильного
+ответа) и 🚩 красный флаг (1–2 признака слабого)
 (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/rubrics/backend/checklists.json">чек-листы
-всех вопросов</a>); полные карточки эталона с красными флагами, образцом
-ответа и шкалой 0–4 написаны вручную для двух вопросов как калибровка
-судейства
+всех вопросов</a>); полные карточки эталона с зелёным светом, красными
+флагами, образцом ответа и шкалой 0–4 написаны вручную для двух вопросов как
+калибровка судейства
 (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/rubrics/backend/Q01.md">пример
-карточки</a>). Сама оценка идёт в три яруса, от дешёвых проверок к дорогим.</p>
+карточки</a>). Сама оценка идёт в два яруса, от дешёвого судьи к дорогому.</p>
 <div class=flow>
-<div class=step><b>Ярус 0: эмбеддинги bge-m3</b>бесплатно: близость к ответам SOTA-эталонов (Opus 5.5, GPT-6.1 Sol). Ниже 0.78 вердикт «плохо» без судьи.</div>
+<div class=step><b>Ярус 1: Decision-модель - clef</b>локально (дёшево и быстро), один запрос на анализ ответа: quality (балл 0–4), hallucination (галлюцинации), need_review (нужен ли более знающий судья), unsure (неуверенность), factcheck_zone (факт-проверка).</div>
 <div class=arrow>→</div>
-<div class=step><b>Ярус 1: clef, decision-модель</b>локально и бесплатно: балл, вероятность галлюцинаций, самоотчёт о зоне незнания (need_review).</div>
-<div class=arrow>→</div>
-<div class="step hot"><b>Ярус 2: GLM-5.3-Flash</b>только по триггеру: изолированный судья на ответ, факты проверяет запуском кода.</div>
+<div class="step hot"><b>Ярус 2: LLM судья - GLM-5.3-Flash</b>по триггеру (need_review или hallucination &gt; 0.3), один запуск на ответ: спорные факты проверяет запуском кода (PHP, PostgreSQL) и выносит вердикт.</div>
 </div>
-<p>Ярус 0
-(<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/embed_compare.py">embed_compare.py</a>)
-отсеивает дно бесплатно: эмбеддинги bge-m3 меряют близость ответа к ответам
-SOTA-эталонов (Opus 5.5, GPT-6.1 Sol), ниже 0.78 вердикт «плохо» без судьи.
-Ярус 1 (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/judge.py">judge.py</a>)
-судит каждый ответ изолированно: decision-модель clef получает вопрос и ответ
-кандидата, ставит балл 0–4 по критериям шкалы и вероятность галлюцинаций,
-а добавочный вопрос «нужен ли более знающий судья?» даёт признак need_review
-(<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/judge_escalation.py">judge_escalation.py</a>).
-Ярус 2 (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/judge_glm.py">judge_glm.py</a>)
-подключается по триггеру: need_review &gt; 0.3 или p-галлюцинаций &gt; 0.3
-(эскалация 41% при точности 83% и полноте 82% на размеченном корпусе). Судья
+<p>Ярус 1 (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/score.py">score.py</a>)
+оценивает каждый ответ изолированно, одним запросом: decision-модель clef
+получает вопрос и ответ кандидата и отвечает сразу на пять вопросов:
+quality (балл 0–4), hallucination (вероятность галлюцинаций), need_review
+(нужен ли более знающий судья), unsure (неуверенность в своей оценке),
+factcheck_zone (утверждения, требующие факт-проверки).</p>
+
+<p>Ярус 2 (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/judge_glm.py">judge_glm.py</a>)
+подключается по триггеру: need_review &gt; 0.3 или hallucination &gt; 0.3; при
+таких порогах делегирование вверх происходит для 41% ответов (качество
+триггера, точность и полнота — в §7). Судья
 GLM-5.3-Flash запускается изолированно на один вопрос-ответ, с якорями
 чек-листа этого вопроса; спорные утверждения он проверяет запуском
 кода (PHP 8.5, PostgreSQL в docker) и возвращает вердикт: балл, признак
 галлюцинации, мотивировка.</p>
-<p>Вердикты каждого прогона лежат рядом с ним в папке judgments: таблицы
-яруса 1
-(<a href="https://github.com/prikotov/task-llm-hiring/blob/main/muse-glimmer/backend/judgments/decision-clef-run-01.csv">пример</a>)
-и вердикты яруса 2 в glm-5.3-flash-iso/
-(<a href="https://github.com/prikotov/task-llm-hiring/blob/main/muse-glimmer/backend/judgments/glm-5.3-flash-iso/run-01.json">пример</a>).
-В итоговые таблицы этого отчёта вошли вердикты яруса 2 по всем 30 ответам
-на знания каждой серии (§4),
-триггер остаётся штатным режимом для новых прогонов.</p>
-<p class=sub>Дешёвый судья хорошо ранжирует серии (Спирмен 0.92 с баллами
-судьи GLM-5.3-Flash по средним баллам серий; на отдельных ответах слабее,
-см. §7), но сжимает шкалу и слеп к галлюцинациям внутри грамотного текста,
-поэтому финальное слово за ярусом 2.</p>
+<h4>Пример оценки ответа кандидата</h4>
+<p>Проследим путь одного реального ответа кандидата по обоим ярусам: провокация
+Q24 («Для чего в PostgreSQL используется FORCE INDEX?»), ответ muse-glimmer 28B
+из первого прогона.</p>
+<p class=excap><b>Запрос к clef</b> (score.py, реальный вызов; текст ответа кандидата сокращён):</p>
+<pre class=req>POST /v1/systemone
+{ "model": "clef",
+  "state": "Ты оцениваешь ответ кандидата на техническом собеседовании
+            PHP/Symfony/Doctrine/PostgreSQL/DDD-разработчика.
 
+            ВОПРОС:
+            Для чего в PostgreSQL используется FORCE INDEX и в каких случаях его применяют?
+
+            ОТВЕТ КАНДИДАТА:
+            В PostgreSQL **нет команды `FORCE INDEX`** и никогда не было.
+            `FORCE INDEX`, `USE INDEX`, `IGNORE INDEX` — это хинты оптимизатора из MySQL.
+            … (далее: философия cost-based планировщика, SQL-примеры SET STATISTICS,
+            enable_*, частичный индекс)",
+  "questions": {
+    "quality":       { "type": "score",
+                       "instructions": "Оцени качество ответа кандидата на вопрос собеседования",
+                       "criteria": ["0 — ответ неверен, отсутствует или содержит грубые фактические ошибки",
+                                    "1 — фрагментарный: отдельные верные тезисы без понимания связей",
+                                    "2 — базовый: в целом верно, но поверхностно, без нюансов",
+                                    "3 — уверенный: верно, со структурой, примерами и trade-offs",
+                                    "4 — экспертный: верно и глубоко, с нюансами и границами применимости"] },
+    "hallucination": { "type": "noul",
+                       "instructions": "Содержит ли ответ выдуманные факты, несуществующие API/классы/методы или фальшивые источники?",
+                       "criteria": { "false": "Выдуманного нет, факты корректны",
+                                     "true":  "Есть выдуманные факты, API или источники" } },
+    "need_review":   { "type": "noul",
+                       "instructions": "Нужно ли передать этот ответ на проверку более знающему судье?
+                                        Ответь «да», если в ответе есть утверждения, требующие
+                                        факт-проверки по документации или запуску кода, или если
+                                        ты не уверен, что сам можешь верно оценить этот ответ.",
+                       "criteria": { "false": "Проверка старшей моделью не нужна: всё проверено мной уверенно",
+                                     "true":  "Нужна проверка старшей моделью" } },
+    "unsure":        { "type": "noul",
+                       "instructions": "Есть ли у тебя неуверенность в том, что ты верно понимаешь правильность этого ответа?",
+                       "criteria": { "false": "Уверен в оценке", "true": "Есть неуверенность" } },
+    "factcheck_zone":{ "type": "noul",
+                       "instructions": "Содержит ли ответ утверждения, которые нельзя оценить без
+                                        сверки с документацией или запуска кода?",
+                       "criteria": { "false": "Нет, всё оцениваемо по общим знаниям",
+                                     "true":  "Да, есть такие утверждения" } } } }</pre>
+<p class=excap><b>Ответ clef</b> (реальный): noul-поля это вероятности от 0 до 1, не бинарные флаги.</p>
+<pre class=req>{ "answers": { "quality":       { "score": 3.55, "confidence": 0.45,
+                                    "probabilities": { "0": 0.01, "1": 0.03, "2": 0.04,
+                                                       "3": 0.24, "4": 0.68 } },
+               "hallucination": { "noul": 0.119 },
+               "need_review":   { "noul": 0.146 },
+               "unsure":        { "noul": 0.145 },
+               "factcheck_zone":{ "noul": 0.313 } } }</pre>
+<p class=excap><b>Как читать.</b> clef оценил ответ в 3.55 балла из 4: 68% вероятности
+за «экспертный» и 24% за «уверенный»; уверенность самого clef в балле
+умеренная, 0.45. Вероятность галлюцинаций 12%, эскалацию clef не просит:
+need_review 0.146 при пороге 0.3. Показательно, что factcheck_zone 0.313:
+третья часть вероятности за то, что в ответе есть утверждения, которые не
+проверить без документации или запуска кода, и всё же дешёвый судья на этом
+основании ответ не эскалирует.</p>
+<p class=excap><b>Вердикт судьи яруса 2 на тот же ответ</b> (hallucination здесь бинарный,
+true значит «есть хотя бы одна выдуманная деталь»; частичная выдумка не обнуляет
+балл, оценка качества и признак галлюцинации независимы):</p>
+<pre class=req>{ "score": 4.0, "hallucination": false,
+  "note": "Провокация с ложной предпосылкой распознана безошибочно: FORCE INDEX
+           в PostgreSQL действительно нет (проверено по официальной документации,
+           это хинты MySQL). … Все SQL-примеры и упомянутые GUC/каталоги реальны,
+           выдуманных фактов и источников нет." }</pre>
+<p class=excap style="margin-top:10px">Этот ответ кандидата триггеры наверх не отправили бы, и это правильное
+решение: сплошная до-проверка (ремарка ниже) показала, что LLM судья здесь
+почти ничего не добавляет, 4 против 3.55, галлюцинаций нет. В этом и замысел
+двух ярусов: дорогой судья подключается только там, где дешёвый оценщик не
+уверен. Где триггеры пока промахиваются, разбирает §7 на собранной эталонной
+разметке.</p>
+<p>Вердикты каждого прогона лежат рядом с ним по пути
+&lt;модель&gt;/&lt;роль&gt;/judgments/ (в примерах ниже: muse-glimmer/backend/judgments/):
+таблица
+яруса 1 с баллом и вероятностью галлюцинаций
+(<a href="https://github.com/prikotov/task-llm-hiring/blob/main/muse-glimmer/backend/judgments/decision-clef-run-01.csv">пример</a>),
+отдельная таблица эскалационных признаков
+(<a href="https://github.com/prikotov/task-llm-hiring/blob/main/muse-glimmer/backend/judgments/escalation-clef-run-01.csv">пример</a>)
+и вердикты яруса 2 в glm-5.3-flash-iso/
+(<a href="https://github.com/prikotov/task-llm-hiring/blob/main/muse-glimmer/backend/judgments/glm-5.3-flash-iso/run-01.json">пример</a>).</p>
+<div class=note><b>Ремарка.</b> Описанное выше это система, к которой стремимся.
+В самом исследовании оценка и эскалация шли двумя раздельными вызовами
+clef, с прежней формулировкой need_review, а судья яруса 2 сплошь проверил
+все 30 ответов на знания в одном прогоне каждой серии (все прогоны серии
+судит дешёвый ярус, его балл усредняется), а не только ответы выше порога:
+сплошная проверка собрала эталонную разметку, на которой калибруются
+триггеры и улучшается методика оценки (§7). В таблицах §4 стоят баллы этого
+прогона.</div>
 <h2 id=models><span class=no>3</span>Модели</h2>
 <p class=lead>Кто участвовал и почему: состав отражает вопросы исследования, от потолка облаков и честной цены до локальных кандидатов, российских облаков и негативных контролей.</p>
 <table>
@@ -1059,7 +1286,7 @@ GLM-5.3-Flash запускается изолированно на один во
 <tr><td><b>qwen3.8 27B</b> <span class="badge b">локально</span></td><td>локально · ollama (Q4_K_M)</td><td>главный локальный кандидат: dense 27B популярного семейства</td><td>мышление выключено (с мышлением контекст переполняется)</td></tr>
 <tr><td><b>muse-glimmer 28B</b> <span class="badge b">локально</span></td><td>локально · ollama</td><td>малоизвестный бренд: проверка «кота в мешке»</td><td>мышление выключено; лучшая локальная по баллам судьи (3.53)</td></tr><tr><td><b>huihui abliterated 27B</b> <span class="badge b">локально</span></td><td>локально · ollama</td><td>abliterated-файнтюн qwen3.8: сняты отказохранители</td><td>мышление выключено</td></tr><tr><td><b>orcarouter 27B uncensored</b> <span class="badge b">локально</span></td><td>локально · ollama</td><td>uncensored-файнтюн qwen3.8: сняты отказохранители</td><td>мышление выключено</td></tr>
 <tr class=neg><td><b>medgemma 27B</b> <span class="badge r">негат. контроль</span></td><td>локально · ollama</td><td>негативный контроль: медицинский файнтюн, проверяем различимость шкалы на чужом домене</td><td>мышление выключено</td></tr>
-<tr class=neg><td><b>gemma4-e2b 4.6B</b> <span class="badge r">негат. контроль</span></td><td>локально · ollama</td><td>негативный контроль: крошка, дно шкалы</td><td>мышление выключено</td></tr>
+<tr class=neg><td><b>gemma4-e2b 4.6B</b> <span class="badge r">негат. контроль</span></td><td>локально · ollama</td><td>негативный контроль: крошка, низ шкалы</td><td>мышление выключено</td></tr>
 </table>
 <h3>Локальное окружение</h3>
 <table>
@@ -1085,7 +1312,7 @@ GLM-5.3-Flash запускается изолированно на один во
 
 <h2 id=results><span class=no>4</span>Результаты</h2>
 <p class=lead>Канонические серии: у локальных мышление выключено, у облаков effort low (исключение ornith-9B, у которой мышление всегда включено). Обе серии ornith-35B разобраны в §6. У Сбера и Яндекса reasoning-ручки в API нет, поэтому «не настраивается»: модель работает в своём базовом режиме. Баллы обеих шкал и галлюцинации — только по вопросам на знания, 30 ответов из 41 (детали в сноске 2). Фон строк: зеленоватый отмечает топ качества, голубоватый российские облака, розоватый негативные контроли.</p>
-<p class=sub style="margin:-6px 0 10px">Строки отсортированы по баллу судьи GLM-5.3-Flash; все серии проверены им по всем 30 вопросам на знания.</p>
+<p class=sub style="margin:-6px 0 10px">Строки отсортированы по баллу судьи GLM-5.3-Flash; каждая серия проверена им по всем 30 вопросам на знания одного прогона, постоянство по прогонам контролирует clef (±).</p>
 <!--TABLE-->
 
 <h2 id=honesty><span class=no>5</span>Достоверность (галлюцинации)</h2>
@@ -1118,11 +1345,11 @@ GLM-5.3-Flash запускается изолированно на один во
 <p class=sub>Мерили против судьи GLM-5.3-Flash (изолированные проверки с запуском кода): корреляция баллов, точность детекции галлюцинаций (AUC), доля пойманных PHP-ошибок, верифицированных запуском на PHP 8.5.</p>
 <table>
 <tr><th>Модель</th><th>Зачем пробовали</th><th>Вердикт</th></tr>
-<tr><td><b>clef 27B Q4</b> (локально)</td><td>основной кандидат</td><td><b>Принят</b>, судья яруса 1: corr 0.62 с судьёй GLM-5.3-Flash, AUC 0.93, ловит 7 из 10 верифицированных ошибок. Слабости: сжатие шкалы (сильным −0.4, слабым +0.4), слепота к галлюцинациям внутри грамотного текста, занижение корректных коротких отказов</td></tr>
+<tr><td><b>clef 27B Q4</b> (локально)</td><td>основной кандидат</td><td><b>Принят</b>, судья яруса 1: corr 0.62 с судьёй GLM-5.3-Flash, AUC 0.93, ловит 7 из 10 верифицированных ошибок. Серии ранжирует точно (Спирмен 0.92 с судьёй GLM-5.3-Flash по средним баллам серий), но на отдельных ответах слабее; сжимает шкалу (сильным −0.4, слабым +0.4), слеп к галлюцинациям внутри грамотного текста, занижает корректные короткие отказы</td></tr>
 <tr><td>clef-flash 9B</td><td>дешёвый первый экран</td><td><b>Отклонён как оценщик</b>: corr 0.06–0.09 с судьёй GLM-5.3-Flash; годится только на грубые бинарные признаки</td></tr>
 <tr><td>clef bf16 (облако)</td><td>вдруг квантование портит?</td><td><b>Не нужно</b>: идентичен локальному Q4 (corr 0.98–0.99); облако к тому же режет контекст судьи до 2K токенов</td></tr>
 <tr><td>Jev 1.13 (typesafe)</td><td>лидер внешних бенчей decision-моделей</td><td><b>Проиграл</b> в PHP-домене: corr 0.51, AUC 0.89, 4 из 10 ошибок, эскалация перегрета (медиана 0.54). Согласуется с внешним бенчем, где Clef победил колонку Programming</td></tr>
-<tr><td>bge-m3 (эмбеддинги)</td><td>бесплатная замена судье</td><td><b>Только фильтр дна</b>: ниже 0.78 близости к SOTA плохой ответ; но тема ≠ истинность, галлюцинация на нужную тему «похожа» на правду больше безупречного ответа</td></tr>
+<tr><td>bge-m3 (эмбеддинги)</td><td>дешёвая и быстрая замена судье</td><td><b>Только черновой фильтр</b>: ниже 0.78 близости к SOTA плохой ответ; но тема ≠ истинность, галлюцинация на нужную тему «похожа» на правду больше безупречного ответа</td></tr>
 <tr><td>mxbai / e5 / nomic</td><td>альтернативы яруса 0</td><td>mxbai непригоден (corr 0.13–0.25), e5 сжимает диапазон (контекст 512; инструкции и чанкинг не помогли), nomic запасной</td></tr>
 <tr><td>GLM-5.3-Flash low / max</td><td>судья GLM-5.3-Flash (ярус 2)</td><td><b>Оба приняты с ролями</b>: low для рутины (97% совпадений с max в ±1, −70% токенов), max для финальных вердиктов (ловит тонкие фабрикации, low теряет ~17% из них)</td></tr>
 </table>
@@ -1130,7 +1357,7 @@ GLM-5.3-Flash запускается изолированно на один во
 <ol>
 <li><b>Балл + вероятность галлюцинаций</b>: базовые вопросы clef и clef-flash; сразу разделили роли: flash не тянет судейство качества.</li>
 <li><b>Семь вероятностных признаков</b> (код, структура, глубина, имена API, точные числа, сомнение, противоречия): каждый слабее одного явного вопроса об эскалации.</li>
-<li><b>Эскалация перебором сигналов</b>: расхождение двух decision-моделей, минус уверенность, p-галлюцинаций, комбинации; победил <b>прямой вопрос «нужен ли более знающий судья?»</b> (need_review): corr 0.76 с реальной проблемой против 0.34 у уверенности в балле.</li>
+<li><b>Эскалация перебором сигналов</b>: расхождение двух decision-моделей, минус уверенность, hallucination, комбинации; победил <b>прямой вопрос «нужен ли более знающий судья?»</b> (need_review): corr 0.76 с реальной проблемой против 0.34 у уверенности в балле. Расширение триггера OR-условиями factcheck_zone и unsure (проверено на 450 знаниевых ответах с вердиктами судьи) добавляет 3–5 п.п. полноты по галлюцинациям ценой +10 п.п. эскалации и падения точности: сигналы сильно пересекаются, не окупается. Штатный триггер (need_review &gt; 0.3 или hallucination &gt; 0.3) проверен на размеченном корпусе, где для каждого ответа известно, требовал ли он судьи: наверх уходит 41% ответов, точность 83% (из отправленных наверх столько действительно нуждались в судье), полнота 82% (из требовавших судьи ловится столько, остальные 18% пропускаются). В формулировке need_review, ходившей в исследовании отдельным вызовом, был изъян: «не уверен, что твоя оценка качества верна» ссылалась на оценку, которой в том вызове не было; в объединённом запросе score.py это исправлено.</li>
 <li><b>Якорные уровни</b> («оцени по образцу идеального ответа») не взлетели: сжатие шкалы не лечится примером.</li>
 <li><b>Чек-листы хороших/плохих пунктов</b>: интегральный балл слаб, но «плохие» детекторы ловят семантические ошибки, невидимые clef. Правило формулировок: «предлагает X как решение», а не «упоминает X».</li>
 <li><b>Семантическая энтропия</b> (расходимость ответов между прогонами, Nature 2024) отвергнута экспериментально: corr −0.35, галлюцинации стабильны, модель повторяет ту же галлюцинацию.</li>
@@ -1175,7 +1402,7 @@ GLM-5.3-Flash запускается изолированно на один во
 (запуск примеров кандидатов), PostgreSQL 17.7 (docker), официальная
 документация Symfony, Doctrine, PostgreSQL. Автор не аффилирован с
 упомянутыми компаниями; модели публично доступные версии октября 2026.
-<br><br>Методика и сырые данные: <a href="https://github.com/prikotov/task-llm-hiring">github.com/prikotov/task-llm-hiring</a> (вопросник, раннеры, скрипты судейства, все транскрипты и вердикты).
+<br><br>Методика и сырые данные: <a href="https://github.com/prikotov/task-llm-hiring">github.com/prikotov/task-llm-hiring</a> (вопросник, раннеры, скрипты судейства, все транскрипты и вердикты). В колонках таблиц-вердиктов исследования старые имена: score это quality, conf это уверенность в балле, hall_p это hallucination; столбцы от has_code до contradictions это семь вероятностных метрик эксперимента с судьями (§7), в целевом score.py их нет.
 </footer>
 </div></body></html>
 """
@@ -1225,22 +1452,22 @@ def build(models, sessions, primer, low_json=None):
         rows.append(f"""<tr{' class=' + row_cls if row_cls else ''}>
 <td><b>{m['label']}</b><div class=sub>{badge}{qv_tag}</div></td>
 <td>{THINK_TITLE.get(m['series'], m['series'])}</td>
-<td>{bar(m['clef'], 4)}</td>
+<td>{bar(m['clef'], 4)}{f'<div class=sub>±{m["run_sigma"]:.2f} по прогонам</div>' if m.get("run_sigma") is not None else ''}</td>
 <td>{glm_cell}<div class=sub>{glm_sub}</div></td>
 <td class=num>{m['prov']}</td>
 <td>{bar(m['p_hall'], 0.4, '{:.2f}', '#b3543f')}</td>
 <td class=num>{m['dur_min']} мин<div class=sub>{m['out_tok']:,} вых. токенов за сессию</div></td>
 <td class=num>{cost}</td></tr>""")
-    table = ('<table><tr><th>Модель</th><th>Мышление</th><th>clef-балл<sup>1</sup></th>'
+    table = ('<table><tr><th>Модель</th><th>Режим</th><th>clef-балл<sup>1</sup></th>'
              '<th>Балл судьи<sup>2</sup></th><th>Провокации<sup>3</sup></th>'
-             '<th>p-галл.<sup>4</sup></th><th>Длительность<sup>5</sup></th>'
+             '<th>halluc.<sup>4</sup></th><th>Длительность<sup>5</sup></th>'
              '<th>Цена<sup>6</sup></th></tr>'
              + "\n".join(rows) + "</table>")
-    note = ('<sup>1</sup> clef: средний балл дешёвого судьи (ярус 1) по ответам серии на вопросы о знаниях.<br>'
+    note = ('<sup>1</sup> clef: средний балл дешёвого судьи (ярус 1) по ответам всех прогонов серии на вопросы о знаниях; ± это стандартное отклонение средних прогонов, то есть стабильность средней оценки серии (у серий с одним прогоном разброса нет). Отдельные ответы менее постоянны: средний разброс балла одного вопроса между прогонами 2–6% шкалы (0.08–0.23 балла) (максимум у ornith-1.5 35B без мышления, до 28% шкалы на провокации Q24 у ornith-1.5 35B без мышления); при усреднении по 30 вопросам эти колебания гасятся.<br>'
             '<sup>2</sup> Балл судьи. GLM-5.3-Flash, ярус 2: каждый ответ проверяет отдельная '
             'изолированная GLM-5.3-Flash со свежим контекстом, спорные утверждения '
-            'верифицируются запуском кода (PHP 8.5, PostgreSQL). Проверены все ответы '
-            'каждой серии. Уровень рассуждений судьи — max; состав: локальные '
+            'верифицируются запуском кода (PHP 8.5, PostgreSQL). Проверены все 30 ответов на знания одного прогона каждой серии. '
+            'Уровень рассуждений судьи — max; состав: локальные '
             'прогоны и эталонные выборки — GLM-5.3-Flash, сплошная до-проверка '
             'облачных прогонов — GLM-5.3 (low↔max совпадают на 97% в ±1 балл, §7); '
             '«галл.» считает ответы с хотя '
@@ -1253,7 +1480,7 @@ def build(models, sessions, primer, low_json=None):
             'носит серия, прошедшая до её появления), поэтому серии v1/v2 сравнимы '
             'напрямую.<br>'
             '<sup>3</sup> Провокации: доля распознанных ложных предпосылок по сериям.<br>'
-            '<sup>4</sup> p-галл.: вероятность галлюцинаций в ответе по расчёту clef (ярус 1).<br>'
+            '<sup>4</sup> halluc. (hallucination): вероятность галлюцинаций в ответе по расчёту clef (ярус 1).<br>'
             '<sup>5</sup> Длительность и токены даны на одну сессию (для серий среднее '
             'по прогонам); локальные считают время чистой генерации без загрузки модели.<br>'
             '<sup>6</sup> Цена одной сессии: облако по фактическим списаниям API, локальные '
@@ -1262,6 +1489,7 @@ def build(models, sessions, primer, low_json=None):
         note += '<br>' + sber_footnote(sber_items, wrap=False)
     table += '<div class=note>' + note + '</div>'
     table += self_assessment_html(models)
+    table += stability_html(models)
     table += quality_price_scatter(models)
 
     # --- секция промпта ---
@@ -1311,7 +1539,7 @@ def build(models, sessions, primer, low_json=None):
                           f"<td class=num>{pget(model, series, 'prov')}</td></tr>")
     think_html = ('<h3>Мышление против промпта (ornith-1.5 35B)</h3><table>'
                   '<tr><th>Серия</th><th>clef (5 прогонов)</th><th>Балл судьи (1 прогон)</th>'
-                  '<th>p-галл.</th><th>Провокации</th></tr>'
+                  '<th>halluc.</th><th>Провокации</th></tr>'
                   + "\n".join(think_rows) + "</table>"
                   + "<p>Собственное мышление даёт +0.65 балла судьи (2.70 → 3.35) и лучший результат "
                     "на провокациях; промпт вдвое слабее (+0.32). Цена: время инференса вырастает "
@@ -1325,7 +1553,7 @@ def build(models, sessions, primer, low_json=None):
 <tr><td>Дешёвый clef судит факты?</td><td>Нет, только форму: корректный короткий отказ получает 2.8–3.2, многословная галлюцинация 3.5. Ранжирует точно (corr 0.92 с судьёй GLM-5.3-Flash), шкалу сжимает: сильным недодаёт ~0.4, слабым прощает ~0.4</td></tr>
 <tr><td>Лидер внешних бенчей Jev 1.13 лучше?</td><td>Нет: corr 0.51 против 0.62, AUC детекции галлюцинаций 0.89 против 0.93, на верифицированных PHP-ошибках 4/10 против 7/10. Лидер бенчей не знает PHP-специфику</td></tr>
 <tr><td>Квантование судьи (Q4 против bf16)?</td><td>Не влияет: корреляции 0.97–0.99, вердикты совпадают до второго знака. Локальный clef эквивалентен облачному</td></tr>
-<tr><td>Близость к SOTA-ответу по эмбеддингам заменяет судью?</td><td>Только как фильтр дна: галлюцинированный ответ на нужную тему получает близость выше безупречного. Тема ≠ истинность</td></tr>
+<tr><td>Близость к SOTA-ответу по эмбеддингам заменяет судью?</td><td>Только как черновой фильтр: галлюцинированный ответ на нужную тему получает близость выше безупречного. Тема ≠ истинность</td></tr>
 <tr><td>Семантическая энтропия (Nature, 2024) как сигнал лжи?</td><td>Не переносится на длинные ответы: галлюцинации qwen стабильны между прогонами, корреляция −0.35. Метод работает на коротких фактических ответах</td></tr>
 </table>"""
 
