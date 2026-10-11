@@ -3,7 +3,7 @@
 
 Протокол тот же (один чат, только messages, без system prompt). Ключи
 читаются из env-файла, путь задаётся переменной MODELS_RU_ENV (файл вне
-workspace — внутренние пути в git не живут, см. локальный AGENTS.md).
+workspace; перечень переменных — в README, «Быстрый старт».)
 
 Провайдеры:
   gigachat: OAuth (Basic-ключ → access_token, ~30 мин), модели GigaChat-2-Max…
@@ -55,7 +55,7 @@ YANDEX_FOLDER = os.environ.get("YANDEXFM_FOLDER_ID", "")  # ID каталога 
 def env_value(name: str) -> str:
     if not TASK_ENV:
         raise RuntimeError("задайте MODELS_RU_ENV — путь к env-файлу с ключами "
-                           "(вне workspace; где лежит — см. локальный AGENTS.md)")
+                           "(какие бывают — см. README, «Быстрый старт»)")
     for line in Path(TASK_ENV).read_text().splitlines():
         if line.startswith(name + "="):
             return line.split("=", 1)[1].strip()
@@ -377,7 +377,7 @@ def main() -> int:
     else:
         if not YANDEX_FOLDER:
             raise RuntimeError("задайте YANDEXFM_FOLDER_ID — ID каталога Яндекса "
-                               "(см. локальный AGENTS.md)")
+                               "(какую именно — см. README, «Быстрый старт»)")
         prov, model = YandexFm(), a.model or f"gpt://{YANDEX_FOLDER}/yandexgpt/latest"
     _qdata = json.loads(Path(a.questions).read_text(encoding="utf-8"))
     q_version = _qdata.get("version") if isinstance(_qdata, dict) else None

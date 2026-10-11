@@ -41,6 +41,17 @@ YandexGPT через родные API, DeepSeek через родной API.
 
 ## Быстрый старт
 
+Скрипты не содержат адресов серверов и путей к ключам — всё берётся из
+переменных окружения (без них скрипт падает с подсказкой, какую задать):
+
+| Переменная | Что задаёт | Кто читает |
+|---|---|---|
+| `OLLAMA_BASE_URL` | адрес сервера ollama (дефолт `http://localhost:11434`) | `runner.py`, `judge.py`, `embed_compare.py` |
+| `MODELS_RU_ENV` | путь к env-файлу с ключами GigaChat/Яндекс/DeepSeek (`GIGACHAT_AUTHORIZATION_KEY`, `YANDEXFM_API_KEY`, `DEEPSEEK_API_KEY`) | `runner_ru_cloud.py` |
+| `YANDEXFM_FOLDER_ID` | ID каталога Яндекса для `gpt://<folder>/yandexgpt/latest` | `runner_ru_cloud.py` |
+| `OPENROUTER_KEY_FILE` | путь к файлу с ключом OpenRouter | `runner_openrouter.py`, `judge_openrouter.py` |
+| `OPENROUTER_PROXY_FILE` / `OPENROUTER_PROXY` | файл с адресом прокси / прямой адрес прокси | `runner_openrouter.py`, `judge_openrouter.py` |
+
 ```bash
 # собес локальной модели с сервера ollama, 5 независимых прогонов
 python3 interview/runner.py --questions interview/roles/backend/questions.json \
