@@ -33,7 +33,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from score import build_tasks, SCORE_CRITERIA
 from judge_metrics import METRICS
-from score import ESCALATION_QUESTIONS as ESCALATION
+from score import QUESTIONS as ALL_QUESTIONS
+ESCALATION = {k: v for k, v in ALL_QUESTIONS.items()
+               if k in ('need_review', 'unsure', 'factcheck_zone')}
 
 API_URL = "https://openrouter.ai/api/alpha/decisions"
 
