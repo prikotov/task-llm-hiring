@@ -1008,7 +1008,7 @@ DeepSeek, GigaChat и YandexGPT через родные API провайдеро
 (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/rubrics/backend/Q01.md">пример
 карточки</a>). Сама оценка идёт в два яруса, от дешёвого судьи к дорогому.</p>
 <div class=flow>
-<div class=step><b>Ярус 1: clef, decision-модель</b>локально, дёшево и быстро: балл, вероятность галлюцинаций, самоотчёт о зоне незнания (need_review).</div>
+<div class=step><b>Ярус 1: clef, decision-модель</b>локально, дёшево и быстро, два вызова на каждый ответ: балл и вероятность галлюцинаций, плюс вопрос «нужен ли более знающий судья?» (need_review).</div>
 <div class=arrow>→</div>
 <div class="step hot"><b>Ярус 2: GLM-5.3-Flash</b>только по триггеру: изолированный судья на ответ, факты проверяет запуском кода.</div>
 </div>
@@ -1016,7 +1016,9 @@ DeepSeek, GigaChat и YandexGPT через родные API провайдеро
 судит каждый ответ изолированно: decision-модель clef получает вопрос и ответ
 кандидата, ставит балл 0–4 по критериям шкалы и вероятность галлюцинаций,
 а добавочный вопрос «нужен ли более знающий судья?» даёт признак need_review
-(<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/judge_escalation.py">judge_escalation.py</a>).</p>
+(<a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/judge_escalation.py">judge_escalation.py</a>).
+Оба вызова идут по каждому ответу без условий; условие появляется только на
+выходе: значения выше порога передают ответ ярусу 2.</p>
 <p class=sub><b>Запрос балла и галлюцинаций</b> (judge.py; провокация Q24, muse-glimmer 28B, ответ кандидата сокращён):</p>
 <pre class=req>POST /v1/systemone
 { "model": "clef",
