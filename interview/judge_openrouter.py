@@ -1,15 +1,24 @@
 #!/usr/bin/env python3
-"""Судейство ответов собеса внешними decision-моделями через OpenRouter.
+"""DEPRECATED: пробный путь, скрипт не развивается.
+
+Сравнение ответов собеса внешними decision-моделями через OpenRouter
+(моделей там на порядок больше локальных, но по выводам reports/COMPARE-jev.md
+локальный clef не хуже, траты не обоснованы). Если понадобится регулярно
+сравнивать облачных decision-моделей, поддержку провайдеров делаем
+в основном скрипте score.py (--provider/--model), а не здесь.
+
+Транспортный адаптер к score.py: формулировки всех вопросов и state общие
+(импортируются из score.py), своё здесь только облако (прокси, ключ, бюджет,
+usage) и формат выходов. Скрипт оставлен для воспроизводимости серий §7.
 
 POST https://openrouter.ai/api/alpha/decisions (Decisions API, формат как у
 нашего /v1/systemone: state + карта вопросов noul/score). Один запрос на ответ,
 все вопросы сразу: quality (score 0-4), hallucination (noul) + 7 метрик
-(judge_metrics) + 3 эскалационных (judge_escalation). Формулировки идентичны
-локальным скриптам — результаты сравнимы с сериями clef/clef-flash.
+(judge_metrics) + 3 эскалационных. Формулировки идентичны локальному score.py.
 
 Доступ: домашний IP заблокирован WAF OpenRouter, поэтому запросы идут через
-прокси (curl). Ключ: ~/.config/models-research/openrouter.key (вне workspace).
-Прокси: ~/.config/models-research/proxy или env OPENROUTER_PROXY.
+прокси (curl). Ключ: env OPENROUTER_KEY_FILE (путь к файлу с ключом).
+Прокси: env OPENROUTER_PROXY (адрес) или OPENROUTER_PROXY_FILE (файл с адресом).
 
 Вывод (в папке модели, как у остальных судей):
     <run>/../judgments/decision-<name>-<run>.csv
@@ -31,12 +40,24 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from judge import build_tasks, SCORE_CRITERIA
+from score import build_tasks, build_state, QUESTIONS
+
+# Транспортный адаптер: формулировки вопросов и state общие с score.py,
+# своё здесь только облако (прокси, ключ, бюджет, usage) и формат выходов.
+BASIC_KEYS = ("quality", "hallucination")
+ESCALATION_KEYS = ("need_review", "unsure", "factcheck_zone")
 from judge_metrics import METRICS
-from judge_escalation import QUESTIONS as ESCALATION
 
 API_URL = "https://openrouter.ai/api/alpha/decisions"
-CFG_DIR = Path.home() / ".config" / "models-research"
+
+
+def read_secret(env_name: str) -> str:
+    """Читает файл по пути из env (ключи и адрес прокси в git не живут)."""
+    path = os.environ.get(env_name)
+    if not path:
+        raise RuntimeError(f"задайте {env_name} — путь к файлу с секретом "
+                           "(какие бывают — см. README, «Быстрый старт»)")
+    return Path(path).read_text().strip()
 
 DECISION_COLS = ["question", "score", "conf", "hall_p",
                  "has_code", "structured", "depth", "names_api",
@@ -45,16 +66,9 @@ ESCALATION_COLS = ["question", "need_review", "unsure", "factcheck_zone"]
 
 
 def build_questions() -> dict:
-    q = {
-        "quality": {"type": "score",
-                    "instructions": "Оцени качество ответа кандидата на вопрос собеседования",
-                    "criteria": SCORE_CRITERIA},
-        "hallucination": {"type": "noul",
-                          "instructions": "Содержит ли ответ выдуманные факты, несуществующие API/классы/методы или фальшивые источники?",
-                          "criteria": {"false": "Выдуманного нет", "true": "Есть выдуманные факты, API или источники"}},
-    }
+    q = {k: QUESTIONS[k] for k in BASIC_KEYS}
     q.update(METRICS)
-    q.update(ESCALATION)
+    q.update({k: QUESTIONS[k] for k in ESCALATION_KEYS})
     return q
 
 
@@ -75,9 +89,8 @@ def call_curl(model: str, state: str, questions: dict, key: str, proxy: str,
 
 
 def ask(model: str, task: dict, questions: dict, key: str, proxy: str,
-        timeout: int, retries: int = 5) -> tuple:
-    state = (f"Вопрос технического собеседования PHP/Symfony/Doctrine/PostgreSQL/DDD-разработчика:\n"
-             f"{task['question']}\n\nОТВЕТ КАНДИДАТА:\n{task['answer']}")
+         timeout: int, retries: int = 5) -> tuple:
+    state = build_state(task)
     last_err = ""
     for attempt in range(retries):
         code, body = call_curl(model, state, questions, key, proxy, timeout)
@@ -106,7 +119,7 @@ def parse_row(task_id: str, answers: dict) -> dict:
         spec = METRICS[k]
         d[k] = val(k, "noul" if spec["type"] == "noul" else "score")
     e = {"question": task_id,
-         **{k: val(k, "noul") for k in ESCALATION}}
+         **{k: val(k, "noul") for k in ESCALATION_KEYS}}
     return d, e
 
 
@@ -119,9 +132,8 @@ def main() -> int:
     p.add_argument("--max-cost", type=float, default=2.0, help="стоп по бюджету, $")
     args = p.parse_args()
 
-    key = (CFG_DIR / "openrouter.key").read_text().strip()
-    proxy = os.environ.get("OPENROUTER_PROXY",
-                           (CFG_DIR / "proxy").read_text().strip())
+    key = read_secret("OPENROUTER_KEY_FILE")
+    proxy = os.environ.get("OPENROUTER_PROXY") or read_secret("OPENROUTER_PROXY_FILE")
     questions = build_questions()
 
     run_dir = Path(args.run)

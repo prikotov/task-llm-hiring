@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Семантическое сравнение ответов с эталоном SOTA через эмбеддинги (ollama-host).
+"""Семантическое сравнение ответов с эталоном SOTA через эмбеддинги (ollama).
 
 Идея: ответ Sol 6.1 / Opus 5.5 на вопрос — «эталон»; близость ответа другой
 модели к эталону (косинус эмбеддингов) — дешёвый прокси качества без судьи.
 Валидация: корреляция близости с баллами clef на тех же ответах + различение
 негативных контролов (medgemma, gemma4:e2b).
 
-Эмбеддинги: POST ollama-host /api/embed. Сравнение симметричное (обе стороны —
+Эмбеддинги: POST <ollama>/api/embed. Сравнение симметричное (обе стороны —
 длинные ответы, без query/passage-префиксов).
 
 Вывод: reports/embeddings-<embed>.csv (по строке на ответ) + сводка в консоль.
@@ -27,7 +27,7 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
-from judge import build_tasks, BASE_URL
+from score import build_tasks, BASE_URL
 
 # (папка, прогон, метка) — канонические прогоны с судейством clef
 CORPUS = [
@@ -90,7 +90,7 @@ def spearman(x, y) -> float:
 
 def main() -> int:
     p = argparse.ArgumentParser()
-    p.add_argument("--embed", required=True, help="тег эмбеддинг-модели на ollama-host")
+    p.add_argument("--embed", required=True, help="тег эмбеддинг-модели на сервере ollama")
     args = p.parse_args()
 
     root = SCRIPT_DIR.parent

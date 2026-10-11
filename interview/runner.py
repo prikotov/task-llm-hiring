@@ -13,6 +13,7 @@
 
 import argparse
 import json
+import os
 import sys
 import time
 import urllib.error
@@ -21,7 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DEFAULT_BASE_URL = "http://ollama-host:11434"
+DEFAULT_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
 INTERVIEWER_FALLBACK = "Допущения делай сам, отвечай так, как считаешь правильным."
 MAX_CLARIFICATIONS = 1  # сколько раз на вопрос допускается стандартная реплика
 
@@ -278,7 +279,7 @@ def render_transcript(s: dict) -> str:
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--model", required=True, help="ollama-тег модели на ollama-host")
+    p.add_argument("--model", required=True, help="ollama-тег модели на сервере ollama")
     p.add_argument("--runs", type=int, default=1, help="число прогонов (default 1)")
     p.add_argument("--base-url", default=DEFAULT_BASE_URL)
     p.add_argument("--questions", default=str(SCRIPT_DIR / "questions.json"))
