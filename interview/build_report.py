@@ -1657,7 +1657,7 @@ clef, с прежней формулировкой need_review, а судья я
 «…в PHP "10"+"5" даёт конкатенацию "105"», проверено запуском: <code>int(15)</code>. Модель приписала PHP семантику JavaScript.</div>
 
 <h2 id=prompt><span class=no>6</span>Системный промпт и мышление</h2>
-<p>Вопрос эксперимента: даёт ли системный промпт тот же прирост качества, что и собственное мышление модели. Промпт проверен на пяти локальных моделях: каждая сдавала собеседование дважды, без промпта и с ним, по пять независимых прогонов на вариант; все прогоны оценивает clef, и дополнительно судья GLM-5.3-Flash проверил по одному прогону каждого варианта. Мышление полноценно проверено только на ornith-1.5 35B в трёх вариантах: выключено, включено и выключено с промптом (у qwen3.8 с мышлением собес не помещается в контекст сервера, детали ниже под таблицей). Дословный текст промпта — в карточке ниже.</p>
+<p>Вопрос эксперимента: даёт ли системный промпт тот же прирост качества, что и собственное мышление модели. Промпт проверен на пяти локальных моделях: каждая сдавала собеседование дважды, без промпта и с ним, по пять независимых прогонов на вариант; все прогоны оценивает clef, и дополнительно судья GLM-5.3-Flash проверил по одному прогону каждого варианта. Мышление проверено на ornith-1.5 35B в трёх вариантах и на qwen3.8 на уровне think low серией из пяти прогонов (дефолтный medium у qwen3.8 в контекст сервера не помещается, детали ниже под таблицей). Дословный текст промпта — в карточке ниже.</p>
 <!--PRIMERTEXT-->
 <!--PRIMER-->
 <!--THINK-->
@@ -1785,31 +1785,41 @@ def build(models, sessions, primer, low_json=None):
 
         prompt_rows.append(entry)
 
-    # проверочный прогон qwen3.8 с мышлением на уровне think low (разбор в §6)
-    # — отдельной строкой в таблицу; провокации размечены по транскрипту (3/3)
-    tl_run = "run-16"
-    tl_s = json.loads((ROOT / "qwen3.8" / "backend" / tl_run / "session.json").read_text())
-    tl_dur_min = sum(t["duration_s"] for t in tl_s["turns"]) / 60
-    tl_tok = (tl_s.get("usage", {}).get("output_tokens")
-              or sum(t.get("eval_count") or 0 for t in tl_s["turns"]))
-    tl_clef_v = json.loads((ROOT / "qwen3.8" / "backend" / "judgments" / "clef"
-                            / f"{tl_run}.json").read_text())["results"]
-    tl_clef = statistics.mean([v["score"] for v in tl_clef_v if v["id"] in KNOW])
-    tl_phall = statistics.mean([v["hallucination_p"] for v in tl_clef_v])
-    tl_g = [v for v in json.loads((ROOT / "qwen3.8" / "backend" / "judgments"
-                                   / "glm-5.3-flash-iso" / f"{tl_run}.json").read_text())["results"]
-            if v["id"] in KNOW]
-    prompt_rows.append(dict(folder="qwen3.8", label="qwen3.8 27B", series="think-low",
-                            kind="local", runs=[tl_run], qv=2, primer=False,
-                            clef=round(tl_clef, 2), p_hall=round(tl_phall, 3),
-                            run_sigma=None, prov="3/3",
-                            dur_min=round(tl_dur_min, 1), out_tok=round(tl_tok),
-                            cost=tl_dur_min / 60 * (LOCAL_KWH * RUB_KWH + AMORT_RUB_H) / RUB_USD,
-                            glm=round(sum(v["score"] for v in tl_g) / len(tl_g), 2),
-                            glm_hall=sum(1 for v in tl_g if v.get("hallucination")),
-                            glm_n=len(tl_g), glm_run=tl_run,
-                            glm_level=GLM_JUDGE_LEVEL.get("qwen3.8", "max"),
-                            glm_note=f"все {len(tl_g)} ответов на знания"))
+    # серия qwen3.8 с мышлением на уровне think low (разбор в §6):
+    # все прогоны с think == "low"; провокации размечены по транскриптам (15/15)
+    tl_runs = sorted(
+        p.name for p in (ROOT / "qwen3.8" / "backend").glob("run-*")
+        if (p / "session.json").exists()
+        and json.loads((p / "session.json").read_text()).get("think") == "low")
+    if tl_runs:
+        tl_scores, tl_phall, tl_durs, tl_toks = [], [], [], []
+        for run in tl_runs:
+            s = json.loads((ROOT / "qwen3.8" / "backend" / run / "session.json").read_text())
+            tl_durs.append(sum(t["duration_s"] for t in s["turns"]) / 60)
+            tl_toks.append(s.get("usage", {}).get("output_tokens")
+                           or sum(t.get("eval_count") or 0 for t in s["turns"]))
+            vv = json.loads((ROOT / "qwen3.8" / "backend" / "judgments" / "clef"
+                             / f"{run}.json").read_text())["results"]
+            tl_scores.append(statistics.mean([v["score"] for v in vv if v["id"] in KNOW]))
+            tl_phall.append(statistics.mean([v["hallucination_p"] for v in vv]))
+        tl_g = [v for v in json.loads((ROOT / "qwen3.8" / "backend" / "judgments"
+                                       / "glm-5.3-flash-iso" / f"{tl_runs[0]}.json").read_text())["results"]
+                if v["id"] in KNOW]
+        prompt_rows.append(dict(folder="qwen3.8", label="qwen3.8 27B", series="think-low",
+                                kind="local", runs=tl_runs, qv=2, primer=False,
+                                clef=round(statistics.mean(tl_scores), 2),
+                                p_hall=round(statistics.mean(tl_phall), 3),
+                                run_sigma=round(statistics.pstdev(tl_scores), 2),
+                                prov="15/15",
+                                dur_min=round(statistics.mean(tl_durs), 1),
+                                out_tok=round(statistics.mean(tl_toks)),
+                                cost=(statistics.mean(tl_durs) / 60
+                                      * (LOCAL_KWH * RUB_KWH + AMORT_RUB_H) / RUB_USD),
+                                glm=round(sum(v["score"] for v in tl_g) / len(tl_g), 2),
+                                glm_hall=sum(1 for v in tl_g if v.get("hallucination")),
+                                glm_n=len(tl_g), glm_run=tl_runs[0],
+                                glm_level=GLM_JUDGE_LEVEL.get("qwen3.8", "max"),
+                                glm_note=f"все {len(tl_g)} ответов на знания"))
 
     for m in sorted(models + prompt_rows, key=lambda x: -(x["glm"] or x["clef"])):
         if m["folder"] in FREEMIUM:
@@ -1955,18 +1965,21 @@ def build(models, sessions, primer, low_json=None):
                     "оборвались на Q19–Q21 пустыми ответами (лежат в папке qwen3.8 как артефакт). "
                     "Уровень размышлений у qwen3.8 управляется параметром think: false / low / "
                     "medium / xhigh, по умолчанию medium (прогоны без мышления — false, ранние "
-                    "дефектные с мышлением — auto, то есть medium). На уровне low собес "
-                    "помещается в контекст: проверочный прогон прошёл все 35 вопросов без "
-                    "пустых ответов (~120 тыс. токенов генерации, 17.6 минуты) и получил по "
-                    "clef 3.58 против 3.31 ± 0.02 у серии без мышления, +0.27 ценой удвоенного "
-                    "времени (17.6 против 8.9 минуты). Судья GLM-5.3-Flash (уровень max) по этому "
-                    "же прогону дал 3.45 против 3.20 у оценивавшегося прогона без мышления, "
-                    "+0.25. Галлюцинаций стало больше: 18 из 30 против 12 — подробные ответы "
-                    "с размышлениями дают больше материала для выдумок, качество растёт, "
-                    "чистота нет. Это один "
-                    "прогон, а не серия из пяти, поэтому строгий вывод о мышлении опирается на "
-                    "ornith-1.5 35B (+0.65 балла судьи) и один прогон qwen3.8 (+0.25); "
-                    "подтверждающая серия — задача следующего запуска.</p>"
+                    "дефектные с мышлением — auto, то есть medium). На уровне low окно "
+                    "хватает намного дальше: обрывы с Q19–Q21 смещаются к самому финалу "
+                    "собеса. Полностью чистым прошёл один прогон из пяти (run-16); "
+                    "в остальных знаниевые вопросы целы, но с Q27–Q28 (мини-код-ревью) "
+                    "и дальше ответы пустые (done_reason length — на генерацию не "
+                    "остаётся окна). По 30 вопросам на знания clef дал 3.46 ± 0.11 "
+                    "против 3.33 ± 0.02 без мышления, +0.13 — это нижняя граница: "
+                    "пять пустых ответов мини-код-ревью в трёх прогонах серии оценены "
+                    "в 0.07. Судья GLM-5.3-Flash (уровень max) по "
+                    "чистому прогону серии дал 3.45 против 3.20 у оценивавшегося прогона "
+                    "без мышления, +0.25. Галлюцинаций стало больше: 18 из 30 против 12 — "
+                    "подробные ответы с размышлениями дают больше материала для выдумок, "
+                    "качество растёт, чистота нет. Вывод о мышлении опирается на "
+                    "ornith-1.5 35B (+0.65 балла судьи) и серию qwen3.8 (+0.13 clef, "
+                    "+0.25 судьи).</p>"
                   + '<h3>Какой уровень мышления включался</h3>'
                   '<p>Ручка think в ollama 0.40 — не только включено/выключено: у части моделей есть '
                   'именованные уровни, и набор у каждой свой. Уровень не подбирался ни для одной '
@@ -2003,18 +2016,22 @@ def build(models, sessions, primer, low_json=None):
                   '<tr><td>ornith-1.5 35B + мышление · судья</td><td>+0.79</td><td>+0.53</td></tr>'
                   '<tr><td>ornith-1.5 35B + мышление · clef, серии</td><td>+0.41</td><td>+0.58</td></tr>'
                   '<tr><td>ornith-1.5 35B + промпт · судья</td><td>+0.43</td><td>+0.22</td></tr>'
-                  '<tr><td>qwen3.8 + think low · судья</td><td>+0.11</td><td>+0.38</td></tr>'
-                  '<tr><td>qwen3.8 + think low · clef</td><td>+0.25</td><td>+0.24</td></tr>'
+                  '<tr><td>qwen3.8 + think low · судья, 1 прогон</td><td>+0.11</td><td>+0.38</td></tr>'
+                  '<tr><td>qwen3.8 + think low · clef, серия</td><td>+0.28</td><td>+0.02</td></tr>'
                   '<tr><td>промпт, четыре модели · clef, серии</td><td>+0.04</td><td>+0.05</td></tr>'
                   '</table>'
-                  '<p>У qwen3.8 гипотеза «рассуждение не улучшает ответы, опирающиеся на зашитые '
-                  'в веса знания» подтверждается: фактология почти стоит на месте (+0.11 по '
-                  'судье), растут рассуждения (+0.38, из них код-ревью +0.8). У ornith-1.5 35B '
-                  'наоборот — мышление подняло и фактологию (+0.79 по судье): слабой модели '
-                  'рассуждение помогает даже извлекать и излагать факты, а qwen3.8 свои знания '
-                  'достаёт и без него. Системный промпт не прибавляет ни там, ни там. Оговорки: '
-                  'судейские разрезы — по одному прогону каждого варианта, группы содержат '
-                  'примерно по половине вопросов.</p>')
+                  '<p>Куда именно прибавляет мышление — инструменты не согласны: судья по '
+                  'одному прогону qwen3.8 видит рост только в рассуждениях (+0.38 при '
+                  'фактологии +0.11), а clef по полной серии — только в фактологии '
+                  '(+0.28 при рассуждениях +0.02). Оценщики ценят разное: судья глубину '
+                  'разбора, clef полноту и структуру ответа, а с мышлением ответы на '
+                  'фактологические вопросы становятся длиннее и структурнее. Надёжный '
+                  'вывод один: мышление прибавляет (qwen3.8: +0.13 clef, +0.25 судьи), '
+                  'промпт не прибавляет ничего; структура прироста требует судейского '
+                  'разбора всех пяти прогонов серии. У ornith-1.5 35B оба инструмента '
+                  'согласны: растёт и фактология, и рассуждения (судья: +0.79 и +0.53). '
+                  'Оговорки: судейские разрезы — по одному прогону каждого варианта, '
+                  'группы содержат примерно по половине вопросов.</p>')
 
     # --- судьи ---
     judges_html = """<table>
