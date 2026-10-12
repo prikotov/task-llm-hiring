@@ -7,6 +7,10 @@
 - Дистиллят Muse Spark для автономных агентов: многошаговые рассуждения,
   инструменты, восстановление после ошибок; vision-энкодер, thinking
 - Контекст 128K
+- Мышление: параметр `think` — `false / low / medium / high / max`
+  (**своя шкала**, не qwen3.8-стиля с `xhigh`), дефолт `high`
+  (проверено на ollama-host, ollama 0.40.0; `/api/show` → `thinking.values`).
+  Серии backend — `think: false`, дефолт отключён сознательно.
 
 ## Backend
 
