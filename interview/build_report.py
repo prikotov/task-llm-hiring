@@ -1009,7 +1009,21 @@ def self_assessment_html(models) -> str:
 
     blocks = []
     for gtitle, pred in GROUPS_RADAR:
-        cards = [radar_card(m) for m in models if pred(m)]
+        group = [m for m in models if pred(m)]
+        base = [m for m in group if not m.get("primer")]
+        extra = [m for m in group if m.get("primer")]
+        # карточка с промптом стоит сразу после базовой карточки той же модели
+        # (у ornith-35B базовых карточек две — промпт идёт после первой)
+        ordered = []
+        served = set()
+        for m in base:
+            ordered.append(m)
+            if m["folder"] not in served:
+                served.add(m["folder"])
+                ordered.extend(p for p in extra if p["folder"] == m["folder"])
+        ordered.extend(p for p in extra
+                       if p["folder"] not in {b["folder"] for b in base})
+        cards = [radar_card(m) for m in ordered]
         if cards:
             blocks.append(f'<div class=sgroup-title>{gtitle}</div>'
                           + '<div class=sgrid>' + "".join(cards) + '</div>')
@@ -1020,16 +1034,18 @@ def self_assessment_html(models) -> str:
             'самооценка</span>, <span style="color:#2f7d54">■ сплошная, итоговый балл: '
             'судьи где проверял, иначе clef</span> (тёмно-зелёные точки '
             '● отмечают оси, взятые у судьи: '
-            'полный прогон каждой модели). '
+            'судья проверил полный прогон соответствующей строки таблицы). '
             'Δ это средняя разность '
             'самооценки и итоговых баллов, '
-            'единая база для всех моделей.</p>'
+            'единая база для всех моделей. Варианты с системным промптом показаны '
+            'отдельными карточками рядом с базовыми; в корреляцию ниже они не входят.</p>'
             '<p><b>Эффект Даннинга-Крюгера воспроизводится почти идеально:</b> корреляция силы модели '
             '(clef) с перекосом самооценки, Пирсон r = −0.89 и Спирмен ρ = −0.91 (n = 18). Сильные '
             'модели себя недооценивают (Opus −1.5, Haiku −1.6, Sol −1.2), слабые переоценивают '
             '(YandexGPT Pro 5 +2.7 при худшем знании стека, gemma4-e2b +2.2), середина откалибрована '
             'в ноль (Ultra, qwen3.8, muse, 9B, gemma4 26B). Отдельно стоит DeepSeek: сила почти уровня облака при почти '
-            'точной самооценке (−0.4). Подробнее об эффекте у больших языковых моделей читайте в '
+            'точной самооценке (−0.4). Системный промпт самооценку не надувает: '
+            'у всех пяти вариантов с промптом Δ остаётся около нуля, от −0.1 до +0.8. Подробнее об эффекте у больших языковых моделей читайте в '
             '<a href="https://prikotov.pro/blog/effekt-danninga-kryugera-u-bolshikh-yazykovykh-modelei-llm">'
             'блоге автора</a>.</p>'
             '<p><b>Низкий балл по разделу не приговор, а сигнал для постановки задачи.</b> Радар показывает, где модели нужна опора: в слабых разделах давать больше контекста (документацию, примеры, конвенции проекта), усиливать гвард-рейлы проверками на детерминированных инструментах (Psalm, PHPStan, PHPCS, тесты в CI) и закладывать более плотное ревью другими агентами и человеком. Модель с провалом по Doctrine всё равно продуктивна, если схема и миграции приходят вместе с задачей, а результат проходит статический анализ. Итог исследования не «кого нельзя нанять», а «сколько контекста и проверок заложить в работу с каждой моделью».</p>'
@@ -1843,8 +1859,7 @@ def build(models, sessions, primer, low_json=None):
     if sber_items:
         note += '<br>' + sber_footnote(sber_items, wrap=False)
     table += '<div class=note>' + note + '</div>'
-    table += self_assessment_html(models + [p for p in prompt_rows
-                                             if p["folder"] == "gemma4-26b"])
+    table += self_assessment_html(models + prompt_rows)
     table += stability_html(models + prompt_rows)
     table += quality_price_scatter(models + prompt_rows)
     table += quality_speed_scatter(models + prompt_rows)
