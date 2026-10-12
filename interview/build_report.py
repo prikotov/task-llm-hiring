@@ -630,10 +630,11 @@ def stability_html(models) -> str:
                 f'fill="#1d2433">{s["label"]}</text>',
                 f'<text x="{cx:.0f}" y="33" text-anchor="middle" font-size="11" '
                 f'fill="#66707f">медиана {med_pct:.1f}%</text>']
-        for f in (0.5, 1.0):
+        for f, lbl in ((0.5, rmax * 0.5), (1.0, rmax)):
             pts = " ".join(f"{pt(i, R * f)[0]:.1f},{pt(i, R * f)[1]:.1f}" for i in range(len(topics)))
             rsvg.append(f'<polygon points="{pts}" fill="none" stroke="#e4e7ec"/>')
-        rsvg.append(f'<text x="{cx + 4:.0f}" y="{cy - R + 3:.0f}" font-size="10" fill="#9aa3ad">{rmax * 0.5:.0f}%</text>')
+            rsvg.append(f'<text x="{cx + 4:.0f}" y="{cy - R * f + 3:.0f}" font-size="10" '
+                        f'fill="#9aa3ad">{lbl:.0f}%</text>')
         for i, topic in enumerate(topics):
             x, y = pt(i, R)
             rsvg.append(f'<line x1="{cx:.0f}" y1="{cy:.0f}" x2="{x:.1f}" y2="{y:.1f}" stroke="#e4e7ec"/>')
