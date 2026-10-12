@@ -1015,19 +1015,17 @@ def self_assessment_html(models) -> str:
     blocks = []
     for gtitle, pred in GROUPS_RADAR:
         group = [m for m in models if pred(m)]
-        base = [m for m in group if not m.get("primer")]
-        extra = [m for m in group if m.get("primer")]
-        # карточка с промптом стоит сразу после базовой карточки той же модели
-        # (у ornith-35B базовых карточек две — промпт идёт после первой)
+        # все варианты одной модели — подряд: базовые режимы, затем промпт
         ordered = []
-        served = set()
-        for m in base:
-            ordered.append(m)
-            if m["folder"] not in served:
-                served.add(m["folder"])
-                ordered.extend(p for p in extra if p["folder"] == m["folder"])
-        ordered.extend(p for p in extra
-                       if p["folder"] not in {b["folder"] for b in base})
+        folders = []
+        for m in group:
+            if m["folder"] not in folders:
+                folders.append(m["folder"])
+        for folder in folders:
+            ordered.extend(m for m in group
+                           if m["folder"] == folder and not m.get("primer"))
+            ordered.extend(m for m in group
+                           if m["folder"] == folder and m.get("primer"))
         cards = [radar_card(m) for m in ordered]
         if cards:
             blocks.append(f'<div class=sgroup-title>{gtitle}</div>'
