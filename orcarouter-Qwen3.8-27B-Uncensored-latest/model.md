@@ -11,8 +11,10 @@
 - Мышление: параметр `think` — только `false / true`, градаций уровня нет
   (в отличие от базовой qwen3.8: у unc-сборок шкала `low/medium/xhigh`
   потеряна), дефолт **включено** (проверено на nserv, ollama 0.40.0;
-  `/api/show` → `thinking.values`). Серии backend run-01…10 — `think: false`,
-  дефолт отключён сознательно.
+  `/api/show` → `thinking.values`). Выставляется полем `think` верхнего
+  уровня тела `/api/chat` (не в `options`; шаблонная `enable_thinking` —
+  внутренняя деталь ollama, напрямую её не задаём). Серии backend
+  run-01…10 — `think: false`, дефолт отключён сознательно.
 - Дайджест: `6fac2f98fdf716f2…`
 - Обновлён: 2026-10-12
 

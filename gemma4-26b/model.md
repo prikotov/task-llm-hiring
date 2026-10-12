@@ -10,7 +10,8 @@
 - Возможности: completion, vision, tools, thinking
 - Мышление: параметр `think` — только `false / true`, градаций уровня нет,
   дефолт **включено** (проверено на nserv, ollama 0.40.0; `/api/show` →
-  `thinking.values`). Серии backend run-01…10 — `think: false`,
+  `thinking.values`). Выставляется полем `think` верхнего уровня тела
+  `/api/chat` (не в `options`). Серии backend run-01…10 — `think: false`,
   дефолт отключён сознательно.
 - Дайджест: `08ae7ec1744bd7f4…`
 - Обновлён: 2026-10-12

@@ -38,8 +38,18 @@
 
 ## Как задавать
 
-- API: поле `think` в теле `/api/chat` — `"think": false | true | "low" |
-  "medium" | "xhigh"` (для muse-glimmer — `"high" | "max"`).
+- API: поле `think` **верхнего уровня тела** `/api/chat` — не внутри
+  `options` (там оно молча не сработает). Выключение — булево `false`,
+  уровень — строка: `"low" | "medium" | "xhigh"` (qwen3.8-семейство),
+  `"high" | "max"` (muse-glimmer):
+  ```bash
+  curl http://nserv:11434/api/chat -d '{
+    "model": "qwen3.8:27b",
+    "messages": [{"role": "user", "content": "…"}],
+    "think": "low",
+    "stream": false
+  }'
+  ```
 - Раннер: `interview/runner.py --think on|off|auto|low|medium|xhigh`
   (`on`/`off` → `true`/`false`; `auto` — параметр не отправляется вовсе,
   модель работает на своём дефолте).
