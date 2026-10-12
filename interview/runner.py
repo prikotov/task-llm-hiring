@@ -79,8 +79,10 @@ def chat_once(base_url: str, model: str, messages: list, keep_alive, think, time
               num_ctx: int | None = None) -> dict:
     payload = {"model": model, "messages": messages,
                "stream": False, "keep_alive": keep_alive}
-    if think != "auto":
+    if think in ("on", "off"):
         payload["think"] = (think == "on")
+    elif think != "auto":
+        payload["think"] = think  # уровни размышления: low / medium / xhigh
     if num_ctx is not None:
         payload["options"] = {"num_ctx": num_ctx}
     return http_json(f"{base_url}/api/chat", payload, timeout)
@@ -299,8 +301,11 @@ def main() -> int:
     p.add_argument("--keep-alive", default="10m",
                    help="keep_alive для ollama внутри сессии (default 10m: тёплый KV-кэш "
                         "на один собес; изоляция прогонов — выгрузкой до и после каждого)")
-    p.add_argument("--think", choices=["auto", "on", "off"], default="auto",
-                   help="режим thinking: auto — как модель настроена по умолчанию")
+    p.add_argument("--think", choices=["auto", "on", "off", "low", "medium", "xhigh"],
+                   default="auto",
+                   help="режим thinking: auto — как модель настроена по умолчанию; "
+                        "low/medium/xhigh — уровни размышления (ollama >= 0.40, "
+                        "поддержка зависит от модели, см. /api/show → thinking)")
     p.add_argument("--num-ctx", type=int, default=None,
                    help="переопределить num_ctx ollama (дефолт сервера может быть 32k "
                         "и обрезать длинные собесы; например 65536)")
