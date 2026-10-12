@@ -5,189 +5,183 @@
   {
    "id": "Q01",
    "score": 3.5,
-   "hallucination": false,
-   "note": "Сильный структурированный ответ: enum, readonly (с верным разделением 8.1/8.2), never, match, promotion, first-class callables — все с примерами и связью с надёжностью. Проверено исполнением: readonly-класс действительно запрещает модификацию, never работает, match без покрытия бросает UnhandledMatchError (кандидат ошибочно назвал UnexpectedValueException), enum+match корректны; «компилятор проверяет» для enum — неточность (статический анализ/рантайм). Выдуманных API нет."
+   "hallucination": true,
+   "note": "Сильный структурированный ответ: конкретные фичи 8.0–8.2 с рабочими примерами и явной связью с надёжностью кода; исполнением подтверждены enum+match, readonly class, promotion, first-class callables и never. Ошибка в одном факте: match без покрытия бросает UnhandledMatchError (Error), а не UnexpectedValueException, — что и зафиксировано как галлюцинация; ещё вольность — «компилятор проверяет» в PHP."
   },
   {
    "id": "Q02",
    "score": 2.0,
    "hallucination": true,
-   "note": "Верная канва: strict_types определяется вызывающим файлом (хотя сначала ошибочно сформулировано callee-правило и тут же «самоуточнено»), строгий match, enum/readonly/VO, массивы как дыра — всё к месту. Но исполнением проверено несколько ложных утверждений о coerced-режиме: «42abc»→TypeError, а не 42; «»→TypeError, а не 0; «0x1A»→TypeError; и главное — null к string НЕ приводится (TypeError), «null→\\»\\»» — выдумка (поведение PHP 7, не 8+)."
+   "note": "Верная канва и структура: семантика strict_types по вызывающему файлу (после сумбурной самокоррекции) подтверждена запуском (strict-caller → TypeError на 3.14; нестрогий вызывающий → coerced '1'→1 OK), усечение 4.7→4/-4.7→-4, строковые→bool, строгий match, границы домена и статанализ — всё верно. Но секция приведений систематически выдумана: f('42abc')→TypeError (не 42), f('')→TypeError (не 0), f('0x1A')→TypeError (не 0), f('1e5')→100000 (не 1), переполнение '12345678901234567890'→TypeError (не float), и поданная как «самая коварная асимметрия» g(null)→'' на деле TypeError — это галлюцинации, нивелирующие претензию на глубину."
   },
   {
    "id": "Q03",
-   "score": 3.0,
+   "score": 2.5,
    "hallucination": true,
-   "note": "Сильный, структурированный ответ: иерархия по слоям, оборачивание с `from $e` (сохранение previous), чёткий контракт через @throws, богатый набор антипаттернов, listener как альтернатива try/catch. Проверено исполнением окружение (PHP 8.5.11); ключевая семантика верна. Но есть фактическая ошибка: `EntityManager::findOneBy()` возвращает null и не бросает `NoResultException` (его кидает `getSingleResult()`), а утверждение «\\Exception — логическая ошибка» неточно (это `LogicException`); из-за этих выдуманных/ложных деталей балл не 3.5–4."
+   "note": "Сильный структурированный ответ: иерархия по слоям, перевод исключений на границах, контракт через @throws, 6 валидных антипаттернов. Но проверка выявила галлюцинацию: синтаксис `throw new X() from $e` не существует в PHP (ParseError, confirmed), при этом он дважды в коде и в чеклисте как рекомендация; также `Doctrine findOneBy()` возвращает null и не бросает NoResultException (проверено по vendor-исходникам), так что центральный catch нерабочий; «\\Exception = логическая ошибка» неточно (это LogicException)."
   },
   {
    "id": "Q04",
    "score": 4.0,
    "hallucination": false,
-   "note": "Отличный ответ: верный выбор SRP с обоснованием «причины изменения» (ссылка на формулировку Мартина), детальный пример OrderService с таблицей осей изменений и полный рефакторинг (PriceCalculator, порты, тонкий use-case), плюс раздел о том, когда SRP применять не нужно. Код синтаксически и семантически корректен — проверено запуском на PHP 8.5 (расчёт скидки/доставки даёт ожидаемые значения). Выдумок нет.",
-   "score_check": null
+   "note": "Отвечает сверх якорей чек-листа: SRP + объяснение «почему чаще всего» (невидимость в сигнатурах, axes of change), крупный пример нарушения и полный рефакторинг через порты, плюс честное признание границ применимости («когда SRP не нужно»). Исполнением проверено: фрагмент «до» синтаксически валиден (php -l, PHP 8.5); рефакторинг «после» запущен целиком с мок-портами — PriceCalculator изолирован (0 зависимостей, расчёт 8000/0/800/7200 верен), PlaceOrder корректно проходит happy path (Paid, токен, notify/audit/event) и ветку отклонённой оплаты (PaymentFailed без нотификации). Цитата Мартина про «одну причину для изменения» корректна. Мелочи: порог доставки > 5000 vs >= 5000 в двух фрагментах и потерянное PaymentDeclinedException в «после» — на балл не влияют; выдуманных API нет (Mail-интерфейс очевидно собственный в рамках примера)."
   },
   {
    "id": "Q04.fu1",
    "score": 4.0,
    "hallucination": false,
-   "note": "Отличный ответ: да, нарушать можно, с чёткими критериями оправданности и двумя качественными примерами (лишний DIP-фактори для value objects; закрытый enum+match против открытой иерархии стратегий) плюс честная граница «что не оправдываю» (ISP/LSP/SRP). Исполнением проверено: match по enum исчерпывается без default, а неполный match бросает runtime-ошибку — утверждение кандидата о поведении корректно (нативный PHP не проверяет исчерпываемость на этапе компиляции, это делают статанализ/IDE, но кандидат честно написал «компилятор/IDE» и «runtime-исключение»). Галлюцинаций нет.",
-   "score_note": ""
+   "note": "Сильный ответ: чёткое «да, можно» с 4 критериями оправданного нарушения и двумя проработанными PHP-примерами (DIP-фабрика над value objects, закрытый enum+match против открытой иерархии OCP) с таблицами trade-off, плюс грамотное разграничение «что не оправдываю» (LSP/ISP/SRP). Исполнением проверено: оба примера кода валидны и работают; забытый case в match на enum действительно даёт UnhandledMatchError, а движок PHP compile-этапом полноту match не проверяет — формулировка «компилятор подсветит» неточна (это делают IDE/PHPStan/Psalm), но кандидат тут же корректно указывает runtime-исключение, так что выдумкой не считаю."
   },
   {
    "id": "Q04.fu2",
-   "score": 3.0,
+   "score": 3.5,
    "hallucination": true,
-   "note": "Содержательно сильный ответ: перечислены композиция/Strategy, data-driven rules, события, Registry, замыкания, с трейдоффами и правилом выбора — канва верная и глубокая. Проверено исполнением: `iterable<PriceModifier>` как тип свойства в PHP — синтаксическая ошибка (в коде кандидата дважды), т.е. примеры не запустятся. Также смешаны API: `MessageHandlerInterface` с `__invoke` — это Messenger, а не подписчик `EventDispatcherInterface` (там нужны listener/subscriber) — фактическая неточность. Остальное (#[Autowire(tags:…)], tagged_iterator, синтаксис Pipeline) корректно."
+   "note": "Очень сильный ответ: 5 механизмов OCP без наследования с примерами, таблицей и правилом выбора — якоря перекрыты с запасом. Исполнением проверено: `iterable<PriceModifier>` в объявлении свойства — parse error (дженериков в PHP нет), а код Registry/Pipeline валиден и работает. Выдумки: дженерик-синтаксис в типах и `#[Autowire(tags:...)]` — у атрибута Autowire нет параметра tags (нужен AutowireIterator/Autoconfigure), за это минус к баллу."
   },
   {
    "id": "Q04.fu3",
    "score": 4.0,
    "hallucination": false,
-   "note": "Ответ исчерпывающий и по сути верный: SRP раскрыт как принцип «одной причины изменения» на уровнях метода, класса, модуля, схемы БД, сервиса и шаблонов, с универсальным критерием и типовой ошибкой. Пример на PHP проверен исполнением — код синтаксически валиден, логика eligibility работает как заявлено (false для B2B/RU, true в остальных случаях). Никаких выдуманных API; мелкие шероховатости («бина», условность разбиения одной таблицы) на оценку не влияют.",
-   "score_orig": 4
+   "note": "Верный и глубокий ответ: SRP — про причину изменения на любом уровне, что совпадает с поздней формулировкой Мартина (module/actor); уровни метод/класс/модуль/схема БД/сервис/UI показаны примерами с критерием и разбором крайностей. Исполнением проверены PHP-примеры (валидны на 8.5) и SQL (BIGSERIAL/JSONB, PG17). Мелкая оплошность в «плохом» примере: eligibility-проверка стоит после send и не работает (подтверждено запуском), выдуманных API/фактов нет."
   },
   {
    "id": "Q05",
    "score": 3.0,
    "hallucination": true,
-   "note": "Сильный, глубокий ответ: верно объяснена компиляция в PHP-класс, перечислены реальные compiler pass-ы (AutowirePass, InlineServiceDefinitionsPass, CheckCircularReferencesPass и др. — проверены в vendor), ленивая инициализация, lazy-прокси, inline shared-сервисов (условие isShared&&!isLazy подтверждено кодом). Но есть выдумки: атрибутов #[Service] и #[Autowired] в Symfony нет, исключения AmbiguousServiceException не существует (неоднозначность — RuntimeException с 'unable to autowire'), атрибут `alias` у тегов не существует, а %env(...)%-параметры не подставляются при компиляции (резолвятся в runtime)."
+   "note": "Верная и глубокая канва: контейнер компилируется в PHP-класс, конвейер CompilerPass'ов, autowiring по рефлексии типов на этапе компиляции, memoization при первом get(), lazy-прокси, inlining; исполнением подтверждены существование всех названных pass'ов, генерация класса с ??=-мемоизацией, алиасы и shared-семантика. Но есть выдумки и фактические ошибки: несуществующие атрибуты #[Service]/#[Autowired] и классы AutowiredServiceNotFoundException/AmbiguousServiceException, неверное описание RegisterServiceSubscribersPass, scalar без default — ошибка компиляции, а не null, сомнительный пример #[Target] с alias в тегах."
   },
   {
    "id": "Q05.fu1",
    "score": 3.5,
    "hallucination": true,
-   "note": "Сильный ответ: причина цикла, ранжирование решений (3-й сервис, события, lazy: true, setter, service locator) с честными ценами и чеклистом — полностью закрывает эталон. Проверено исполнением: реальный текст исключения — 'Circular reference detected for service ..., path: ...' (приведённая формулировка выдумана), а doctrine.orm.entity_manager в Symfony НЕ synthetic — он создаётся фабрикой внутри контейнера (в vendor нет synthetic-регистрации EM), так что п.6 фактически неверен."
+   "note": "Сильный структурированный ответ: приоритезация решений (рефакторинг → события → lazy → setter → locator), механика lazy-прокси и цена каждого варианта — проверено исполнением на symfony/dependency-injection 7.4: lazy: true действительно разрывает цикл, реальный объект создаётся при первом вызове. Но есть выдумки: цитата исключения («has dependency on ... This should never happen») не соответствует реальной («Circular reference detected for service ..., path: ...»), а раздел про Doctrine целиком ложен — EntityManager не зависит от репозиториев, а doctrine.orm.entity_manager — factory-сервис, а не synthetic; плюс смешение EventDispatcher с #[AsMessageHandler]."
   },
   {
    "id": "Q06",
-   "score": 3.0,
+   "score": 3.5,
    "hallucination": true,
-   "note": "Сильный, структурный ответ: верно называет Messenger+async, outbox, Kafka, fire-and-forget, связывает публикацию с фиксацией данных, даёт trade-offs и антипаттерны — это уровень «сильно» по чек-листу. Но есть выдумки: ключи транспорта messenger.yaml `max_retries/retry_delay/multiplier/dead_letter_transport` не существуют (реально — `failure_transport` и retry_strategy-мидлварь), команда `messenger:failed:publish` отсутствует (есть retry/remove), вызов MailerInterface->send(to:,subject:,template:) не соответствует API Symfony Mailer, плюс баг `$this->registerUser($request)` — вызов свойства как метода. Исполнением проверить нечего (Symfony в окружении нет), проверено по знанию API."
+   "note": "Сильный архитектурный ответ: асинхронные варианты с именами, честные trade-offs, точная связка «событие после коммита» (outbox, dual-write), антипаттерны — глубина уровня 4. Но часть конкретики выдумана/нерабочая (проверено по vendor Symfony 8 и PHP 8.5): несуществующий `messenger:failed:publish`, ключи `dead_letter_transport`/`retry_delay` (реально `failure_transport` + `retry_strategy.delay`), фиктивная сигнатура MailerInterface::send, `dispatch(..., ['bus'=>...])` вместо BusNameStamp (TypeError), несуществующие константы RD_KAFKA_*. При этом `messenger:stats` и `failed:retry` — реальны, каркас Messenger/Outbox/Kafka концептуально верен."
   },
   {
    "id": "Q07",
-   "score": 2.0,
+   "score": 2.5,
    "hallucination": true,
-   "note": "Верная канва (firewall → authenticator → token → access_control/role_hierarchy/voters, правило «роль vs объектный voter», антипаттерны), но много выдуманного API: SelfValidatingPassportBadge, TwoFactorBadge, OAuthBadge не существуют в Symfony-секьюрити (настоящие бейджи — UserBadge/CsrfTokenBadge/PasswordCredentials); access_control с attributes {region: eu} и User::getAttributes() — несуществующая фича; isGranted() по интерфейсу возвращает bool и не бросает AccessDeniedException (проверено исполнением), supports?() — parse error (проверено php -l), void $granted в контроллере — бессмыслица. Глубина есть, но синтаксис и API в ключевых примерах нерабочие."
+   "note": "Сильная канва: чёткое разделение аутентификации/авторизации, верная механика voters (supports/voteOnAttribute), отличная таблица выбора voter-vs-роли и антипаттерны. Но много выдумок: несуществующие SelfValidatingPassportBadge/OAuthBadge/TwoFactorBadge, UserInterface::getAttributes(), access_control attributes поданы как атрибуты пользователя (на деле это request-атрибуты), isGranted() якобы бросает исключение. Исполнением подтверждён невалидный PHP в двух фрагментах (supports? — parse error, void $granted — fatal)."
   },
   {
    "id": "Q08",
    "score": 2.5,
    "hallucination": true,
-   "note": "Верная канва: гидратация Doctrine минует конструктор, dirty checking по ссылке, enumType, JSONB/ручной маппинг — направление здравое. Но «Способ 1 (Composite Type)» — выдумка: DBAL Type маппится ровно на одну колонку, метода getMappedSQLTypes(array) не существует, авто-генерации колонок amount_amount/amount_currency из одного type: нет. Пример с #[Embeddable], содержащим #[ORM\\Embedded(class: Money::class)] — невалидный маппинг (Embedded указывает на embeddable-класс, а не на доменный). Утверждение «readonly → Fatal Error при гидратации» опровергнуто исполнением: PHP позволяет reflection-инициализацию readonly-свойств на объекте без конструктора, Doctrine readonly-свойства гидратирует. enumType появился в Doctrine 2.11, а не 2.14. GIN-индекс по JSONB — корректен."
+   "note": "Широкая канва верна: гидрация Doctrine минуя конструктор, dirty checking по идентичности, кастомный DBAL-тип с вызовом конструктора VO, JSONB+GIN (проверено psql), ручной маппинг. Но 'Способ 1' (composite type) выдуман целиком: ORM-поле маппится на одну колонку, метод getMappedSQLTypes не существует (проверено на DBAL 4.4); утверждение 'readonly → Fatal Error при гидрации' неверно — reflection инициализирует неинициализированные readonly-свойства (проверено на PHP 8.5), из-за чего рекомендации по readonly ошибочны; enumType появился в ORM 2.11, а не 2.14."
   },
   {
    "id": "Q09",
    "score": 3.0,
-   "hallucination": false,
-   "note": "Сильный структурированный ответ: полноценный пример Order→OrderLine, каскады/orphanRemoval, отдельный слой persistence-entities с маппингом домен↔entity, развёрнутая дискуссия о владении flush (два стиля, честная самокоррекция), identity map, detached/persist-vs-merge, JOIN FETCH. Все упомянутые API реальны (FetchMode::EAGER, orphanRemoval, getReference, merge) — выдумок нет, исполнением проверить не удалось (doctrine в окружении не установлен). Минусы: getReference не бросает NoResultException (прокси грузится лениво, отлов исключения там не работает), спорное обоснование EAGER («lazy → lines пуст, total 0» — на деле lazy-прокси догружается при обращении), логическая ошибка в syncLines (unitPrice записывается из lineTotal, т.е. умноженного на quantity), двойное создание $order в toDomain. Верная канва с глубиной, но с этими шероховатостями — 3."
+   "hallucination": true,
+   "note": "Сильный ответ по канве DDD+Doctrine: агрегат с инвариантами в корне, OneToMany(mappedBy)+cascade persist+orphanRemoval, двусторонняя синхронизация, EAGER/JOIN FETCH, загрузка агрегата целиком, ссылки на другие агрегаты по ID, разбор «кто вызывает flush» с самокоррекцией и подводные камни (identity map, detached/merge). Но исполнением опровергнуты детали: lazy-коллекция НЕ пустая после find (проверено — прокси сам инициализируется), persist() на managed — no-op без ошибок и дубликатов, persist() на detached даёт PK-violation, а не «два ряда», catch(NoResultException) вокруг getReference — мёртвый код (порядок не бросает исключений), плюс выдуманный API fetch: FetchMode::EAGER (в ORM 3.7.5 класса FetchMode нет) и баг в syncLines — пишется lineTotal вместо unitPrice; противоречие «flush не в репозитории» → код с flush в репозитории сглажено оговоркой о двух стилях."
   },
   {
    "id": "Q10",
-   "score": 3.0,
+   "score": 3.5,
    "hallucination": true,
-   "note": "Ответ сильный по структуре: начинает с диагностики (Profiler, DBAL-логгер, pg_stat_statements — extension подтверждён), даёт спектр решений с trade-offs и чеклист. Но в коде есть фактические ошибки, проверенные исполнением: Doctrine DBAL Logging\\Middleware принимает только LoggerInterface (аргументы (Logger, closure) выдуманы), FetchMode::EAGER не существует как класс в ORM 3 (fetch — строка 'EAGER'), SQLLogger deprecated; DQL `WHERE o.status = \"open\"` в ORM 3 не парсится как строка (проверено лексером), а DTO-запрос с GROUP BY o.id и неагрегированными o.status/l.sku валится в PostgreSQL (проверено: 'column must appear in the GROUP BY'). Также chunk-цикл с JOIN FETCH + setMaxResults ломается на дубликатах строк и теряет последнюю неполную партию. Концептуально верно, код местами недостоверен."
+   "note": "Сильный по канве ответ: диагностика до лечения, все якоря закрыты (join fetch с картезианским произведением, EAGER, partial, chunking+clear, DTO, денормализация, кэш), анти-паттерны и чеклист. Исполнением проверено: EAGER на OneToMany — не JOIN, а отдельный SELECT ... IN (ложное «всегда JOIN»); SQLLogger не существует в DBAL 4, Middleware принимает один аргумент, FetchMode::EAGER в ORM 3 нет, YAML-узлы cache_driver внутри second_level_cache — выдуманная структура, DTO-пример падает в PostgreSQL (GROUP BY без агрегации) и в DQL («open» в двойных кавычках). Ошибки в деталях при верной общей картине."
   },
   {
    "id": "Q11",
    "score": 3.5,
    "hallucination": true,
-   "note": "Отличный ответ: защита-в-глубью, race conditions, все средства PG (NOT NULL/UNIQUE/CHECK/FK/EXCLUDE/триггеры), partial unique index, границы применимости CHECK и критерий «мусор vs бизнес-правило». Проверено исполнением: EXCLUDE с btree_gist работает (но пример кандидата с daterange по TIMESTAMPTZ невалиден — daterange принимает только date, проверено ошибкой PG); SQLSTATE 23514/P0001 корректны; DBAL-исключения существуют, но вызов $e->getConstraint()->getColumnName() — выдуманный API (метода нет в DBAL). Также мусор в SQL-примере: «EXPIRES AT» и «超高-нагрузок»."
+   "note": "Сильный ответ: защита-в-глубину, конкурентность как ключевой аргумент, полный арсенал PG (NOT NULL/UNIQUE/CHECK/FK/EXCLUDE/триггеры), partial и функциональные индексы, граница «что не в БД», интеграция с Doctrine — это уровень 4. Проверено исполнением: SQLSTATE 23514/P0001 подтверждены, классы исключений DBAL существуют, но в DBAL 4.5 нет метода getConstraint() (а ->getColumnName() тем более), пример с daterange(timestamptz,timestamptz) падает с ошибкой (нужен tstzrange), а «EXPIRES AT» — синтаксическая ошибка; «FK — это индекс» — ложный факт (PG не строит индекс по FK автоматически). Из-за этих выдумок и неверного кода — 3.5."
   },
   {
    "id": "Q12",
    "score": 4.0,
    "hallucination": false,
-   "note": "Отличный структурированный ответ: EXPLAIN (ANALYZE, BUFFERS), сравнение planner/actual rows, pg_stat_statements/pg_stat_activity/pg_locks, типовые причины с частотами, covering/partial индексы, порядок колонок в индексе, bloat/VACUUM, REFRESH MATERIALIZED VIEW CONCURRENTLY (с требуемым unique index). Исполнением проверены: частичный индекс, INCLUDE-индекс, SET STATISTICS 1000 (валидно), синтаксис запроса по блокировкам — всё корректно. Из выдумок нет; мелкие артефакты («大批», «无序») — опечатки, не искажающие смысл."
+   "note": "Эталонный ответ: начинает с EXPLAIN (ANALYZE, BUFFERS), читает план (оценка vs actual, Rows Removed by Filter), систематично перечисляет причины (индексы с порядком колонок, stale stats, локи, N+1, плохой план, bloat) и даёт алгоритм+антипаттерны. Исполнением проверено на PG17: partial index (customer_id,status,created_at DESC) WHERE … валиден и реально используется планером, INCLUDE-индекс, SET STATISTICS 1000, enable_nestloop, все упомянутые колонки каталогов (pg_stat_activity/pg_locks/pg_stat_user_tables/pg_stat_user_indexes/pg_stat_statements incl. stddev_exec_time, total_exec_time) и pg_stat_wal существуют, запрос на блокировки через transactionid исполняется. Мелочи не в счёт: токен-глюки с иероглифами («после大批 вставки», «на无序 таблице») и размытое слово «HINT» (нативных хинтов нет, но enable_* реальны) — выдуманных API и ложных фактов нет."
   },
   {
    "id": "Q13",
    "score": 4.0,
    "hallucination": false,
-   "note": "Ответ на уровне эталона и выше: границы по бизнес-инвариантам, доступ только через корень, ссылки по ID/события, принцип минимальности, eventual consistency, каноничный пример Order/Inventory/Payment и разбор типовой ошибки «гигантский агрегат» с последствиями и красными флагами ревью. Мелкие придирки к коду (объявление $status, общая транзакция в PlaceOrder против слова «две транзакции») не портят ответ. Конструкции PHP 8 (промоция readonly-свойств, enum-подобные статусы, Money::add) синтаксически корректны — проверено php 8.5.",
-   "score_note": ""
+   "note": "Сильный ответ: агрегат как граница консистентности, границы по инвариантам, доступ через корень, ID-ссылки, eventual consistency, подробный e-commerce пример с кодом и разбор ошибки «один большой агрегат» с механиз поломки. Исполнением проверен код Order (PHP 8.5, promoted readonly/enum): total, guard дубликатов и статуса работают. Мелкие шероховатости без галлюцинаций: «Payment.amount = Order.total — всегда атомарно» внутренне противоречит вынесению Payment в отдельную транзакцию, «команды синхронно» — упрощение, пороги «<50мс / 1–3 сущности» — эвристики-вкус."
   },
   {
    "id": "Q13.fu1",
-   "score": 4.0,
-   "hallucination": false,
-   "note": "Исчерпывающий ответ: lost update, optimistic/pessimistic locking (Doctrine #[ORM\\Version], LockMode), single-writer через очередь, event sourcing, idempotency — с trade-offs, антипаттернами и стратегией выбора. SQL-механика (version-CAS, FOR UPDATE, ON CONFLICT) подтверждена исполнением в PostgreSQL; API Doctrine соответствует реальности. Мелкие упрощения в конфиге Messenger не критичны."
+   "score": 3.5,
+   "hallucination": true,
+   "note": "Сильный, глубокий ответ: lost update, optimistic/pessimistic locking с корректным Doctrine API, single-writer, event sourcing, idempotency, антипаттерны и трёхслойная защита; SQL-механику (0 строк при конфликте версии, ON CONFLICT DO NOTHING) подтвердил исполнением в PostgreSQL 17. Выдумка — Symfony Messenger: dispatch(..., ['routing_key' => ...]) не существует (нужен AmqpStamp), queue_name не опция AMQP DSN, prefetch=1 не гарантирует single-writer по orderId; отсюда минус."
   },
   {
    "id": "Q14",
-   "score": 4.0,
+   "score": 3.5,
    "hallucination": false,
-   "note": "Исчерпывающий ответ: чёткое различение событий и команд, публикация после flush, outbox с атомарной записью в одной транзакции, идемпотентность, trade-offs и антипаттерны. Мелкие шероховатости кода (двойные кавычки в DQL-строке вместо одинарных, json_encode readonly-объекта с приватными полями) не влияют на суть; выдуманных API нет."
+   "note": "Образцовое покрытие: события vs команды, порядок save→dispatch, outbox с атомарной записью и poller'ом, sync/async trade-offs, идемпотентность, антипаттерны — все якоря чек-листа закрыты. Исполнением проверено: DQL с двойными кавычками реально падает в Doctrine ('Expected Literal'), а наивный deserialize через json_encode+unpacking теряет private/typed-свойства (ArgumentCountError) — единичные огрехи иллюстративного кода при концептуально верном ответе. Выдуманных API нет."
   },
   {
    "id": "Q15",
    "score": 4.0,
    "hallucination": false,
-   "note": "Исчерпывающий и корректный ответ: различие через идентичность vs равенство по значению, чёткий критерий выбора, разбор сложных случаев (Customer, Address, OrderLine), глубокое раскрытие единого языка (имена, границы, события, БД, антипаттерны) с примерами. Код проверен исполнением на PHP 8.5 — валиден и ведёт себя как описано (readonly-классы, enum, equals). Единственный спорный момент — указание OrderLine как Entity при возможном VO-подходе, но это легитимная альтернатива, а не ошибка. Выдумок нет."
+   "note": "Образцовый ответ: различие через идентичность vs значение, чёткий критерий выбора, живой PHP-код (проверен исполнением на 8.5 — readonly VO, equals, FILTER_VALIDATE_EMAIL), разобраны сложные случаи (Customer/Address/Product), UL показан как процесс с влиянием на имена, БД и границы, плюс таблица антипаттернов. Мелкие дискуссионности (OrderLine как Entity вместо типичного VO внутри агрегата, спорность русского в коде) не тянут на ошибки — галлюцинаций нет."
   },
   {
    "id": "Q16",
    "score": 4.0,
-   "hallucination": false,
-   "note": "Эталонный ответ: правильное правило зависимостей (вне→внутрь), чистый Domain, порты/адаптеры, Doctrine и контроллер и Messenger-хендлер корректно размещены в Infrastructure; контроль границ — архитектурные тесты (парсинг T_USE проверен запуском и работает), PHPStan, code review, CI. Мелкие шероховатости (упоминание Figma рядом с C4, неопределённый CustomerId, closure use может дать ложноположительный T_USE) на оценку не влияют."
+   "hallucination": true,
+   "note": "Ответ образцовый: правило зависимостей внутрь сформулировано чётко, Doctrine/контроллер/Messenger-обработчик размещены корректно (адаптеры инфраструктуры), контроль границ — архитектурные тесты (код проверен запуском: реально ловит use Doctrine в Domain), верное замечание, что голый PHPStan границ не ловит, плюс вкус: порты Clock/EventPublisher, outbox, тестовая пирамида по слоям. Единственная выдумка — \\DateTimeImmutable::now() в примере Order::confirm(): такого метода в PHP нет (проверено php 8.5), нужно new DateTimeImmutable(); это одна строка, инварианты агрегата после фикса работают как заявлено."
   },
   {
    "id": "Q17",
    "score": 3.5,
    "hallucination": true,
-   "note": "Отличный, глубокий ответ: пирамида с конкретными долями и бюджетами, fake-vs-mock с кодом, изоляция, FixedClock, антипаттерны — всё по чек-листу и выше. Проверено исполнением: TEMP-таблицы/TRUNCATE CASCADE/search_path в PostgreSQL работают как заявлено. Выдумки: опция `vendor/bin/phpunit --processes=4` — это Paratest, а не stock PHPUnit; конфиг `doctrine.dbal.schema: '%env(test_SCHEMA)%'` — несуществующий параметр DBAL (нужен search_path/dbname); комментарий «retry в phpunit.xml» не подкреплён реальным механизмом. Мелочь — вставки иероглифов («Я尽量避免») в тексте."
+   "note": "Сильный, глубокий ответ: пирамида с распределением, fake vs mock, реальная БД только для маппинга/ограничений, изоляция, FixedClock, бюджеты CI, антипаттерны — полностью по чек-листу. Исполнением проверено: у PHPUnit 10.5 нет опции --processes (выдуман флаг, нужен paratest), TRUNCATE без RESTART IDENTITY не сбрасывает sequences, команды pg_create_role не существует. Также выдумки по знанию: assertDatabaseCount (это Laravel), опция doctrine dbal schema с %env(test_SCHEMA)%, HTTP_X_REQUEST_TIMEOUT как таймаут; E2E-пример с createClient на KernelTestCase не рабочий (нужен WebTestCase). Плюс артефакт с иероглифами «Я尽量避免»."
   },
   {
    "id": "Q18",
    "score": 3.5,
-   "hallucination": false,
-   "note": "Очень сильный, глубокий ответ: верная механика lost update, оптимистичная/пессимистичная блокировка, атомарные UPDATE, advisory locks (проверено — pg_advisory_xact_lock существует), single-writer, идемпотентность, коды 40P01/40001, сценарный выбор. Проверено исполнением: READ UNCOMMITTED в PG принимается. Неточности: таблица изоляции описана по учебнику SQL, а не по PostgreSQL — в PG dirty read невозможен даже на READ UNCOMMITTED, а REPEATABLE READ (snapshot isolation) защищает и от phantom read, что кандидат отрицает; пример «non-repeatable read» с count(*) по сути phantom. Ядро и практика верны, минус за нюансы MVCC-семантики."
+   "hallucination": true,
+   "note": "Исчерпывающий и глубокий ответ: lost update с механикой, все аномалии, deadlock 40P01, изоляция, optimistic/pessimistic, advisory, атомарные UPDATE, идемпотентность, выбор по сценариям, антипаттерны и комбинирование. Исполнением подтверждены advisory-API (pg_advisory_lock/xact_lock, hashtext, межсессионная блокировка, авто-релиз xact-lock на COMMIT), поведение version-колонки (0 rows при конфликте), атомарный UPDATE с проверкой и ON CONFLICT DO NOTHING. Выдумок-API нет, но есть ложные факты об изоляции: таблица дана по SQL-стандарту под заголовком «PostgreSQL» (в PG READ UNCOMMITTED = READ COMMITTED, phantom в REPEATABLE READ исключён), а «в READ COMMITTED phantom частично защищён» и «SELECT видит snapshot на BEGIN» — неверно (snapshot постейтментный; сам кандидат ниже фактически корректируется)."
   },
   {
    "id": "Q19",
    "score": 4.0,
    "hallucination": false,
-   "note": "Исчерпывающий, структурно безупречный ответ: trunk-based vs gitflow, Conventional Commits с семвером и changelog, squash merge с обоснованием, размер PR, CI-пайплайн, чеклист ревью, feature flags с кодом, многоуровневый роллбек, метрики — везде объяснено «почему». Фактических ошибок и выдуманных API нет; проверяемое (GitHub Actions-синтаксис, kubectl rollout undo, conventional commits semver-правила) соответствует действительности.",
-   "note_extra": ""
+   "note": "Полный, зрелый ответ: trunk-based с обоснованием против gitflow (и честные случаи, когда gitflow уместен), Conventional Commits с четырьмя причинами, формат PR, размер, CI-гейты, чеклист ревью, squash-merge, деплой с фича-флагами, 4 уровня роллбека и DORA-метрики — все якоря сильного ответа перекрыты. Исполнением проверены crc32-бакетинг флага (стабилен, 0..99), git log --grep по 'feat(order)', revert сквошнутого коммита и валидность обоих GitHub Actions YAML. Выдумок не найдено; придирки косметические (схематичные шаги '- checkout' без run/uses, опечатка 'сцenario')."
   },
   {
    "id": "Q20",
    "score": 4.0,
    "hallucination": false,
-   "note": "Отличный структурированный ответ: маркировка по серьёзности (Blocking/Suggestion/Nit/Question/Note), приоритеты от корректности к стилю, зрелый процесс эскалации с проверкой фактов кодом. Исполнением проверен тезис про int+float→float (29.97) — детали про TypeError при flush зависят от strict_types, но это допустимое упрощение в гипотетическом примере. Мелкий артефакт — иероглиф 耦合 в диалоге, на суть не влияет.",
-   "note_extra": null
+   "note": "Сильный, образцовый ответ по всем трём якорям: градация замечаний с примером PR, приоритеты от корректности к тестам с чек-листами и живыми примерами (lost update, N+1), зрелый алгоритм споров (проверка кодом, эскалация третьему, SLA 48ч). Исполнением проверены float-арифметика int+float, поведение float→int (TypeError только при strict_types — в примере кандидата чуть категорично и «при flush» неточно, в coercive тихая конвертация) и SQL-паттерн атомарного списания в psql — работает как заявлено. Выдумок нет; косметические огрехи текста (иероглифы «耦合», «Индентификация ≤ 4 уровня», недописанный сниппет) на суть не влияют."
   },
   {
    "id": "Q24",
-   "score": 4.0,
-   "hallucination": false,
-   "note": "Ответ образцовый: явно отвергает предпосылку (FORCE INDEX — только MySQL; проверено исполнением — PostgreSQL выдаёт syntax error), и системно перечисляет реальные механизмы: ANALYZE/статистика, GUC enable_*, random_page_cost (дефолт 4.0 подтверждён), covering index INCLUDE, pg_hint_plan, переписывание OR→UNION ALL. Проверено исполнением: FORCE INDEX не парсится, covering index создаётся. Мелкие нюансы (например, что Bitmap Heap Scan тоже возможен и hint-синтаксис pg_hint_plan хрупок) не портят оценку; фактически неверных утверждений нет.",
-   "score_note": ""
+   "score": 3.5,
+   "hallucination": true,
+   "note": "Отличный ответ: прямо отвергает предпосылку (FORCE INDEX — MySQL, в PG syntax error, проверено), глубоко разбирает альтернативы (ANALYZE, enable_* GUC и random_page_cost=4 — существование и дефолт проверены psql, covering index, pg_hint_plan, переписывание OR→UNION ALL). Единственная выдумка/ошибка: колонки reltuples нет в pg_stat_user_tables (она в pg_class) — запрос диагностики как написанный не выполняется."
   },
   {
    "id": "Q25",
    "score": 3.5,
    "hallucination": false,
-   "note": "Сильный ответ: отвергает миф о заметном замедлении, верно объясняет механику (strict не добавляет проверок — coercive с приведением даже дороже), даёт структурную таблицу альтернатив и микробенчмарк. Исполнением подтверждено: strict ~12 нс/вызов против coercive со строками ~38 нс/вызов — strict не медленнее. Мелкие неточности (заявление «проверки типов не в runtime», точные проценты 5–15%/40% — вкусовщина без пруфа), но выдуманных API/фактов нет."
+   "note": "Сильный ответ: миф о заметном замедлении отвергнут (<0.5% в реальных приложениях), механика объяснена (проверки в обоих режимах, strict лишь убирает приведение), плюс таблица реальных узких мест и схема бенчмарка; проверено исполнением — strict и coercive с совпадающими типами равны (~15 ns/call, с JIT ~4.5-4.9), приведение на несовпадении дороже, TypeError в strict подтверждён. Минусы: категоричное «strict быстрее coercive» не подтверждается (одинаково), внутренняя противоречивость («до 5-15% замедления в синтетике» против собственного бенчмарка, где strict быстрее) и неточная табличная арифметика (1-5 мкс на 10k вызовов против собственных же 1-10 нс/вызов). Выдуманных API и фактов нет.",
+   "score_final": 3.5
   },
   {
    "id": "Q26",
-   "score": 3.0,
-   "hallucination": false,
-   "note": "Сильный ответ: верно отвергает ложную предпосылку (Doctrine поддерживает composite PK с 2.x), даёт реальные ограничения и рабочие стратегии (surrogate + UNIQUE, embedded, денормализация, VO+repo). Проверено исполнением: identity map в Doctrine хешируется через implode(' ', id) — значит заявленный «int vs string баг с дублями в identity map» неверен по механике (значения 1 и '1' дают один хеш и схлопываются, а не дублируются); это единственный сомнительный технический факт, выдуманных API/конструкций нет."
+   "score": 2.5,
+   "hallucination": true,
+   "note": "Предпосылка вопроса корректно отвергнута (composite keys поддерживаются), практическая часть сильна: surrogate key + UNIQUE, find() с массивом, валидный паттерн ManyToOne-как-id. Но блок «внутренней механики» сфабрикован: исполнением на Doctrine ORM 3.6.1+PostgreSQL опровергнуты «int vs string дубль в identity map» (idHash через implode, === true), «lazy loading сломан» и «proxy !== real → дубли» (прокси лениво грузится, повторный get — тот же инстанс), DQL JOIN работает; вдобавок «JSONB не индексируется» — ложь (GIN). Реальные ограничения (нет IDENTITY-генерации в ключе) не названы."
   },
   {
    "id": "Q27",
    "score": 4.0,
    "hallucination": false,
-   "note": "Отличный ответ: SQL-инъекция названа P0, есть аутентификация/владелец, инварианты статуса, транзакционность через outbox, асинхронная почта, слоистый рефакторинг с обоснованным порядком («сначала безопасность, потом архитектура»). Исполнением проверено: инъекция в `query(\"...id = $id\")` реальна (подстрока исполняется), правда пример кандидата `1; DROP TABLE` через один PDO-statement мульти-стейтмент не исполнит — упрощение, но вектор (OR/UNION) валиден. Мелкие придирки: TOCTOU между чтением и UPDATE упомянут лишь косвенно («рассинхрон», idempotency), без слова «гонка». Выдумок нет: enum backed, `#[AsMessageHandler]`, `ExceptionEvent` — реальные API."
+   "note": "Ответ образцовый: SQL-инъекция названа P0 с реалистичным примером (проверено psql — multi-statement и OR 1=1 реально работают в PG), увидена отсутствующая авторизация и доменный инвариант, дана приоритизация «безопасность → корректность → архитектура» с обоснованием и полным послойным рефакторингом (VO, enum, outbox, асинхронный mail, обработчик исключений). Выдумок нет. Мелочи: явная TOCTOU-гонка чтение-проверка-запись не названа (частично покрыта идемпотентностью/атомарностью), а в примере кода не объявлено свойство $domainEvents — проверено на PHP 8.5, это Deprecated dynamic property, хотя код формально выполняется."
   },
   {
    "id": "Q28",
-   "score": 4.0,
+   "score": 3.5,
    "hallucination": false,
-   "note": "Исчерпывающий ответ: указаны все ключевые проблемы (EntityManager в домене, flush внутри сущности, отсутствие id, email как примитив, гидратация Doctrine в обход конструктора) с корректным рефакторингом через VO, доменные события, репозиторий-порт и use-case. Проверено исполнением: VO Email с filter_var/readonly/нормализацией работает как описано. Мелкие придирки (assertThat как псевдо-функция в тесте, спорность «EM нужен при гидратации») не влияют; выдуманных API нет."
+   "note": "Сильный, глубокий ответ: все три якоря закрыты (EM в домене — нарушение слоёв; Doctrine гидрирует через reflection в обход конструктора — подтверждено по исходникам doctrine/orm UnitOfWork.php: newInstanceWithoutConstructor; Email как VO), плюс identity, доменные события, outbox, порт-репозиторий и разделение доменной/persistence-модели. Исполнением проверен и минус: образцовый VO кандидата с promoted readonly + повторным присваиванием в конструкторе падает в PHP 8.5 ('Cannot modify readonly property'); фраза «EntityManager должен быть доступен в момент гидратации» неточна (EM как раз не инициализируется вовсе), но это не выдуманный API. Мелкая непоследовательность — use-case напрямую тянет EntityManagerInterface."
   }
  ]
 }
