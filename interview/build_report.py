@@ -106,7 +106,7 @@ THINK_TITLE = {
 # краткие значения для колонки «Мышление» таблицы результатов
 THINK_SHORT = {k: v for k, v in {
     "think-off": "без", "think-on": "вкл", "think-low": "low",
-    "мышление включено": "вкл", "effort low": "effort low", "deepseek": "effort low",
+    "мышление включено": "вкл", "effort low": "low", "deepseek": "low",
     "базовый": "нет", "yandexfm": "нет", "gigachat": "нет"}.items()}
 
 SERIES_TITLE = {
