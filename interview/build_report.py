@@ -2367,7 +2367,7 @@ def build(models, sessions, primer, low_json=None):
         shift = statistics.mean(p[0] - p[2] for p in pairs)
         diff = Counter(abs(p[0] - p[2]) for p in pairs)
         dist = ", ".join(
-            f"{k:g} балла — {diff[k]} ({diff[k]/n:.0%})" if k else
+            f"{k:g} {'балл' if k == 1 else 'балла'} — {diff[k]} ({diff[k]/n:.0%})" if k else
             f"совпали — {diff[k]} ({diff[k]/n:.0%})"
             for k in sorted(diff))
         low_section = f"""
