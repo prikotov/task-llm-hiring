@@ -1923,7 +1923,7 @@ def build(models, sessions, primer, low_json=None):
 <td class=num>{cost}</td></tr>""")
     table = ('<table>'
              '<tr><th rowspan=2>Модель</th><th rowspan=2>Мышление</th>'
-             '<th rowspan=2>Системный промпт</th>'
+             '<th rowspan=2>Сист. промпт</th>'
              '<th colspan=2>clef, ярус 1</th>'
              '<th colspan=2>LLM судья, ярус 2</th>'
              '<th rowspan=2>Найдено провокаций<sup>3</sup></th>'
