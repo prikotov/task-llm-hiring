@@ -1897,10 +1897,6 @@ def build(models, sessions, primer, low_json=None):
             cost = (f"${fmt_cost(m['cost'])}<div class=sub>₽{fmt_cost(rub)}</div>"
                     if m["cost"] else "0")
         glm_cell = bar(m["glm"] or 0, 4, "{:.1f}", "#2f7d54") if m["glm"] else "—"
-        # в ячейке только меняющееся от строки к строке (доля галлюцинаций);
-        # полнота проверки и уровень мышления судьи одинаковы у всех строк — см. сноску 2
-        glm_sub = (f'галл. {m["glm_hall"]}/{m.get("glm_n", "??")}'
-                   if m["glm_hall"] is not None else m["glm_note"])
         badge = {"cloud": '<span class="badge g">облако</span>',
                  "local": '<span class="badge b">локально</span>',
                  "negctrl": ""}[m["kind"]]
@@ -1913,7 +1909,8 @@ def build(models, sessions, primer, low_json=None):
 <td>{'с промптом' if m.get('primer') else 'без'}</td>
 <td>{bar(m['clef'], 4)}{f'<div class=sub>±{m["run_sigma"]:.2f} по прогонам</div>' if m.get("run_sigma") is not None else ''}</td>
 <td>{bar(m['p_hall'], 0.4, '{:.2f}', '#b3543f')}</td>
-<td>{glm_cell}<div class=sub>{glm_sub}</div></td>
+<td>{glm_cell}</td>
+<td class=num>{f'{m["glm_hall"]}/{m.get("glm_n", "??")}' if m["glm_hall"] is not None else '—'}</td>
 <td class=num>{m['prov']}</td>
 <td class=num>{m['dur_min']} мин<div class=sub>{m['out_tok']:,} вых. токенов за сессию</div></td>
 <td class=num>{cost}</td></tr>""")
@@ -1921,11 +1918,12 @@ def build(models, sessions, primer, low_json=None):
              '<tr><th rowspan=2>Модель</th><th rowspan=2>Режим</th>'
              '<th rowspan=2>Системный промпт</th>'
              '<th colspan=2>clef, ярус 1</th>'
-             '<th rowspan=2>LLM судья, ярус 2<sup>2</sup></th>'
+             '<th colspan=2>LLM судья, ярус 2</th>'
              '<th rowspan=2>Найдено провокаций<sup>3</sup></th>'
              '<th rowspan=2>Длительность<sup>5</sup></th>'
              '<th rowspan=2>Цена<sup>6</sup></th></tr>'
-             '<tr><th>балл<sup>1</sup></th><th>галлюцинации<sup>4</sup></th></tr>'
+             '<tr><th>балл<sup>1</sup></th><th>галлюцинации<sup>4</sup></th>'
+             '<th>балл<sup>2</sup></th><th>галлюцинации<sup>2</sup></th></tr>'
              + "\n".join(rows) + "</table>")
     note = ('<sup>1</sup> clef: средний балл дешёвого судьи (ярус 1) по ответам всех прогонов на вопросы о знаниях; ± это стандартное отклонение средних прогонов, то есть стабильность средней оценки (там, где прогон один, разброса нет). Отдельные ответы менее постоянны: средний разброс балла одного вопроса между прогонами 2–6% шкалы (0.08–0.23 балла) (максимум у ornith-1.5 35B без мышления, до 58% шкалы на провокации Q24 у ornith-1.5 35B без мышления); при усреднении по 30 вопросам эти колебания гасятся.<br>'
             '<sup>2</sup> Балл судьи. GLM-5.3-Flash, ярус 2: каждый ответ проверяет отдельная '
