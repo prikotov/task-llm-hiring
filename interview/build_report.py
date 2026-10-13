@@ -2344,20 +2344,37 @@ def build(models, sessions, primer, low_json=None):
                 if v["id"] in mx:
                     pairs.append((v["score"], v["hallucination"],
                                   mx[v["id"]]["score"], mx[v["id"]]["hallucination"]))
+        # плюс полный прогон qwen3.8 run-16: судился на low, затем пересужен на max
+        low16 = ROOT / "qwen3.8" / "backend" / "judgments" / "glm-5.3-flash-iso" / "run-16.low.json"
+        if low16.exists():
+            lo16 = {v["id"]: v for v in json.loads(low16.read_text())["results"]}
+            ma16 = {v["id"]: v for v in json.loads(
+                (ROOT / "qwen3.8" / "backend" / "judgments" / "glm-5.3-flash-iso"
+                 / "run-16.json").read_text())["results"]}
+            for q, v in lo16.items():
+                if q in ma16:
+                    pairs.append((v["score"], v["hallucination"],
+                                  ma16[q]["score"], ma16[q]["hallucination"]))
         n = len(pairs)
         w1 = sum(1 for p in pairs if abs(p[0] - p[2]) <= 1)
         agree = sum(1 for p in pairs if p[1] == p[3])
+        # каппа Коэна по флагу галлюцинаций
+        ph, pm = (sum(p[i] for p in pairs) / n for i in (1, 3))
+        po = agree / n
+        pe = ph * pm + (1 - ph) * (1 - pm)
+        kappa = (po - pe) / (1 - pe)
+        shift = statistics.mean(p[0] - p[2] for p in pairs)
         low_section = f"""
 <h3>Режим мышления судьи: low против max</h3>
-<p>LLM-судья работает с мышлением, и уровень задаётся явно: max точнее, но тратит примерно втрое больше токенов. Чтобы решить, какой режим на какую работу пускать, судили одни и те же 30 ответов (по 10 у ornith-1.5 9B, ornith-1.5 35B и qwen3.8) в обоих режимах и сравнили вердикты:</p>
+<p>LLM-судья работает с мышлением, и уровень задаётся явно: max точнее, но тратит примерно втрое больше токенов. Чтобы решить, какой режим на какую работу пускать, сравнили вердикты одних и тех же ответов, оценённых судьёй в обоих режимах: 30 ответов из эксперимента (по 10 у ornith-1.5 9B, ornith-1.5 35B и qwen3.8) и полный прогон qwen3.8 run-16 из 30 ответов, оценённый сначала на low, затем на max, — всего {n} сравнений:</p>
 <table>
 <tr><th>Метрика</th><th>Значение</th></tr>
 <tr><td>Совпадение баллов</td><td>одинаковый балл в обоих режимах — {sum(1 for p in pairs if p[0]==p[2])} ответов из {n} ({sum(1 for p in pairs if p[0]==p[2])/n:.0%}); расхождение больше 1 балла — {n-w1} из {n}</td></tr>
-<tr><td>Согласие флага галлюцинаций</td><td>{agree/n:.0%}, каппа Коэна 0.73</td></tr>
+<tr><td>Согласие флага галлюцинаций</td><td>{agree/n:.0%}, каппа Коэна {kappa:.2f}</td></tr>
 <tr><td>Верифицированный банк ошибок qwen</td><td>4 из 4, как у max</td></tr>
 <tr><td>Токены на судью</td><td>~8k против ~27k (−70%)</td></tr>
 </table>
-<p class=sub>Итог: рутинное судейство (тренды, сравнения моделей) — на low; финальные вердикты и обнаружение тонких фабрикаций — на max. Low ставит в среднем на +0.23 балла выше, поэтому оценки разных режимов в одну таблицу не смешиваются.</p>
+<p class=sub>Итог: рутинное судейство (тренды, сравнения моделей) — на low; финальные вердикты и обнаружение тонких фабрикаций — на max. Low ставит в среднем на {shift:+.2f} балла выше, поэтому оценки разных режимов в одну таблицу не смешиваются.</p>
 """
 
     # --- сессии ---
