@@ -2196,6 +2196,59 @@ def build(models, sessions, primer, low_json=None):
                     s += " " + delta_html(v - bv, scale, inv)
                 cells.append(f"<td class=num>{s}</td>")
             think_rows.append(f"<tr><td>{mlabel} · {vlabel}</td>" + "".join(cells) + "</tr>")
+    # прирост по группам вопросов: фактология (PHP/ООП/Symfony/Doctrine/PG/git)
+    # против рассуждений (архитектура, тесты, конкурентность, провокации, ревью);
+    # уточнения наследуют группу родительского вопроса
+    _q = json.load(open(ROOT / "interview" / "roles" / "backend" / "questions.json"))["questions"]
+    _FACT = {x["id"] for x in _q if x["section"] in {"PHP 8", "ООП", "Symfony", "Doctrine", "PostgreSQL", "Git"}}
+
+    def _g(sel):
+        return "ф" if sel.split(".")[0] in _FACT else "р"
+
+    def _cgroups_csv(model, series):
+        d = {"ф": {}, "р": {}}
+        for r in csv.DictReader(open(ROOT / "reports" / "decision-all.csv", encoding="utf-8-sig")):
+            if ((r["judge"], r["model"], r["series"]) != ("clef", model, series)
+                    or r["question"] not in KNOW):
+                continue
+            d[_g(r["question"])].setdefault(r["question"], []).append(float(r["score"]))
+        return {k: statistics.mean(statistics.mean(v) for v in dd.values()) for k, dd in d.items()}
+
+    def _cgroups_json(folder, runs):
+        d = {"ф": {}, "р": {}}
+        for run in runs:
+            for r in json.load(open(ROOT / folder / "backend" / "judgments" / "clef"
+                                    / f"{run}.json"))["results"]:
+                if r["id"] in KNOW:
+                    d[_g(r["id"])].setdefault(r["id"], []).append(r["score"])
+        return {k: statistics.mean(statistics.mean(v) for v in dd.values()) for k, dd in d.items()}
+
+    def _jgroups(folder, runs):
+        d = {"ф": [], "р": []}
+        for run in ([runs] if isinstance(runs, str) else runs):
+            for r in json.load(open(ROOT / folder / "backend" / "judgments"
+                                    / "glm-5.3-flash-iso" / f"{run}.json"))["results"]:
+                if r["id"] in KNOW:
+                    d[_g(r["id"])].append(r["score"])
+        return {k: statistics.mean(v) for k, v in d.items()}
+
+    def _grow(label, b, v):
+        return (label, f"{v['ф']-b['ф']:+.2f} ({(v['ф']-b['ф'])/b['ф']*100:+.0f}%)",
+                f"{v['р']-b['р']:+.2f} ({(v['р']-b['р'])/b['р']*100:+.0f}%)")
+
+    gains_rows = "".join(
+        f'<tr><td>{l}</td><td class=num>{f}</td><td class=num>{d}</td></tr>' for l, f, d in [
+            _grow("ornith-1.5 35B + мышление · clef, серии",
+                  _cgroups_csv("ornith-1.5-35b", "think-off"), _cgroups_csv("ornith-1.5-35b", "think-on")),
+            _grow("ornith-1.5 35B + мышление · судья",
+                  _jgroups("ornith-1.5-35b", "run-07"), _jgroups("ornith-1.5-35b", "run-06")),
+            _grow("qwen3.8 + think low · clef, чистая серия",
+                  _cgroups_csv("qwen3.8", "think-off"),
+                  _cgroups_json("qwen3.8", [f"run-{i}" for i in range(21, 26)])),
+            _grow("qwen3.8 + think low · судья, 2 оценённых прогона",
+                  _jgroups("qwen3.8", "run-06"), _jgroups("qwen3.8", ["run-16", "run-21"])),
+        ])
+
     think_html = ('<h3>Мышление против промпта</h3><table>'
                   '<tr><th>Вариант</th><th>clef (5 прогонов)</th><th>Балл судьи (1 прогон)</th>'
                   '<th>Галл., clef</th><th>Провокации, балл clef</th></tr>'
@@ -2244,21 +2297,14 @@ def build(models, sessions, primer, low_json=None):
                   '<p>Вопросы делятся на фактологические (PHP, ООП, Symfony, '
                   'Doctrine, PostgreSQL, git — «либо знаешь, либо нет») и требующие рассуждения '
                   '(архитектура, тестирование, конкурентность, провокации, код-ревью). '
-                  'Прирост к базе без мышления:</p>'
+                  'Прирост к базе без мышления, в скобках — процент от базы:</p>'
                   '<table><tr><th>Вариант</th><th>Фактология</th><th>Рассуждения</th></tr>'
-                  '<tr><td>ornith-1.5 35B + мышление · clef, серии</td><td>+0.41</td><td>+0.58</td></tr>'
-                  '<tr><td>ornith-1.5 35B + мышление · судья</td><td>+0.79</td><td>+0.53</td></tr>'
-                  '<tr><td>qwen3.8 + think low · clef, чистая серия</td><td>+0.29</td><td>+0.28</td></tr>'
-                  '<tr><td>qwen3.8 + think low · судья, 2 оценённых прогона</td><td>+0.0</td><td>+0.4</td></tr>'
-                  '</table>'
-                  '<p>Читается таблица так. clef меряет полноту и структуру ответа, поэтому '
-                  'у qwen3.8 даёт одинаковый прирост в обеих группах (+0.29 и +0.28): длинные '
-                  'обоснования выглядят как содержательный ответ и там, и там; у ornith-1.5 35B '
-                  'чуть сильнее рассуждения (+0.58 против +0.41). Судья, который проверяет '
-                  'суть, у qwen3.8 видит прирост только в рассуждениях (+0.4 при фактологии '
-                  '+0.0): зашитые в веса знания размышлением не прибавляются; у более слабой '
-                  'ornith-1.5 35B растут обе группы — модели есть куда расти и по знаниям '
-                  '(+0.79).</p>')
+                  + gains_rows + '</table>'
+                  '<p>У ornith-1.5 35B мышление поднимает обе группы — и знания, и рассуждения '
+                  '(+15…+29%). У qwen3.8 судья прибавляет только рассуждения (+10%), '
+                  'фактология стоит на месте: зашитые в веса знания размышлением не добавить. '
+                  'clef у qwen3.8 растёт в обеих группах (+10% и +8%) — это полнота изложения: '
+                  'длинные обоснования выглядят содержательно и там, и там.</p>')
 
     # --- судьи ---
     judges_html = """<table>
