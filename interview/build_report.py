@@ -2087,6 +2087,17 @@ def build(models, sessions, primer, low_json=None):
         return (f'<td class=num style="color:rgb({rgb[0]},{rgb[1]},{rgb[2]});font-weight:600">'
                 f'{d:+.2f}</td>')
 
+    def delta_html(d, scale, invert=False):
+        """Цветная дельта рядом с числом; invert — для метрик,
+        где рост хуже (галлюцинации)."""
+        t = max(-1.0, min(1.0, d / scale * (-1 if invert else 1)))
+        base = (102, 112, 127)
+        green, red = (47, 125, 84), (179, 84, 63)
+        rgb = [round(base[i] + t * (green[i] - base[i])) if t >= 0
+               else round(base[i] - t * (red[i] - base[i])) for i in range(3)]
+        return (f'<span style="color:rgb({rgb[0]},{rgb[1]},{rgb[2]});'
+                f'font-weight:600;font-size:12px">{d:+.2f}</span>')
+
     prim_rows = []
     for model, label in [("ornith-1.5-35b", "ornith-1.5 35B"), ("qwen3.8", "qwen3.8 27B"),
                          ("orcarouter-Qwen3.8-27B-Uncensored-latest", "orcarouter 27B"),
@@ -2137,33 +2148,54 @@ def build(models, sessions, primer, low_json=None):
                 f"{statistics.mean(prov):.2f}")
 
     qwen_low = clef_direct("qwen3.8", [f"run-{i}" for i in range(21, 26)])
+
+    def fnum(x):
+        try:
+            return float(x)
+        except (TypeError, ValueError):
+            return None
+
     think_rows = []
-    for mlabel, model, series, vlabel, jrun, direct in [
-            ("ornith-1.5 35B", "ornith-1.5-35b", "think-off", "без мышления", "run-07", None),
-            ("ornith-1.5 35B", "ornith-1.5-35b", "think-on", "с мышлением", "run-06", None),
-            ("ornith-1.5 35B", "ornith-1.5-35b", "primer-v2", "без мышления + промпт", "run-17", None),
-            ("qwen3.8 27B", "qwen3.8", "think-off", "без мышления", "run-06", None),
-            ("qwen3.8 27B", "qwen3.8", None, "с мышлением low", "run-21", qwen_low),
-            ("qwen3.8 27B", "qwen3.8", "primer-v2", "без мышления + промпт", "run-11", None),
+    # модели по алфавиту; варианты: база без мышления → + промпт → + мышление;
+    # дельты считаются от базового варианта той же модели
+    for mlabel, model, variants in [
+            ("gemma4 26B", "gemma4-26b",
+             [("think-off", "без мышления", None, None),
+              ("primer-v2", "без мышления + промпт", "run-06", None)]),
             ("huihui abliterated 27B", "huihui_ai-Qwen3.8-abliterated-latest",
-             "think-off", "без мышления", "run-01", None),
-            ("huihui abliterated 27B", "huihui_ai-Qwen3.8-abliterated-latest",
-             "primer-v2", "без мышления + промпт", "run-06", None),
+             [("think-off", "без мышления", "run-01", None),
+              ("primer-v2", "без мышления + промпт", "run-06", None)]),
+            ("ornith-1.5 35B", "ornith-1.5-35b",
+             [("think-off", "без мышления", "run-07", None),
+              ("primer-v2", "без мышления + промпт", "run-17", None),
+              ("think-on", "с мышлением", "run-06", None)]),
             ("orcarouter 27B uncensored", "orcarouter-Qwen3.8-27B-Uncensored-latest",
-             "think-off", "без мышления", "run-01", None),
-            ("orcarouter 27B uncensored", "orcarouter-Qwen3.8-27B-Uncensored-latest",
-             "primer-v2", "без мышления + промпт", "run-06", None),
-            ("gemma4 26B", "gemma4-26b", "think-off", "без мышления", None, None),
-            ("gemma4 26B", "gemma4-26b", "primer-v2", "без мышления + промпт", "run-06", None)]:
-        c, h, pr = direct if direct else (pget(model, series),
-                                          pget(model, series, "hall"),
-                                          pget(model, series, "prov"))
-        jm = judge_mean(model, jrun)
-        jm = f"{jm:.2f}" if jm is not None else "—"
-        think_rows.append(f"<tr><td>{mlabel} · {vlabel}</td><td class=num>{c}</td>"
-                          f"<td class=num>{jm}</td>"
-                          f"<td class=num>{h}</td><td class=num>{pr}</td></tr>")
-    think_html = ('<h3>Мышление против промпта (локальные модели)</h3><table>'
+             [("think-off", "без мышления", "run-01", None),
+              ("primer-v2", "без мышления + промпт", "run-06", None)]),
+            ("qwen3.8 27B", "qwen3.8",
+             [("think-off", "без мышления", "run-06", None),
+              ("primer-v2", "без мышления + промпт", "run-11", None),
+              (None, "с мышлением low", "run-21", qwen_low)])]:
+        vals = []
+        for series, vlabel, jrun, direct in variants:
+            c, h, pr = (direct if direct else
+                        (pget(model, series), pget(model, series, "hall"),
+                         pget(model, series, "prov")))
+            vals.append((vlabel, fnum(c), judge_mean(model, jrun) if jrun else None,
+                         fnum(h), fnum(pr)))
+        base = vals[0]
+        for i, (vlabel, c, jm, h, pr) in enumerate(vals):
+            cells = []
+            for v, bv, scale, inv in [(c, base[1], 0.15, False),
+                                      (jm, base[2], 0.15, False),
+                                      (h, base[3], 0.15, True),
+                                      (pr, base[4], 0.40, False)]:
+                s = f"{v:.2f}" if v is not None else "—"
+                if i and v is not None and bv is not None:
+                    s += " " + delta_html(v - bv, scale, inv)
+                cells.append(f"<td class=num>{s}</td>")
+            think_rows.append(f"<tr><td>{mlabel} · {vlabel}</td>" + "".join(cells) + "</tr>")
+    think_html = ('<h3>Мышление против промпта</h3><table>'
                   '<tr><th>Вариант</th><th>clef (5 прогонов)</th><th>Балл судьи (1 прогон)</th>'
                   '<th>Галл., clef</th><th>Провокации, балл clef</th></tr>'
                   + "\n".join(think_rows) + "</table>"
