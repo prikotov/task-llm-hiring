@@ -1932,6 +1932,7 @@ def build(models, sessions, primer, low_json=None):
 <td><b>{m['label']}</b><div class=sub>{badge}</div></td>
 <td>{THINK_SHORT.get(m['series'], m['series'])}</td>
 <td>{'да' if m.get('primer') else '—'}</td>
+<td class=num>{len(m['runs'])}</td>
 <td>{bar(m['clef'], 4)}{f'<div class=sub>±{m["run_sigma"]:.2f} по прогонам</div>' if m.get("run_sigma") is not None else ''}</td>
 <td>{bar(m['p_hall'], 0.4, '{:.2f}', '#b3543f')}</td>
 <td>{glm_cell}</td>
@@ -1943,9 +1944,10 @@ def build(models, sessions, primer, low_json=None):
     table = ('<table>'
              '<tr><th rowspan=2>Модель</th><th rowspan=2>Мышление</th>'
              '<th rowspan=2>Сист. промпт</th>'
+             '<th rowspan=2>Прогоны</th>'
              '<th colspan=2>clef, ярус 1</th>'
              '<th colspan=2>LLM судья, ярус 2</th>'
-             '<th rowspan=2>Провокации<sup>4</sup></th>'
+             '<th rowspan=2>Прово&shy;кации<sup>4</sup></th>'
              '<th rowspan=2>Токены<sup>5</sup></th>'
              '<th rowspan=2>Время<sup>5</sup></th>'
              '<th rowspan=2>Цена<sup>6</sup></th></tr>'
