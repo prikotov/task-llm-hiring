@@ -1912,7 +1912,7 @@ def build(models, sessions, primer, low_json=None):
         rows.append(f"""<tr{' class=' + row_cls if row_cls else ''}>
 <td><b>{m['label']}</b><div class=sub>{badge}</div></td>
 <td>{THINK_SHORT.get(m['series'], m['series'])}</td>
-<td>{'с промптом' if m.get('primer') else 'без'}</td>
+<td>{'да' if m.get('primer') else '—'}</td>
 <td>{bar(m['clef'], 4)}{f'<div class=sub>±{m["run_sigma"]:.2f} по прогонам</div>' if m.get("run_sigma") is not None else ''}</td>
 <td>{bar(m['p_hall'], 0.4, '{:.2f}', '#b3543f')}</td>
 <td>{glm_cell}</td>
