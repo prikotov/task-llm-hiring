@@ -12,6 +12,7 @@
 import argparse
 import csv
 import json
+from collections import Counter
 import statistics
 from collections import defaultdict
 from pathlib import Path
@@ -2364,12 +2365,17 @@ def build(models, sessions, primer, low_json=None):
         pe = ph * pm + (1 - ph) * (1 - pm)
         kappa = (po - pe) / (1 - pe)
         shift = statistics.mean(p[0] - p[2] for p in pairs)
+        diff = Counter(abs(p[0] - p[2]) for p in pairs)
+        dist = ", ".join(
+            f"{k:g} балла — {diff[k]} ({diff[k]/n:.0%})" if k else
+            f"совпали — {diff[k]} ({diff[k]/n:.0%})"
+            for k in sorted(diff))
         low_section = f"""
 <h3>Режим мышления судьи: low против max</h3>
-<p>LLM-судья работает с мышлением, и уровень задаётся явно: max точнее, но тратит примерно втрое больше токенов. Чтобы решить, какой режим на какую работу пускать, сравнили вердикты одних и тех же ответов, оценённых судьёй в обоих режимах: 30 ответов из эксперимента (по 10 у ornith-1.5 9B, ornith-1.5 35B и qwen3.8) и полный прогон qwen3.8 run-16 из 30 ответов, оценённый сначала на low, затем на max, — всего {n} сравнений:</p>
+<p>LLM-судья работает с мышлением, и уровень задаётся явно: max точнее, но тратит примерно втрое больше токенов. Чтобы решить, какой режим на какую работу пускать, сравнили вердикты одних и тех же ответов, оценённых судьёй в обоих режимах: 30 ответов из эксперимента (по 10 у ornith-1.5 9B, ornith-1.5 35B и qwen3.8) и полный прогон qwen3.8 run-16 из 30 ответов, оценённый сначала на low, затем на max, — всего {n} сравнений (балл — шкала 0–4 с шагом 0.5, сравнение точное):</p>
 <table>
 <tr><th>Метрика</th><th>Значение</th></tr>
-<tr><td>Совпадение баллов</td><td>одинаковый балл в обоих режимах (шкала 0–4 с шагом 0.5, сравнение точное) — {sum(1 for p in pairs if p[0]==p[2])} ответов из {n} ({sum(1 for p in pairs if p[0]==p[2])/n:.0%}); расхождение больше 1 балла — {n-w1} из {n}</td></tr>
+<tr><td>Расхождение баллов low − max</td><td>{dist}</td></tr>
 <tr><td>Согласие флага галлюцинаций</td><td>{agree/n:.0%}, каппа Коэна {kappa:.2f}</td></tr>
 <tr><td>Верифицированный банк ошибок qwen</td><td>4 из 4, как у max</td></tr>
 <tr><td>Токены на судью</td><td>~8k против ~27k (−70%)</td></tr>
