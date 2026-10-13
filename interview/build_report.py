@@ -2072,6 +2072,21 @@ def build(models, sessions, primer, low_json=None):
     def pget(model, series, key="score", default="—"):
         v = primer.get((model, series), {}).get(key)
         return f"{v:.2f}" if v is not None else default
+    def delta_cell(b, p, scale):
+        """Ячейка дельты со шкалой цвета: 0 — серый, рост зеленеет,
+        падение краснеет; scale задаёт дельту полного цвета."""
+        try:
+            d = float(p) - float(b)
+        except (TypeError, ValueError):
+            return '<td class=num>—</td>'
+        t = max(-1.0, min(1.0, d / scale))
+        base = (102, 112, 127)          # серый отчёта #66707f
+        green, red = (47, 125, 84), (179, 84, 63)   # #2f7d54 / #b3543f
+        rgb = [round(base[i] + t * (green[i] - base[i])) if t >= 0
+               else round(base[i] - t * (red[i] - base[i])) for i in range(3)]
+        return (f'<td class=num style="color:rgb({rgb[0]},{rgb[1]},{rgb[2]});font-weight:600">'
+                f'{d:+.2f}</td>')
+
     prim_rows = []
     for model, label in [("ornith-1.5-35b", "ornith-1.5 35B"), ("qwen3.8", "qwen3.8 27B"),
                          ("orcarouter-Qwen3.8-27B-Uncensored-latest", "orcarouter 27B"),
@@ -2079,14 +2094,12 @@ def build(models, sessions, primer, low_json=None):
                          ("gemma4-26b", "gemma4 26B")]:
         b, p = pget(model, "think-off"), pget(model, "primer-v2")
         bp, pp = pget(model, "think-off", "prov"), pget(model, "primer-v2", "prov")
-        try:
-            d = f"{float(p)-float(b):+.2f}"
-        except ValueError:
-            d = "—"
         prim_rows.append(f"<tr><td>{label}</td><td class=num>{b}</td><td class=num>{p}</td>"
-                         f"<td class=num>{d}</td><td class=num>{bp}</td><td class=num>{pp}</td></tr>")
+                         + delta_cell(b, p, 0.15)
+                         + f'<td class=num>{bp}</td><td class=num>{pp}</td>'
+                         + delta_cell(bp, pp, 0.40) + "</tr>")
     primer_html = ('<table><tr><th>Модель</th><th>Балл без промпта</th><th>С промптом</th>'
-                   '<th>Δ</th><th>Провокации без</th><th>с промптом</th></tr>'
+                   '<th>Δ</th><th>Провокации без</th><th>с промптом</th><th>Δ</th></tr>'
                    + "\n".join(prim_rows) + "</table>"
                    + '<p>Системный промпт даёт меньше, чем мышление. По clef (по пять прогонов каждого варианта) '
                      'Δ от −0.02 до +0.14; контроль судьёй GLM-5.3-Flash на ornith-35B: '
