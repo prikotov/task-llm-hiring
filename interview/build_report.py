@@ -1379,7 +1379,7 @@ h2{font-size:24px;margin:44px 0 4px;letter-spacing:-.01em}
 h2 .no{color:var(--mut);font-weight:400;margin-right:8px}
 h3{font-size:17.5px;margin:26px 0 2px}
 h4{font-size:15.5px;margin:18px 0 2px;color:var(--ink)}
-.lead{color:var(--mut);margin:0 0 14px;font-size:15px}
+.lead{color:var(--mut);margin:8px 0 14px;font-size:15px}
 header .lead{color:#fff}
 header p a{color:#cfe0f7;text-decoration:underline}
 p{margin:10px 0}
