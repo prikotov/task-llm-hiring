@@ -1897,10 +1897,10 @@ def build(models, sessions, primer, low_json=None):
             cost = (f"${fmt_cost(m['cost'])}<div class=sub>₽{fmt_cost(rub)}</div>"
                     if m["cost"] else "0")
         glm_cell = bar(m["glm"] or 0, 4, "{:.1f}", "#2f7d54") if m["glm"] else "—"
-        glm_sub = (f'галл. {m["glm_hall"]}/{m.get("glm_n", "??")} · {m["glm_note"]}'
+        # в ячейке только меняющееся от строки к строке (доля галлюцинаций);
+        # полнота проверки и уровень мышления судьи одинаковы у всех строк — см. сноску 2
+        glm_sub = (f'галл. {m["glm_hall"]}/{m.get("glm_n", "??")}'
                    if m["glm_hall"] is not None else m["glm_note"])
-        if m["glm"] is not None:
-            glm_sub += f' · рассуждения: {m["glm_level"]}'
         badge = {"cloud": '<span class="badge g">облако</span>',
                  "local": '<span class="badge b">локально</span>',
                  "negctrl": ""}[m["kind"]]
