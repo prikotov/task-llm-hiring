@@ -1928,7 +1928,7 @@ def build(models, sessions, primer, low_json=None):
              '<th colspan=2>LLM судья, ярус 2</th>'
              '<th rowspan=2>Провокации<sup>3</sup></th>'
              '<th rowspan=2>Токены<sup>5</sup></th>'
-             '<th rowspan=2>Длительность<sup>5</sup></th>'
+             '<th rowspan=2>Время<sup>5</sup></th>'
              '<th rowspan=2>Цена<sup>6</sup></th></tr>'
              '<tr><th>балл<sup>1</sup></th><th>галл.<sup>4</sup></th>'
              '<th>балл<sup>2</sup></th><th>галл.<sup>2</sup></th></tr>'
