@@ -2012,7 +2012,7 @@ def build(models, sessions, primer, low_json=None):
     table = ('<table>'
              '<tr><th rowspan=2>Модель</th><th rowspan=2>Мышление</th>'
              '<th rowspan=2>Сист. промпт</th>'
-             '<th class=narrow rowspan=2>Прогоны</th>'
+             '<th class=narrow rowspan=2>Прого&shy;ны</th>'
              '<th colspan=2>clef, ярус 1</th>'
              '<th colspan=2>LLM судья, ярус 2</th>'
              '<th rowspan=2>Прово&shy;кации<sup>4</sup></th>'
