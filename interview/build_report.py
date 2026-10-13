@@ -1921,7 +1921,7 @@ def build(models, sessions, primer, low_json=None):
              '<tr><th rowspan=2>Модель</th><th rowspan=2>Режим</th>'
              '<th rowspan=2>Системный промпт</th>'
              '<th colspan=2>clef, ярус 1</th>'
-             '<th rowspan=2>судья, ярус 2<sup>2</sup></th>'
+             '<th rowspan=2>LLM судья, ярус 2<sup>2</sup></th>'
              '<th rowspan=2>Найдено провокаций<sup>3</sup></th>'
              '<th rowspan=2>Длительность<sup>5</sup></th>'
              '<th rowspan=2>Цена<sup>6</sup></th></tr>'
