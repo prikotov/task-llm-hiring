@@ -1387,6 +1387,8 @@ p{margin:10px 0}
 .excap{font-size:15px;color:var(--ink);margin:12px 0 -4px;line-height:1.5}
 table{border-collapse:collapse;width:100%;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 2px rgba(20,30,50,.07);margin:14px 0}
 th{background:#eef1f6;text-align:left;font-size:12.5px;text-transform:uppercase;letter-spacing:.03em;color:#46536a;padding:10px 12px;border-bottom:2px solid var(--line)}
+th.narrow{padding-left:5px;padding-right:5px}
+td.narrow{padding-left:5px;padding-right:5px}
 td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top;font-size:14.5px}
 tr:last-child td{border-bottom:none}
 tr.neg td{background:#fdf6f4}
@@ -1998,7 +2000,7 @@ def build(models, sessions, primer, low_json=None):
 <td><b>{m['label']}</b><div class=sub>{badge}</div></td>
 <td>{THINK_SHORT.get(m['series'], m['series'])}</td>
 <td>{'да' if m.get('primer') else '—'}</td>
-<td class=num>{len(m['runs'])}</td>
+<td class="num narrow">{len(m['runs'])}</td>
 <td>{bar(m['clef'], 4)}{f'<div class=sub>±{m["run_sigma"]:.2f} по прогонам</div>' if m.get("run_sigma") is not None else ''}</td>
 <td>{bar(m['p_hall'], 0.4, '{:.2f}', '#b3543f')}</td>
 <td>{glm_cell}</td>
@@ -2010,7 +2012,7 @@ def build(models, sessions, primer, low_json=None):
     table = ('<table>'
              '<tr><th rowspan=2>Модель</th><th rowspan=2>Мышление</th>'
              '<th rowspan=2>Сист. промпт</th>'
-             '<th rowspan=2>Прогоны</th>'
+             '<th class=narrow rowspan=2>Прогоны</th>'
              '<th colspan=2>clef, ярус 1</th>'
              '<th colspan=2>LLM судья, ярус 2</th>'
              '<th rowspan=2>Прово&shy;кации<sup>4</sup></th>'
