@@ -103,6 +103,12 @@ THINK_TITLE = {
     "gigachat": "не настраивается",
 }
 
+# краткие значения для колонки «Мышление» таблицы результатов
+THINK_SHORT = {k: v for k, v in {
+    "think-off": "без", "think-on": "вкл", "think-low": "low",
+    "мышление включено": "вкл", "effort low": "effort low", "deepseek": "effort low",
+    "базовый": "нет", "yandexfm": "нет", "gigachat": "нет"}.items()}
+
 SERIES_TITLE = {
     "think-on": "мышление включено", "think-off": "мышление выключено",
     "primer-v2": "системный промпт (роль+CoT+недоверчивость)",
@@ -1905,7 +1911,7 @@ def build(models, sessions, primer, low_json=None):
                    else "ru" if m["folder"] in RU_ROWS else "")
         rows.append(f"""<tr{' class=' + row_cls if row_cls else ''}>
 <td><b>{m['label']}</b><div class=sub>{badge}</div></td>
-<td>{THINK_TITLE.get(m['series'], m['series'])}</td>
+<td>{THINK_SHORT.get(m['series'], m['series'])}</td>
 <td>{'с промптом' if m.get('primer') else 'без'}</td>
 <td>{bar(m['clef'], 4)}{f'<div class=sub>±{m["run_sigma"]:.2f} по прогонам</div>' if m.get("run_sigma") is not None else ''}</td>
 <td>{bar(m['p_hall'], 0.4, '{:.2f}', '#b3543f')}</td>
@@ -1916,7 +1922,7 @@ def build(models, sessions, primer, low_json=None):
 <td class=num>{m['dur_min']} мин</td>
 <td class=num>{cost}</td></tr>""")
     table = ('<table>'
-             '<tr><th rowspan=2>Модель</th><th rowspan=2>Режим</th>'
+             '<tr><th rowspan=2>Модель</th><th rowspan=2>Мышление</th>'
              '<th rowspan=2>Системный промпт</th>'
              '<th colspan=2>clef, ярус 1</th>'
              '<th colspan=2>LLM судья, ярус 2</th>'
