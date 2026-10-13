@@ -1361,7 +1361,7 @@ tr.neg td{background:#fdf6f4}
 .scard .rname{font-weight:bold;font-size:14px;margin-bottom:4px}
 tr.top td{background:#eef6ef}
 tr.ru td{background:#eef2f8}
-.barwrap{position:relative;background:#eef0f4;border-radius:6px;min-width:118px;height:21px}
+.barwrap{position:relative;background:#eef0f4;border-radius:6px;min-width:78px;max-width:96px;height:21px}
 .barwrap .bar{position:absolute;left:0;top:3px;bottom:3px;border-radius:5px;min-width:3px;opacity:.3}
 .barwrap span{position:absolute;left:7px;top:0;font-size:12.5px;line-height:21px;font-weight:600;color:var(--ink)}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(295px,1fr));gap:13px;margin:16px 0}
