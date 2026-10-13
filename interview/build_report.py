@@ -1912,7 +1912,8 @@ def build(models, sessions, primer, low_json=None):
 <td>{glm_cell}</td>
 <td class=num>{f'{m["glm_hall"]}/{m.get("glm_n", "??")}' if m["glm_hall"] is not None else '—'}</td>
 <td class=num>{m['prov']}</td>
-<td class=num>{m['dur_min']} мин<div class=sub>{m['out_tok']:,} вых. токенов за сессию</div></td>
+<td class=num>{m['out_tok']:,}</td>
+<td class=num>{m['dur_min']} мин</td>
 <td class=num>{cost}</td></tr>""")
     table = ('<table>'
              '<tr><th rowspan=2>Модель</th><th rowspan=2>Режим</th>'
@@ -1920,6 +1921,7 @@ def build(models, sessions, primer, low_json=None):
              '<th colspan=2>clef, ярус 1</th>'
              '<th colspan=2>LLM судья, ярус 2</th>'
              '<th rowspan=2>Найдено провокаций<sup>3</sup></th>'
+             '<th rowspan=2>Токены<sup>5</sup></th>'
              '<th rowspan=2>Длительность<sup>5</sup></th>'
              '<th rowspan=2>Цена<sup>6</sup></th></tr>'
              '<tr><th>балл<sup>1</sup></th><th>галлюцинации<sup>4</sup></th>'
@@ -1943,7 +1945,7 @@ def build(models, sessions, primer, low_json=None):
             'поэтому результаты v1 и v2 сравнимы напрямую.<br>'
             '<sup>3</sup> Найдено провокаций: доля распознанных ложных предпосылок. Разметку транскриптов всех прогонов выполнял ассистент (GLM-5.3), провал — модель назвала процент или описала несуществующее как рабочее вместо отвержения предпосылки (X из 3×N; цитаты разметки вариантов с промптом — reports/provocations-primer-v2.csv).<br>'
             '<sup>4</sup> Галлюцинации: вероятность в ответе по расчёту clef (ярус 1).<br>'
-            '<sup>5</sup> Длительность и токены даны на одну сессию (где прогонов несколько — '
+            '<sup>5</sup> Длительность и выходные токены даны на одну сессию (где прогонов несколько — '
             'среднее по прогонам); локальные считают время чистой генерации без загрузки модели.<br>'
             '<sup>6</sup> Цена одной сессии: облако по фактическим списаниям API, локальные '
             'по методике §8 (электричество + амортизация, ₽35.85/ч); рубли по курсу ₽85.15/$.')
