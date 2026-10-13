@@ -2102,12 +2102,15 @@ def build(models, sessions, primer, low_json=None):
                    '<th>Δ</th><th>Провокации без</th><th>с промптом</th><th>Δ</th></tr>'
                    + "\n".join(prim_rows) + "</table>"
                    + '<p>Системный промпт даёт меньше, чем мышление. По clef (по пять прогонов каждого варианта) '
-                     'Δ от −0.02 до +0.14; контроль судьёй GLM-5.3-Flash на ornith-35B: '
-                     'финальная версия промпта +0.32, ранняя версия на том же вопроснике −0.02, '
-                     'мышление +0.65 — вдвое больше промпта. Выдумки промпт не лечит: у ornith '
-                     '16 из 30 ответов с галлюцинациями без промпта и 17 из 30 с ним. Вывод: '
+                     'Δ от −0.02 до +0.14 — в пределах межпрогонного шума; судья в одиночных прогонах видит '
+                     'прирост у всех четырёх оценённых моделей: ornith +0.32 (ранняя версия промпта на том '
+                     'же вопроснике −0.02), orcarouter +0.25, qwen +0.18, huihui +0.13 — мышление у ornith '
+                     'даёт +0.65, вдвое больше промпта. Выдумки промпт не лечит у ornith '
+                     '(16 из 30 ответов с галлюцинациями без промпта и 17 из 30 с ним) и не меняет их у qwen '
+                     '(12 и 12), зато у orcarouter судья видит резкое улучшение (17 → 7 из 30) — '
+                     'одиночные прогоны, эффект неустойчив. Вывод: '
                      'классический промптинг «роль+CoT» надёжного прироста качества не даёт '
-                     '(Δ по clef у всех пяти моделей — в пределах колебаний между прогонами), '
+                     '(серии clef его не подтверждают), '
                      'собственных рассуждений модели не заменяет и фактологию не чинит: '
                      'он меняет подачу, а не знания.</p>')
     def judge_mean(folder, run):
@@ -2117,23 +2120,60 @@ def build(models, sessions, primer, low_json=None):
         g = [v for v in json.loads(gp.read_text())["results"] if v["id"] in KNOW]
         return sum(v["score"] for v in g) / len(g)
 
+    # qwen think-low серии нет в decision-all.csv — считаем напрямую из вердиктов clef
+    def clef_direct(folder, runs):
+        scores, halls, prov = [], [], []
+        for r in runs:
+            vv = json.loads((ROOT / folder / "backend" / "judgments" / "clef"
+                             / f"{r}.json").read_text())["results"]
+            for v in vv:
+                if v["id"] not in KNOW:
+                    continue
+                scores.append(v["score"])
+                halls.append(v["hallucination_p"])
+                if v["id"] in ("Q24", "Q25", "Q26"):
+                    prov.append(v["score"])
+        return (f"{statistics.mean(scores):.2f}", f"{statistics.mean(halls):.2f}",
+                f"{statistics.mean(prov):.2f}")
+
+    qwen_low = clef_direct("qwen3.8", [f"run-{i}" for i in range(21, 26)])
     think_rows = []
-    for model, series, label, jrun in [
-            ("ornith-1.5-35b", "think-off", "мышление выключено", "run-07"),
-            ("ornith-1.5-35b", "think-on", "мышление включено", "run-06"),
-            ("ornith-1.5-35b", "primer-v2", "мышление выключено + промпт", "run-17")]:
+    for mlabel, model, series, vlabel, jrun, direct in [
+            ("ornith-1.5 35B", "ornith-1.5-35b", "think-off", "без мышления", "run-07", None),
+            ("ornith-1.5 35B", "ornith-1.5-35b", "think-on", "с мышлением", "run-06", None),
+            ("ornith-1.5 35B", "ornith-1.5-35b", "primer-v2", "без мышления + промпт", "run-17", None),
+            ("qwen3.8 27B", "qwen3.8", "think-off", "без мышления", "run-06", None),
+            ("qwen3.8 27B", "qwen3.8", None, "с мышлением low", "run-21", qwen_low),
+            ("qwen3.8 27B", "qwen3.8", "primer-v2", "без мышления + промпт", "run-11", None),
+            ("huihui abliterated 27B", "huihui_ai-Qwen3.8-abliterated-latest",
+             "think-off", "без мышления", "run-01", None),
+            ("huihui abliterated 27B", "huihui_ai-Qwen3.8-abliterated-latest",
+             "primer-v2", "без мышления + промпт", "run-06", None),
+            ("orcarouter 27B uncensored", "orcarouter-Qwen3.8-27B-Uncensored-latest",
+             "think-off", "без мышления", "run-01", None),
+            ("orcarouter 27B uncensored", "orcarouter-Qwen3.8-27B-Uncensored-latest",
+             "primer-v2", "без мышления + промпт", "run-06", None),
+            ("gemma4 26B", "gemma4-26b", "think-off", "без мышления", None, None),
+            ("gemma4 26B", "gemma4-26b", "primer-v2", "без мышления + промпт", "run-06", None)]:
+        c, h, pr = direct if direct else (pget(model, series),
+                                          pget(model, series, "hall"),
+                                          pget(model, series, "prov"))
         jm = judge_mean(model, jrun)
         jm = f"{jm:.2f}" if jm is not None else "—"
-        think_rows.append(f"<tr><td>ornith-1.5 35B · {label}</td><td class=num>{pget(model, series)}</td>"
+        think_rows.append(f"<tr><td>{mlabel} · {vlabel}</td><td class=num>{c}</td>"
                           f"<td class=num>{jm}</td>"
-                          f"<td class=num>{pget(model, series, 'hall')}</td>"
-                          f"<td class=num>{pget(model, series, 'prov')}</td></tr>")
-    think_html = ('<h3>Мышление против промпта (ornith-1.5 35B)</h3><table>'
+                          f"<td class=num>{h}</td><td class=num>{pr}</td></tr>")
+    think_html = ('<h3>Мышление против промпта (локальные модели)</h3><table>'
                   '<tr><th>Вариант</th><th>clef (5 прогонов)</th><th>Балл судьи (1 прогон)</th>'
-                  '<th>Галлюцинации</th><th>Найдено провокаций</th></tr>'
+                  '<th>Галл., clef</th><th>Провокации, балл clef</th></tr>'
                   + "\n".join(think_rows) + "</table>"
-                  + "<p>Собственное мышление даёт +0.65 балла судьи (2.70 → 3.35) и лучший результат "
-                    "на провокациях; промпт вдвое слабее (+0.32). Цена: время инференса вырастает "
+                  + "<p>Мышление сильнее промпта там, где есть оба варианта: у ornith-1.5 35B "
+                    "судья даёт +0.65 за мышление против +0.32 за промпт, у qwen3.8 серия clef — "
+                    "+0.28 за мышление low против +0.01 за промпт. По судье промпт поднимает балл "
+                    "у всех четырёх оценённых моделей (ornith +0.32, orcarouter +0.25, qwen +0.18, "
+                    "huihui +0.13), но это одиночные прогоны, а серии clef прироста не "
+                    "подтверждают (Δ ≤ +0.14, в пределах межпрогонного шума). "
+                    "Цена мышления: время инференса вырастает "
                     "вчетверо (12.4 мин против 3.1), а на длинных собесах заканчивается окно "
                     "контекста. У qwen3.8 с мышлением (флаг think: auto) сессия до обрыва "
                     "успевает сгенерировать ~150 тыс. токенов, ответы вдвое длиннее обычных "
@@ -2156,9 +2196,11 @@ def build(models, sessions, primer, low_json=None):
                     "35/35 без дефектов: clef 3.61 ± 0.02 против 3.33 ± 0.02 без мышления, "
                     "+0.28. Судья GLM-5.3-Flash (уровень max) по прогону чистой серии дал "
                     "3.33 против 3.20 у оценивавшегося прогона без мышления, +0.13. "
-                    "Галлюцинаций больше: 17 из 30 против 12 — подробные ответы с "
+                    "Галлюцинаций по судье больше: 17 из 30 против 12 — подробные ответы с "
                     "размышлениями дают больше материала для выдумок: качество растёт, "
-                    "чистота нет. Вывод о мышлении опирается на "
+                    "чистота нет (расчёт clef при этом падает 0.31 → 0.20: эвристика яруса 1 "
+                    "не проверяет факты и длинные обоснования кажутся ей убедительными). "
+                    "Вывод о мышлении опирается на "
                     "ornith-1.5 35B (+0.65 балла судьи) и чистую серию qwen3.8 "
                     "(+0.28 clef по пяти прогонам, +0.13 судьи по одному).</p>"
                   + '<h3>Какой уровень мышления включался</h3>'
