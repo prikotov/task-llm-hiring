@@ -1224,12 +1224,13 @@ def sessions_inventory():
                     biz = (((in_tok - (cr or 0)) * tin + out_tok * tout) / 1e6,
                            (in_tok * tin + out_tok * tout) / 1e6)
                 if cr is not None:
-                    cached = cr + (cw or 0)
-                    pct = cached / in_tok * 100 if in_tok else 0
+                    pct = cr / in_tok * 100 if in_tok else 0
                     split = (f" (чт {cr:,} + зп {(cw or 0):,})" if cw else "")
                     cache_cell = (f"{pct:.0f}%"
-                                  f"<div class=sub>{cached:,}".replace(",", " ")
+                                  f"<div class=sub>{cr:,}".replace(",", " ")
                                   + split.replace(",", " ") + "</div>")
+                elif u.get("cache_read_tokens_rec") == 0:
+                    cache_cell = "выключен"  # сессия без кэша (billing это подтверждает)
                 elif u.get("cache_read_tokens_rec") is not None:
                     rec = u["cache_read_tokens_rec"]
                     exact = u.get("cache_rec_method", "").endswith("exact")
@@ -1647,7 +1648,7 @@ clef, с прежней формулировкой need_review, а судья я
 <tr><th>Модель</th><th>Провайдер вызова</th><th>Почему в тесте</th><th>Детали</th></tr>
 <tr class=top><td><b>GPT-6.1 Sol</b> <span class="badge g">облако</span></td><td>OpenAI · OpenRouter</td><td>главный SOTA-бенчмарк: как выглядит потолок чистых способностей</td><td>effort low; авто-кэш OpenAI; его ответы служат SOTA-эталоном яруса 0</td></tr>
 <tr class=top><td><b>Claude Opus 5.5</b> <span class="badge g">облако</span></td><td>Anthropic · OpenRouter</td><td>потолок качества и цены: оправданы ли деньги</td><td>effort low; кэш только по явным cache_control-меткам</td></tr>
-<tr><td><b>Claude Haiku 5.5</b> <span class="badge g">облако</span></td><td>Anthropic · OpenRouter</td><td>быстрая дешёвая модель топ-вендора</td><td>effort low; две сессии: без кэша и с ним ($0.18 против $0.0500)</td></tr>
+<tr><td><b>Claude Haiku 5.5</b> <span class="badge g">облако</span></td><td>Anthropic · OpenRouter</td><td>быстрая дешёвая модель топ-вендора</td><td>effort low; A/B на кэш: сессия без него $0.18, с ним $0.055–0.062</td></tr>
 <tr><td><b>GPT-6 Luna</b> <span class="badge g">облако</span></td><td>OpenAI · OpenRouter</td><td>самая дешёвая в топе: ценовой пол «умных»</td><td>effort low; авто-кэш</td></tr>
 <tr><td><b>DeepSeek V4.1-Flash</b> <span class="badge g">облако</span></td><td>родной API DeepSeek</td><td>рекорд цены/качества открытых китайских весов, без накладных расходов агрегатора</td><td>effort low · контекст 1M · вывод до 393k · автокэш (кэш-хит ×50 дешевле входа)</td></tr>
 <tr class=ru><td><b>GigaChat-2 Max</b> <span class="badge g">облако</span></td><td>Сбер · API физлица (freemium)</td><td>главная корпоративная российская LLM: каков отечественный дефолт</td><td>базовый режим, reasoning-ручки нет; нативный префикс-кэш; на провокации Q26 принял ложную предпосылку с выдуманным обоснованием</td></tr>
@@ -1757,7 +1758,7 @@ clef, с прежней формулировкой need_review, а судья я
 <p class=sub>Пример: собес 27B с ~9 минутами чистой генерации стоит 0.15 ч × ₽35.85 = ₽5.33 ($0.0626); курс доллара дан по состоянию на октябрь 2026. Допущения консервативны в обе стороны и взяты серединой: круглосуточная эксплуатация дала бы вдвое меньшую амортизацию (₽15.98/ч), но сервер делят и другие задачи, кроме инференса; остаточную стоимость 50% имела бы только GPU-часть без платформы. Параметры собраны в одном месте скрипта отчёта (<code>LOCAL_KWH, RUB_KWH, HW_COST_RUB, HW_RESIDUAL_PCT, AMORT_HOURS</code>).</p>
 <div class=cards>
 <div class=card><b>GPT-6 Luna: $0.0300 · 6.4 мин</b>минус 0.1 балла до Sol при цене в 20 раз ниже, лучший выбор для массовых прогонов</div>
-<div class=card><b>Haiku 5.5: $0.0500–0.18 · 6 мин</b>самая быстрая; prompt-кэш Anthropic экономит 70% (без него сессия стоила бы $0.18)</div>
+<div class=card><b>Haiku 5.5: $0.0500–0.18 · 6 мин</b>самая быстрая; cache_control-метки покрывают кэш-чтениями ~95% входных токенов и экономят 70% цены (без кэша $0.18)</div>
 <div class=card><b>GPT-6.1 Sol: $0.62 · 14 мин</b>авто-кэш OpenAI уже учтён в цене, без него было бы $2.36</div>
 <div class=card><b>Opus 5.5: $5.82 · 29 мин</b>с явными cache_control-метками, без кэша $13–20. Максимальное качество, цена не пропорциональна баллу</div>
 <div class=card><b>DeepSeek V4.1 Flash: $0.25 · 12 мин</b>родной API: почти облачное качество (3.70) за 1/23 цены Opus, но галлюцинации в 33% ответов; кэш-хит $0.006/1M (×50 дешевле входа) при автокэше 95%, длинные повторные контексты почти бесплатны</div>
@@ -1906,21 +1907,33 @@ def build(models, sessions, primer, low_json=None):
             rub = m["cost"] * RUB_USD
             cost = (f"${fmt_cost(m['cost'])}<div class=sub>₽{fmt_cost(rub)}</div>"
                     if m["cost"] else "0")
-        # доля кэш-чтений во входных токенах облака (для колонки Токены)
+        # доля кэш-чтений во входных токенах облака (для колонки Токены);
+        # эффективность кэша: считаем только по прогонам, где кэш работал
+        # (прогоны без кэша — Haiku run-01, прерванный Opus run-01 — не учитываем)
         cache_sub = ""
         if m["kind"] == "cloud":
-            u0 = json.loads((ROOT / m["folder"] / "backend" / m["runs"][0]
-                             / "session.json").read_text()).get("usage", {})
-            inp = u0.get("input_tokens") or 0
-            cr = u0.get("cache_read_tokens") or 0
-            rec = u0.get("cache_read_tokens_rec") or 0
-            if rec and inp:      # OpenAI/Anthropic: auto-кэш оценён по списаниям
-                cache_sub = f'<div class=sub>~{rec / inp:.0%} кэш</div>'
-            elif cr and inp and m["folder"] != "yandexgpt":
-                # DeepSeek: входные включают кэш; GigaChat: не включают
-                # (Яндекс пропускаем: семантика поля кэша не зафиксирована)
-                denom = cr + inp if m["folder"].startswith("gigachat") else inp
-                cache_sub = f'<div class=sub>{cr / denom:.0%} кэш</div>'
+            cr_sum = den_sum = 0.0
+            est = False
+            for p in sorted((ROOT / m["folder"] / "backend").glob("run-*/session.json")):
+                u = json.loads(p.read_text()).get("usage", {})
+                inp = u.get("input_tokens") or 0
+                if not inp:
+                    continue
+                cr = u.get("cache_read_tokens") or 0
+                rec = u.get("cache_read_tokens_rec") or 0
+                if cr:      # токены кэша из API: DeepSeek, GigaChat, Haiku run-03
+                    # у GigaChat входные токены не включают кэш, у остальных включают
+                    den = inp + cr if m["folder"].startswith("gigachat") else inp
+                    cr_sum += cr
+                    den_sum += den
+                elif rec:   # реконструкция по списаниям сессии: OpenAI, Anthropic
+                    cr_sum += rec
+                    den_sum += inp
+                    est = True
+                # rec == 0 или пустые поля — кэш в этой сессии не работал
+            if cr_sum and m["folder"] != "yandexgpt":
+                mark = "~" if est else ""
+                cache_sub = f'<div class=sub>{mark}{cr_sum / den_sum:.0%} кэш</div>'
         glm_cell = bar(m["glm"] or 0, 4, "{:.1f}", "#2f7d54") if m["glm"] else "—"
         badge = {"cloud": '<span class="badge g">облако</span>',
                  "local": '<span class="badge b">локально</span>',
@@ -1974,10 +1987,14 @@ def build(models, sessions, primer, low_json=None):
             '<sup>4</sup> Найдено провокаций: доля распознанных ложных предпосылок. Разметку транскриптов всех прогонов выполнял ассистент (GLM-5.3), провал — модель назвала процент или описала несуществующее как рабочее вместо отвержения предпосылки (X из 3×N; цитаты разметки вариантов с промптом — reports/provocations-primer-v2.csv).<br>'
             '<sup>5</sup> Длительность и выходные токены даны на одну сессию (где прогонов несколько — '
             'среднее по прогонам); локальные считают время чистой генерации без загрузки модели. '
-            'Подпись «N% кэш» — доля кэш-чтений во входных токенах облака: DeepSeek и GigaChat '
-            'по данным API (у GigaChat входные токены не включают кэш), OpenAI и Anthropic — '
-            'оценка auto-кэша по списаниям (знак ~); у Яндекса семантика поля не '
-            'зафиксирована, у локальных кэш сессии не тарифицируется.<br>'
+            'Подпись «N% кэш» — доля кэш-чтений во входных токенах облака, '
+            'посчитанная только по сессиям, где кэш был включён: у Haiku строка таблицы — '
+            'сессия без кэша, процент взят из двух соседних сессий с ним. DeepSeek и GigaChat — '
+            'токены из API (у GigaChat входные не включают кэш), OpenAI — оценка по дневной '
+            'активности OpenRouter, Anthropic — по списаниям самой сессии (проверено: на сессиях '
+            'без кэша списания сходятся с тарифом до цента); знак ~ — оценка по деньгам, '
+            'без него — токены из API. У Яндекса семантика поля не зафиксирована, '
+            'у локальных кэш сессии не тарифицируется.<br>'
             '<sup>6</sup> Цена одной сессии: облако по фактическим списаниям API, локальные '
             'по методике §8 (электричество + амортизация, ₽35.85/ч); рубли по курсу ₽85.15/$.')
     if sber_items:
