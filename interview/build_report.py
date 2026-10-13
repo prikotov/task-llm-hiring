@@ -1238,13 +1238,20 @@ def sessions_inventory():
                     cost = cost_rub / RUB_USD
                 cr = u.get("cache_read_tokens")
                 cw = u.get("cache_write_tokens")
-                if backend == "gigachat" and cr:
+                b = u.get("billing")
+                if b:   # Яндекс: детализация биллинга, кэш считается отдельно
+                    pct = b["cached_tokens"] / (b["cached_tokens"] + b["input_tokens"])
+                    cache_cell = (f"{pct:.0%}<div class=sub>"
+                                  f"{b['cached_tokens']:,} (биллинг)</div>".replace(",", " "))
+                    in_tok = b["cached_tokens"] + b["input_tokens"]
+                    out_tok = b["output_tokens"]
+                elif backend == "gigachat" and cr:
                     in_tok += cr  # у Сбера input_tokens — без кэшированной части
                 if d.name in BUSINESS_RUB_1M:
                     tin, tout = BUSINESS_RUB_1M[d.name]
                     biz = (((in_tok - (cr or 0)) * tin + out_tok * tout) / 1e6,
                            (in_tok * tin + out_tok * tout) / 1e6)
-                if cr is not None:
+                if cr is not None and not b:
                     pct = cr / in_tok * 100 if in_tok else 0
                     split = (f" (чт {cr:,} + зп {(cw or 0):,})" if cw else "")
                     cache_cell = (f"{pct:.0f}%"
@@ -1259,7 +1266,7 @@ def sessions_inventory():
                     mark = "" if exact else "~"
                     cache_cell = (f"{mark}{pct:.0f}%"
                                   f"<div class=sub>{mark}{rec:,} (чт)</div>".replace(",", " "))
-                else:
+                elif not b:
                     cache_cell = None  # деталей нет
             else:
                 in_tok = sum((t.get("prompt_eval_count") or 0) for t in turns)
@@ -1791,7 +1798,7 @@ clef, с прежней формулировкой need_review, а судья я
 <div class=card><b>DeepSeek V4.1 Flash: $0.25 · 12 мин</b>родной API: почти облачное качество (3.70) за 1/23 цены Opus, но галлюцинации в 33% ответов; кэш-хит $0.006/1M (×50 дешевле входа) при автокэше 95%, длинные повторные контексты почти бесплатны</div>
 <div class=card><b>GigaChat-2 Max: ₽0 физлицу · ₽216.05–565.15 юрлицу</b>freemium 25 млн токенов/12 мес; бизнес-тариф ₽650/1M без разбивки вх/вых (₽325 асинхронно, мин. ₽600/мес); вилка отражает нераскрытую тарификацию кэша</div>
 <div class=card><b>GigaChat-3 Ultra: ₽0 физлицу · ₽70.71–140.10 юрлицу</b>юрлицам у Сбера не продаётся, коммерческий доступ через cloud.ru: ₽96/1M вх + ₽289/1M вых; входо-ёмкий собес делает флагман дешевле Max</div>
-<div class=card><b>YandexGPT Pro 5: ≈₽400.27 · $4.70</b>плоский ₽1.2/1k за любой токен, кэш без скидки: 92% кэш-эффективности не экономят ни копейки, дороже Sol при худшем качестве</div>
+<div class=card><b>YandexGPT Pro 5: ₽371.42 · $4.36</b>факт детализации: тариф плоский ₽1.2/1k на любой тип токенов — кэш покрывает 90% промпта (264k из 294k), но не экономит ни копейки; дороже Sol при худшем качестве</div>
 </div>
 <div class=note><b>Две находки о кэше.</b> OpenAI кэширует промпты автоматически (проверено сверкой со счётом: списания на 70% ниже тарифа), а Anthropic только по явным меткам <code>cache_control</code>; их отсутствие едва не сорвало Opus-прогон.<br><b>Локальные не бесплатны.</b> Электричество за 20-минутный собес 27B стоит ₽1.30, но с амортизацией железа (методика и допущения в таблице выше) выходит ₽11.95 (~$0.14): дороже Luna ($0.0300), сопоставимо с дешёвыми облаками, и при этом медленнее, 20 минут против 6 у Haiku. Локальный инференс окупается приватностью и неограниченным объёмом, а не ценой за сессию.<br><b>Сбер в бизнес-ценах неконкурентен:</b> GigaChat-2 Max стоит как Opus (₽216.05–565.15 ≈ $2.54–6.64 за сессию) при качестве medgemma; GigaChat-3 Ultra через cloud.ru (₽70.71–140.10 ≈ $0.83–1.65) берёт по цене Sol, а даёт качество Luna. Дешевле всего российский ИИ обходится бесплатно, физлицом во freemium.</div>
 
@@ -1929,7 +1936,7 @@ def build(models, sessions, primer, low_json=None):
             s0 = json.loads((ROOT / m["folder"] / "backend" / m["runs"][0] / "session.json").read_text())
             rub = s0.get("usage", {}).get("cost_rub") or m["cost"] * RUB_USD
             cost = (f"${fmt_cost(m['cost'])}<div class=sub>₽{fmt_cost(rub)}"
-                    " (факт 117 + тариф)</div>")
+                    " (факт детализации)</div>")
         else:
             rub = m["cost"] * RUB_USD
             cost = (f"${fmt_cost(m['cost'])}<div class=sub>₽{fmt_cost(rub)}</div>"
@@ -1943,13 +1950,20 @@ def build(models, sessions, primer, low_json=None):
             est = False
             for p in sorted((ROOT / m["folder"] / "backend").glob("run-*/session.json")):
                 u = json.loads(p.read_text()).get("usage", {})
+                b = u.get("billing")
+                if b:      # детализация биллинга (Яндекс): кэш считается отдельно
+                    cr_sum += b["cached_tokens"]
+                    den_sum += b["cached_tokens"] + b["input_tokens"]
+                    continue
                 inp = u.get("input_tokens") or 0
                 if not inp:
                     continue
                 cr = u.get("cache_read_tokens") or 0
                 rec = u.get("cache_read_tokens_rec") or 0
-                if cr:      # токены кэша из API: DeepSeek, GigaChat, Haiku run-03
-                    # у GigaChat входные токены не включают кэш, у остальных включают
+                if cr and m["folder"] != "yandexgpt":
+                    # токены кэша из API: DeepSeek, GigaChat, Haiku run-03
+                    # (Яндекс — только через billing: API-поле двусмысленное,
+                    #  у GigaChat входные токены не включают кэш, у остальных включают)
                     den = inp + cr if m["folder"].startswith("gigachat") else inp
                     cr_sum += cr
                     den_sum += den
@@ -1958,7 +1972,7 @@ def build(models, sessions, primer, low_json=None):
                     den_sum += inp
                     est = True
                 # rec == 0 или пустые поля — кэш в этой сессии не работал
-            if cr_sum and m["folder"] != "yandexgpt":
+            if cr_sum:  # у Яндекса только через billing (API-поле двусмысленно)
                 mark = "~" if est else ""
                 cache_sub = f'<div class=sub>{mark}{cr_sum / den_sum:.0%} кэш</div>'
         else:  # локальные: покрытие кэша сессии (промпт повторяет контекст)
@@ -2033,7 +2047,9 @@ def build(models, sessions, primer, low_json=None):
             'токены из API (у GigaChat входные не включают кэш), OpenAI — оценка по дневной '
             'активности OpenRouter, Anthropic — по списаниям самой сессии (проверено: на сессиях '
             'без кэша списания сходятся с тарифом до цента); знак ~ — оценка по деньгам, '
-            'без него — токены из API. У Яндекса семантика поля не зафиксирована. '
+            'без него — токены из API. У Яндекса — по детализации биллинга '
+            '(кешированные токены считаются отдельно и покрывают 90% промпта; '
+            'тариф плоский ₽1.2/1k, скидки за кэш нет). '
             'У локальных — кэш-покрытие сессии: ollama 0.40 отдаёт точное поле '
             'prompt_eval_cached_count, исторические сессии оценены по длинам промпта '
             '(повторная часть запроса — предыдущий контекст; сверка с живым сервером: '
