@@ -1906,6 +1906,21 @@ def build(models, sessions, primer, low_json=None):
             rub = m["cost"] * RUB_USD
             cost = (f"${fmt_cost(m['cost'])}<div class=sub>₽{fmt_cost(rub)}</div>"
                     if m["cost"] else "0")
+        # доля кэш-чтений во входных токенах облака (для колонки Токены)
+        cache_sub = ""
+        if m["kind"] == "cloud":
+            u0 = json.loads((ROOT / m["folder"] / "backend" / m["runs"][0]
+                             / "session.json").read_text()).get("usage", {})
+            inp = u0.get("input_tokens") or 0
+            cr = u0.get("cache_read_tokens") or 0
+            rec = u0.get("cache_read_tokens_rec") or 0
+            if rec and inp:      # OpenAI/Anthropic: auto-кэш оценён по списаниям
+                cache_sub = f'<div class=sub>~{rec / inp:.0%} кэш</div>'
+            elif cr and inp and m["folder"] != "yandexgpt":
+                # DeepSeek: входные включают кэш; GigaChat: не включают
+                # (Яндекс пропускаем: семантика поля кэша не зафиксирована)
+                denom = cr + inp if m["folder"].startswith("gigachat") else inp
+                cache_sub = f'<div class=sub>{cr / denom:.0%} кэш</div>'
         glm_cell = bar(m["glm"] or 0, 4, "{:.1f}", "#2f7d54") if m["glm"] else "—"
         badge = {"cloud": '<span class="badge g">облако</span>',
                  "local": '<span class="badge b">локально</span>',
@@ -1922,7 +1937,7 @@ def build(models, sessions, primer, low_json=None):
 <td>{glm_cell}</td>
 <td class=num>{f'{m["glm_hall"]}/{m.get("glm_n", "??")}' if m["glm_hall"] is not None else '—'}</td>
 <td class=num>{m['prov']}</td>
-<td class=num>{m['out_tok']:,}</td>
+<td class=num>{m['out_tok']:,}{cache_sub}</td>
 <td class=num>{m['dur_min']} мин</td>
 <td class=num>{cost}</td></tr>""")
     table = ('<table>'
@@ -1956,7 +1971,11 @@ def build(models, sessions, primer, low_json=None):
             'поэтому результаты v1 и v2 сравнимы напрямую.<br>'
             '<sup>4</sup> Найдено провокаций: доля распознанных ложных предпосылок. Разметку транскриптов всех прогонов выполнял ассистент (GLM-5.3), провал — модель назвала процент или описала несуществующее как рабочее вместо отвержения предпосылки (X из 3×N; цитаты разметки вариантов с промптом — reports/provocations-primer-v2.csv).<br>'
             '<sup>5</sup> Длительность и выходные токены даны на одну сессию (где прогонов несколько — '
-            'среднее по прогонам); локальные считают время чистой генерации без загрузки модели.<br>'
+            'среднее по прогонам); локальные считают время чистой генерации без загрузки модели. '
+            'Подпись «N% кэш» — доля кэш-чтений во входных токенах облака: DeepSeek и GigaChat '
+            'по данным API (у GigaChat входные токены не включают кэш), OpenAI и Anthropic — '
+            'оценка auto-кэша по списаниям (знак ~); у Яндекса семантика поля не '
+            'зафиксирована, у локальных кэш сессии не тарифицируется.<br>'
             '<sup>6</sup> Цена одной сессии: облако по фактическим списаниям API, локальные '
             'по методике §8 (электричество + амортизация, ₽35.85/ч); рубли по курсу ₽85.15/$.')
     if sber_items:
