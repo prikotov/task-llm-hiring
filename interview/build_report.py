@@ -1179,6 +1179,27 @@ def load_metrics():
     return out
 
 
+def local_cache_stats(session):
+    """Кэш-покрытие локальной сессии: (кэш-токены, токены промпта, точность).
+
+    Ollama 0.40+ отдаёт точное поле prompt_eval_cached_count; сессии,
+    записанные раннером до его добавления, оценены по длинам промпта:
+    повторная часть запроса — весь предыдущий контекст (проверено на живом
+    сервере: оценка 2 127 токенов против 2 123 фактических кэш-чтений)."""
+    p = [t.get("prompt_eval_count") for t in session.get("turns", [])]
+    p = [x for x in p if x]
+    if not p:
+        return None
+    if any(t.get("prompt_eval_cached_count") is not None
+           for t in session.get("turns", [])):
+        return (sum(t.get("prompt_eval_cached_count") or 0 for t in session["turns"]),
+                sum(p), True)
+    if len(p) > 3:
+        # прирост контекста за сессию ≈ все «новые» токены; остальное повтор
+        return (sum(p) - (p[-1] - p[0]), sum(p), False)
+    return None
+
+
 def sessions_inventory():
     """Все завершённые прогоны: (модель, прогон, серия, вопросов, минут)."""
     rows = []
@@ -1248,8 +1269,14 @@ def sessions_inventory():
                 gen_h = sum((t.get("duration_s") or 0) for t in turns) / 3600
                 rub = gen_h * (LOCAL_KWH * RUB_KWH + AMORT_RUB_H)
                 cost = rub / RUB_USD
-                # ollama не отдаёт кэш-токены отдельно; кэш сессии виден по скорости
-                cache_cell = "сессия: вкл" if s.get("kv_cache") == "session" else "выключен" 
+                cs = local_cache_stats(s)
+                if cs:
+                    cached, psum, exact = cs
+                    mark = "" if exact else "~"
+                    sub = (f"{cached:,} ток".replace(",", " ") if exact else "оценка")
+                    cache_cell = f"{mark}{cached / psum:.0%}<div class=sub>{sub}</div>"
+                else:
+                    cache_cell = "н/д"
             rows.append(dict(model=d.name, run=r.name, series=series,
                              qv=s.get("questionnaire"),
                              n=len(turns),
@@ -1934,6 +1961,19 @@ def build(models, sessions, primer, low_json=None):
             if cr_sum and m["folder"] != "yandexgpt":
                 mark = "~" if est else ""
                 cache_sub = f'<div class=sub>{mark}{cr_sum / den_sum:.0%} кэш</div>'
+        else:  # локальные: покрытие кэша сессии (промпт повторяет контекст)
+            cached = psum = 0
+            est = False
+            for run in m["runs"]:
+                s = json.loads((ROOT / m["folder"] / "backend" / run / "session.json").read_text())
+                cs = local_cache_stats(s)
+                if cs:
+                    cached += cs[0]
+                    psum += cs[1]
+                    est = est or not cs[2]
+            if psum:
+                mark = "~" if est else ""
+                cache_sub = f'<div class=sub>{mark}{cached / psum:.0%} кэш</div>'
         glm_cell = bar(m["glm"] or 0, 4, "{:.1f}", "#2f7d54") if m["glm"] else "—"
         badge = {"cloud": '<span class="badge g">облако</span>',
                  "local": '<span class="badge b">локально</span>',
@@ -1993,8 +2033,12 @@ def build(models, sessions, primer, low_json=None):
             'токены из API (у GigaChat входные не включают кэш), OpenAI — оценка по дневной '
             'активности OpenRouter, Anthropic — по списаниям самой сессии (проверено: на сессиях '
             'без кэша списания сходятся с тарифом до цента); знак ~ — оценка по деньгам, '
-            'без него — токены из API. У Яндекса семантика поля не зафиксирована, '
-            'у локальных кэш сессии не тарифицируется.<br>'
+            'без него — токены из API. У Яндекса семантика поля не зафиксирована. '
+            'У локальных — кэш-покрытие сессии: ollama 0.40 отдаёт точное поле '
+            'prompt_eval_cached_count, исторические сессии оценены по длинам промпта '
+            '(повторная часть запроса — предыдущий контекст; сверка с живым сервером: '
+            'оценка 2 127 токенов против 2 123 фактических кэш-чтений), поэтому знак ~; '
+            'кэш экономит время, но не тарифицируется.<br>'
             '<sup>6</sup> Цена одной сессии: облако по фактическим списаниям API, локальные '
             'по методике §8 (электричество + амортизация, ₽35.85/ч); рубли по курсу ₽85.15/$.')
     if sber_items:
@@ -2240,7 +2284,7 @@ def build(models, sessions, primer, low_json=None):
                      '<b>Кэш</b>: доля входных токенов сессии, покрытых кэшем: процент '
                      'и абсолютное число токенов (чт это чтение из кэша, зп запись в кэш); '
                      'полное число входных токенов видно в соседней колонке. Высокие проценты '
-                     '(Haiku run-03, 96% чтения) это норма для одного чата с явными '
+                     '(Haiku run-03, 95% чтения) это норма для одного чата с явными '
                      'cache_control-метками: каждый следующий запрос повторяет весь '
                      'предыдущий контекст, из кэша берётся повторная часть, а новые '
                      'вопрос-ответ пишутся в кэш один раз (зп). Живая '
@@ -2251,9 +2295,12 @@ def build(models, sessions, primer, low_json=None):
                      'Новые облачные прогоны стартуют с холодным кэшем: раннер выдерживает '
                      'паузу больше TTL кэша провайдера (у провайдеров нет session id или '
                      'выключателя кэша; сам кэш бит-идентичен пересчёту и на содержание '
-                     'ответов не влияет). У локальных '
-                     'ollama кэш-токены отдельно не отчитываются: тёплая сессия видна по скорости '
-                     '(muse-glimmer: 9.2 мин с холодным пересчётом префикса против 4.9 мин '
+                     'ответов не влияет). У локальных ollama 0.40 отдаёт кэш-чтения сессии '
+                     'полем prompt_eval_cached_count; ранние прогоны помечены ~ — покрытие '
+                     'оценено по длинам промпта (повторная часть запроса = предыдущий '
+                     'контекст; сверка с живым сервером: оценка 2 127 токенов против '
+                     '2 123 фактических). Кэш экономит время, а не деньги: холодный '
+                     'пересчёт префикса виден на muse-glimmer (9.2 мин против 4.9 мин '
                      'с кэшем сессии). Стоимость локальных сессий считается по методике из '
                      '§8 «Экономика» (₽35.85/ч: электричество + амортизация минус '
                      'остаточная стоимость), отнесено ко времени чистой генерации; '
