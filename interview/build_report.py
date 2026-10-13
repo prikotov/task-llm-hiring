@@ -1935,8 +1935,7 @@ def build(models, sessions, primer, low_json=None):
         elif m["folder"] == "yandexgpt":
             s0 = json.loads((ROOT / m["folder"] / "backend" / m["runs"][0] / "session.json").read_text())
             rub = s0.get("usage", {}).get("cost_rub") or m["cost"] * RUB_USD
-            cost = (f"${fmt_cost(m['cost'])}<div class=sub>₽{fmt_cost(rub)}"
-                    " (факт детализации)</div>")
+            cost = f"${fmt_cost(m['cost'])}<div class=sub>₽{fmt_cost(rub)}</div>"
         else:
             rub = m["cost"] * RUB_USD
             cost = (f"${fmt_cost(m['cost'])}<div class=sub>₽{fmt_cost(rub)}</div>"
