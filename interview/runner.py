@@ -167,6 +167,7 @@ def run_interview(base_url: str, model: str, questions: list, q_version, run_no:
                           "answer": answer, "clarification": None, "followups": [],
                           "thinking": None, "duration_s": round(duration, 1),
                           "eval_count": None, "prompt_eval_count": None,
+                          "prompt_eval_cached_count": None,
                           "done_reason": "error"})
             print(f"    [{q['id']}] {q['section']}: {duration:.0f}s — СБОЙ, продолжаю")
             continue
@@ -206,6 +207,7 @@ def run_interview(base_url: str, model: str, questions: list, q_version, run_no:
                 "duration_s": round(fdur, 1),
                 "eval_count": fres.get("eval_count"),
                 "prompt_eval_count": fres.get("prompt_eval_count"),
+                "prompt_eval_cached_count": fres.get("prompt_eval_cached_count"),
                 "done_reason": fres.get("done_reason"),
             })
             print(f"      ↳ углубление: {fdur:.0f}s, "
@@ -219,6 +221,8 @@ def run_interview(base_url: str, model: str, questions: list, q_version, run_no:
             "duration_s": round(duration, 1),
             "eval_count": resp.get("eval_count"),
             "prompt_eval_count": resp.get("prompt_eval_count"),
+            # ollama 0.40+: сколько токенов промпта взято из KV-кэша сессии
+            "prompt_eval_cached_count": resp.get("prompt_eval_cached_count"),
             "done_reason": resp.get("done_reason"),
         })
         truncated = resp.get("done_reason") not in (None, "stop")
