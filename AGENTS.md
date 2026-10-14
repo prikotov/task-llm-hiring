@@ -157,7 +157,7 @@
   транскрипты — `models/<model>/<роль>/run-XX/` (transcript.md + session.json),
   свод — `<model>/<роль>/scorecard.md`, сравнение моделей — `REPORT.md`.
 
-## Набор моделей (20 генеративных, ollama)
+## Набор моделей (16 генеративных, ollama)
 
 | Папка | Тег(и) | Параметры | Квант | Семейство |
 |---|---|---|---|---|
@@ -174,10 +174,6 @@
 | `gemma4-26b-pi-100k/` | `gemma4:26b-pi-100k` | 25.2B | Q4_K_M | gemma4 |
 | `gemma4-31b-it-qat/` | `gemma4:31b-it-qat` | 30.7B | Q4_0 | gemma4 |
 | `gemma4-31b-it-qat-pi-100k/` | `gemma4:31b-it-qat-pi-100k` | 30.7B | Q4_0 | gemma4 |
-| `qwen3-vl-8b/` | `qwen3-vl:8b` | 8.8B | Q4_K_M | qwen3vl |
-| `qwen3-vl-8b-pi-100k/` | `qwen3-vl:8b-pi-100k` | 8.8B | Q4_K_M | qwen3vl |
-| `qwen3-vl-30b-a3b/` | `qwen3-vl:30b-a3b` | 31.1B | Q4_K_M | qwen3vlmoe |
-| `qwen3-vl-30b-a3b-pi-100k/` | `qwen3-vl:30b-a3b-pi-100k` | 31.1B | Q4_K_M | qwen3vlmoe |
 | `medgemma-27b/` | `medgemma:27b` | 27.4B | Q4_K_M | gemma3 |
 | `gemma4-e2b/` | `gemma4:e2b` | 4.6B | Q4_K_M | gemma4 |
 | `muse-glimmer/` | `muse-glimmer` | 27.9B | Q4_K_M | muse-glimmer |
