@@ -113,7 +113,7 @@ THINK_SHORT = {k: v for k, v in {
 
 SERIES_TITLE = {
     "think-on": "мышление включено", "think-off": "мышление выключено",
-    "primer-v2": "системный промпт (роль+CoT+недоверие)",
+    "primer-v2": 'системный промпт<div class=sub>роль+CoT+недоверие</div>',
     "cloud": "reasoning effort low",
     "gigachat": "базовый режим (Сбер)",
     "yandexfm": "базовый режим (Яндекс)",
