@@ -1439,7 +1439,7 @@ footer{margin-top:56px;color:var(--mut);font-size:13.5px;border-top:1px solid va
 @media print{.toc{display:none}header{border-radius:0}h2{page-break-after:avoid}}
 </style></head><body><div class=wrap>
 <h1 class=pagetitle>Лидерборд локальных LLM на знания PHP, Symfony, PostgreSQL, Doctrine, DDD, Git</h1>
-<p class=sub style="margin:-6px 4px 14px">Отчёт подготовлен с 6 по 14 октября 2026 года в ZCode при содействии моделей GLM-5.3 и GLM-5.3-Flash, id сессии sess_ba5167d4-12bc-452c-afbe-3d117b4d1667.</p>
+<p class=sub style="margin:-6px 4px 14px">Отчёт подготовлен с 6 по 14 октября 2026 года в ZCode при содействии моделей GLM-5.3 и GLM-5.3-Flash.</p>
 
 <div class=quote><div class=who>Предыстория от автора</div>
 Меня заблокировали в OpenAI по региональному признаку после двух лет
@@ -1477,6 +1477,7 @@ RTX 5090 в хорошем окружении, я был наслышан о н�
 помочь, присоединяйтесь: электронная почта
 <a href="mailto:dmitry@prikotov.ru">dmitry@prikotov.ru</a> ·
 Telegram: <a href="https://t.me/prikotov">@prikotov</a>.
+<br>id сессии ZCode: sess_ba5167d4-12bc-452c-afbe-3d117b4d1667.
 <br><br>
 <i>Всё как у людей ©</i>
 </div>
