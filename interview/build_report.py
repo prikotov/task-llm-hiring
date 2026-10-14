@@ -2394,8 +2394,11 @@ def build(models, sessions, primer, low_json=None):
         badge = {"cloud": '<span class="badge g">облако</span>',
                  "local": '<span class="badge b">локально</span>',
                  "negctrl": ""}[m["kind"]]
-        electricity = (f'₽{m["dur_min"] / 60 * 3.89:.2f}'
-                       if m["kind"] in ("local", "negctrl") else "—")
+        if m["kind"] in ("local", "negctrl"):
+            _er = m["dur_min"] / 60 * 3.89
+            electricity = f'${fmt_cost(_er / RUB_USD)}<div class=sub>₽{_er:.2f}</div>'
+        else:
+            electricity = "—"
         _ec.append(f'<tr><td><b>{m["label"]}</b><div class=sub>{badge}</div></td>'
                    f'<td>{THINK_SHORT.get(m["series"], m["series"])}</td>'
                    f'<td>{"да" if m.get("primer") else "—"}</td>'
