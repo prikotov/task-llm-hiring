@@ -2406,7 +2406,7 @@ def build(models, sessions, primer, low_json=None):
                           '(порядок как в §4; локальные — по модели стоимости, '
                           'облачные — фактические списания):</p>'
                           '<table><tr><th>Модель</th><th>Мышление</th><th>Сист. промпт</th>'
-                          '<th>Время</th><th>Цена</th><th>Электричество</th></tr>'
+                          '<th>Время</th><th>Цена</th><th>Цена без амортизации</th></tr>'
                           + "\n".join(_ec) + '</table>')
     judge_cost_html = (
         f'<p>clef оценил {len(clef_calls):,} ответов в {clef_runs} интервью — '
