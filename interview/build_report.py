@@ -734,7 +734,7 @@ def quality_speed_scatter(models) -> str:
     XMIN, XMAX = 0, 32.0            # минуты полного собеседования
     YMIN, YMAX = 1.5, 4.25
     QX, QY = 10.0, 3.0              # пороги квадрантов: 10 минут и 3.0 балла
-    TMIN, TMAX = 30000, 180000      # диапазон выходных токенов для диаметра
+    TMIN, TMAX = 15000, 180000      # диапазон выходных токенов для диаметра
 
     GROUPS = {"cloud": ("#315f9e", "облако"), "local": ("#2f7d54", "локальные"),
               "ru": ("#5b9bd5", "русские"), "negctrl": ("#b3543f", "негативные контроли")}
@@ -746,7 +746,9 @@ def quality_speed_scatter(models) -> str:
         return MT + (YMAX - score) / (YMAX - YMIN) * PH
 
     def dot_r(tok):
-        return 7 + min(max((tok - TMIN) / (TMAX - TMIN), 0), 1) * 8
+        # корневая шкала: минимальная разница (17 против 25 тыс.) видна глазом;
+        # линейная на диапазоне 165 тыс. давала бы <0.5 px разницы радиуса
+        return 7 + min(max((tok - TMIN) / (TMAX - TMIN), 0), 1) ** 0.5 * 8
 
     pts = []
     for m in models:
@@ -960,7 +962,7 @@ def quality_triangle_3d(models) -> str:
   host.appendChild(tip);
   var spheres = [];
   DATA.forEach(function (m) {
-    var r = 0.16 + Math.sqrt(Math.max(0, Math.min(1, (m.tok - 35000) / 145000))) * 0.34;
+    var r = 0.16 + Math.sqrt(Math.max(0, Math.min(1, (m.tok - 15000) / 165000))) * 0.34;
     var mesh = new THREE.Mesh(
         new THREE.SphereGeometry(r, 24, 18),
         new THREEMeshMaterialSafe(m.color));
