@@ -1287,7 +1287,7 @@ def sessions_inventory():
                 if cs:
                     cached, psum, exact = cs
                     if cached == 0:
-                        cache_cell = "0%<div class=sub>выгрузка после каждого хода</div>"
+                        cache_cell = "—"
                     else:
                         mark = "" if exact else "~"
                         sub = (f"{cached:,} ток".replace(",", " ") if exact else "оценка")
@@ -2010,7 +2010,7 @@ def build(models, sessions, primer, low_json=None):
                     cached += cs[0]
                     psum += cs[1]
                     est = est or not cs[2]
-            if psum:
+            if psum and cached > 0:
                 mark = "~" if est else ""
                 cache_sub = f'<div class=sub>{mark}{cached / psum:.0%} кэш</div>'
         glm_cell = bar(m["glm"] or 0, 4, "{:.1f}", "#2f7d54") if m["glm"] else "—"
@@ -2586,7 +2586,10 @@ def build(models, sessions, primer, low_json=None):
                      '(исчерпание баланса) завершён через resume без пересчёта первых вопросов.'
                      '<br><b>Числа.</b> Токены и стоимость — фактические данные API; '
                      'источники кэш-процентов — в сноске 6 §4, устройство кэша (сессия '
-                     'против прогонов) — в §2. Входные токены уточнений в ранних прогонах '
+                     'против прогонов) — в §2. Прочерк в кэше — прогоны 6–8 октября '
+                     'с выгрузкой модели после каждого хода: кэш сессии не работал, '
+                     'каждый ход пересчитывал префикс с нуля. Входные токены уточнений '
+                     'в ранних прогонах '
                      'не сохранялись (учтены основные вопросы).</div>' + "\n".join(parts))
     # сноски цен Сбера — под таблицей сессий, в порядке появления маркеров
     sber_sess = []
