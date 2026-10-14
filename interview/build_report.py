@@ -1477,7 +1477,6 @@ RTX 5090 в хорошем окружении, я был наслышан о н�
 помочь, присоединяйтесь: электронная почта
 <a href="mailto:dmitry@prikotov.ru">dmitry@prikotov.ru</a> ·
 Telegram: <a href="https://t.me/prikotov">@prikotov</a>.
-<br>id сессии ZCode: sess_ba5167d4-12bc-452c-afbe-3d117b4d1667.
 <br><br>
 <i>Всё как у людей ©</i>
 </div>
@@ -1843,6 +1842,7 @@ clef, с прежней формулировкой need_review, а судья я
 <ul style="list-style:none;margin:0;padding:0">
 <li><b>Сборка этого отчёта.</b> Скрипт собирает отчёт из сырых данных репозитория: сессии (session.json), вердикты судей, CSV-агрегаты.</li>
 <li><b>Независимость.</b> Автор не аффилирован с упомянутыми компаниями.</li>
+<li><b>Сессия подготовки.</b> ZCode, id сессии sess_ba5167d4-12bc-452c-afbe-3d117b4d1667.</li>
 </ul>
 </footer>
 </div></body></html>
