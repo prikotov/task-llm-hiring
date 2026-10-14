@@ -1282,7 +1282,7 @@ def sessions_inventory():
                 elif cs and cs[2]:
                     cache_cell = "—"   # без кэша сессии (выгрузка после каждого хода)
                 else:
-                    cache_cell = "не измеряли"
+                    cache_cell = "н/д"
             rows.append(dict(model=d.name, run=r.name, series=series,
                              qv=s.get("questionnaire"),
                              n=len(turns),
@@ -1428,6 +1428,8 @@ a{color:var(--acc)}
 .badge.b{background:#e9f1ec;color:var(--good)}.badge.r{background:#f8ebe7;color:var(--bad)}.badge.g{background:#edf1f7;color:var(--acc)}
 .mgroup{margin:20px 0}
 .mgroup h3{margin-bottom:2px}
+.mgroup table{width:auto;max-width:100%}
+.mgroup th,.mgroup td{white-space:nowrap}
 footer{margin-top:56px;color:var(--mut);font-size:13.5px;border-top:1px solid var(--line);padding-top:18px;line-height:1.6}
 @media print{.toc{display:none}header{border-radius:0}h2{page-break-after:avoid}}
 </style></head><body><div class=wrap>
@@ -2562,7 +2564,7 @@ def build(models, sessions, primer, low_json=None):
         parts.append(
             f'<div class=mgroup><h3>{LABELS.get(folder, folder)}</h3>'
             f'<div class=sub>{folder}/</div>'
-            '<table><tr><th>Прогон</th><th>Условия</th><th>Версия вопросника</th><th>Ответов</th><th>Длительность</th>'
+            '<table><tr><th>Прогон</th><th>Условия</th><th>Версия интервью</th><th>Ответов</th><th>Время</th>'
             '<th>Вход. токены</th><th>Вых. токены</th><th>Кэш</th><th>Стоимость</th></tr>'
             + "".join(links) + "</table></div>")
         sessions_html = (f'<div class=note>'
@@ -2573,7 +2575,9 @@ def build(models, sessions, primer, low_json=None):
                      '(исчерпание баланса) завершён через resume без пересчёта первых вопросов.'
                      '<br><b>Числа.</b> Токены и стоимость — фактические данные API; '
                      'источники кэш-процентов — в сноске 6 §4, устройство кэша (сессия '
-                     'против прогонов) — в §2. Прочерк в кэше — прогоны 6–8 октября '
+                     'против прогонов) — в §2. «н/д» в кэше — нет данных '
+                     '(у локальных не измеряли), «выключен» — кэш сессии отключён. '
+                     'Прочерк в кэше — прогоны 6–8 октября '
                      'с выгрузкой модели после каждого хода: кэш сессии не работал, '
                      'каждый ход пересчитывал префикс с нуля. Входные токены уточнений '
                      'в ранних прогонах '
