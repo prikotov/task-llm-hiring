@@ -113,7 +113,7 @@ THINK_SHORT = {k: v for k, v in {
 
 SERIES_TITLE = {
     "think-on": "мышление включено", "think-off": "мышление выключено",
-    "primer-v2": 'системный промпт<div class=sub>роль+CoT+недоверие</div>',
+    "primer-v2": "системный промпт (роль+CoT+недоверие)",
     "cloud": "reasoning effort low",
     "gigachat": "базовый режим (Сбер)",
     "yandexfm": "базовый режим (Яндекс)",
@@ -1430,6 +1430,7 @@ a{color:var(--acc)}
 .mgroup h3{margin-bottom:2px}
 .mgroup table{width:auto;max-width:100%}
 .mgroup th,.mgroup td{white-space:nowrap}
+.mgroup td:nth-child(2){white-space:normal;max-width:170px}
 footer{margin-top:56px;color:var(--mut);font-size:13.5px;border-top:1px solid var(--line);padding-top:18px;line-height:1.6}
 @media print{.toc{display:none}header{border-radius:0}h2{page-break-after:avoid}}
 </style></head><body><div class=wrap>
