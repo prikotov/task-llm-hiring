@@ -1802,6 +1802,19 @@ clef, с прежней формулировкой need_review, а судья я
 
 <h2 id=sessions><span class=no>9</span>Сессии и данные</h2>
 <p>Все завершённые прогоны. Ссылки ведут на полные транскрипты в репозитории исследования (файл README рядом с отчётом описывает структуру).</p>
+<h3>Состав данных репозитория</h3>
+<table>
+<tr><th>Данные</th><th>Где</th><th>Что внутри</th></tr>
+<tr><td>Карточки моделей</td><td class=num>&lt;модель&gt;/model.md · 29</td><td>характеристики, статус, история прогонов и наблюдения по каждой модели</td></tr>
+<tr><td>Прогоны</td><td class=num>&lt;модель&gt;/backend/run-XX/ · 96</td><td>session.json (вопросы, ответы, размышления, тайминги, условия серии) и transcript.md — читаемый транскрипт</td></tr>
+<tr><td>Судейские своды</td><td class=num>&lt;модель&gt;/backend/scorecard.md · 6</td><td>свод оценок и находок по модели</td></tr>
+<tr><td>Вердикты clef (ярус 1)</td><td class=num>judgments/clef/ · 13 json + 86 csv</td><td>балл, вероятности галлюцинации и эскалационные признаки по каждому ответу; csv — до перевода на json</td></tr>
+<tr><td>Вердикты LLM-судьи (ярус 2)</td><td class=num>judgments/glm-5.3-flash-iso/ · 27</td><td>балл, флаг галлюцинации, пояснение с проверками кодом; run-16.low.json — артефакт сравнения low/max</td></tr>
+<tr><td>Задачи судейства</td><td class=num>judgments/tasks/ · 26</td><td>входные пары вопрос-ответ для воспроизводимости вердиктов</td></tr>
+<tr><td>Кросс-модельные агрегаты</td><td class=num>reports/ · 26 файлов</td><td>judges-all.csv и decision-all.csv (все вердикты), исследования судей (COMPARE-*, AUDIT, EMBEDDINGS, LOW-vs-MAX), журнал трат OpenRouter, журнал вызовов оценщиков scoring-calls.jsonl (с 14 октября)</td></tr>
+<tr><td>Методика</td><td class=num>interview/</td><td>вопросники ролей, раннеры, скрипты судейства и оценки</td></tr>
+</table>
+
 <!--SESSIONS-->
 
 <footer>
