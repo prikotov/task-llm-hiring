@@ -1807,7 +1807,7 @@ clef, с прежней формулировкой need_review, а судья я
 <tr><th>Данные</th><th>Где</th><th>Что внутри</th></tr>
 <tr><td>Карточки моделей</td><td class=num>&lt;модель&gt;/model.md · 29</td><td>характеристики, статус, история прогонов и наблюдения по каждой модели</td></tr>
 <tr><td>Прогоны</td><td class=num>&lt;модель&gt;/backend/run-XX/ · 96</td><td>session.json (вопросы, ответы, размышления, тайминги, условия серии) и transcript.md — читаемый транскрипт</td></tr>
-<tr><td>Судейские своды</td><td class=num>&lt;модель&gt;/backend/scorecard.md · 6</td><td>свод оценок и находок по модели</td></tr>
+<tr><td>Своды результатов моделей</td><td class=num>&lt;модель&gt;/backend/scorecard.md · 6</td><td>итоги прогонов модели: устойчивость ответов, провокации, самооценка, подходы к решениям</td></tr>
 <tr><td>Вердикты clef (ярус 1)</td><td class=num>judgments/clef/ · 13 json + 86 csv</td><td>балл, вероятности галлюцинации и эскалационные признаки по каждому ответу; csv — до перевода на json</td></tr>
 <tr><td>Вердикты LLM-судьи (ярус 2)</td><td class=num>judgments/glm-5.3-flash-iso/ · 27</td><td>балл, флаг галлюцинации, пояснение с проверками кодом; run-16.low.json — артефакт сравнения low/max</td></tr>
 <tr><td>Задачи судейства</td><td class=num>judgments/tasks/ · 26</td><td>входные пары вопрос-ответ для воспроизводимости вердиктов</td></tr>
