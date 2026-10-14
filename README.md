@@ -54,6 +54,11 @@ YandexGPT через родные API, DeepSeek через родной API.
 | `OPENROUTER_KEY_FILE` | путь к файлу с ключом OpenRouter | `runner_openrouter.py`, `judge_openrouter.py` |
 | `OPENROUTER_PROXY_FILE` / `OPENROUTER_PROXY` | файл с адресом прокси / прямой адрес прокси | `runner_openrouter.py`, `judge_openrouter.py` |
 
+Локальные значения удобно держать в `.env.local` в корне репозитория
+(в git не попадает, шаблон — `.env.local.example`): скрипты подхватывают
+его при старте автоматически, а переменные из профиля шелла имеют
+приоритет.
+
 ```bash
 # собес локальной модели с сервера ollama, 5 независимых прогонов
 python3 interview/runner.py --questions interview/roles/backend/questions.json \

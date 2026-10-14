@@ -22,12 +22,16 @@ quality (балл 0–4), hallucination, need_review, unsure, factcheck_zone.
 import argparse
 import csv
 import json
+import os
 import sys
 import time
 import urllib.request
 from pathlib import Path
 
-BASE_URL = "http://nserv:11434"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import env_local  # noqa: F401 — грузит .env.local до чтения OLLAMA_BASE_URL ниже
+
+BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
 
 SCORE_CRITERIA = [
     "0 — ответ неверен, отсутствует или содержит грубые фактические ошибки",

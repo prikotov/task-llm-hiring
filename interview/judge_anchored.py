@@ -18,6 +18,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from score import BASE_URL
 
+ROOT = Path(__file__).resolve().parent.parent
+
 ANCHORS = {
  "Q13": {
    "question_id": "Q13",
@@ -75,7 +77,7 @@ def main():
     qs = {q['id']: q for q in json.load(open(Path(__file__).parent / 'roles/backend/questions.json'))}
     out_rows = []
     for model, run in REF_RUNS:
-        session = json.load(open(f'/home/dp/MyProjects/Models/{model}/backend/{run}/session.json'))
+        session = json.load(open(ROOT / f'{model}/backend/{run}/session.json'))
         turns = {t['id']: t for t in session['turns']}
         for qid, spec in ANCHORS.items():
             t = turns.get(qid)
@@ -85,7 +87,7 @@ def main():
             out_rows.append({"model": model, "run": run, "question": qid,
                              "anchored": s, "anchored_conf": c})
             print(f"  {model} {qid}: {s} (conf {c})", flush=True)
-    out = Path('/home/dp/MyProjects/Models/reports/anchored-clef-pilot.csv')
+    out = ROOT / 'reports' / 'anchored-clef-pilot.csv'
     with open(out, 'w', newline='', encoding='utf-8-sig') as f:
         w = csv.DictWriter(f, fieldnames=["model","run","question","anchored","anchored_conf"])
         w.writeheader(); w.writerows(out_rows)
