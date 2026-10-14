@@ -1244,12 +1244,10 @@ def sessions_inventory():
                 if not cost and cost_rub:
                     cost = cost_rub / RUB_USD
                 cr = u.get("cache_read_tokens")
-                cw = u.get("cache_write_tokens")
                 b = u.get("billing")
                 if b:   # Яндекс: детализация биллинга, кэш считается отдельно
                     pct = b["cached_tokens"] / (b["cached_tokens"] + b["input_tokens"])
-                    cache_cell = (f"{pct:.0%}<div class=sub>"
-                                  f"{b['cached_tokens']:,} (биллинг)</div>".replace(",", " "))
+                    cache_cell = f"{pct:.0%}<div class=sub>биллинг</div>"
                     in_tok = b["cached_tokens"] + b["input_tokens"]
                     out_tok = b["output_tokens"]
                 elif backend == "gigachat" and cr:
@@ -1260,19 +1258,14 @@ def sessions_inventory():
                            (in_tok * tin + out_tok * tout) / 1e6)
                 if cr is not None and not b:
                     pct = cr / in_tok * 100 if in_tok else 0
-                    split = (f" (чт {cr:,} + зп {(cw or 0):,})" if cw else "")
-                    cache_cell = (f"{pct:.0f}%"
-                                  f"<div class=sub>{cr:,}".replace(",", " ")
-                                  + split.replace(",", " ") + "</div>")
+                    cache_cell = f"{pct:.0f}%"
                 elif u.get("cache_read_tokens_rec") == 0:
                     cache_cell = "выключен"  # сессия без кэша (billing это подтверждает)
                 elif u.get("cache_read_tokens_rec") is not None:
                     rec = u["cache_read_tokens_rec"]
                     exact = u.get("cache_rec_method", "").endswith("exact")
                     pct = rec / in_tok * 100 if in_tok else 0
-                    mark = "" if exact else "~"
-                    cache_cell = (f"{mark}{pct:.0f}%"
-                                  f"<div class=sub>{mark}{rec:,} (чт)</div>".replace(",", " "))
+                    cache_cell = f"{'' if exact else '~'}{pct:.0f}%"
                 elif not b:
                     cache_cell = None  # деталей нет
             else:
@@ -1285,9 +1278,7 @@ def sessions_inventory():
                 cost = rub / RUB_USD
                 cs = local_cache_stats(s)
                 if cs and cs[2] and cs[0] > 0:
-                    cached, psum = cs[0], cs[1]
-                    cache_cell = (f"{cached / psum:.0%}"
-                                  f"<div class=sub>{cached:,} ток</div>".replace(",", " "))
+                    cache_cell = f"{cs[0] / cs[1]:.0%}"
                 elif cs and cs[2]:
                     cache_cell = "—"   # без кэша сессии (выгрузка после каждого хода)
                 else:
