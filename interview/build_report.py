@@ -115,8 +115,8 @@ SERIES_TITLE = {
     "think-on": "мышление включено", "think-off": "мышление выключено",
     "primer-v2": "системный промпт (роль+CoT+недоверие)",
     "cloud": "reasoning effort low",
-    "gigachat": "по умолчанию (Сбер)",
-    "yandexfm": "по умолчанию (Яндекс)",
+    "gigachat": "по умолчанию",
+    "yandexfm": "по умолчанию",
     "deepseek": "effort low (родной API)",
 }
 
