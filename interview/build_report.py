@@ -2390,7 +2390,7 @@ def build(models, sessions, primer, low_json=None):
     judge_cost_html = (
         f'<p>clef оценил {len(clef_calls):,} ответов в {clef_runs} интервью — '
         f'суммарно {clef_total_s/60:.0f} минут GPU, или ₽{clef_total_s * 35.85 / 3600:.0f} '
-        f'по модели стоимости (из них ₽{clef_total_s * 3.89 / 3600:.0f} электричества). '
+        f'по модели стоимости. '
         f'На одно интервью это {sec} {sec_word} работы оценщика и '
         f'₽{clef_total_s * 35.85 / 3600 / clef_runs:.2f}.</p>'
         '<p class=sub>Время оценочное: тайминги прошлых вызовов не сохранялись, '
