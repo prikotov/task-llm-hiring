@@ -103,13 +103,19 @@ def build_state(task: dict) -> str:
             f"ВОПРОС:\n{task['question']}\n\nОТВЕТ КАНДИДАТА:\n{task['answer']}")
 
 
-def score_task(judge_model: str, task: dict, timeout: int) -> dict:
-    """Один вызов: балл, галлюцинации и эскалационные признаки."""
+def score_task(judge_model: str, task: dict, timeout: int) -> tuple:
+    """Один вызов: (вердикт, телеметрия вызова)."""
+    t0 = time.monotonic()
     r = post_systemone({"model": judge_model, "state": build_state(task),
                         "questions": QUESTIONS}, timeout)
+    latency_ms = round((time.monotonic() - t0) * 1000)
+    u = r.get("usage") or {}
+    telem = {"latency_ms": latency_ms,
+             "input_tokens": u.get("input_tokens"),
+             "output_tokens": u.get("output_tokens")}
     a = r["answers"]
     noul = lambda k: round(a[k].get("noul", -1), 3) if k in a else -1
-    return {
+    verdict = {
         "id": task["id"], "kind": task["kind"],
         "score": round(a["quality"].get("score", -1), 2),
         "score_confidence": a["quality"].get("confidence"),
@@ -118,6 +124,7 @@ def score_task(judge_model: str, task: dict, timeout: int) -> dict:
         "unsure": noul("unsure"),
         "factcheck_zone": noul("factcheck_zone"),
     }
+    return verdict, telem
 
 
 def post_systemone(payload: dict, timeout: int) -> dict:
@@ -148,13 +155,16 @@ def main() -> int:
         tasks = tasks[:args.limit]
 
     results = []
+    telemetry = []
     t0 = time.monotonic()
     for i, task in enumerate(tasks, 1):
         try:
-            r = score_task(args.judge, task, args.timeout)
+            r, telem = score_task(args.judge, task, args.timeout)
         except Exception as e:
             r = {"id": task["id"], "kind": task.get("kind"), "error": str(e)[:200]}
+            telem = {"latency_ms": None, "input_tokens": None, "output_tokens": None}
         results.append(r)
+        telemetry.append({"id": task["id"], **telem})
         if i % 10 == 0 or i == len(tasks):
             print(f"  {i}/{len(tasks)} ({time.monotonic()-t0:.0f}s)", flush=True)
 
@@ -163,10 +173,25 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     jout = out_dir / args.judge / f"{run_dir.name}.json"
     jout.parent.mkdir(parents=True, exist_ok=True)
+    wall_s = round(time.monotonic() - t0, 1)
     jout.write_text(json.dumps({
         "judge": args.judge, "run": str(run_dir), "model": session["model"],
         "judged_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "meta": {"calls": len(telemetry),
+                 "wall_s": wall_s,
+                 "latency_ms_sum": sum(t["latency_ms"] or 0 for t in telemetry),
+                 "input_tokens_sum": sum(t["input_tokens"] or 0 for t in telemetry),
+                 "telemetry": telemetry},
         "results": results}, ensure_ascii=False, indent=2))
+    # общий журнал вызовов оценщиков: токены и латентность каждого вызова
+    log_path = run_dir.parent.parent.parent / "reports" / "scoring-calls.jsonl"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(log_path, "a", encoding="utf-8") as f:
+        for t in telemetry:
+            f.write(json.dumps({
+                "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                "judge": args.judge, "model": session["model"],
+                "run": run_dir.name, **t}, ensure_ascii=False) + "\n")
     eout = out_dir / f"escalation-{args.judge}-{run_dir.name}.csv"
     with open(eout, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.DictWriter(f, fieldnames=["question", "need_review", "unsure",

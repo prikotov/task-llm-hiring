@@ -130,13 +130,23 @@ def main():
 
     verdicts, failed = [], []
     t0 = time.monotonic()
+    calls_log = ROOT / "reports" / "scoring-calls.jsonl"
     for i, t in enumerate(todo, 1):
         anchors = checklists.get(t["id"]) or checklists.get(t["id"].split(".")[0]) or {}
+        tv = time.monotonic()
         try:
             v = judge_one(t, anchors, MODEL, thinking)
+            v["duration_s"] = round(time.monotonic() - tv, 1)
             verdicts.append(v)
+            with open(calls_log, "a", encoding="utf-8") as f:
+                f.write(json.dumps({
+                    "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                    "judge": "glm-5.3-flash", "thinking": thinking,
+                    "model": args.folder.rstrip("/").split("/")[-1],
+                    "run": args.run, "id": t["id"],
+                    "latency_ms": int(v["duration_s"] * 1000)}, ensure_ascii=False) + "\n")
             print(f"  {i}/{len(todo)} {t['id']}: score={v['score']} "
-                  f"hall={v['hallucination']} ({time.monotonic()-t0:.0f}s)", flush=True)
+                  f"hall={v['hallucination']} ({v['duration_s']:.0f}s)", flush=True)
         except Exception as e:  # noqa: BLE001
             failed.append(t["id"])
             print(f"  {i}/{len(todo)} {t['id']}: FAIL {e}", flush=True)
@@ -153,7 +163,11 @@ def main():
     order = [t["id"] for t in tasks]
     out = {"judge": "glm-5.3-flash (pi CLI по подписке Z.AI, изолированный запуск "
                     "на каждый ответ, проверки кодом через bash; interview/judge_glm.py)",
-           "run": args.run, "results": [by_id[q] for q in order if q in by_id]}
+           "run": args.run,
+           "meta": {"thinking": thinking,
+                    "wall_s": round(time.monotonic() - t0, 1),
+                    "duration_s_sum": round(sum(v.get("duration_s", 0) for v in verdicts), 1)},
+           "results": [by_id[q] for q in order if q in by_id]}
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(out, ensure_ascii=False, indent=1))
     print(f"записано {len(verdicts)} вердиктов -> {out_path}"
