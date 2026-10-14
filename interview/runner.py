@@ -22,6 +22,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+import env_local  # noqa: F401 — грузит .env.local до чтения OLLAMA_BASE_URL ниже
+
 DEFAULT_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
 INTERVIEWER_FALLBACK = "Допущения делай сам, отвечай так, как считаешь правильным."
 MAX_CLARIFICATIONS = 1  # сколько раз на вопрос допускается стандартная реплика
