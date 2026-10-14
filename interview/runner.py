@@ -289,7 +289,7 @@ def main() -> int:
     p.add_argument("--runs", type=int, default=1, help="число прогонов (default 1)")
     p.add_argument("--base-url", default=DEFAULT_BASE_URL)
     p.add_argument("--questions", default=str(SCRIPT_DIR / "questions.json"))
-    p.add_argument("--models-root", default=str(SCRIPT_DIR.parent),
+    p.add_argument("--models-root", default=str(SCRIPT_DIR.parent / "models"),
                    help="корень workspace (по умолчанию — родитель interview/)")
     p.add_argument("--out", default=None,
                    help="папка модели; по умолчанию <models-root>/<slug модели>")
