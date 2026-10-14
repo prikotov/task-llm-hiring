@@ -2341,6 +2341,9 @@ def build(models, sessions, primer, low_json=None):
     for r in csv.DictReader(open(ROOT / "reports" / "decision-all.csv", encoding="utf-8-sig")):
         if r["judge"] == "clef":
             clef_calls.add((r["model"], r["run"], r["question"]))
+    for p in ROOT.glob("*/backend/judgments/decision-clef-run-*.csv"):
+        for r in csv.DictReader(open(p, encoding="utf-8-sig")):
+            clef_calls.add((p.parents[2].name, p.stem[len("decision-clef-"):], r["question"]))
     for p in ROOT.glob("*/backend/judgments/clef/*.json"):
         for v in json.loads(p.read_text())["results"]:
             clef_calls.add((p.parents[3].name, p.stem, v["id"]))
@@ -2366,17 +2369,38 @@ def build(models, sessions, primer, low_json=None):
         return 0
 
     clef_tok = sum(_state_tokens(*c) for c in clef_calls)
+    _per = {}
+    for _m, _r, _q in clef_calls:
+        d = _per.setdefault(_m, [0, set()])
+        d[0] += 1
+        d[1].add(_r)
+    WARM_S, COLD_S = 0.7, 5.5
+    _labels = {m["folder"]: m["label"] for m in models}
+    clef_rows = []
+    clef_total_s = 0
+    for _m, (_n, _runs) in sorted(_per.items(), key=lambda x: -x[1][0]):
+        _t = _n * WARM_S + len(_runs) * COLD_S
+        clef_total_s += _t
+        clef_rows.append(f"<tr><td>{_labels.get(_m, _m)}</td><td class=num>{_n:,}</td>"
+                         f"<td class=num>{len(_runs)}</td><td class=num>{_t/60:.1f} мин</td>"
+                         f"<td class=num>{_t * 35.85 / 3600:.2f}</td></tr>")
     judge_verdicts = 0
     for p in ROOT.glob("*/backend/judgments/glm-5.3-flash-iso/*.json"):
         judge_verdicts += len(json.loads(p.read_text())["results"])
     judge_verdicts -= 30   # run-16.low.json — артефакт сравнения low/max, не отдельное судейство
     judge_cost_html = (
         '<h3>Сколько стоила сама оценка</h3>'
-        f'<p>clef оценил {len(clef_calls):,} ответов (все серии и эксперименты; '
-        f'{clef_tok/1e6:.1f} млн входных токенов — оценка по объёму вопросов и ответов). '
-        'Суммарное время вызовов — порядка 40 минут: 2 947 тёплых вызовов по ~0.7 с '
-        'плюс ~90 холодных стартов по ~5 с (тайминги отдельных вызовов не логировались, '
-        'оценка по замеру латентности). В деньгах по модели стоимости — меньше рубля.</p>'
+        f'<p>clef оценил {len(clef_calls):,} ответов у 17 моделей. Время вызовов '
+        f'{clef_total_s/60:.0f} минут GPU (оценка по замеренной латентности: тёплый вызов '
+        '0.7 с, холодный старт прогона 5.5 с — тайминги исторических вызовов не '
+        'сохранялись; с 14 октября score.py пишет журнал каждого вызова с латентностью '
+        f'и токенами). По модели стоимости это ₽{clef_total_s * 35.85 / 3600:.0f} '
+        f'(₽{clef_total_s * 3.89 / 3600:.1f} электричества); вход — ~{clef_tok/1e6:.1f} млн '
+        'токенов (API отдаёт точные usage.input_tokens, сверка показала сходимость с оценкой).</p>'
+        '<p class=sub>Разбивка по моделям (время — оценка по латентности; цена по полной '
+        'модели ₽35.85/ч):</p>'
+        '<table><tr><th>Модель</th><th>Вызовов</th><th>Прогонов</th><th>Время</th><th>₽</th></tr>'
+        + "\n".join(clef_rows) + '</table>'
         f'<p>LLM-судья (GLM-5.3-Flash по подписке Z.AI) вынес {judge_verdicts:,} вердиктов. '
         'Первые 219 — workflow с акторами-сабагентами (9–10 октября: «Поответное судейство '
         'GLM-5.3-Flash», «GLM-Flash-эталон по 7 моделям»; 45 млн totalTokens с кэш-покрытием '
