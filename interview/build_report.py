@@ -1284,16 +1284,14 @@ def sessions_inventory():
                 rub = gen_h * (LOCAL_KWH * RUB_KWH + AMORT_RUB_H)
                 cost = rub / RUB_USD
                 cs = local_cache_stats(s)
-                if cs:
-                    cached, psum, exact = cs
-                    if cached == 0:
-                        cache_cell = "—"
-                    else:
-                        mark = "" if exact else "~"
-                        sub = (f"{cached:,} ток".replace(",", " ") if exact else "по длинам промпта")
-                        cache_cell = f"{mark}{cached / psum:.0%}<div class=sub>{sub}</div>"
+                if cs and cs[2] and cs[0] > 0:
+                    cached, psum = cs[0], cs[1]
+                    cache_cell = (f"{cached / psum:.0%}"
+                                  f"<div class=sub>{cached:,} ток</div>".replace(",", " "))
+                elif cs and cs[2]:
+                    cache_cell = "—"   # без кэша сессии (выгрузка после каждого хода)
                 else:
-                    cache_cell = "н/д"
+                    cache_cell = "не измеряли"
             rows.append(dict(model=d.name, run=r.name, series=series,
                              qv=s.get("questionnaire"),
                              n=len(turns),
@@ -2010,9 +2008,8 @@ def build(models, sessions, primer, low_json=None):
                     cached += cs[0]
                     psum += cs[1]
                     est = est or not cs[2]
-            if psum and cached > 0:
-                mark = "~" if est else ""
-                cache_sub = f'<div class=sub>{mark}{cached / psum:.0%} кэш</div>'
+            if psum and cached > 0 and not est:
+                cache_sub = f'<div class=sub>{cached / psum:.0%} кэш</div>'
         glm_cell = bar(m["glm"] or 0, 4, "{:.1f}", "#2f7d54") if m["glm"] else "—"
         badge = {"cloud": '<span class="badge g">облако</span>',
                  "local": '<span class="badge b">локально</span>',
@@ -2079,14 +2076,13 @@ def build(models, sessions, primer, low_json=None):
             'Opus-прогон. У Яндекса — по детализации биллинга '
             '(кешированные токены считаются отдельно и покрывают 90% промпта; '
             'тариф плоский ₽1.2/1k, скидки за кэш нет). '
-            'У локальных — кэш-покрытие сессии. Прогоны 6–8 октября шли с выгрузкой '
-            'модели после каждого хода — кэша не было вовсе (0%), из-за холодного '
-            'пересчёта префикса они заметно дольше (muse-glimmer: 9.2 мин без кэша '
-            'против 4.9 с ним). Дальше кэш сессии включён: точное поле '
-            'prompt_eval_cached_count ollama 0.40 отдаёт с 14 октября, остальное '
-            'оценено по длинам промпта (повторная часть запроса — предыдущий '
-            'контекст; сверка с живым сервером: 2 127 против 2 123), поэтому знак ~; '
-            'кэш экономит время, но не тарифицируется.<br>'
+            'У локальных кэш-покрытие не измеряли: поле prompt_eval_cached_count '
+            'ollama 0.40 отдаёт, но раннер записывает его только с 14 октября '
+            '(измеренных сессий ещё нет). Прогоны 6–8 октября шли вовсе без '
+            'кэша сессии — выгрузка после каждого хода, каждый ход пересчитывал '
+            'префикс с нуля, отсюда их длительность (muse-glimmer: 9.2 мин '
+            'без кэша против 4.9 с ним); кэш экономит время, '
+            'но не тарифицируется.<br>'
             '<sup>7</sup> Цена одной сессии: облако по фактическим списаниям API, локальные '
             'по методике §8 (электричество + амортизация, ₽35.85/ч); рубли по курсу ₽85.15/$.')
     if sber_items:
