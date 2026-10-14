@@ -2394,16 +2394,19 @@ def build(models, sessions, primer, low_json=None):
         badge = {"cloud": '<span class="badge g">облако</span>',
                  "local": '<span class="badge b">локально</span>',
                  "negctrl": ""}[m["kind"]]
+        electricity = (f'₽{m["dur_min"] / 60 * 3.89:.2f}'
+                       if m["kind"] in ("local", "negctrl") else "—")
         _ec.append(f'<tr><td><b>{m["label"]}</b><div class=sub>{badge}</div></td>'
                    f'<td>{THINK_SHORT.get(m["series"], m["series"])}</td>'
                    f'<td>{"да" if m.get("primer") else "—"}</td>'
                    f'<td class=num>{m["dur_min"]} мин</td>'
-                   f'<td class=num>{price}</td></tr>')
+                   f'<td class=num>{price}</td>'
+                   f'<td class=num>{electricity}</td></tr>')
     econ_sessions_html = ('<p>Стоимость одной сессии по всем протестированным вариантам '
                           '(порядок как в §4; локальные — по модели стоимости, '
                           'облачные — фактические списания):</p>'
                           '<table><tr><th>Модель</th><th>Мышление</th><th>Сист. промпт</th>'
-                          '<th>Время</th><th>Цена</th></tr>'
+                          '<th>Время</th><th>Цена</th><th>Электричество</th></tr>'
                           + "\n".join(_ec) + '</table>')
     judge_cost_html = (
         f'<p>clef оценил {len(clef_calls):,} ответов в {clef_runs} интервью — '
