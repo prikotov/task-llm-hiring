@@ -1290,7 +1290,7 @@ def sessions_inventory():
                         cache_cell = "—"
                     else:
                         mark = "" if exact else "~"
-                        sub = (f"{cached:,} ток".replace(",", " ") if exact else "оценка")
+                        sub = (f"{cached:,} ток".replace(",", " ") if exact else "по длинам промпта")
                         cache_cell = f"{mark}{cached / psum:.0%}<div class=sub>{sub}</div>"
                 else:
                     cache_cell = "н/д"
