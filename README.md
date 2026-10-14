@@ -7,12 +7,15 @@
 прогона: 17 серий кандидатов, от локальных моделей на ollama до облачных
 SOTA.
 
+> 🏆 **Полный отчёт — онлайн:** [prikotov.pro/raw/llm-hiring-20261014](https://prikotov.pro/raw/llm-hiring-20261014/report.html)
+> — лидерборд, карта «качество × цена», радары по темам, честность и
+> экономика всех 17 серий. Эта же версия лежит в репозитории:
+> [`reports/REPORT.html`](reports/REPORT.html).
+
 ![Карта моделей: качество и цена](reports/assets/map-quality-price.png)
 
 *Каждая точка — кандидат: балл судьи против цены полного собеседования
-(лог-шкала). Полная версия и остальные срезы — в
-[`reports/REPORT.html`](reports/REPORT.html), отчёт собирается скриптом из
-сырых протоколов этого репозитория.*
+(лог-шкала). Срез из онлайн-отчёта, ссылка — выше.*
 
 ## Зачем
 
@@ -125,5 +128,7 @@ python3 interview/score.py --run qwen3.8/backend/run-01 --judge clef
 
 Дмитрий Прикотов: [prikotov.pro](https://prikotov.pro/) ·
 [Telegram @prikotov](https://t.me/prikotov).
-Итоговый отчёт по роли backend: `reports/REPORT.html`
-(собирается `interview/build_report.py` из сырых данных этого репозитория).
+Итоговый отчёт по роли backend — онлайн:
+[prikotov.pro/raw/llm-hiring-20261014](https://prikotov.pro/raw/llm-hiring-20261014/report.html)
+(в репозитории — [`reports/REPORT.html`](reports/REPORT.html), собирается
+`interview/build_report.py` из сырых данных).
