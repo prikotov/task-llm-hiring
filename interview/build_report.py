@@ -2550,7 +2550,10 @@ def build(models, sessions, primer, low_json=None):
                 cost_cell = (f"${fmt_cost(s['cost'])}"
                              + f"<div class=sub>₽{fmt_cost(s['cost'] * RUB_USD)}</div>")
             elif s["series"] == "gigachat":
-                sber_no_sess[folder] = COL_FOOT_N + sber_no_sess.get(folder, len(sber_no_sess)) + 1
+                # 8–9 уже заняты сносками Сбера в §4 (там порядок по рангу модели),
+                # здесь продолжаем серию: 10, 11
+                sber_no_sess[folder] = (COL_FOOT_N + len(FREEMIUM)
+                                        + sber_no_sess.get(folder, len(sber_no_sess)) + 1)
                 cost_cell = f"₽0<sup>{sber_no_sess[folder]}</sup>"
             elif s["series"] == "yandexfm":
                 cost_cell = "₽/токены<div class=sub>тариф вендора</div>"
@@ -2561,12 +2564,21 @@ def build(models, sessions, primer, low_json=None):
                          f'<td class=num>{s["n"]}</td><td class=num>{s["dur"]:.0f} мин</td>'
                          f'<td class=num>{s["in_tok"]:,}</td><td class=num>{s["out_tok"]:,}</td>'
                          f'<td class=num>{cache_cell}</td><td class=num>{cost_cell}</td></tr>')
+        fnote = ""
+        if folder in sber_no_sess:   # сноска цен Сбера — сразу под своей таблицей
+            rs = by_model[folder]
+            fnote = sber_footnote(
+                [(folder,
+                  sum(s["biz"][0] for s in rs if s.get("biz")),
+                  sum(s["biz"][1] for s in rs if s.get("biz")),
+                  sum(s["in_tok"] + s["out_tok"] for s in rs))],
+                start=sber_no_sess[folder])
         parts.append(
             f'<div class=mgroup><h3>{LABELS.get(folder, folder)}</h3>'
             f'<div class=sub>{folder}/</div>'
             '<table><tr><th>Прогон</th><th>Условия</th><th>Версия интервью</th><th>Ответов</th><th>Время</th>'
             '<th>Вход. токены</th><th>Вых. токены</th><th>Кэш</th><th>Стоимость</th></tr>'
-            + "".join(links) + "</table></div>")
+            + "".join(links) + "</table>" + fnote + "</div>")
         sessions_html = (f'<div class=note>'
                      f'<b>Полнота.</b> Завершённых сессий: <b>{total}</b>. Неполные прогоны '
                      '(оборваны пустыми ответами из-за переполнения контекста мышлением: '
@@ -2582,16 +2594,6 @@ def build(models, sessions, primer, low_json=None):
                      'каждый ход пересчитывал префикс с нуля. Входные токены уточнений '
                      'в ранних прогонах '
                      'не сохранялись (учтены основные вопросы).</div>' + "\n".join(parts))
-    # сноски цен Сбера — под таблицей сессий, в порядке появления маркеров
-    sber_sess = []
-    for folder, n in sorted(sber_no_sess.items(), key=lambda x: x[1]):
-        rs = by_model[folder]
-        sber_sess.append((folder,
-                          sum(s["biz"][0] for s in rs if s.get("biz")),
-                          sum(s["biz"][1] for s in rs if s.get("biz")),
-                          sum(s["in_tok"] + s["out_tok"] for s in rs)))
-    if sber_sess:
-        sessions_html += sber_footnote(sber_sess)
 
     # дословный текст системного промпта — из session.json прогона (без пересказа)
     primer_src = json.loads((MODEL_ROOT / "ornith-1.5-35b" / "backend" / "run-17"
