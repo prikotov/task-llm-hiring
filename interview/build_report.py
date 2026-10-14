@@ -2405,9 +2405,7 @@ def build(models, sessions, primer, low_json=None):
                    f'<td class=num>{m["dur_min"]} мин</td>'
                    f'<td class=num>{price}</td>'
                    f'<td class=num>{electricity}</td></tr>')
-    econ_sessions_html = ('<p>Стоимость одной сессии по всем протестированным вариантам '
-                          '(порядок как в §4; локальные — по модели стоимости, '
-                          'облачные — фактические списания):</p>'
+    econ_sessions_html = ('<p>Стоимость одной сессии по всем протестированным вариантам:</p>'
                           '<table><tr><th>Модель</th><th>Мышление</th><th>Сист. промпт</th>'
                           '<th>Время</th><th>Цена</th><th>Цена без амортизации</th></tr>'
                           + "\n".join(_ec) + '</table>')
