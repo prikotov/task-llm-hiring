@@ -2381,23 +2381,29 @@ def build(models, sessions, primer, low_json=None):
     _ec = []
     for m in sorted(models + prompt_rows, key=lambda x: -(x["glm"] or x["clef"])):
         if m["folder"] in FREEMIUM:
-            price = "₽0 (freemium)"
+            price = "₽0<div class=sub>freemium</div>"
         elif m["folder"] == "yandexgpt":
             s0 = json.loads((ROOT / m["folder"] / "backend" / m["runs"][0]
                              / "session.json").read_text())
             rub = s0.get("usage", {}).get("cost_rub") or m["cost"] * RUB_USD
-            price = f"${fmt_cost(m['cost'])} · ₽{fmt_cost(rub)}"
+            price = f"${fmt_cost(m['cost'])}<div class=sub>₽{fmt_cost(rub)}</div>"
         else:
             rub = m["cost"] * RUB_USD
-            price = (f"${fmt_cost(m['cost'])} · ₽{fmt_cost(rub)}" if m["cost"] else "0")
-        _ec.append(f'<tr><td>{m["label"]}'
-                   + (f' <span class=sub>{THINK_SHORT.get(m["series"], m["series"])}</span>'
-                      if m["series"] in ("think-low", "мышление включено") else "")
-                   + f'</td><td class=num>{m["dur_min"]} мин</td><td class=num>{price}</td></tr>')
+            price = (f"${fmt_cost(m['cost'])}<div class=sub>₽{fmt_cost(rub)}</div>"
+                     if m["cost"] else "0")
+        badge = {"cloud": '<span class="badge g">облако</span>',
+                 "local": '<span class="badge b">локально</span>',
+                 "negctrl": ""}[m["kind"]]
+        _ec.append(f'<tr><td><b>{m["label"]}</b><div class=sub>{badge}</div></td>'
+                   f'<td>{THINK_SHORT.get(m["series"], m["series"])}</td>'
+                   f'<td>{"да" if m.get("primer") else "—"}</td>'
+                   f'<td class=num>{m["dur_min"]} мин</td>'
+                   f'<td class=num>{price}</td></tr>')
     econ_sessions_html = ('<p>Стоимость одной сессии по всем протестированным вариантам '
                           '(порядок как в §4; локальные — по модели стоимости, '
                           'облачные — фактические списания):</p>'
-                          '<table><tr><th>Вариант</th><th>Длительность</th><th>Цена</th></tr>'
+                          '<table><tr><th>Модель</th><th>Мышление</th><th>Сист. промпт</th>'
+                          '<th>Время</th><th>Цена</th></tr>'
                           + "\n".join(_ec) + '</table>')
     judge_cost_html = (
         f'<p>clef оценил {len(clef_calls):,} ответов в {clef_runs} интервью — '
