@@ -1806,10 +1806,17 @@ clef, с прежней формулировкой need_review, а судья я
 <h3>Состав данных репозитория</h3>
 <table>
 <tr><th>Данные</th><th>Где</th><th>Что внутри</th></tr>
-<tr><td>Папки моделей</td><td><a href="https://github.com/prikotov/task-llm-hiring/tree/main/models">models/</a></td><td>29 папок, по одной на модель. Внутри каждой: model.md — карточка (характеристики, статус, история прогонов); backend/run-XX/ — 96 прогонов (session.json с вопросами, ответами, размышлениями и таймингами + transcript.md); backend/scorecard.md — свод результатов модели (6 шт: устойчивость, провокации, самооценка); backend/judgments/ — вердикты clef (13 json с телеметрией + 86 csv прежнего формата + эскалационные признаки), вердикты LLM-судьи glm-5.3-flash-iso/ (27 файлов: балл, флаг галлюцинации, пояснение с проверками кодом; run-16.low.json — артефакт low/max) и tasks/ — 26 наборов пар вопрос-ответ для воспроизводимости</td></tr>
+<tr><td>Папки моделей</td><td><a href="https://github.com/prikotov/task-llm-hiring/tree/main/models">models/</a></td><td>29 папок, по одной на модель; всё её данные (карточка, прогоны, свод результатов, вердикты) лежат внутри — расшифровка ниже</td></tr>
+<tr><td>Карточки моделей</td><td>models/&lt;модель&gt;/model.md</td><td>29 карточек: характеристики, статус, история прогонов, наблюдения по каждой модели</td></tr>
+<tr><td>Прогоны</td><td>models/&lt;модель&gt;/backend/run-XX/</td><td>96 прогонов: session.json (вопросы, ответы, размышления, тайминги, условия серии) и transcript.md — читаемый транскрипт</td></tr>
+<tr><td>Своды результатов моделей</td><td>models/&lt;модель&gt;/backend/scorecard.md</td><td>6 сводок: итоги прогонов модели — устойчивость ответов, провокации, самооценка, подходы к решениям</td></tr>
+<tr><td>Вердикты clef (ярус 1)</td><td>models/&lt;модель&gt;/backend/judgments/</td><td>clef/&lt;run&gt;.json — 13, новый формат с телеметрией вызовов; decision-clef-&lt;run&gt;.csv — 86, прежний формат; escalation-clef-&lt;run&gt;.csv — эскалационные признаки. Балл и вероятности галлюцинации по каждому ответу</td></tr>
+<tr><td>Вердикты LLM-судьи (ярус 2)</td><td>models/&lt;модель&gt;/backend/judgments/glm-5.3-flash-iso/</td><td>27 файлов: балл, флаг галлюцинации, пояснение с проверками кодом; run-16.low.json — артефакт сравнения low/max</td></tr>
+<tr><td>Задачи судейства</td><td>models/&lt;модель&gt;/backend/judgments/tasks/</td><td>26 наборов входных пар вопрос-ответ для воспроизводимости вердиктов</td></tr>
 <tr><td>Кросс-модельные агрегаты</td><td><a href="https://github.com/prikotov/task-llm-hiring/tree/main/reports">reports/</a></td><td>26 файлов: decision-all.csv — свод вердиктов clef/clef-flash (неполон: облачные прогоны есть только в папках моделей), judges-all.csv — все судьи, scoring-calls.jsonl — журнал вызовов оценщиков с латентностью и токенами (с 14 октября), исследования судей (COMPARE-*, AUDIT, EMBEDDINGS, LOW-vs-MAX), журнал трат OpenRouter</td></tr>
 <tr><td>Методика</td><td><a href="https://github.com/prikotov/task-llm-hiring/tree/main/interview">interview/</a></td><td>вопросники ролей, раннеры, скрипты судейства и оценки; task-roles/ — описания ролей команды TasK (ru), под которые проводятся собеседования</td></tr>
 </table>
+
 
 
 
