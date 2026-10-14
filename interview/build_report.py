@@ -2382,19 +2382,21 @@ def build(models, sessions, primer, low_json=None):
     for p in ROOT.glob("*/backend/judgments/glm-5.3-flash-iso/*.json"):
         judge_verdicts += len(json.loads(p.read_text())["results"])
     judge_verdicts -= 30   # run-16.low.json — артефакт сравнения low/max, не отдельное судейство
+    _sec = round(clef_total_s / clef_runs)
+    sec_word = ("секунда" if _sec % 10 == 1 and _sec % 100 != 11 else
+                "секунды" if _sec % 10 in (2, 3, 4) and _sec % 100 not in (12, 13, 14)
+                else "секунд")
+    sec = _sec
     judge_cost_html = (
-        '<h3>Сколько стоила сама оценка</h3>'
-        f'<p>clef оценил {len(clef_calls):,} ответов в {clef_runs} интервью. '
-        f'Итого: {clef_total_s/60:.0f} минут GPU — ₽{clef_total_s * 35.85 / 3600:.0f} '
-        f'по модели стоимости (₽{clef_total_s * 3.89 / 3600:.1f} электричества), '
-        f'~{clef_tok/1e6:.1f} млн входных токенов; в среднем на одно интервью — '
-        f'{clef_total_s/60/clef_runs*60:.0f} '
-        f'{{"секунду" if round(clef_total_s/clef_runs) == 1 else "секунды" if round(clef_total_s/clef_runs) < 5 else "секунд"}} и '
-        f'₽{clef_total_s * 35.85 / 3600 / clef_runs:.2f}. '
-        'Время — оценка по замеренной латентности (тёплый вызов 0.7 с, холодный старт '
-        'прогона 5.5 с): тайминги исторических вызовов не сохранялись, с 14 октября '
-        'score.py пишет журнал каждого вызова с латентностью и токенами '
-        '(API отдаёт точные usage.input_tokens).</p>'
+        f'<p>clef оценил {len(clef_calls):,} ответов в {clef_runs} интервью — '
+        f'суммарно {clef_total_s/60:.0f} минут GPU, или ₽{clef_total_s * 35.85 / 3600:.0f} '
+        f'по модели стоимости (из них ₽{clef_total_s * 3.89 / 3600:.0f} электричества). '
+        f'На одно интервью это {sec} {sec_word} работы оценщика и '
+        f'₽{clef_total_s * 35.85 / 3600 / clef_runs:.2f}.</p>'
+        '<p class=sub>Время оценочное: тайминги прошлых вызовов не сохранялись, '
+        'стоимость рассчитана по замеренной латентности (тёплый вызов 0.7 с, '
+        'холодный старт прогона 5.5 с). Теперь score.py логирует латентность '
+        'и токены каждого вызова — вперёд считается точно.</p>'
         f'<p>LLM-судья (GLM-5.3-Flash по подписке Z.AI) вынес {judge_verdicts:,} вердиктов. '
         'Первые 219 — workflow с акторами-сабагентами (9–10 октября: «Поответное судейство '
         'GLM-5.3-Flash», «GLM-Flash-эталон по 7 моделям»; 45 млн totalTokens с кэш-покрытием '
