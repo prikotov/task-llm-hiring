@@ -1,7 +1,7 @@
 # Собес: `gemma4:e2b` · роль: backend — run-01
 
 - Дата: 2026-10-08T11:26:00.357742+00:00
-- Сервер: http://nserv:11434 · keep_alive: 0 · think: off · num_ctx: 131072
+- Сервер: http://ollama-host:11434 · keep_alive: 0 · think: off · num_ctx: 131072
 - Вопросов: 35
 
 ---

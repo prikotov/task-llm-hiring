@@ -1,6 +1,6 @@
 # gemma4:26b
 
-Источник: ollama на nserv (`http://nserv:11434`).
+Источник: ollama на ollama-host (`http://ollama-host:11434`).
 
 - Архитектура/семейство: gemma4
 - Параметры: 25.2B
@@ -9,7 +9,7 @@
 - Размер: 17.3 GB
 - Возможности: completion, vision, tools, thinking
 - Мышление: параметр `think` — только `false / true`, градаций уровня нет,
-  дефолт **включено** (проверено на nserv, ollama 0.40.0; `/api/show` →
+  дефолт **включено** (проверено на ollama-host, ollama 0.40.0; `/api/show` →
   `thinking.values`). Выставляется полем `think` верхнего уровня тела
   `/api/chat` (не в `options`). Серии backend run-01…10 — `think: false`,
   дефолт отключён сознательно.

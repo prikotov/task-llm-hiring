@@ -2,7 +2,7 @@
 
 ## Характеристики
 
-- Провайдер: Anthropic, доступ — OpenRouter (`anthropic/claude-opus-5.5`), не на nserv
+- Провайдер: Anthropic, доступ — OpenRouter (`anthropic/claude-opus-5.5`), не на ollama-host
 - Цена: $4.00/1M входных, $20.00/1M выходных (самая дорогая из тестировавшихся)
 - Режим: reasoning effort **low**
 

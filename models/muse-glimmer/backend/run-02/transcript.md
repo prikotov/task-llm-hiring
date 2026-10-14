@@ -1,7 +1,7 @@
 # Собес: `muse-glimmer` · роль: backend — run-02
 
 - Дата: 2026-10-09T01:48:59.818928+00:00
-- Сервер: http://nserv:11434 · keep_alive: 10m · think: off · num_ctx: 131072
+- Сервер: http://ollama-host:11434 · keep_alive: 10m · think: off · num_ctx: 131072
 - Вопросов: 35
 
 ---

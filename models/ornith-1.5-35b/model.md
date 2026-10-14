@@ -1,6 +1,6 @@
 # ornith-1.5:35b
 
-Источник: ollama на nserv (`http://nserv:11434`).
+Источник: ollama на ollama-host (`http://ollama-host:11434`).
 
 - Архитектура/семейство: qwen35moe
 - Параметры: 35.5B

@@ -1,7 +1,7 @@
 # Собес: `qwen3.8:latest` · роль: backend — run-06
 
 - Дата: 2026-10-06T18:50:23.711851+00:00
-- Сервер: http://nserv:11434 · keep_alive: 30m · think: off · num_ctx: 131072
+- Сервер: http://ollama-host:11434 · keep_alive: 30m · think: off · num_ctx: 131072
 - Вопросов: 32
 
 ---

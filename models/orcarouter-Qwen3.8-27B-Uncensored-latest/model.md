@@ -1,6 +1,6 @@
 # orcarouter/Qwen3.8-27B-Uncensored:latest
 
-Источник: ollama на nserv (`http://nserv:11434`).
+Источник: ollama на ollama-host (`http://ollama-host:11434`).
 
 - Архитектура/семейство: qwen35
 - Параметры: 27.3B
@@ -10,7 +10,7 @@
 - Возможности: completion, vision, tools, thinking
 - Мышление: параметр `think` — только `false / true`, градаций уровня нет
   (в отличие от базовой qwen3.8: у unc-сборок шкала `low/medium/xhigh`
-  потеряна), дефолт **включено** (проверено на nserv, ollama 0.40.0;
+  потеряна), дефолт **включено** (проверено на ollama-host, ollama 0.40.0;
   `/api/show` → `thinking.values`). Выставляется полем `think` верхнего
   уровня тела `/api/chat` (не в `options`; шаблонная `enable_thinking` —
   внутренняя деталь ollama, напрямую её не задаём). Серии backend

@@ -1,4 +1,4 @@
-# muse-glimmer (nserv)
+# muse-glimmer (ollama-host)
 
 ## Характеристики
 
@@ -9,10 +9,10 @@
 - Контекст 128K
 - Мышление: параметр `think` — `false / low / medium / high / max`
   (**своя шкала**, не qwen3.8-стиля с `xhigh`), дефолт `high`
-  (проверено на nserv, ollama 0.40.0; `/api/show` → `thinking.values`).
+  (проверено на ollama-host, ollama 0.40.0; `/api/show` → `thinking.values`).
   Выставлять — полем верхнего уровня тела `/api/chat` (не в `options`),
   уровень строкой из шкалы выше:
-  `curl http://nserv:11434/api/chat -d '{"model":"muse-glimmer","messages":[…],"think":"low"}'`.
+  `curl http://ollama-host:11434/api/chat -d '{"model":"muse-glimmer","messages":[…],"think":"low"}'`.
   Серии backend — `think: false`, дефолт отключён сознательно.
 
 ## Backend

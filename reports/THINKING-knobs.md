@@ -1,4 +1,4 @@
-# Ручки мышления локальных моделей (nserv, ollama)
+# Ручки мышления локальных моделей (ollama-host, ollama)
 
 Дата: 2026-10-12 · ollama 0.40.0 · источники: `/api/show` по каждому тегу
 (поля `thinking.values` / `thinking.default`, `parameters`), chat-шаблоны
@@ -43,7 +43,7 @@
   уровень — строка: `"low" | "medium" | "xhigh"` (qwen3.8-семейство),
   `"high" | "max"` (muse-glimmer):
   ```bash
-  curl http://nserv:11434/api/chat -d '{
+  curl http://ollama-host:11434/api/chat -d '{
     "model": "qwen3.8:27b",
     "messages": [{"role": "user", "content": "…"}],
     "think": "low",

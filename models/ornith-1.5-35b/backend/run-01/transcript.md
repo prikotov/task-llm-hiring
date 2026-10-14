@@ -1,7 +1,7 @@
 # Собес: `ornith-1.5:35b` · роль: backend — run-01
 
 - Дата: 2026-10-06T14:21:01.523480+00:00
-- Сервер: http://nserv:11434 · keep_alive: 0 · think: auto
+- Сервер: http://ollama-host:11434 · keep_alive: 0 · think: auto
 - Вопросов: 32
 
 ---

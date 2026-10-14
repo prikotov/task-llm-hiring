@@ -1,6 +1,6 @@
 # qwen3-vl:30b-a3b-pi-100k
 
-Источник: ollama на nserv (`http://nserv:11434`).
+Источник: ollama на ollama-host (`http://ollama-host:11434`).
 
 - Архитектура/семейство: qwen3vlmoe
 - Параметры: 31.1B

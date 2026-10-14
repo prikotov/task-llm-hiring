@@ -1,6 +1,6 @@
 # `qwen3.8:27b` и `qwen3.8:latest`
 
-Источник: ollama на nserv (`http://nserv:11434`).
+Источник: ollama на ollama-host (`http://ollama-host:11434`).
 
 - Архитектура/семейство: qwen35
 - Параметры: 27.3B
@@ -9,7 +9,7 @@
 - Размер: 16.5 GB
 - Возможности: completion, vision, tools, thinking
 - Мышление: параметр `think` принимает `false / "low" / "medium" / "xhigh"`
-  (проверено на nserv, ollama 0.40.0; `/api/show` → `thinking.values`,
+  (проверено на ollama-host, ollama 0.40.0; `/api/show` → `thinking.values`,
   дефолт `medium`; объектные схемы с бюджетом — ошибка 400).
   Дефолтные прогоны с мышлением (run-01…05, think auto = medium)
   генерируют ~125k токенов за собес и не помещаются в быстрый контекст
@@ -27,7 +27,7 @@
   провокации 15/15; 26–30 мин на собес.
   Как выставлять: поле верхнего уровня тела `/api/chat` (не в `options`),
   уровень — строкой, выключение — булевым `false`:
-  `curl http://nserv:11434/api/chat -d '{"model":"qwen3.8:27b","messages":[…],"think":"low"}'`
+  `curl http://ollama-host:11434/api/chat -d '{"model":"qwen3.8:27b","messages":[…],"think":"low"}'`
 - Дайджест: `aaee06c39dcf2437…`
 - Обновлён: 2026-10-12
 
