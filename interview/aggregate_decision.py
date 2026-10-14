@@ -11,7 +11,7 @@ import re
 import statistics
 from pathlib import Path
 
-ROOT = Path('/home/dp/MyProjects/Models')
+ROOT = Path(__file__).resolve().parent.parent
 
 # серии по диапазонам прогонов (после инцидентов калибровки)
 SERIES = {
