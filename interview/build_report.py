@@ -1809,6 +1809,7 @@ clef, с прежней формулировкой need_review, а судья я
 <div class=card><b>YandexGPT Pro 5: ₽371.42 · $4.36</b>факт детализации: тариф плоский ₽1.2/1k на любой тип токенов — кэш покрывает 90% промпта (264k из 294k), но цену не снижает; дороже Sol при худшем качестве</div>
 </div>
 <div class=note><b>Две находки о кэше.</b> OpenAI кэширует промпты автоматически (проверено сверкой со счётом: списания на 70% ниже тарифа), а Anthropic только по явным меткам <code>cache_control</code>; их отсутствие едва не сорвало Opus-прогон.<br><b>Локальные не бесплатны.</b> Собес qwen3.8 27B без мышления (8.9 минуты чистой генерации) по модели стоит ₽5.33 ($0.063) — вдвое дороже Luna ($0.0300); с мышлением low (27 минут) — ₽16 ($0.19), уже дороже Haiku ($0.0500–0.18), и при этом медленнее: минуты против 6 минут у Haiku. Локальный инференс окупается приватностью и неограниченным объёмом, а не ценой за сессию.<br><b>Сбер в бизнес-ценах неконкурентен:</b> GigaChat-2 Max стоит как Opus (₽216.05–565.15 ≈ $2.54–6.64 за сессию) при балле 2.78 — уровне негативного контроля medgemma (2.67); GigaChat-3 Ultra через cloud.ru (₽70.71–140.10 ≈ $0.83–1.65) берёт близко к цене Sol ($0.62), а даёт балл 3.38 — ниже лучшей локальной muse-glimmer (3.53). Дешевле всего российский ИИ обходится бесплатно, физлицом во freemium.</div>
+<!--JUDGECOST-->
 
 <h2 id=sessions><span class=no>9</span>Сессии и данные</h2>
 <p>Все завершённые прогоны. Ссылки ведут на полные транскрипты в репозитории исследования (файл README рядом с отчётом описывает структуру).</p>
@@ -2335,6 +2336,55 @@ def build(models, sessions, primer, low_json=None):
 
     # --- low vs max ---
     low_section = ""
+    # --- стоимость самой оценки: счётчики clef и судьи ---
+    clef_calls = set()
+    for r in csv.DictReader(open(ROOT / "reports" / "decision-all.csv", encoding="utf-8-sig")):
+        if r["judge"] == "clef":
+            clef_calls.add((r["model"], r["run"], r["question"]))
+    for p in ROOT.glob("*/backend/judgments/clef/*.json"):
+        for v in json.loads(p.read_text())["results"]:
+            clef_calls.add((p.parents[3].name, p.stem, v["id"]))
+
+    def _state_tokens(model, run, qid):
+        """Оценка входа одного clef-вызова: вопрос + ответ, ~3.5 символа на токен."""
+        try:
+            s = json.loads((ROOT / model / "backend" / run / "session.json").read_text())
+        except FileNotFoundError:
+            return 0
+        base, _, fus = qid.partition(".")
+        for t in s["turns"]:
+            if t["id"] != base:
+                continue
+            if not fus:
+                return (len(t["question"]) + len(t["answer"])) / 3.5
+            fl = t.get("followups") or []
+            i = int(fus[2:]) if fus.startswith("fu") else 0
+            if 0 < i <= len(fl):
+                return (len(t["question"]) + len(fl[i - 1]["text"])
+                        + len(fl[i - 1]["answer"])) / 3.5
+            return 0
+        return 0
+
+    clef_tok = sum(_state_tokens(*c) for c in clef_calls)
+    judge_verdicts = 0
+    for p in ROOT.glob("*/backend/judgments/glm-5.3-flash-iso/*.json"):
+        judge_verdicts += len(json.loads(p.read_text())["results"])
+    judge_verdicts -= 30   # run-16.low.json — артефакт сравнения low/max, не отдельное судейство
+    judge_cost_html = (
+        '<h3>Сколько стоила сама оценка</h3>'
+        f'<p>clef оценил {len(clef_calls):,} ответов (все серии и эксперименты; '
+        f'{clef_tok/1e6:.1f} млн входных токенов — оценка по объёму вопросов и ответов, '
+        'латентность тёплого вызова ~0.7 с). Это суммарно порядка часа работы GPU на nserv — '
+        'по модели стоимости выше выходит меньше рубля.</p>'
+        f'<p>LLM-судья (GLM-5.3-Flash по подписке Z.AI, изолированный запуск на каждый ответ) '
+        f'вынес {judge_verdicts:,} вердиктов. Вердикт на уровне max стоит ~27 тыс. токенов '
+        '(замер low/max-эксперимента) — суммарно порядка 23 млн токенов подписки; '
+        'время судейства — порядка 30 часов (замеренные прогоны дают 1–2.5 часа на 30 ответов, '
+        'включая проверки кодом).</p>'
+        '<p>Отчёт собирал ассистент (GLM-5.3, та же подписка). Снимок сессии на утро 14.10: '
+        '13+ часов, 105 запросов к модели, 44 млн входящих токенов, из них 96% — кэш-чтения '
+        '(подписка не тарифицируется по токенам), один авто-компакт. Сессия продолжается — '
+        'числа обновим по завершении.</p>')
     if low_json:
         pairs = []
         for m in low_json.get("all", []):
@@ -2501,6 +2551,7 @@ def build(models, sessions, primer, low_json=None):
             .replace("<!--THINK-->", think_html)
             .replace("<!--JUDGES-->", judges_html)
             .replace("<!--LOW-->", low_section)
+            .replace("<!--JUDGECOST-->", judge_cost_html)
             .replace("<!--SESSIONS-->", sessions_html)
             .replace("__TOTAL__", str(total))
             .replace("__MODELS_N__", str(len({m["folder"] for m in models}))))
