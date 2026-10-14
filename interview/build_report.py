@@ -1796,6 +1796,7 @@ clef, с прежней формулировкой need_review, а судья я
 <tr><td class=neg><b>Итого</b></td><td>курс ₽85.15/$</td><td class=neg>₽35.85/ч ≈ $0.42</td></tr>
 </table>
 <p class=sub>Пример: собес qwen3.8 27B без мышления — 8.9 минуты чистой генерации, ₽5.33 ($0.0626); курс доллара на октябрь 2026. Допущения консервативны в обе стороны и взяты серединой: круглосуточная эксплуатация дала бы вдвое меньшую амортизацию (₽15.98/ч), но сервер делят и другие задачи, кроме инференса; остаточную стоимость 50% имела бы только GPU-часть без платформы. Параметры собраны в одном месте скрипта отчёта (<code>LOCAL_KWH, RUB_KWH, HW_COST_RUB, HW_RESIDUAL_PCT, AMORT_HOURS</code>).</p>
+<!--ECONSESSIONS-->
 <div class=note><b>Две находки о кэше.</b> OpenAI кэширует промпты автоматически (проверено сверкой со счётом: списания на 70% ниже тарифа), а Anthropic только по явным меткам <code>cache_control</code>; их отсутствие едва не сорвало Opus-прогон.<br><b>Локальные не бесплатны.</b> Собес qwen3.8 27B без мышления (8.9 минуты чистой генерации) по модели стоит ₽5.33 ($0.063) — вдвое дороже Luna ($0.0300); с мышлением low (27 минут) — ₽16 ($0.19), уже дороже Haiku ($0.0500–0.18), и при этом медленнее: минуты против 6 минут у Haiku. Локальный инференс окупается приватностью и неограниченным объёмом, а не ценой за сессию.<br><b>Сбер в бизнес-ценах неконкурентен:</b> GigaChat-2 Max стоит как Opus (₽216.05–565.15 ≈ $2.54–6.64 за сессию) при балле 2.78 — уровне негативного контроля medgemma (2.67); GigaChat-3 Ultra через cloud.ru (₽70.71–140.10 ≈ $0.83–1.65) берёт близко к цене Sol ($0.62), а даёт балл 3.38 — ниже лучшей локальной muse-glimmer (3.53). Дешевле всего российский ИИ обходится бесплатно, физлицом во freemium.</div>
 <!--JUDGECOST-->
 
@@ -2375,6 +2376,29 @@ def build(models, sessions, primer, low_json=None):
                 "секунды" if _sec % 10 in (2, 3, 4) and _sec % 100 not in (12, 13, 14)
                 else "секунд")
     sec = _sec
+
+    # --- таблица стоимости одной сессии по всем протестированным вариантам ---
+    _ec = []
+    for m in sorted(models + prompt_rows, key=lambda x: -(x["glm"] or x["clef"])):
+        if m["folder"] in FREEMIUM:
+            price = "₽0 (freemium)"
+        elif m["folder"] == "yandexgpt":
+            s0 = json.loads((ROOT / m["folder"] / "backend" / m["runs"][0]
+                             / "session.json").read_text())
+            rub = s0.get("usage", {}).get("cost_rub") or m["cost"] * RUB_USD
+            price = f"${fmt_cost(m['cost'])} · ₽{fmt_cost(rub)}"
+        else:
+            rub = m["cost"] * RUB_USD
+            price = (f"${fmt_cost(m['cost'])} · ₽{fmt_cost(rub)}" if m["cost"] else "0")
+        _ec.append(f'<tr><td>{m["label"]}'
+                   + (f' <span class=sub>{THINK_SHORT.get(m["series"], m["series"])}</span>'
+                      if m["series"] in ("think-low", "мышление включено") else "")
+                   + f'</td><td class=num>{m["dur_min"]} мин</td><td class=num>{price}</td></tr>')
+    econ_sessions_html = ('<p>Стоимость одной сессии по всем протестированным вариантам '
+                          '(порядок как в §4; локальные — по модели стоимости, '
+                          'облачные — фактические списания):</p>'
+                          '<table><tr><th>Вариант</th><th>Длительность</th><th>Цена</th></tr>'
+                          + "\n".join(_ec) + '</table>')
     judge_cost_html = (
         f'<p>clef оценил {len(clef_calls):,} ответов в {clef_runs} интервью — '
         f'суммарно {clef_total_s/60:.0f} минут GPU, или ₽{clef_total_s * 35.85 / 3600:.0f} '
@@ -2563,6 +2587,7 @@ def build(models, sessions, primer, low_json=None):
             .replace("<!--THINK-->", think_html)
             .replace("<!--JUDGES-->", judges_html)
             .replace("<!--LOW-->", low_section)
+            .replace("<!--ECONSESSIONS-->", econ_sessions_html)
             .replace("<!--JUDGECOST-->", judge_cost_html)
             .replace("<!--SESSIONS-->", sessions_html)
             .replace("__TOTAL__", str(total))
