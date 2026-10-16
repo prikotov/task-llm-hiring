@@ -40,9 +40,8 @@ DEFAULT_SKELETON = BILLING / "skeleton"
 REPORT_FROM = "2026-07-01T00:00:00Z"
 REPORT_TO = "2026-10-01T00:00:00Z"
 
-# файлы/каталоги, которые по AGENTS.md менять нельзя (дисциплинарная проверка).
-# .env и .env.example сюда сознательно не входят: AGENTS.md их не защищает,
-# а порт БД в .env кандидат может поменять легитимно
+# файлы каркаса: правка НЕ запрещена (TASK.md требует обосновывать отступления
+# в PR_DESCRIPTION.md) — чекер только фиксирует изменения для судьи
 PROTECTED = [
     "TASK.md",
     "AGENTS.md",
@@ -56,7 +55,7 @@ PROTECTED = [
 ]
 
 # дисциплинарные сценарии выполняются всегда; функциональные — только по ходу
-DISCIPLINE = {"files_untouched", "artifacts_present"}
+DISCIPLINE = {"skeleton_changes", "artifacts_present"}
 
 MANDATORY = {
     "db_create",
@@ -69,7 +68,6 @@ MANDATORY = {
     "import_duplicates",
     "rate_after_duplicates",
     "report_duplicates",
-    "files_untouched",
     "artifacts_present",
 }
 BONUS = {"reprice_output", "report_retro"}
@@ -189,8 +187,15 @@ class Checker:
         self.record("db_create", c.returncode == 0, (c.stderr or c.stdout)[-300:])
         if c.returncode != 0:
             return
+        # способ управления схемой — выбор кандидата; пробуем миграции,
+        # при их отсутствии/провале — schema:update; фиксируем способ для судьи
         c = self.console("doctrine:migrations:migrate", "-n")
-        self.record("migrate", c.returncode == 0, (c.stderr or c.stdout)[-300:])
+        method = "migrations"
+        if c.returncode != 0:
+            c = self.console("doctrine:schema:update", "--force", "--complete", "-n")
+            method = "schema_update"
+        self.record("migrate", c.returncode == 0,
+                    f"method={method}" + ("" if c.returncode == 0 else "; " + (c.stderr or c.stdout)[-250:]))
         if c.returncode != 0:
             return
 
@@ -281,7 +286,10 @@ class Checker:
                 continue
             if hashlib.sha256(new.read_bytes()).hexdigest() != hashlib.sha256(old.read_bytes()).hexdigest():
                 changed.append(rel)
-        self.record("files_untouched", not changed, "изменены: " + ", ".join(changed))
+        # правка каркаса не запрещена (TASK.md: обосновать в PR_DESCRIPTION.md);
+        # чекер фиксирует факт для судьи
+        self.record("skeleton_changes", True,
+                    ("изменены: " + ", ".join(changed)) if changed else "нет изменений")
 
         missing = [
             f for f in ("COMMIT_MESSAGE.md", "PR_DESCRIPTION.md")

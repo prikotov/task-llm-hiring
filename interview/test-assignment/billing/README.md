@@ -10,7 +10,7 @@
 
 | Путь | Что это |
 |---|---|
-| `skeleton/` | скелет для кандидата: Symfony 8 console (framework-bundle 8.0, http-kernel 7.4 LTS — чистая резолвиция без advisory-игноров), Doctrine ORM, миграции, docker compose PostgreSQL 17, PHPUnit, `TASK.md`, `AGENTS.md` (минимальный), sample-фикстуры. Vendor в git не входит (один composer install), прогоны офлайн |
+| `skeleton/` | скелет для кандидата: Symfony 8 console (framework-bundle 8.0, http-kernel 7.4 LTS — чистая резолвиция без advisory-игноров), Doctrine ORM, миграции, docker compose PostgreSQL 17, PHPUnit, `TASK.md`, `AGENTS.md` (минимальная памятка — практики модель выбирает сама, чекер и ревью наблюдают), sample-фикстуры. Vendor в git не входит (один composer install), прогоны офлайн |
 | `sample/` | те же sample-фикстуры отдельно (в скелет скопированы) |
 | `fixtures/` | **скрытые** фикстуры чекера (кандидату не показывать) + `golden/` |
 | `reference_calc.py` | референс арифметики: правила TASK.md на Decimal; генерирует `fixtures/golden/*` и числа worked example |
@@ -46,8 +46,10 @@ timeout 5400 pi -p --no-session --model <тег> \
   (тесты, правки) модель делает сама в своём цикле;
 - время: стартовый бюджет 90 минут на прогон (`timeout 5400`),
   калибруется пилотом;
-- сеть кандидату не нужна и не даётся ничего сверх обычного окружения;
-  vendor уже в скелете;
+- сеть не обязательна (vendor уже в скелете); AGENTS.md — памятка,
+  не предписывает практик: выбор способа управления схемой, изменения
+  каркаса и зависимости фиксируются чекером как наблюдения, «зачем» —
+  оценивает судья по PR_DESCRIPTION;
 - до серии убедиться, что pi умеет целиться в нужную модель
   (ollama-теги — через `--provider`/`--model`; на пилоте).
 
@@ -77,7 +79,9 @@ diff -ru interview/test-assignment/billing/skeleton "$RUN" > /tmp/diff.patch
   (обе стороны сошлись байт-в-байт по всем трём отчётам, unrated-строке
   и выводу reprice);
 - чекер прогнан на референсном решении: 11/11 обязательных, 2/2 бонусных;
-  референсное решение в репо не попадает (только у судьи локально);
+  fallback-путь проверен на копии без миграций (method=schema_update,
+  verdict pass); референсное решение в репо не попадает (только у судьи
+  локально);
 - `make db-up && make migrate` и worked example из TASK.md
   воспроизводятся на чистой БД.
 
