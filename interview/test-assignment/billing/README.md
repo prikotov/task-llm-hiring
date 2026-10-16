@@ -36,11 +36,16 @@ cd interview/test-assignment/billing/skeleton && composer install
 
 ```bash
 RUN=/tmp/billing-<model>-run<N>
+RESULTS=models/<модель>/test-assignment/run-XX && mkdir -p "$RESULTS"
 cp -r interview/test-assignment/billing/skeleton "$RUN"
 cd "$RUN" && cp .env.example .env
-timeout 5400 pi -p --no-session --model <тег> \
-  "Прочитай TASK.md в корне репозитория и выполни задание."
+timeout 5400 pi -p --session-dir "$RESULTS/pi-session" --model <тег> \
+  "Прочитай TASK.md в корне репозитория и выполни задание." 2>&1 | tee "$RESULTS/pi-run.log"
 ```
+
+Сессия pi (JSONL — полный след размышлений и действий) пишется в
+каталог результатов, вне копии репозитория: и `diff.patch` остаётся
+чистым, и материал для анализа агентного поведения сохраняется.
 
 - один запуск = один прогон; никаких follow-up'ов от нас — итерации
   (тесты, правки) модель делает сама в своём цикле;
@@ -56,27 +61,41 @@ timeout 5400 pi -p --no-session --model <тег> \
 ## Проверка и результаты
 
 ```bash
-# прогон pi с сохранением хода работы (аналог session.json/transcript.md этапа 1)
-timeout 5400 pi -p --no-session --model <тег> \
-  "Прочитай TASK.md в корне репозитория и выполни задание." 2>&1 | tee /tmp/pi-run.log
+RESULTS=models/<модель>/test-assignment/run-XX && mkdir -p "$RESULTS"
+
+# прогон pi: stdout — финальный ответ; сессия (JSONL с полным следом
+# размышлений и действий: вызовы инструментов, промежуточные ответы,
+# thinking) пишется в каталог результатов — вне копии репозитория,
+# чтобы diff.patch оставался чистым
+timeout 5400 pi -p --session-dir "$RESULTS/pi-session" --model <тег> \
+  "Прочитай TASK.md в корне репозитория и выполни задание." 2>&1 | tee "$RESULTS/pi-run.log"
 
 # ярус 0 — функциональные сценарии (docker, ~2 мин)
 python3 interview/test-assignment/billing/checker/check.py --repo "$RUN" \
-  > /tmp/check.json
+  > "$RESULTS/check.json"
 
 # ярус 0.5 — метрики качества (сеть, ставит тула в одноразовую копию)
 python3 interview/test-assignment/billing/checker/metrics.py --repo "$RUN" \
-  > /tmp/metrics.json
+  > "$RESULTS/metrics.json"
 
 # дифф для ревью
-diff -ru interview/test-assignment/billing/skeleton "$RUN" > /tmp/diff.patch
+diff -ru interview/test-assignment/billing/skeleton "$RUN" > "$RESULTS/diff.patch"
 ```
 
 Результаты складываются в `models/<модель>/test-assignment/run-XX/`:
-`pi-run.log`, `diff.patch`, `check.json`, `metrics.json`, `scorecard.md`
-(ревью по `RUBRIC.md`, оси A/B + лист конвенций из
-`interview/conventions-probe.md`). Сводные таблицы этапа — в `reports/`
-(по аналогии с этапом 1; формат зафиксируем по данным пилота).
+
+- `pi-session/` — сессия pi (JSONL): полный след размышлений и действий
+  модели — основной материал для анализа агентного поведения; для
+  удобного чтения: `pi --export pi-session/<file>.jsonl out.html`;
+- `pi-run.log` — stdout прогона (финальный ответ, ход по времени);
+- `diff.patch`, `check.json`, `metrics.json` — решение и ярусы 0/0.5;
+- `scorecard.md` — ревью по `RUBRIC.md`, оси A/B + лист конвенций из
+  `interview/conventions-probe.md`.
+
+Сводные таблицы этапа — в `reports/` (по аналогии с этапом 1; формат
+зафиксируем по данным пилота). На пилоте проверить, что `pi -p
+--session-dir` действительно пишет файл сессии (замечено: файлы сессий
+у pi — JSONL).
 
 ## Валидированность
 
