@@ -59,22 +59,44 @@ DEFAULT_CONTEXT = 102_400
 DEFAULT_TIMEOUT = 5400
 DEFAULT_THINKING = "max"
 
-# уровни pi -> значения reasoning_effort ollama (передаётся как есть).
-# ВАЖНО про max/xhigh (проверено 2026-10-16 на huihui-ai:pi-100k, мост-задача):
-# xhigh расширяет бюджет размышлений кратно (нативно ~110k символов против
-# ~5k у high) и при maxTokens 8192 сжигает весь completion-бюджет на thinking
-# -> finish=length, content пустой. Поэтому max -> high (рабочий максимум
-# агентного прогона), xhigh оставлен passthrough для экспериментов вместе
-# с --max-tokens 32768+.
-THINKING_LEVEL_MAP = {
-    "off": "none",
-    "minimal": "low",
-    "low": "low",
-    "medium": "medium",
-    "high": "high",
-    "xhigh": "xhigh",
-    "max": "high",
-}
+# Уровни pi -> значение для модели. Правильный источник — /api/show каждой
+# модели (docs.ollama.com: reasoning_effort принимает model-defined имена
+# + алиасы совместимости; узнать поддерживаемые — /api/show thinking.values).
+# Замеры 2026-10-16 показывают: несуществующее значение сервер молча
+# подменяет (qwen/huihui: шкала false/low/medium/xhigh, отправленный
+# "high" работал как ~medium), поэтому карту строим из фактической шкалы:
+#   max -> самый высокий уровень модели; off -> false; остальные —
+#   ближайший существующий сверху вниз. Для boolean-шкал (false,true —
+#   orca/gemma) любой уровень, кроме off, -> true.
+# Энергичные уровни (xhigh/max в шкале модели) кратно расширяют бюджет
+# размышлений и при малом maxTokens выжигают его в пустой ответ
+# (finish=length), поэтому maxTokens автоматически поднимается до 32768.
+PI_LEVELS_RANKED = ["low", "medium", "high", "xhigh", "max"]
+
+
+def thinking_map_for(values: list) -> tuple[dict, bool]:
+    """Карта уровней pi -> значения модели + признак «энергичный максимум»."""
+    levels = [v for v in values if isinstance(v, str)]
+    top = None
+    for cand in reversed(PI_LEVELS_RANKED):
+        if cand in levels:
+            top = cand
+            break
+    boolean = True in values
+    m: dict = {}
+    for pi_level in ("off", "minimal", "low", "medium", "high", "xhigh", "max"):
+        if pi_level == "off":
+            m[pi_level] = "none"
+        elif boolean and not levels:
+            m[pi_level] = True
+        elif pi_level in levels:
+            m[pi_level] = pi_level
+        elif top is not None:
+            m[pi_level] = top
+        else:
+            m[pi_level] = True
+    eager = top in ("xhigh", "max")
+    return m, eager
 
 TASK_PROMPT = "Прочитай TASK.md в корне репозитория и выполни задание."
 SMOKE_PROMPT = "Создай в текущем каталоге файл answer.txt с текстом 'ok' (без кавычек) и заверши работу."
@@ -95,13 +117,37 @@ def ollama_base_url() -> str:
     return url.rstrip("/")
 
 
+def model_thinking_values(model: str) -> list:
+    """/api/show: поддерживаемые значения thinking (пусто — thinking не управляется)."""
+    import urllib.request
+
+    try:
+        req = urllib.request.Request(
+            f"{ollama_base_url()}/api/show",
+            data=json.dumps({"model": model}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=60) as r:
+            d = json.loads(r.read())
+        holder = d.get("capabilities") or {}
+        t = holder.get("thinking") if isinstance(holder, dict) else None
+        if not isinstance(t, dict):
+            t = d.get("thinking") if isinstance(d.get("thinking"), dict) else {}
+        return list(t.get("values") or [])
+    except OSError:
+        return []
+
+
 def build_pi_home(tmp: Path, model: str, context: int, max_tokens: int, reasoning: bool) -> Path:
     pi_home = tmp / "pi-home"
     pi_home.mkdir()
     entry: dict = {"id": model, "contextWindow": context, "maxTokens": max_tokens}
     if reasoning:
+        values = model_thinking_values(model)
         entry["reasoning"] = True
-        entry["thinkingLevelMap"] = THINKING_LEVEL_MAP
+        entry["thinkingLevelMap"] = thinking_map_for(values)[0]
+        print(f"thinking-шкала модели ({len(values)} знач.): {values}"
+              + ("" if values else " — параметром не управляется"))
     (pi_home / "models.json").write_text(json.dumps(
         {
             "providers": {
@@ -191,8 +237,15 @@ def main() -> int:
     }
     run: PiRun | None = None
     try:
+        if args.max_tokens == 8192 and model_thinking_values(args.model):
+            _, eager = thinking_map_for(model_thinking_values(args.model))
+            if eager:
+                args.max_tokens = 32768
+                print("энергичный максимум thinking: maxTokens поднят до 32768 "
+                      "(при 8192 xhigh/max выжигают бюджет в пустой ответ)")
         pi_home = build_pi_home(tmp, args.model, args.context, args.max_tokens, args.reasoning)
         meta["max_tokens"] = args.max_tokens
+        meta["thinking_scale"] = model_thinking_values(args.model)
 
         if args.smoke:
             repo.mkdir()
