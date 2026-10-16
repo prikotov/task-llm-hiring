@@ -146,10 +146,14 @@ def build_pi_home(tmp: Path, model: str, context: int, max_tokens: int, reasonin
     entry: dict = {"id": model, "contextWindow": context, "maxTokens": max_tokens}
     if reasoning:
         values = model_thinking_values(model)
-        entry["reasoning"] = True
-        entry["thinkingLevelMap"] = thinking_map_for(values)[0]
-        print(f"thinking-шкала модели ({len(values)} знач.): {values}"
-              + ("" if values else " — параметром не управляется"))
+        if values:
+            entry["reasoning"] = True
+            entry["thinkingLevelMap"] = thinking_map_for(values)[0]
+            print(f"thinking-шкала модели ({len(values)} знач.): {values}")
+        else:
+            # пустая шкала = thinking не поддерживается: reasoning-флаг ставить
+            # нельзя — ollama отвечает 400 «does not support thinking»
+            print("thinking-шкала модели пуста — гоняем без reasoning-флага")
     (pi_home / "models.json").write_text(json.dumps(
         {
             "providers": {
