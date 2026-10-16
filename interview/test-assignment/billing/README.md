@@ -10,7 +10,7 @@
 
 | Путь | Что это |
 |---|---|
-| `skeleton/` | скелет для кандидата: Symfony 8 console (framework-bundle 8.0, http-kernel 7.4 LTS — чистая резолвиция без advisory-игноров), Doctrine ORM, миграции, docker compose PostgreSQL 17, PHPUnit, `TASK.md`, `AGENTS.md` (минимальная памятка — практики модель выбирает сама, чекер и ревью наблюдают), sample-фикстуры. Vendor в git не входит (один composer install), прогоны офлайн |
+| `skeleton/` | скелет для кандидата: Symfony 8 console (framework-bundle 8.0, http-kernel 7.4 LTS — чистая резолвиция без advisory-игноров), Doctrine ORM, миграции, docker compose PostgreSQL 17, PHPUnit, `TASK.md`, `AGENTS.md` (минимальная памятка — практики модель выбирает сама, чекер и ревью наблюдают), sample-фикстуры. Vendor в git не входит (один composer install), прогоны самодостаточны |
 | `sample/` | те же sample-фикстуры отдельно (в скелет скопированы) |
 | `fixtures/` | **скрытые** фикстуры чекера (кандидату не показывать) + `golden/` |
 | `reference_calc.py` | референс арифметики: правила TASK.md на Decimal; генерирует `fixtures/golden/*` и числа worked example |
@@ -25,7 +25,7 @@ Golden пересоздаются: `python3 reference_calc.py` (из этого 
 ## Прогон кандидата
 
 Скелет в git без `vendor/` (политика репо). Один раз подготовить его
-(сеть нужна только здесь, дальше прогоны офлайн):
+(сеть нужна только здесь; в прогонах сеть не обязательна — vendor уже в копии):
 
 ```bash
 cd interview/test-assignment/billing/skeleton && composer install

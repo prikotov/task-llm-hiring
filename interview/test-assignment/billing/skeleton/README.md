@@ -15,7 +15,4 @@ bin/console    # список команд
 Пример данных для самопроверки — в `fixtures/` (используется в разделе
 «Пример расчёта» задания).
 
-Сгенерировать миграцию из сущностей: `bin/console doctrine:migrations:diff`
-(maker-bundle не установлен).
-
 Тесты: `make test` (PHPUnit уже в `vendor/`).
