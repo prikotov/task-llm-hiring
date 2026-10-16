@@ -149,6 +149,10 @@ def main() -> int:
                 lines.append(f"| Токены | вход {u['input']:,} + выход {u['output']:,} (reasoning {u['reasoning']:,}), "
                              f"cache-read {u['cache_read']:,}; всего {u['total']:,} |")
                 lines.append(f"| Пик контекста | {u['context_peak']:,} токенов (лимит прогона {meta.get('context', '—')}) |")
+            cm = profile.get("context_management", {})
+            if cm:
+                lines.append(f"| Управление контекстом | автокомпактов: {cm.get('compaction', 0)}, "
+                             f"правок истории: {cm.get('context_edit', 0)} |")
                 lines.append(f"| Стоимость | ${u['cost_total']:.4f} (локальная модель — 0; тариф для сравнения задаётся при необходимости) |")
             lines.append("")
             lines.append("Таймлайн (tool-calls по 5 мин): "

@@ -74,6 +74,12 @@ def analyze(events: list[dict]) -> dict:
     roles: Counter[str] = Counter()
     assistant_texts: list[str] = []
 
+    # управление контекстом: автокомпакты и редактирования истории (pi)
+    context_mgmt = {"compaction": 0, "context_edit": 0}
+    for e in events:
+        if e.get("type") in context_mgmt:
+            context_mgmt[e["type"]] += 1
+
     usages: list[dict] = []
     for e in msgs:
         m = e["message"]
@@ -202,6 +208,7 @@ def analyze(events: list[dict]) -> dict:
 
     return {
         "usage": usage,
+        "context_management": context_mgmt,
         "self_checks": {
             **dict(self_checks),
             "test_outcomes_sequence": [t["result"] or "?" for t in test_runs],
@@ -253,6 +260,9 @@ def main() -> int:
     print(f"thinking: {stats['thinking_blocks']} блоков, {stats['thinking_chars']:,} символов; "
           f"текст ассистента: {stats['assistant_text_chars']:,}; результаты инструментов: "
           f"{stats['tool_result_chars']:,} (~транскрипт {stats['transcript_chars_approx']:,} симв.)")
+    cm = stats.get("context_management", {})
+    if cm.get("compaction") or cm.get("context_edit"):
+        print(f"контекст: автокомпактов {cm.get('compaction', 0)}, правок истории {cm.get('context_edit', 0)}")
     u = stats["usage"]
     print(f"токены: вызовов API {u['api_calls']}; вход {u['input']:,} + выход {u['output']:,}"
           f" (reasoning {u['reasoning']:,}); cache read {u['cache_read']:,};"
