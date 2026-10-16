@@ -1,0 +1,32 @@
+Всё готово и проверено. Итог:
+
+## Что сделано
+
+**Приложение** (PHP 8.4 / Symfony 8 / Doctrine + PostgreSQL 17), команды через `bin/console`:
+
+| Команда | Результат |
+|---|---|
+| `app:prices:import <file>` | Атомарный upsert провайдеров/моделей/строк цен; строгая валидация JSON (bad JSON → код 1) |
+| `app:usage:import <file>` | Импорт JSONL, дедуп по `(provider, provider_request_id)` через `ON CONFLICT DO NOTHING` (дубли → код 0) |
+| `app:billing:rate` | `RATED=<n> UNRATED=<m>` в stdout, по unrated — строки `UNRATED <provider>/<id> <ts> no_price` в stderr; повторные попытки unrated на каждом запуске |
+| `app:billing:report [--from --to]` | CSV байт-в-байт как в примере ТЗ + `TOTAL`; период `[from, to)` |
+| `app:billing:reprice <file>` | **Бонус**: upsert исправленных строк (providers/models в файле могут отсутствовать), пересчёт только событий заменённой строки, журнал `reprice_corrections`, ровно `REPRICED_EVENTS=<n>` / `REPRICE_DELTA_USD=<x.xxxxxx>` |
+
+**Архитектура**: `Domain` (`Decimal` на bcmath со шкалой 20, `TokenUsage`, `OffPeakWindow`), `Application` (6 сервисов), `Command` (5 тонких команд), `Entity` (4 сущности), миграция, 6 unit-тестов (23 ассерта, ОК).
+
+## Проверка (чистая БД)
+
+1. `make db-up && make migrate` — схема накатывается ✓
+2. Импорт фикстур + rate → `RATED=3 UNRATED=0` ✓
+3. Отчёт за сентябрь **совпадает с эталоном ТЗ байт-в-байт** (проверено `diff`) ✓
+4. Повторный импорт + rate + report — результат не меняется (`duplicates_ignored=3`) ✓
+5. Валидные пути: bad JSON/JSONL → rc 1; unrated → повторная тарификация после подтяжки цен; одинаковый request_id у разных провайдеров — разные события; нулевые токены → 0.000000; reprice: `REPRICED_EVENTS=1`, `REPRICE_DELTA_USD=3.000000`, отчёт после — без задвоений ✓
+
+## Ключевые решения (подробно — в PR_DESCRIPTION.md)
+
+- деньги — только bcmath-строки; единственное округление (до 6 знаков HALF_UP) — на событии; отчётные суммы — точное сложение;
+- цена — строка с **максимальным `valid_from ≤ ts`** (включительно);
+- оф-пик — на стоимость события целиком до единственного округления, окно `[start, end)` с переходом через полночь;
+- `user` в БД назван `user_id` (сервис SQL), наружу отдаётся как `user`.
+
+Файлы-результаты созданы: `COMMIT_MESSAGE.md`, `PR_DESCRIPTION.md`.
