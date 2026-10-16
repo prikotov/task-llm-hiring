@@ -56,6 +56,10 @@ timeout 5400 pi -p --no-session --model <тег> \
 ## Проверка и результаты
 
 ```bash
+# прогон pi с сохранением хода работы (аналог session.json/transcript.md этапа 1)
+timeout 5400 pi -p --no-session --model <тег> \
+  "Прочитай TASK.md в корне репозитория и выполни задание." 2>&1 | tee /tmp/pi-run.log
+
 # ярус 0 — функциональные сценарии (docker, ~2 мин)
 python3 interview/test-assignment/billing/checker/check.py --repo "$RUN" \
   > /tmp/check.json
@@ -69,8 +73,10 @@ diff -ru interview/test-assignment/billing/skeleton "$RUN" > /tmp/diff.patch
 ```
 
 Результаты складываются в `models/<модель>/test-assignment/run-XX/`:
-`diff.patch`, `check.json`, `metrics.json`, `scorecard.md` (ревью по
-`RUBRIC.md`, оси A/B + лист конвенций из `interview/conventions-probe.md`).
+`pi-run.log`, `diff.patch`, `check.json`, `metrics.json`, `scorecard.md`
+(ревью по `RUBRIC.md`, оси A/B + лист конвенций из
+`interview/conventions-probe.md`). Сводные таблицы этапа — в `reports/`
+(по аналогии с этапом 1; формат зафиксируем по данным пилота).
 
 ## Валидированность
 
