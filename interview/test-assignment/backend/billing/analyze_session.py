@@ -28,8 +28,12 @@ from pathlib import Path
 BUCKET_SEC = 300  # интервал таймлайна, 5 минут
 
 BASH_KINDS = [
-    ("tests", lambda c: "phpunit" in c or "vendor/bin/phpunit" in c),
-    ("console", lambda c: "bin/console" in c),
+    ("tests", lambda c: "phpunit" in c or c.startswith("make test") or "make test" in c),
+    ("static-analysis", lambda c: any(t in c for t in ("phpstan", "phpcs", "psalm", "phpmd"))),
+    ("lint php -l", lambda c: "php -l" in c),
+    ("console app:*", lambda c: "bin/console app:" in c),
+    ("console прочее", lambda c: "bin/console" in c),
+    ("psql/db", lambda c: "psql" in c or "pg_isready" in c),
     ("composer", lambda c: c.startswith("composer") or " composer " in c),
     ("docker", lambda c: "docker" in c or "podman" in c),
     ("make", lambda c: c.startswith("make ") or c == "make"),
@@ -106,7 +110,7 @@ def analyze(events: list[dict]) -> dict:
                 if isinstance(c, dict) and c.get("type") == "toolCall" and c.get("name") == "bash":
                     cmd = str((c.get("arguments") or {}).get("command")
                               or (c.get("arguments") or {}).get("content") or "")
-                    if "phpunit" in cmd:
+                    if "phpunit" in cmd or "make test" in cmd:
                         last_test_cmd = {"cmd": cmd, "ts": e.get("timestamp"), "result": None}
                         test_runs.append(last_test_cmd)
         elif m.get("role") == "toolResult" and last_test_cmd is not None and last_test_cmd["result"] is None:
@@ -156,6 +160,30 @@ def analyze(events: list[dict]) -> dict:
     def usum(key: str) -> int:
         return sum(int(u.get(key) or 0) for u in usages)
 
+    # самопроверка: чем модель себя проверяла
+    def kind_of(cmd: str) -> str | None:
+        if "phpunit" in cmd or "make test" in cmd:
+            return "tests"
+        if any(t in cmd for t in ("phpstan", "phpcs", "psalm", "phpmd")):
+            return "static_analysis"
+        if "php -l" in cmd:
+            return "lint"
+        if "bin/console app:" in cmd:
+            return "acceptance_commands"
+        if "psql" in cmd or "pg_isready" in cmd:
+            return "db_checks"
+        return None
+
+    self_checks: Counter[str] = Counter()
+    for cmd in bash_cmds:
+        if (k := kind_of(cmd)):
+            self_checks[k] += 1
+    debug_prints = 0
+    for _, name, args in tool_calls:
+        if name in ("write", "edit"):
+            blob = json.dumps(args, ensure_ascii=False)
+            debug_prints += blob.count("var_dump(") + blob.count("dd(") + blob.count("dump(")
+
     usage = {
         "api_calls": len(usages),
         "input": usum("input"),
@@ -174,6 +202,11 @@ def analyze(events: list[dict]) -> dict:
 
     return {
         "usage": usage,
+        "self_checks": {
+            **dict(self_checks),
+            "test_outcomes_sequence": [t["result"] or "?" for t in test_runs],
+            "debug_prints_in_code": debug_prints,
+        },
         "messages_total": len(msgs),
         "roles": dict(roles),
         "tool_calls_total": len(tool_calls),
@@ -233,6 +266,15 @@ def main() -> int:
         print("повторы команд (топ):")
         for cmd, n in stats["bash_top_repeat"]:
             print(f"    x{n}: {cmd[:110]}")
+    sc = stats["self_checks"]
+    print("самопроверка: " + ", ".join(
+        {"tests": "тесты (phpunit/make test)", "static_analysis": "статанализ (phpstan/phpcs/psalm/phpmd)",
+         "lint": "синтаксис (php -l)", "acceptance_commands": "приёмочные команды (bin/console app:*)",
+         "db_checks": "проверки БД (psql)"}.get(k, k) + f": {v}"
+        for k, v in sc.items() if not isinstance(v, list)))
+    print(f"  последовательность исходов тестов: {' -> '.join(sc['test_outcomes_sequence']) or '—'}")
+    if sc["debug_prints_in_code"]:
+        print(f"  отладочных принтов в коде (var_dump/dd/dump): {sc['debug_prints_in_code']}")
     print(f"запуски тестов: {stats['test_runs']}, исходы: {stats['test_results']}")
     print("таймлайн активности (tool-calls по 5-мин интервалам):")
     for k, v in stats["timeline_5m"].items():

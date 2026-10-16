@@ -125,6 +125,20 @@ def main() -> int:
             lines.append(f"| Файлы | {profile['files_touched']} касаний, {profile['files_distinct']} уникальных |")
             lines.append(f"| Bash по категориям | {profile['bash_by_kind']} |")
             lines.append(f"| Запуски тестов | {profile['test_runs']} ({profile['test_results']}) |")
+            sc = profile.get("self_checks", {})
+            if sc:
+                titles = {"tests": "тесты (phpunit/make test)",
+                          "static_analysis": "статанализ (phpstan/phpcs/…)",
+                          "lint": "синтаксис (php -l)",
+                          "acceptance_commands": "приёмочные команды (app:*)",
+                          "db_checks": "проверки БД (psql)"}
+                checks = ", ".join(f"{titles.get(k, k)}: {v}" for k, v in sc.items()
+                                   if not isinstance(v, (list, int)) or k == "debug_prints_in_code")
+                lines.append(f"| Самопроверка | {checks} |")
+                seq = " → ".join(sc.get("test_outcomes_sequence", []))
+                lines.append(f"| Исходы тестов подряд | {seq or '—'} |")
+                if sc.get("debug_prints_in_code"):
+                    lines.append(f"| Отладочные принты в коде | var_dump/dd/dump: {sc['debug_prints_in_code']} |")
             lines.append(f"| ~Транскрипт | {profile['transcript_chars_approx']:,} символов |")
             u = profile.get("usage", {})
             if u:
