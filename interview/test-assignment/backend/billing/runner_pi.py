@@ -84,18 +84,19 @@ def thinking_map_for(values: list) -> tuple[dict, bool]:
             top = cand
             break
     boolean = True in values
+    # pi валидирует значения карты как СТРОКИ (boolean true ломает models.json
+    # целиком — pi молча теряет все модели); для boolean-шкал любой уровень,
+    # кроме off, — строка "high"
     m: dict = {}
     for pi_level in ("off", "minimal", "low", "medium", "high", "xhigh", "max"):
         if pi_level == "off":
             m[pi_level] = "none"
-        elif boolean and not levels:
-            m[pi_level] = True
         elif pi_level in levels:
             m[pi_level] = pi_level
         elif top is not None:
             m[pi_level] = top
         else:
-            m[pi_level] = True
+            m[pi_level] = "high"
     eager = top in ("xhigh", "max")
     return m, eager
 
