@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """Ярус 0.5 — детерминированные метрики качества кода кандидата.
 
-Работает на КОПИИ репозитория кандидата (не трогает оригинал): ставит
-стат-анализаторы через composer (нужна сеть — прогоняется на стороне
-судьи, не кандидата), копирует конфиги из ~/MyProjects/coding-standard
-(если каталог есть) и снимает:
+Работает на КОПИИ репозитория кандидата (оригинал не трогает).
 
-- phpstan level 8 — количество ошибок по src/;
-- phpmd — нарушения (ruleset из coding-standard/examples, иначе дефолт);
-- phpcs PSR12 — количество нарушений;
-- scc — размер кодовой базы (файлы/строки по языкам);
-- AST-метрики — LOC/CC/WMC/LCOM4/Ca-Ce и findings по порогам coding-standard
-  (через универсальный `metrics-collect --source=src`).
+Инструменты кэшируются в ~/.cache/billing-metrics/ в виде самодостаточных
+phar-архивов (phpstan / phpcs / phpmd): скачиваются один раз, дальше
+прогоны полностью локальны и занимают секунды вместо ~10 минут
+composer-установок на каждый прогон. Если phar-ов нет и сеть недоступна —
+fallback на composer-установку в одноразовую копию (медленный путь).
 
-Выход: JSON в stdout. Любой инструмент может быть пропущен (status: skip)
-— остальные продолжают считаться.
+AST-метрики (CC/WMC/LCOM4/Ca-Ce) считаются сборщиком coding-standard
+(~/MyProjects/coding-standard, запускается напрямую из его чекаута —
+composer не нужен, если там собран vendor).
+
+Выход: JSON в stdout (tools_method: phar|composer). Любой инструмент
+может быть пропущен (status: skip) — остальные продолжают считаться.
 
 Запуск: python3 checker/metrics.py --repo /path/to/candidate
 """
@@ -28,10 +28,18 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.request
 from pathlib import Path
 
 CODING_STANDARD = Path.home() / "MyProjects" / "coding-standard"
-TOOLS = ["phpstan/phpstan", "squizlabs/php_codesniffer", "phpmd/phpmd"]
+PHAR_CACHE = Path.home() / ".cache" / "billing-metrics"
+
+# «latest release» редиректы GitHub; скачивание — один раз в кэш
+PHAR_URLS = {
+    "phpstan.phar": "https://github.com/phpstan/phpstan/releases/latest/download/phpstan.phar",
+    "phpcs.phar": "https://github.com/PHPCSStandards/PHP_CodeSniffer/releases/latest/download/phpcs.phar",
+    "phpmd.phar": "https://github.com/phpmd/phpmd/releases/latest/download/phpmd.phar",
+}
 
 CMD_TIMEOUT = 600
 
@@ -40,39 +48,63 @@ def run(cmd: list[str], cwd: Path, timeout: int = CMD_TIMEOUT) -> subprocess.Com
     return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
 
 
+def phar(name: str) -> Path | None:
+    """Путь к phar из кэша; при отсутствии — однократное скачивание."""
+    path = PHAR_CACHE / name
+    if path.is_file() and path.stat().st_size > 1_000_000:
+        return path
+    PHAR_CACHE.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".part")
+    try:
+        with urllib.request.urlopen(PHAR_URLS[name], timeout=120) as resp, tmp.open("wb") as out:
+            shutil.copyfileobj(resp, out)
+        if tmp.stat().st_size > 1_000_000:
+            tmp.replace(path)
+            print(f"phar-кэш: скачан {name}", file=sys.stderr)
+            return path
+    except OSError as exc:
+        print(f"phar-кэш: {name} недоступен ({exc})", file=sys.stderr)
+    tmp.unlink(missing_ok=True)
+    return None
+
+
 def install_tools(work: Path) -> bool:
-    c = run(["composer", "require", "--dev", *TOOLS, "--no-interaction", "--no-progress"], work)
+    """Медленный fallback: composer-установка инструментов в копию."""
+    c = run(["composer", "require", "--dev",
+             "phpstan/phpstan", "squizlabs/php_codesniffer", "phpmd/phpmd",
+             "--no-interaction", "--no-progress", "--no-audit"], work)
     return c.returncode == 0
 
 
-def phpstan(work: Path) -> dict:
+def phpstan(work: Path, phpstan_bin: list[str]) -> dict:
     (work / "phpstan.neon").write_text(
         "parameters:\n"
         "    level: 8\n"
         "    paths:\n        - src\n"
         "    excludePaths:\n        - src/Kernel.php\n", encoding="utf-8"
     )
-    c = run(["vendor/bin/phpstan", "analyse", "--no-progress", "--error-format=raw"], work)
+    c = run([*phpstan_bin, "analyse", "--no-progress", "--error-format=raw"], work)
     errors = [ln for ln in c.stdout.splitlines() if ln.strip()]
     return {"status": "ok", "exit": c.returncode, "errors": len(errors),
             "first": errors[:5]}
 
 
-def phpmd(work: Path) -> dict:
+def phpmd(work: Path, phpmd_bin: list[str]) -> dict:
     ruleset = CODING_STANDARD / "docs/conventions/examples/phpmd.xml"
     rules = str(ruleset) if ruleset.is_file() else "cleancode,codesize,design"
-    c = run(["vendor/bin/phpmd", "src", "text", rules], work)
+    # у phpmd 3.x новый CLI (analyze --format --ruleset), у 2.x — позиционный
+    c = run([*phpmd_bin, "analyze", "src", "--format=text", f"--ruleset={rules}"], work)
+    if c.returncode != 0 and not c.stdout.strip():
+        c = run([*phpmd_bin, "src", "text", rules], work)
     violations = [ln for ln in c.stdout.splitlines() if ln.strip()]
     return {"status": "ok", "rules": rules, "violations": len(violations),
             "first": violations[:5]}
 
 
-def phpcs(work: Path) -> dict:
+def phpcs(work: Path, phpcs_bin: list[str]) -> dict:
     # Kernel.php дан скелетом — не код кандидата, из проверки исключён
-    c = run([
-        "vendor/bin/phpcs", "--standard=PSR12", "--report=summary",
-        "--ignore=Kernel.php", "src",
-    ], work)
+    c = run([*phpcs_bin, "--standard=PSR12", "--report=summary",
+             "--ignore=Kernel.php", "src"], work)
     errors = warnings = 0
     m = re.search(r"TOTAL OF (\d+) ERRORS? AND (\d+) WARNINGS?", c.stdout)
     if m:
@@ -99,36 +131,21 @@ def scc(work: Path) -> dict:
 def ast_metrics(work: Path) -> dict:
     """CC/WMC/LCOM4/Ca-Ce по сырой AST-статистике coding-standard.
 
-    Полный пайплайн coding-standard-metrics завязан на deptrac-конфиг
-    с DDD-структурой TasK и на чужих репозиториях не работает, поэтому
-    берём универсальный `metrics-collect --source=src` и агрегируем сами
-    (пороги — из .coding-standard.php пакета coding-standard).
+    Сборщик запускается напрямую из чекаута coding-standard (без composer),
+    через универсальный `--source=src`; пороги — из .coding-standard.php.
     """
-    if not CODING_STANDARD.is_dir():
+    collector = CODING_STANDARD / "bin" / "metrics-collect"
+    if not collector.is_file():
         return {"status": "skip", "reason": "нет ~/MyProjects/coding-standard"}
-    run([
-        "composer", "config", "repositories.coding-standard", "path",
-        str(CODING_STANDARD),
-    ], work)
-    run([
-        "composer", "config", "allow-plugins.dealerdirect/phpcodesniffer-composer-installer",
-        "true",
-    ], work)
-    c = run([
-        "composer", "require", "--dev", "prikotov/coding-standard:*@dev",
-        "--no-interaction", "--no-progress",
-    ], work)
-    if c.returncode != 0:
-        return {"status": "skip", "reason": "composer require не удался: " + c.stderr[-200:]}
+    if not (CODING_STANDARD / "vendor" / "autoload.php").is_file():
+        return {"status": "skip",
+                "reason": "в coding-standard не собран vendor (composer install)"}
 
-    c = run([
-        "php", "vendor/bin/metrics-collect", "--source=src",
-        "--output=var/metrics/collector.json",
-    ], work)
-    collector = work / "var" / "metrics" / "collector.json"
-    if c.returncode != 0 or not collector.is_file():
+    out = work / "collector.json"
+    c = run(["php", str(collector), f"--source={work / 'src'}", f"--output={out}"], work)
+    if c.returncode != 0 or not out.is_file():
         return {"status": "skip", "reason": "metrics-collect не удался: " + (c.stderr or "")[-200:]}
-    report = json.loads(collector.read_text(encoding="utf-8"))
+    report = json.loads(out.read_text(encoding="utf-8"))
 
     internal = {cl["name"] for cl in report["classes"]}
     methods: dict[str, list[dict]] = {}
@@ -185,15 +202,30 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="billing-metrics-") as td:
         work = Path(td) / "repo"
         shutil.copytree(repo, work, ignore=shutil.ignore_patterns("var", ".git"))
-        if not install_tools(work):
-            report = {"status": "skip", "reason": "composer install не удался (сеть?)"}
-            print(json.dumps(report, ensure_ascii=False, indent=2))
+
+        phpstan_phar, phpcs_phar, phpmd_phar = (phar(n) for n in PHAR_URLS)
+        if phpstan_phar and phpcs_phar and phpmd_phar:
+            method = "phar"
+            phpstan_bin = ["php", str(phpstan_phar)]
+            phpcs_bin = ["php", str(phpcs_phar)]
+            phpmd_bin = ["php", str(phpmd_phar)]
+        elif install_tools(work):
+            method = "composer"
+            phpstan_bin = ["vendor/bin/phpstan"]
+            phpcs_bin = ["vendor/bin/phpcs"]
+            phpmd_bin = ["vendor/bin/phpmd"]
+        else:
+            print(json.dumps({"status": "skip",
+                              "reason": "инструменты недоступны (нет кэша и сети)"},
+                             ensure_ascii=False, indent=2))
             return 0
+
         report = {
             "repo": str(repo),
-            "phpstan": phpstan(work),
-            "phpmd": phpmd(work),
-            "phpcs": phpcs(work),
+            "tools_method": method,
+            "phpstan": phpstan(work, phpstan_bin),
+            "phpmd": phpmd(work, phpmd_bin),
+            "phpcs": phpcs(work, phpcs_bin),
             "scc": scc(work),
             "ast_metrics": ast_metrics(work),
         }

@@ -1,41 +1,59 @@
 #!/usr/bin/env python3
-"""Изолированный прогон тестового задания через pi (этап 2, пилот/серия).
+"""Изолированный и управляемый прогон тестового задания через pi (этап 2).
 
 Глобальный конфиг pi (~/.pi/agent) НЕ используется: каждый прогон получает
-собственный PI_CODING_AGENT_DIR во временном каталоге, а models.json для
+собственный PI_CODING_AGENT_DIR во временном каталоге, models.json для
 единственной модели собирается на лету. Адрес сервера моделей берётся из
 env OLLAMA_BASE_URL (или из .env.local корня репозитория) — в git адрес
 не попадает.
 
+Управляемость:
+- pi запускается лидером отдельной process group; SIGTERM/SIGINT раннера
+  и таймаут гасят всю группу — «зомби-pi», переживший остановку обёртки,
+  невозможен;
+- pi-run.log пишется стримингом (живой просмотр: tail -f);
+- run.json фиксирует параметры и исход прогона (модель, thinking, контекст,
+  время, exit code, версия TASK, размеры диффа/решения).
+
 Использование (из каталога billing/):
 
     python3 runner_pi.py --model qwen3.8:27b-pi-100k \
-        --results models/qwen3.8-27b-pi-100k/test-assignment/run-01
+        --results models/qwen3.8-27b-pi-100k/test-assignment/backend/run-01
 
 Опции: --thinking (default max), --context (default 102400),
---timeout секунд (default 5400), --reasoning/--no-reasoning (умеет ли
-модель thinking через API), --smoke (быстрая проверка сантехники на
-пустом каталоге), --keep (не удалять временные каталоги).
+--timeout секунд (default 5400), --reasoning/--no-reasoning,
+--smoke (проверка сантехники), --keep (не удалять временные каталоги).
 
-После прогона в <results>: pi-session/ (JSONL — полный след размышлений
-и действий), pi-run.log, diff.patch. Чекер и метрики — отдельно:
-checker/check.py, checker/metrics.py.
+После прогона в <results>: run.json, pi-session/ (JSONL — полный след
+размышлений и действий), pi-run.log, diff.patch, solution/.
+Чекер и метрики — отдельно: checker/check.py, checker/metrics.py.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 BILLING = HERE
-MODELS_REPO = BILLING.parents[2]
+
+
+def models_repo() -> Path:
+    """Корень репозитория Models — ищем вверх по дереву (устойчиво к вложенности роли)."""
+    for parent in BILLING.parents:
+        if (parent / ".env.local").is_file() or (parent / ".git").is_dir():
+            return parent
+    return BILLING.parents[3]
 
 DEFAULT_CONTEXT = 102_400
 DEFAULT_TIMEOUT = 5400
@@ -60,7 +78,7 @@ def ollama_base_url() -> str:
     """Адрес сервера моделей: env, затем .env.local корня репозитория."""
     url = os.environ.get("OLLAMA_BASE_URL")
     if not url:
-        env_local = MODELS_REPO / ".env.local"
+        env_local = models_repo() / ".env.local"
         if env_local.is_file():
             for line in env_local.read_text().splitlines():
                 if line.startswith("OLLAMA_BASE_URL="):
@@ -78,28 +96,56 @@ def build_pi_home(tmp: Path, model: str, context: int, reasoning: bool) -> Path:
     if reasoning:
         entry["reasoning"] = True
         entry["thinkingLevelMap"] = THINKING_LEVEL_MAP
-    (pi_home / "models.json").write_text(
-        json_dumps(
-            {
-                "providers": {
-                    "ollama": {
-                        "baseUrl": f"{ollama_base_url()}/v1",
-                        "api": "openai-completions",
-                        "apiKey": "ollama",
-                        "models": [entry],
-                    }
+    (pi_home / "models.json").write_text(json.dumps(
+        {
+            "providers": {
+                "ollama": {
+                    "baseUrl": f"{ollama_base_url()}/v1",
+                    "api": "openai-completions",
+                    "apiKey": "ollama",
+                    "models": [entry],
                 }
             }
-        ),
-        encoding="utf-8",
-    )
+        },
+        ensure_ascii=False, indent=2,
+    ), encoding="utf-8")
     return pi_home
 
 
-def json_dumps(data: dict) -> str:
-    import json
+class PiRun:
+    """pi — лидер собственной process group; остановка убивает группу."""
 
-    return json.dumps(data, ensure_ascii=False, indent=2)
+    def __init__(self, cmd: list[str], cwd: Path, env: dict[str, str], log_path: Path) -> None:
+        self.log = log_path.open("w", encoding="utf-8")
+        self.proc = subprocess.Popen(
+            cmd, cwd=cwd, env=env,
+            stdout=self.log, stderr=subprocess.STDOUT,
+            text=True, start_new_session=True,
+        )
+        self.killed = False
+
+    def wait(self, timeout: int) -> int:
+        try:
+            return self.proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            self.terminate(reason="timeout")
+            return self.proc.returncode if self.proc.returncode is not None else 124
+
+    def terminate(self, reason: str = "signal") -> None:
+        if self.proc.poll() is None:
+            self.killed = True
+            print(f"остановка pi ({reason}): убиваю группу {self.proc.pid}", file=sys.stderr)
+            try:
+                os.killpg(self.proc.pid, signal.SIGTERM)
+                try:
+                    self.proc.wait(timeout=15)
+                except subprocess.TimeoutExpired:
+                    os.killpg(self.proc.pid, signal.SIGKILL)
+                    self.proc.wait(timeout=10)
+            except ProcessLookupError:
+                pass
+        if not self.log.closed:
+            self.log.close()
 
 
 def main() -> int:
@@ -123,6 +169,19 @@ def main() -> int:
     tmp = Path(tempfile.mkdtemp(prefix="billing-pi-"))
     repo = tmp / "repo"
     started = time.time()
+    meta: dict = {
+        "model": args.model,
+        "provider": "ollama",
+        "thinking": args.thinking,
+        "context": args.context,
+        "timeout_s": args.timeout,
+        "smoke": args.smoke,
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "task_sha256": hashlib.sha256(
+            (BILLING / "skeleton" / "TASK.md").read_bytes()
+        ).hexdigest()[:16],
+    }
+    run: PiRun | None = None
     try:
         pi_home = build_pi_home(tmp, args.model, args.context, args.reasoning)
 
@@ -150,18 +209,27 @@ def main() -> int:
             "PI_CODING_AGENT_DIR": str(pi_home),
             "PI_OFFLINE": "1",
         }
-        print(f"запуск: {' '.join(cmd[:8])}…\n  cwd={repo}\n  pi-home={pi_home} (изолирован)")
-        log_path = results / "pi-run.log"
-        with log_path.open("w", encoding="utf-8") as log:
-            proc = subprocess.run(
-                ["timeout", str(args.timeout), *cmd],
-                cwd=repo, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, timeout=args.timeout + 120,
-            )
-            log.write(proc.stdout or "")
-            log.flush()
+        print(f"запуск: pi -p --model {args.model} --thinking {args.thinking} (ctx {args.context})")
+        print(f"  cwd={repo}\n  pi-home={pi_home} (изолирован)\n  лог (live): {results / 'pi-run.log'}")
+
+        run_holder: dict[str, PiRun] = {}
+
+        def on_signal(signum: int, _frame: object) -> None:
+            if (r := run_holder.get("run")) is not None:
+                r.terminate(reason=f"signal {signum}")
+
+        signal.signal(signal.SIGTERM, on_signal)
+        signal.signal(signal.SIGINT, on_signal)
+
+        run = PiRun(cmd, repo, env, results / "pi-run.log")
+        run_holder["run"] = run
+        rc = run.wait(timeout=args.timeout)
         elapsed = time.strftime("%H:%M:%S", time.gmtime(time.time() - started))
-        print(f"pi завершился: код={proc.returncode}, время={elapsed}")
+        print(f"pi завершился: код={rc}, убит={'да' if run.killed else 'нет'}, время={elapsed}")
+        meta.update({
+            "exit_code": rc,
+            "killed": run.killed,
+        })
 
         if not args.smoke:
             diff = subprocess.run(
@@ -171,9 +239,8 @@ def main() -> int:
                 capture_output=True, text=True,
             )
             (results / "diff.patch").write_text(diff.stdout, encoding="utf-8")
-            print(f"diff.patch: {len(diff.stdout.splitlines())} строк")
-            # само дерево решения — для просмотра/ревью/показа, без vendor;
-            # восстанавливать из диффа не нужно
+            meta["diff_lines"] = len(diff.stdout.splitlines())
+
             solution = results / "solution"
             shutil.copytree(
                 repo, solution,
@@ -181,14 +248,23 @@ def main() -> int:
                                               ".phpunit.result.cache"),
                 dirs_exist_ok=True,
             )
-            n_files = sum(1 for p in solution.rglob("*") if p.is_file())
-            print(f"solution/: {n_files} файлов")
+            meta["solution_files"] = sum(1 for p in solution.rglob("*") if p.is_file())
+            print(f"diff.patch: {meta['diff_lines']} строк; solution/: {meta['solution_files']} файлов")
 
         session_files = sorted((results / "pi-session").glob("*.jsonl")) if (results / "pi-session").is_dir() else []
+        meta["session_file"] = session_files[0].name if session_files else None
         print(f"сессия: {len(session_files)} файл(ов) JSONL"
               + (f", первый: {session_files[0].name}" if session_files else " — НЕ СОЗДАНА, проверить!"))
-        return proc.returncode
+        return rc
     finally:
+        meta["finished_at"] = datetime.now(timezone.utc).isoformat()
+        meta["duration_s"] = round(time.time() - started, 1)
+        if run is not None:
+            meta.setdefault("exit_code", run.proc.returncode)
+            meta["killed"] = run.killed
+        (results / "run.json").write_text(
+            json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8",
+        )
         if args.keep:
             print(f"(keep) временные каталоги: {tmp}")
         else:

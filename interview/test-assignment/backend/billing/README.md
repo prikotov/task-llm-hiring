@@ -17,6 +17,8 @@
 | `checker/check.py` | ярус 0 — функциональный чекер (docker, чистая БД, сравнение с golden) |
 | `checker/metrics.py` | ярус 0.5 — phpstan/phpmd/phpcs/scc + AST-метрики coding-standard |
 | `RUBRIC.md` | рубрика ревью (ярус 1) и описание всех ярусов |
+| `runner_pi.py` | управляемый прогон: pi лидер отдельной process group (стоп по сигналу/таймауту убивает группу целиком — «зомби-pi» невозможны), live-лог `pi-run.log` (tail -f), метаданные `run.json` |
+| `analyze_session.py` | анализатор сессий: tool-calls по инструментам, объём thinking, таймлайн по 5-мин интервалам, файлы, категории bash-команд, повторы (детектор циклов), итерации тестов с исходами, финальный ответ; `--json` для агрегатов |
 
 Golden пересоздаются: `python3 reference_calc.py` (из этого каталога).
 Менять формулы — только синхронно в TASK.md и reference_calc.py, затем
@@ -103,6 +105,8 @@ diff -ru interview/test-assignment/billing/skeleton "$RUN" > "$RESULTS/diff.patc
 
 - `solution/` — **само дерево решения** (весь репозиторий результата без
   vendor/var): код можно смотреть, ревьюить и показывать напрямую;
+- `run.json` — параметры и исход прогона (модель, thinking, контекст,
+  длительность, exit code, хэш версии TASK);
 - `pi-session/` — сессия pi (JSONL): полный след размышлений и действий
   модели — основной материал для анализа агентного поведения; для
   удобного чтения: `pi --export pi-session/<file>.jsonl out.html`;
