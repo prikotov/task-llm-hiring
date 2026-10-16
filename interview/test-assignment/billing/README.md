@@ -48,7 +48,7 @@ billing/):
 
 ```bash
 python3 runner_pi.py --model qwen3.8:27b-pi-100k \
-  --results models/qwen3.8-27b-pi-100k/test-assignment/run-01
+  --results models/qwen3.8-27b-pi-100k/test-assignment/backend/run-01
 ```
 
 Раннер **не использует глобальный конфиг pi** (`~/.pi/agent` не читается):
@@ -97,20 +97,23 @@ python3 interview/test-assignment/billing/checker/metrics.py --repo "$RUN" \
 diff -ru interview/test-assignment/billing/skeleton "$RUN" > "$RESULTS/diff.patch"
 ```
 
-Результаты складываются в `models/<модель>/test-assignment/run-XX/`:
+Результаты складываются в `models/<модель>/test-assignment/<роль>/run-XX/`
+(роль — как у собесов: `backend`, дальше — по мере появления заданий
+других ролей):
 
+- `solution/` — **само дерево решения** (весь репозиторий результата без
+  vendor/var): код можно смотреть, ревьюить и показывать напрямую;
 - `pi-session/` — сессия pi (JSONL): полный след размышлений и действий
   модели — основной материал для анализа агентного поведения; для
   удобного чтения: `pi --export pi-session/<file>.jsonl out.html`;
 - `pi-run.log` — stdout прогона (финальный ответ, ход по времени);
-- `diff.patch`, `check.json`, `metrics.json` — решение и ярусы 0/0.5;
+- `diff.patch` — компактное «что изменилось против скелета»;
+- `check.json`, `metrics.json` — ярусы 0/0.5;
 - `scorecard.md` — ревью по `RUBRIC.md`, оси A/B + лист конвенций из
   `interview/conventions-probe.md`.
 
 Сводные таблицы этапа — в `reports/` (по аналогии с этапом 1; формат
-зафиксируем по данным пилота). На пилоте проверить, что `pi -p
---session-dir` действительно пишет файл сессии (замечено: файлы сессий
-у pi — JSONL).
+зафиксируем по данным пилота).
 
 ## Валидированность
 

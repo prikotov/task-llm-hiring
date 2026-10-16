@@ -172,16 +172,17 @@ def main() -> int:
             )
             (results / "diff.patch").write_text(diff.stdout, encoding="utf-8")
             print(f"diff.patch: {len(diff.stdout.splitlines())} строк")
-            # точное дерево решения для исследования без восстановления из диффа
-            tar = subprocess.run(
-                ["tar", "czf", str(results / "solution.tar.gz"),
-                 "--exclude=./vendor", "--exclude=./var", "--exclude=./.env",
-                 "-C", str(repo), "."],
-                capture_output=True, text=True,
+            # само дерево решения — для просмотра/ревью/показа, без vendor;
+            # восстанавливать из диффа не нужно
+            solution = results / "solution"
+            shutil.copytree(
+                repo, solution,
+                ignore=shutil.ignore_patterns("vendor", "var", ".env", "__pycache__",
+                                              ".phpunit.result.cache"),
+                dirs_exist_ok=True,
             )
-            if tar.returncode == 0:
-                size = (results / "solution.tar.gz").stat().st_size // 1024
-                print(f"solution.tar.gz: {size} KiB")
+            n_files = sum(1 for p in solution.rglob("*") if p.is_file())
+            print(f"solution/: {n_files} файлов")
 
         session_files = sorted((results / "pi-session").glob("*.jsonl")) if (results / "pi-session").is_dir() else []
         print(f"сессия: {len(session_files)} файл(ов) JSONL"
