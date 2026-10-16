@@ -233,7 +233,7 @@ def main() -> int:
 
         if not args.smoke:
             diff = subprocess.run(
-                ["diff", "-ru",
+                ["diff", "-ruN",
                  "-x", "var", "-x", ".env", "-x", "__pycache__",
                  str(BILLING / "skeleton"), str(repo)],
                 capture_output=True, text=True,
