@@ -10,8 +10,8 @@
 - phpmd — нарушения (ruleset из coding-standard/examples, иначе дефолт);
 - phpcs PSR12 — количество нарушений;
 - scc — размер кодовой базы (файлы/строки по языкам);
-- coding-standard-metrics — LOC/CC/WMC/LCOM4/Ca-Ce и findings по порогам
-  (только если пакет prikotov/coding-standard доступен локально).
+- AST-метрики — LOC/CC/WMC/LCOM4/Ca-Ce и findings по порогам coding-standard
+  (через универсальный `metrics-collect --source=src`).
 
 Выход: JSON в stdout. Любой инструмент может быть пропущен (status: skip)
 — остальные продолжают считаться.
