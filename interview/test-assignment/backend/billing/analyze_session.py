@@ -70,10 +70,13 @@ def analyze(events: list[dict]) -> dict:
     roles: Counter[str] = Counter()
     assistant_texts: list[str] = []
 
+    usages: list[dict] = []
     for e in msgs:
         m = e["message"]
         role = m.get("role", "?")
         roles[role] += 1
+        if role == "assistant" and isinstance(m.get("usage"), dict):
+            usages.append(m["usage"])
         ts = parse_ts(e["timestamp"]) if e.get("timestamp") else None
         for c in (m.get("content") or []):
             if not isinstance(c, dict):
@@ -150,7 +153,27 @@ def analyze(events: list[dict]) -> dict:
 
     top_repeat = Counter(bash_cmds).most_common(5)
 
+    def usum(key: str) -> int:
+        return sum(int(u.get(key) or 0) for u in usages)
+
+    usage = {
+        "api_calls": len(usages),
+        "input": usum("input"),
+        "output": usum("output"),
+        "reasoning": usum("reasoning"),
+        "cache_read": usum("cacheRead"),
+        "cache_write": usum("cacheWrite"),
+        "total": usum("totalTokens"),
+        "context_peak": max((int(u.get("totalTokens") or 0) for u in usages), default=0),
+        "context_last": usages[-1].get("totalTokens") if usages else 0,
+        "cost_total": sum(float((u.get("cost") or {}).get("total") or 0) for u in usages),
+        "generation_time_s": round(sum(int(e["message"].get("durationMs") or 0)
+                                       for e in msgs
+                                       if e["message"].get("role") == "assistant") / 1000, 1),
+    }
+
     return {
+        "usage": usage,
         "messages_total": len(msgs),
         "roles": dict(roles),
         "tool_calls_total": len(tool_calls),
@@ -197,6 +220,11 @@ def main() -> int:
     print(f"thinking: {stats['thinking_blocks']} блоков, {stats['thinking_chars']:,} символов; "
           f"текст ассистента: {stats['assistant_text_chars']:,}; результаты инструментов: "
           f"{stats['tool_result_chars']:,} (~транскрипт {stats['transcript_chars_approx']:,} симв.)")
+    u = stats["usage"]
+    print(f"токены: вызовов API {u['api_calls']}; вход {u['input']:,} + выход {u['output']:,}"
+          f" (reasoning {u['reasoning']:,}); cache read {u['cache_read']:,};"
+          f" всего {u['total']:,}; пик контекста {u['context_peak']:,};"
+          f" генерация {u['generation_time_s']}с; стоимость ${u['cost_total']}")
     print(f"файлы: {stats['files_touched']} касаний, {stats['files_distinct']} уникальных; примеры:")
     for f in stats["files_examples"]:
         print(f"    {f}")

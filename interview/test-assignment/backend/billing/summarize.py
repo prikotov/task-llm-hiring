@@ -126,6 +126,13 @@ def main() -> int:
             lines.append(f"| Bash по категориям | {profile['bash_by_kind']} |")
             lines.append(f"| Запуски тестов | {profile['test_runs']} ({profile['test_results']}) |")
             lines.append(f"| ~Транскрипт | {profile['transcript_chars_approx']:,} символов |")
+            u = profile.get("usage", {})
+            if u:
+                lines.append(f"| Вызовов API | {u['api_calls']} (генерация {fmt_duration(u['generation_time_s'])}) |")
+                lines.append(f"| Токены | вход {u['input']:,} + выход {u['output']:,} (reasoning {u['reasoning']:,}), "
+                             f"cache-read {u['cache_read']:,}; всего {u['total']:,} |")
+                lines.append(f"| Пик контекста | {u['context_peak']:,} токенов (лимит прогона {meta.get('context', '—')}) |")
+                lines.append(f"| Стоимость | ${u['cost_total']:.4f} (локальная модель — 0; тариф для сравнения задаётся при необходимости) |")
             lines.append("")
             lines.append("Таймлайн (tool-calls по 5 мин): "
                          + ", ".join(f"{k}={v}" for k, v in profile["timeline_5m"].items()))
