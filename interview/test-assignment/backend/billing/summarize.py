@@ -62,7 +62,10 @@ def main() -> int:
     lines.append("| Параметр | Значение |")
     lines.append("|---|---|")
     lines.append(f"| Модель | `{meta.get('model', '—')}` (провайдер {meta.get('provider', '—')}) |")
-    lines.append(f"| Thinking / контекст | {meta.get('thinking', '—')} / {meta.get('context', '—')} токенов |")
+    lines.append(f"| Thinking / контекст | {meta.get('thinking', '—')} / {meta.get('context', '—')} токенов"
+                 + (f"; шкала модели: {meta['thinking_scale']}" if meta.get('thinking_scale') else "")
+                 + (f"; **фактически: {meta['thinking_effective']}**" if meta.get('thinking_effective') else "")
+                 + (f"; maxTokens {meta['max_tokens']}" if meta.get('max_tokens') else "") + " |")
     lines.append(f"| Длительность | {fmt_duration(meta.get('duration_s'))} (exit {meta.get('exit_code', '—')}"
                  f"{', остановлен' if meta.get('killed') else ''}) |")
     lines.append(f"| Версия TASK | `{meta.get('task_sha256', '—')}` |")
