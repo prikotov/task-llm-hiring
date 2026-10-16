@@ -78,26 +78,24 @@ python3 runner_pi.py --model qwen3.8:27b-pi-100k \
 ## Проверка и результаты
 
 ```bash
-RESULTS=models/<модель>/test-assignment/run-XX && mkdir -p "$RESULTS"
-
-# прогон pi: stdout — финальный ответ; сессия (JSONL с полным следом
-# размышлений и действий: вызовы инструментов, промежуточные ответы,
-# thinking) пишется в каталог результатов — вне копии репозитория,
-# чтобы diff.patch оставался чистым
-timeout 5400 pi -p --session-dir "$RESULTS/pi-session" --model <тег> \
-  "Прочитай TASK.md в корне репозитория и выполни задание." 2>&1 | tee "$RESULTS/pi-run.log"
+B=interview/test-assignment/backend/billing
+RESULTS=models/<модель>/test-assignment/backend/run-XX
+RUN=$(grep -oP '(?<=cwd=)\S+' "$RESULTS-pi.out" | head -1)  # репозиторий прогона (runner --keep)
 
 # ярус 0 — функциональные сценарии (docker, ~2 мин)
-python3 interview/test-assignment/billing/checker/check.py --repo "$RUN" \
-  > "$RESULTS/check.json"
+python3 "$B/checker/check.py" --repo "$RUN" > "$RESULTS/check.json"
 
-# ярус 0.5 — метрики качества (сеть, ставит тула в одноразовую копию)
-python3 interview/test-assignment/billing/checker/metrics.py --repo "$RUN" \
-  > "$RESULTS/metrics.json"
+# ярус 0.5 — метрики качества (phpstan/phpcs/phpmd — phar-кэш, ~5 сек)
+python3 "$B/checker/metrics.py" --repo "$RUN" > "$RESULTS/metrics.json"
 
-# дифф для ревью
-diff -ru interview/test-assignment/billing/skeleton "$RUN" > "$RESULTS/diff.patch"
+# полный анализ сессии (md) и карточка итогов
+python3 "$B/analyze_session.py" "$RESULTS/pi-session" > "$RESULTS/session-profile.md"
+python3 "$B/summarize.py" "$RESULTS"
 ```
+
+(diff.patch и solution/ раннер пишет сам; дифф пересобирается из solution:
+`diff -ruN -x vendor -x var -x .env -x __pycache__ -x .phpunit.result.cache
+skeleton "$RESULTS/solution"`.)
 
 Результаты складываются в `models/<модель>/test-assignment/<роль>/run-XX/`
 (роль — как у собесов: `backend`, дальше — по мере появления заданий

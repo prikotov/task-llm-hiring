@@ -153,8 +153,12 @@ def main() -> int:
             lines.append("")
 
     lines.append("---")
-    lines.append("_Карточка собрана автоматически (summarize.py). Ревью судьи — "
-                 "в `scorecard.md` (оси A/B по RUBRIC.md)._")
+    if (run_dir / "scorecard.md").is_file():
+        lines.append("_Карточка собрана автоматически (summarize.py); ревью судьи — "
+                     "[scorecard.md](scorecard.md)._")
+    else:
+        lines.append("_Карточка собрана автоматически (summarize.py); ревью судьи "
+                     "(оси A/B по RUBRIC.md) ещё не проводилось._")
 
     out = run_dir / "summary.md"
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
