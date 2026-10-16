@@ -72,6 +72,7 @@ DEFAULT_THINKING = "max"
 # размышлений и при малом maxTokens выжигают его в пустой ответ
 # (finish=length), поэтому maxTokens автоматически поднимается до 32768.
 PI_LEVELS_RANKED = ["low", "medium", "high", "xhigh", "max"]
+PI_CHOICES = ["off", "minimal", *PI_LEVELS_RANKED]
 
 
 def thinking_map_for(values: list) -> tuple[dict, bool]:
@@ -205,7 +206,7 @@ def main() -> int:
     parser.add_argument("--model", required=True, help="тег модели на сервере (ollama)")
     parser.add_argument("--results", required=True, help="каталог результатов run-XX")
     parser.add_argument("--thinking", default=DEFAULT_THINKING,
-                        choices=list(THINKING_LEVEL_MAP), help="уровень размышлений pi")
+                        choices=PI_CHOICES, help="уровень размышлений pi")
     parser.add_argument("--context", type=int, default=DEFAULT_CONTEXT,
                         help="контекстное окно, токены (default 102400)")
     parser.add_argument("--max-tokens", type=int, default=8192,
