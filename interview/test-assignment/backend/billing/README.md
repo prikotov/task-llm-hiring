@@ -76,9 +76,12 @@ python3 runner_pi.py --model qwen3.8:27b-pi-100k \
   (ollama-теги — через `--provider`/`--model`; на пилоте);
 - **контекстное окно**: теги без `pi-100k` сервер по умолчанию даёт
   32768 (проверено: пик сессий ornith/orca/muse ровно 32768), для них
-  созданы серверные алиасы `<тег>-ctx100k` (num_ctx 102400, дайджест
-  весов тот же — папка модели не меняется): `ornith-1.5:35b-ctx100k`,
-  `orcarouter/Qwen3.8-27B-Uncensored:ctx100k`, `muse-glimmer:ctx100k`;
+  созданы серверные алиасы `-ctx100k` (num_ctx 102400, дайджест весов
+  тот же — папка модели не меняется) для всех тегов набора без pi-100k:
+  `ornith-1.5:35b-ctx100k`, `orcarouter/Qwen3.8-27B-Uncensored:ctx100k`,
+  `orcarouter/Qwen3.8-27B-Uncensored:iq4_xs-ctx100k`, `muse-glimmer:ctx100k`,
+  `huihui_ai/Qwen3.8-abliterated:ctx100k`, `gemma4:e2b-ctx100k`,
+  `medgemma:27b-ctx100k`;
   в карточках считается управление контекстом (автокомпакты/правки
   истории) — при 32K ornith: 24+29 за прогон, при 100K qwen: 2+0.
 
