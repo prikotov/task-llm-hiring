@@ -59,14 +59,20 @@ DEFAULT_CONTEXT = 102_400
 DEFAULT_TIMEOUT = 5400
 DEFAULT_THINKING = "max"
 
-# уровни pi -> значения reasoning_effort, принимаемые ollama (OpenAI-совм.)
+# уровни pi -> значения reasoning_effort ollama (передаётся как есть).
+# ВАЖНО про max/xhigh (проверено 2026-10-16 на huihui-ai:pi-100k, мост-задача):
+# xhigh расширяет бюджет размышлений кратно (нативно ~110k символов против
+# ~5k у high) и при maxTokens 8192 сжигает весь completion-бюджет на thinking
+# -> finish=length, content пустой. Поэтому max -> high (рабочий максимум
+# агентного прогона), xhigh оставлен passthrough для экспериментов вместе
+# с --max-tokens 32768+.
 THINKING_LEVEL_MAP = {
     "off": "none",
     "minimal": "low",
     "low": "low",
     "medium": "medium",
     "high": "high",
-    "xhigh": "high",
+    "xhigh": "xhigh",
     "max": "high",
 }
 
@@ -89,10 +95,10 @@ def ollama_base_url() -> str:
     return url.rstrip("/")
 
 
-def build_pi_home(tmp: Path, model: str, context: int, reasoning: bool) -> Path:
+def build_pi_home(tmp: Path, model: str, context: int, max_tokens: int, reasoning: bool) -> Path:
     pi_home = tmp / "pi-home"
     pi_home.mkdir()
-    entry: dict = {"id": model, "contextWindow": context, "maxTokens": 8192}
+    entry: dict = {"id": model, "contextWindow": context, "maxTokens": max_tokens}
     if reasoning:
         entry["reasoning"] = True
         entry["thinkingLevelMap"] = THINKING_LEVEL_MAP
@@ -156,6 +162,8 @@ def main() -> int:
                         choices=list(THINKING_LEVEL_MAP), help="уровень размышлений pi")
     parser.add_argument("--context", type=int, default=DEFAULT_CONTEXT,
                         help="контекстное окно, токены (default 102400)")
+    parser.add_argument("--max-tokens", type=int, default=8192,
+                        help="бюджет выхода на вызов (default 8192; для xhigh нужно 32768+)")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT, help="сек (default 5400)")
     parser.add_argument("--reasoning", dest="reasoning", action="store_true", default=True)
     parser.add_argument("--no-reasoning", dest="reasoning", action="store_false")
@@ -183,7 +191,8 @@ def main() -> int:
     }
     run: PiRun | None = None
     try:
-        pi_home = build_pi_home(tmp, args.model, args.context, args.reasoning)
+        pi_home = build_pi_home(tmp, args.model, args.context, args.max_tokens, args.reasoning)
+        meta["max_tokens"] = args.max_tokens
 
         if args.smoke:
             repo.mkdir()
