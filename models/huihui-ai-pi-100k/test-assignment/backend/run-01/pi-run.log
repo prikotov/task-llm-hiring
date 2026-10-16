@@ -1,0 +1,27 @@
+Всё готово и проверено. Итог:
+
+## Результат
+
+**Приёмка из TASK.md — выполнена:**
+1. ✅ `bin/console` работает, схема БД разворачивается миграцией на чистой базе
+2. ✅ `app:prices:import` → `app:usage:import` → `app:billing:rate` — без ошибок
+3. ✅ `app:billing:report --from 2026-09-01.. --to 2026-10-01..` — **байт-в-байт** совпадает с примером (`cmp` прошёл дважды, включая повторный импорт + rate + report)
+4. ✅ Повторный импорт — результат не меняется (3 дубля, 0 новых, `RATED=0`)
+5. ✅ Бонус `app:billing:reprice`: `REPRICED_EVENTS=…` / `REPRICE_DELTA_USD=…` (проверены дельты 0.000000 и 0.500000), отчёт после reprice — без задвоения
+6. ✅ Форматы выводов: отчёт — только stdout, служебные строки — stderr, unrated-строки вида `UNRATED prism/nope 2026-01-10T10:00:00Z no_price`
+
+**Tесты: 23, 89 ассертаций — все зелёные** (`vendor/bin/phpunit`):
+- `tests/Unit/` — Decimal (bcmath, HALF_UP), OffPeak (границы окна, перенос через полночь), Rater (точный пример TASK.md `14.262499`, unified, HALF_UP на `0.0000005`), парсеры
+- `tests/Functional/PipelineTest.php` — полный цикл на реальной PostgreSQL: соответствие примеру, идемпотентность, unrated→rated, границы оф-пика, reprice с дельтой
+
+**Документы** (по AGENTS.md):
+- `COMMIT_MESSAGE.md`
+- `ПR_DESCRIPTION.md` — архитектура, ключевые решения (bcmath scale 26 + одно округление HALF_UP 6 знаков; три состояния `off_peak`; атомарность импорта; unrated-флоу), отступления от каркаса (нет новых зависимостей, каркасные файлы не тронуты), шаги проверки.
+
+**Ключевые файлы:**
+- `src/Domain/Decimal.php`, `OffPeak.php`, `Rater.php` — ядро расчёта
+- `src/Entity/` — Provider / Model / PriceRow / UsageEvent
+- `src/Ingest/` — парсеры с DTO
+- `src/Service/` — Catalog/Price/Usage/Report/Reprice
+- `src/Command/` — 5 команд
+- `migrations/Version20261016000000.php`

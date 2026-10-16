@@ -1,0 +1,26 @@
+Всё готово. Финальный статус:
+
+## Итог
+
+**Задача полностью реализована и проверена — 48/48 тестов (150 ассертов), полный сценарий приёмки ТЗ воспроизводится байт-в-байт.**
+
+### Команды (все работают, идемпотентны)
+- `bin/console app:prices:import <file.json>` — upsert провайдеров/моделей/цен
+- `bin/console app:usage:import <file.jsonl>` — события; дубли `(provider, provider_request_id)` молча игнорируются (количество сообщается в сообщении)
+- `bin/console app:billing:rate` — только `pending`; без цены → `unrated` + `no_price` в stderr, повторные попытки на следующем запуске → `RATED=3 UNRATED=0`
+- `bin/console app:billing:report [--from --to]` — CSV по (user, model) + `TOTAL`, 6 знаков; пример ТЗ совпадает точно (md5 стабилен между прогнами)
+- `bin/console app:billing:reprice <file.json>` (бонус) — `REPRICED_EVENTS=1`, `REPRICE_DELTA_USD=0.929166`; повторный запуск — дельта `0.000000`, отчёт без задвоений
+
+### Тесты (`vendor/bin/phpunit`, зелёные)
+- `DecimalsTest`, `OffPeakTest` (окно через полночь), `CostCalculatorTest` (2 схемы тарифа, HALF_UP)
+- `PriceFileParserTest`, `UsageFileParserTest` — валидация, отклонения с понятными сообщениями
+- `EndToEndTest` — полный сценарий ТЗ на чистой `app_test`-БД (создаётся/удаляется автоматически): импорты → rate → сравнение отчёта с примером ТЗ строка в строку, идемпотентность импортов и rate, unrated→retry, reprice+дельта+идемпотентность reprice
+
+### Ключевые технические решения
+- Money = decimal-строки (bcmath, масштаб 20), один HALF_UP до 6 знаков на событие; `float` в деньгах не используется нигде
+- `user` (резерв PG) → колонка `user_ref`, в CSV выводится как `user`
+- Связь события с ценой — `price_row_id` (FK), что делает reprice детерминированным
+- Схема — одна миграция Doctrine; каркасные файлы (`composer.json`, `Makefile`, `fixtures/`, …) не менялись, новых зависимостей нет
+- `COMMIT_MESSAGE.md` и `PR_DESCRIPTION.md` созданы в корне (PR-описание сверено с фактическим кодом)
+
+Проверяю, что в итоговом состоянии нет хвостов:

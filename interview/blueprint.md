@@ -392,7 +392,7 @@ PHP-верифицированных ошибках 4/10 против 7/10, эс
 в чистом чате (без follow-up'ов) и решает одним ответом. Референс —
 оригинал тестового задания с прошлой работы (кредитный домен,
 DDD/Clean Architecture): `test-assignment/original.md`. Адаптация под
-TasK выполнена: `test-assignment/billing/` (методика — его README).
+TasK выполнена: `test-assignment/backend/billing/` (методика — его README).
 
 ## Порядок внедрения
 
