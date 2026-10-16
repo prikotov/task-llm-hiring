@@ -1,0 +1,48 @@
+All entities, commands and manual schema are in place.
+
+**Schema created manually (PostgreSQL, reserved word `user` avoided):**
+```sql
+CREATE TABLE providers …;
+CREATE TABLE models …;
+CREATE TABLE prices …;
+CREATE TABLE usage_events (…, user_name VARCHAR(128) NOT NULL, … UNIQUE(provider, provider_request_id), …);
+```
+
+**Commands**
+
+`src/Command/PricesImportCommand.php` – `app:prices:import <file>`
+* imports providers, models and prices from `fixtures/prices.json`
+* idempotent – updates providers, creates models/prices only if missing
+
+`src/Command/UsageImportCommand.php` – `app:usage:import <file>`
+* streams `fixtures/usage.jsonl`
+* skips duplicates on `provider + provider_request_id`
+
+`src/Command/BillingRateCommand.php` – `app:billing:rate`
+* rates events with `cost IS NULL`
+* picks latest price with `valid_from <= ts`
+* applies off-peak window multiplier (UTC) and per-model pricing
+* cost computed with `bc*`, rounded half-up to 6 decimals
+* `UNRATED … no_price` lines are written to stderr, summary `RATED=N UNRATED=M` to stdout
+
+`src/Command/BillingReportCommand.php` – `app:billing:report [--from …] [--to …]`
+* CSV output `user,model,tokens_input,tokens_output,tokens_cache_read,tokens_cache_write,cost_usd`
+* aggregates per user/model and prints a `TOTAL` line
+
+Quick test:
+```bash
+bin/console app:prices:import fixtures/prices.json
+bin/console app:usage:import fixtures/usage.jsonl
+bin/console app:billing:rate
+# RATED=3 UNRATED=0
+
+bin/console app:billing:report
+# user,model,tokens_input,tokens_output,tokens_cache_read,tokens_cache_write,cost_usd
+# u-alice,gyro-pro,3000000,500000,0,0,8.400000
+# u-alice,lumen-8,1200000,800000,2500000,83333,14.262499
+# u-bob,lumen-8,2000000,1000000,0,0,11.000000
+# TOTAL,,6200000,2300000,2500000,83333,33.662499
+```
+
+The implementation is idempotent, uses Doctrine attributes, and respects off-peak pricing, unified vs per-component pricing and 6-decimal rounding.
+
