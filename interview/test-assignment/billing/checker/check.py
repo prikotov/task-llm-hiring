@@ -135,15 +135,17 @@ class Checker:
 
     def record(self, name: str, ok: bool, detail: str = "") -> bool:
         self.results[name] = {"status": "pass" if ok else "fail", "detail": detail}
-        print(f"  {'PASS' if ok else 'FAIL'}  {name}" + (f" — {detail}" if detail and not ok else ""))
+        print(f"  {'PASS' if ok else 'FAIL'}  {name}" + (f" — {detail}" if detail and not ok else ""),
+              file=sys.stderr)
         return ok
 
     def skip(self, name: str, reason: str) -> None:
         self.results[name] = {"status": "skip", "detail": reason}
-        print(f"  SKIP  {name} — {reason}")
+        print(f"  SKIP  {name} — {reason}", file=sys.stderr)
 
     def run_all(self) -> int:
-        print(f"repo={self.repo} port={self.port} db={self.db}")
+        # прогресс — в stderr; stdout — только итоговый JSON
+        print(f"repo={self.repo} port={self.port} db={self.db}", file=sys.stderr)
         try:
             self.start_db()
             self.functional()
