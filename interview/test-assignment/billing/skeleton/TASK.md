@@ -215,7 +215,7 @@ TOTAL,,6200000,2300000,2500000,83333,33.662499
 
 ## Требования
 
-- PHP 8.3+, Symfony, PostgreSQL 17, Doctrine ORM. Каркас приложения уже
+- PHP 8.4+, Symfony, PostgreSQL 17, Doctrine ORM. Каркас приложения уже
   настроен (`bin/console` работает, докер- compose для PostgreSQL — в
   `docker-compose.yml`, `Makefile` — типовые операции).
 - Схема БД — только через Doctrine-миграции: на пустой базе

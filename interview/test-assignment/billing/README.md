@@ -10,7 +10,7 @@
 
 | Путь | Что это |
 |---|---|
-| `skeleton/` | скелет для кандидата: Symfony 7.4 console, Doctrine ORM, миграции, docker compose PostgreSQL 17, PHPUnit, `TASK.md`, `AGENTS.md` (минимальный), sample-фикстуры. Vendor закоммичен — запуск офлайн |
+| `skeleton/` | скелет для кандидата: Symfony 8 console (framework-bundle 8.0, http-kernel 7.4 LTS — чистая резолвиция без advisory-игноров), Doctrine ORM, миграции, docker compose PostgreSQL 17, PHPUnit, `TASK.md`, `AGENTS.md` (минимальный), sample-фикстуры. Vendor в git не входит (один composer install), прогоны офлайн |
 | `sample/` | те же sample-фикстуры отдельно (в скелет скопированы) |
 | `fixtures/` | **скрытые** фикстуры чекера (кандидату не показывать) + `golden/` |
 | `reference_calc.py` | референс арифметики: правила TASK.md на Decimal; генерирует `fixtures/golden/*` и числа worked example |

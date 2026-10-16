@@ -55,6 +55,9 @@ PROTECTED = [
     "fixtures",
 ]
 
+# дисциплинарные сценарии выполняются всегда; функциональные — только по ходу
+DISCIPLINE = {"files_untouched", "artifacts_present"}
+
 MANDATORY = {
     "db_create",
     "migrate",
@@ -152,8 +155,8 @@ class Checker:
                 self.stop_db()
             except Exception:  # noqa: BLE001
                 pass
-        # шаги, до которых functional() не дошёл после провала, фиксируем как fail
-        for name in sorted(MANDATORY - set(self.results)):
+        # функциональные шаги, до которых не дошли после провала, — fail
+        for name in sorted(MANDATORY - DISCIPLINE - set(self.results)):
             self.record(name, False, "не выполнялся: предыдущий шаг провален")
         self.discipline()
 
