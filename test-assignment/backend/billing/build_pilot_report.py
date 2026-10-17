@@ -34,6 +34,23 @@ RUNS = [
     ("medgemma", "n/a: нет tools", 2, 0, 0, 0, None, None, None, None, 0, 0, 0, 27, "na"),
 ]
 FULL, PART, FAIL, NA = "full", "part", "fail", "na"
+
+# каталог прогона по метке строки (ссылки таблицы результатов);
+# цель может отсутствовать на машине сборки — тогда текст без ссылки
+RUN_DIRS = {
+    "qwen3.8 · r1": "models/qwen3.8-27b-pi-100k/backend/test-assignment/run-01",
+    "qwen3.8 · r2": "models/qwen3.8-27b-pi-100k/backend/test-assignment/run-02",
+    "huihui · r1": "models/huihui-ai-pi-100k/backend/test-assignment/run-01",
+    "huihui · r2": "models/huihui-ai-pi-100k/backend/test-assignment/run-02",
+    "orca · r1": "models/orcarouter-Qwen3.8-27B-Uncensored-latest/backend/test-assignment/run-01",
+    "orca · r2": "models/orcarouter-Qwen3.8-27B-Uncensored-latest/backend/test-assignment/run-02",
+    "gemma4:31b": "models/gemma4-31b-it-qat-pi-100k/backend/test-assignment/run-01",
+    "muse · r1": "models/muse-glimmer/backend/test-assignment/run-01",
+    "muse · r2": "models/muse-glimmer/backend/test-assignment/run-02",
+    "ornith · r1": "models/ornith-1.5-35b/backend/test-assignment/run-01",
+    "gemma4:e2b": "models/gemma4-e2b/backend/test-assignment/run-01",
+    "medgemma": "models/medgemma-27b/backend/test-assignment/run-01",
+}
 KIND_HUE = {FULL: "#2f7d54", PART: "#315f9e", FAIL: "#b3543f", NA: "#98a4b3"}
 KIND_NAME = {FULL: "полный зачёт (12–13)", PART: "почти (9–11)", FAIL: "провал (<9)", NA: "n/a"}
 
@@ -114,8 +131,11 @@ def results_table():
         bar = (f'<div class="barwrap"><div class="bar" style="width:{max(2, total / 13 * 100):.0f}%;'
                f'background:{KIND_HUE[kind]}"></div><span>{mand}+{bonus}</span></div>')
         delta = a1 - a2
+        run_dir = RUN_DIRS.get(label)
+        href = f"../{run_dir}/report.html" if run_dir and (ROOT / run_dir / "report.html").is_file() else None
+        label_html = f'<a href="{href}">{label}</a>' if href else label
         rows.append(
-            f"<tr{trcls}><td><b>{label}</b><div class=sub>{note}</div></td>"
+            f"<tr{trcls}><td><b>{label_html}</b><div class=sub>{note}</div></td>"
             f'<td class="narrow">{bar}</td><td class="narrow">{badge}</td>'
             f'<td class="narrow">{a1:g}</td><td class="narrow">{a2:g}</td>'
             f'<td class="narrow">{delta:+g}</td>'
@@ -135,7 +155,12 @@ def results_table():
             '<p class=sub>⇄ — автокомпакты + правки истории за прогон. A — ось «что сделано» '
             "(0–4): ревью — изолированная pi-сессия (в пилоте — рабочая сессия ZCode, см. §2), судья — слепое ревью GLM-5.3-Flash. "
             "medgemma — нетронутый каркас: 2/13 — базовый уровень скелета, модель без "
-            "tool-calling, зачёт не выставляется (n/a).</p>")
+            "tool-calling, зачёт не выставляется (n/a).<br>"
+            "Название прогона — ссылка на его визуальный отчёт "
+            "(&lt;run&gt;/report.html: сценарии чекера, метрики с матрицей зависимостей, "
+            "сессия, вердикты); код решения — рядом, в &lt;run&gt;/solution/. "
+            "Ссылки относительные из reports/, артефакты прогонов пока исключены из git — "
+            "перед финальным отчётом этапа вернём в репозиторий, как для интервью.</p>")
 
 
 def cost_scatter():
