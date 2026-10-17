@@ -122,13 +122,13 @@ def results_table():
             f'<td class="narrow">{loc}</td></tr>')
     return ('<div style="overflow-x:auto"><table><thead><tr>'
             "<th>Прогон</th><th class=narrow>Чекер<br>из 13</th><th class=narrow>Статус</th>"
-            "<th class=narrow>A<br>ярус 1</th><th class=narrow>A<br>ярус 2</th><th class=narrow>Δ</th>"
+            "<th class=narrow>A<br>ревью</th><th class=narrow>A<br>судья</th><th class=narrow>Δ</th>"
             "<th class=narrow>Время</th><th class=narrow>Токены</th><th class=narrow>Пик ctx</th>"
             "<th class=narrow>⇄</th><th class=narrow>php-<br>stan</th><th class=narrow>php-<br>md</th>"
             "<th class=narrow>php-<br>cs</th><th class=narrow>LOC</th></tr></thead><tbody>"
             + "".join(rows) + "</tbody></table></div>"
             '<p class=sub>⇄ — автокомпакты + правки истории за прогон. A — ось «что сделано» '
-            "(0–4): ярус 1 — ревью ZCode, ярус 2 — слепое ревью GLM-5.3-Flash. "
+            "(0–4): ревью — изолированная pi-сессия (в пилоте — рабочая сессия ZCode, см. §2), судья — слепое ревью GLM-5.3-Flash. "
             "medgemma — нетронутый каркас: 2/13 — базовый уровень скелета, модель без "
             "tool-calling, зачёт не выставляется (n/a).</p>")
 
@@ -256,7 +256,7 @@ def dumbbell(rows, vmax, ticks, xtitle, w=620, row_h=34, fmt="{:g}", ref_lines=(
 def judges_dumbbell():
     rows = []
     for (label, note, mand, bonus, a1, a2, *_rest, kind) in [r for r in RUNS if r[14] != NA]:
-        rows.append((label, a2, a1, "ярус 2 (GLM-флеш)", "ярус 1 (ZCode)"))
+        rows.append((label, a2, a1, "судья, ярус 4 (GLM-флеш)", "ревью, ярус 3 (ZCode)"))
     return dumbbell(rows, 4, (0, 1, 2, 3, 4), "ось A: что сделано (0–4)", fmt="{:g}")
 
 
@@ -340,29 +340,109 @@ HTML = f"""<!DOCTYPE html>
 <div class=card><b>Полный зачёт — 13/13</b>qwen3.8 и huihui прошли все обязательные сценарии и бонус retro-rebill. Оба — после перевода thinking на истинный максимум шкалы (xhigh из /api/show).</div>
 <div class=card><b>Thinking решает бонус</b>На «high», который сервер ollama поджимал до ≈medium, обе модели сдавали только обязательную часть (11/13). Честный xhigh дал 13/13.</div>
 <div class=card><b>Окно 32K ломало агентность</b>ornith: 53 автокомпакта и правок, потерянный финиш. ctx100k-алиас у orca: пик 32.8K → 86.4K, компакты 15 → 2, бонус 1/2 → 2/2.</div>
-<div class=card><b>Ярус 2 слеп к чекеру</b>Слепой судья по диффу завышает на аккуратном, но нерабочем коде (muse r1: 2.5 против 1). Зато нашёл float в деньгах muse/ornith и N+1 — то, что пропустило ревью.</div>
+<div class=card><b>Судья (ярус 4) слеп к чекеру</b>Слепой судья по диффу завышает на аккуратном, но нерабочем коде (muse r1: 2.5 против 1). Зато нашёл float в деньгах muse/ornith и N+1 — то, что пропустило ревью.</div>
 </div>
 
 <h2 id=method><span class=no>2.</span>Методика пилота</h2>
-<p>Модель получает скелет Symfony 8 (composer, doctrine-bundle, docker-compose PostgreSQL 17) и
-задание TASK.md: консольный биллинг LLM-токенов — prices/usage импорт, тарифы с effective dating,
-оф-пик окно через полночь, идемпотентность, unrated-события, деньги на bcmath без float, бонус —
-ретро-пересчёт. Никаких подсказок по практикам: чекер наблюдает, что модель выберет сама.
-Харнес — pi (изолированный запуск, без доступа к чужим конфигам), бюджет 90 минут,
-контекст 100K, thinking — максимум шкалы модели.</p>
+<p class=lead>Что получает кандидат, в каком окружении работает модель и как устроены четыре яруса оценки.</p>
+
+<h3>Скелет задания</h3>
+<p>Модель получает <a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/test-assignment/backend/billing/skeleton/">каркас Symfony-проекта</a>
+(composer.json: symfony/framework-bundle 8.0, console/yaml, doctrine-bundle 3.2,
+doctrine/migrations 3.3, PHP ≥ 8.4; docker-compose с PostgreSQL 17; заготовка src/ и
+мigrations/; в require-dev — phpunit и инструменты статанализа: phpstan 2, phpmd,
+phpcs PSR12 — те же, что использует ярус 2) и два документа:</p>
+<ul>
+<li><a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/test-assignment/backend/billing/skeleton/TASK.md"><b>TASK.md</b></a> — спецификация
+«биллинга LLM-токенов»: импорт тарифов и событий, тарификация с effective dating,
+оф-пик-окно 16:30–00:30 UTC через полночь ×0.5, идемпотентность по
+(provider, provider_request_id), unrated-события, деньги на bcmath без float
+с одним округлением HALF_UP 6 знаков на событие, эксклюзивный --to,
+бонус — ретро-пересчёт после коррекции цен;</li>
+<li><a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/test-assignment/backend/billing/skeleton/AGENTS.md"><b>AGENTS.md</b></a> — минимальная памятка
+(код в src/, самопроверка приёмки, артефакты COMMIT_MESSAGE.md/PR_DESCRIPTION.md
+с обоснованием отступлений, русский язык). Практики (миграции или schema:update,
+офлайн или онлайн, менять ли файлы каркаса) модель выбирает сама — чекер наблюдает выбор.</li>
+</ul>
+
+<h3>Модели и окружение</h3>
+<p>Харнес — <b>pi</b> (локально, изолированный PI_CODING_AGENT_DIR: никаких глобальных
+конфигов и сессий), один прогон с нуля, бюджет 90 минут. Модели — с внутреннего
+olla­ma-сервера (адрес — env <code>OLLAMA_BASE_URL</code>, в git не хранится),
+параметры генерации — дефолтные; контекст 102400 у всех (теги
+<code>-pi-100k</code> / серверные алиасы <code>-ctx100k</code> с num_ctx=102400),
+thinking — максимум шкалы модели по <code>/api/show</code>.</p>
+<table><thead><tr><th>Модель (папка)</th><th>Тег ollama</th><th class=narrow>Параметры</th>
+<th class=narrow>Квант</th><th>Thinking фактический</th><th class=narrow>Прогонов</th></tr></thead><tbody>
+<tr><td>qwen3.8-27b-pi-100k</td><td>qwen3.8:27b-pi-100k</td><td class=narrow>27.3B</td><td class=narrow>Q4_K_M</td><td>r1 ≈medium → r2 xhigh</td><td class=narrow>2</td></tr>
+<tr><td>huihui-ai-pi-100k</td><td>huihui-ai:pi-100k</td><td class=narrow>27.3B</td><td class=narrow>Q4_K_M</td><td>r1 ≈medium → r2 xhigh</td><td class=narrow>2</td></tr>
+<tr><td>orcarouter-…-latest</td><td>orcarouter/Qwen3.8-27B-Uncensored</td><td class=narrow>27.3B</td><td class=narrow>Q4_K_M</td><td>true (максимум шкалы)</td><td class=narrow>2</td></tr>
+<tr><td>gemma4-31b-it-qat-pi-100k</td><td>gemma4:31b-it-qat-pi-100k</td><td class=narrow>30.7B</td><td class=narrow>Q4_0</td><td>true (максимум шкалы)</td><td class=narrow>1</td></tr>
+<tr><td>muse-glimmer</td><td>muse-glimmer</td><td class=narrow>27.9B</td><td class=narrow>Q4_K_M</td><td>r1 high → r2 max</td><td class=narrow>2</td></tr>
+<tr><td>ornith-1.5-35b</td><td>ornith-1.5:35b</td><td class=narrow>35.5B</td><td class=narrow>Q4_K_M</td><td>default-on</td><td class=narrow>1</td></tr>
+<tr class=neg><td>gemma4-e2b (негативный)</td><td>gemma4:e2b-ctx100k</td><td class=narrow>4.6B</td><td class=narrow>Q4_K_M</td><td>true</td><td class=narrow>1</td></tr>
+<tr class=neg><td>medgemma-27b (негативный)</td><td>medgemma:27b-ctx100k</td><td class=narrow>27.4B</td><td class=narrow>Q4_K_M</td><td>—</td><td class=narrow>1</td></tr>
+</tbody></table>
+<p class=sub>Фактически: 8 моделей, 12 прогонов. Повторные прогоны (r2) — не ретраи:
+qwen/huihui перегнаны после исправления thinking-карты («high» сервер поджимал
+до ≈medium), orca — после перевода тега на ctx100k (r1 ушёл в дефолтное окно 32K),
+muse — повтор на max. r1 у orca и r1 у ornith фактически работали в окне 32768.
+medgemma — негативный контроль без tool-calling (n/a).</p>
+
+<h3>Четыре яруса оценки</h3>
 <div class=flow>
-<div class=step><b>1 · pi-агент</b>Скелет + TASK.md + AGENTS.md, один прогон с нуля, 90 мин</div>
+<div class=step><b>1 · Чекер</b>детерминированный: golden-эталоны, чистая БД в docker</div>
 <div class=arrow>→</div>
-<div class=step><b>2 · Ярус 0: чекер</b>11 обязательных сценариев + 2 бонусных против golden-эталонов</div>
+<div class=step><b>2 · Метрики</b>phpstan/phpmd/phpcs + AST-качество кода</div>
 <div class=arrow>→</div>
-<div class=step><b>3 · Ярус 0.5: метрики</b>phpstan L8, phpmd, phpcs PSR12, AST/scc</div>
+<div class=step><b>3 · Ревью</b>изолированная pi-сессия (glm-5.3), оси A/B</div>
 <div class=arrow>→</div>
-<div class=step><b>4 · Ярус 1: ревью</b>ZCode, оси A/B «что сделано» / «как сделано», 0–4</div>
-<div class=arrow>→</div>
-<div class=step><b>5 · Ярус 2: судья</b>GLM-5.3-Flash, слепое ревью диффа, ось A</div>
+<div class=step><b>4 · Судья</b>GLM-5.3-Flash, слепое ревью диффа, ось A</div>
 </div>
-<p class=sub>Golden-эталоны посчитаны дважды независимо (Python Decimal и PHP-референс, совпадение байт-в-байт).
-Чекер поднимает чистую базу в docker на свободном порту; метод миграции схемы фиксируется в отчёте прогона.</p>
+
+<div class=scalebox><b>Ярус 1 — чекер: детерминированный, без LLM.</b>
+<div><code>checker/check.py</code> поднимает чистую базу PostgreSQL в docker
+на свободном порту, фиксирует способ разворота схемы (миграции или
+schema:update), гоняет команды кандидата и сравнивает вывод с golden-эталонами.
+Эталоны посчитаны дважды независимо — Python Decimal и PHP-референс судьи,
+совпадение байт-в-байт.</div>
+<div>11 обязательных сценариев: создание БД, разворот схемы, импорт цен,
+импорт событий, тарификация (RATED/UNRATED), unrated в stderr, базовый отчёт,
+повторный импорт дублей (идемпотентность), тарификация после дублей, отчёт
+после дублей, вывод ретро-пересчёта, отчёт после ретро-коррекции; плюс
+информационный skeleton_changes (что изменено в каркасе). Сценарии построены
+на граничных нюансах: valid_from включительно, границы оф-пик-окна
+16:29:59/16:30:00 и 00:29:59/00:30:00, unified-тариф, cache-цены,
+коллизия id между провайдерами, округление HALF_UP на уровне события.</div>
+<div>2 бонусных (retro-rebill): ретро-пересчёт после коррекции цены задним
+числом — REPRICED_EVENTS и REPRICE_DELTA_USD против эталона.</div></div>
+
+<div class=scalebox><b>Ярус 2 — метрики: детерминированные, сравнительные.</b>
+<div><code>checker/metrics.py</code> (инструменты — phar-кэш, без сети
+в окружении судьи): phpstan level 8 — ошибки строгого анализа; phpmd —
+нарушения порогов сложности/чистоты (ruleset coding-standard); phpcs PSR12 —
+стиль; scc — размер (files, LOC); AST-сборщик coding-standard — WMC,
+cyclomatic complexity, LCOM4, afferent/efferent coupling и превышения порогов
+(method cc &gt; 10, method loc &gt; 50, class loc &gt; 300, wmc &gt; 50).</div>
+<div>Метрики сравнивают модели между собой, проходного порога нет: у
+эталонного решения судьи phpstan ≠ 0.</div></div>
+
+<div class=scalebox><b>Ярус 3 — ревью: изолированная pi-сессия.</b>
+<div><code>checker/judge_tier3.py</code> — отдельный запуск
+<code>pi -p --no-session --model zai/glm-5.3</code> (паттерн judge_glm.py,
+подписка Z.AI; сабагенты Agent tool и OpenRouter запрещены правилами
+репозитория). Ревьюер знает результат чекера и метрик, оценивает две оси
+рубрики <a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/test-assignment/backend/billing/RUBRIC.md">RUBRIC.md</a>:
+A «код и архитектура» и B «процесс и коммуникация», 0–4.</div>
+<div><b>Отступление пилота:</b> ревью прогонов пилота выполнено в рабочей
+сессии ассистента ZCode, а не изолированным запуском — до появления
+judge_tier3.py. Полная сетка проходит только изолированными сессиями;
+таблица ниже помечает эти баллы как «пилотные».</div></div>
+
+<div class=scalebox><b>Ярус 4 — судья: слепое второе мнение.</b>
+<div><code>checker/judge_tier2.py</code> — pi-сессия с GLM-5.3-Flash
+(thinking low, изолированный запуск): судья видит только TASK.md и дифф
+решения, не зная чекера. Ось A, 0–4, вердикт с цитатами из диффа.</div></div>
 
 <h2 id=results><span class=no>3.</span>Результаты прогонов</h2>
 {results_table()}
@@ -387,16 +467,16 @@ HTML = f"""<!DOCTYPE html>
 {think_dumbbell()}
 
 <h3>Качество кода лучших решений</h3>
-<p class=excap>Ярус 0.5 по четырём лучшим решениям. huihui r2 на xhigh пишет заметно чище
+<p class=excap>Ярус 2 по четырём лучшим решениям. huihui r2 на xhigh пишет заметно чище
 своего ≈medium-прогона (phpmd 56 → 18, phpcs 86 → 26) — максимум мышления окупается и качеством,
 не только функциональностью.</p>
 {quality_chart()}
 
-<h2 id=judges><span class=no>5.</span>Судьи: согласие ярусов</h2>
-<p class=excap>Ревью ZCode (ярус 1) против слепого ревью GLM-5.3-Flash (ярус 2) по оси A.
+<h2 id=judges><span class=no>5.</span>Ревью против судьи: согласие ярусов 3 и 4</h2>
+<p class=excap>Ревью яруса 3 (в пилоте — ZCode) против слепого судьи яруса 4 (GLM-5.3-Flash) по оси A.
 11 из 12 прогонов — в пределах ±0.5 балла, систематического сдвига нет.</p>
 {judges_dumbbell()}
-<div class="quote bad"><div class=who>Слепое пятно яруса 2</div>
+<div class="quote bad"><div class=who>Слепое пятно судьи (ярус 4)</div>
 Судья видит только дифф и не знает результата чекера. На muse r1 (1/11, схема не разворачивается,
 но код аккуратный) он поставил 2.5 — против 1 у ревью. Вывод пилота: функциональная истина —
 только ярус 0; ярус 2 полезен для поиска дефектов (float в деньгах, N+1), но не для итогового
@@ -408,14 +488,16 @@ HTML = f"""<!DOCTYPE html>
 capabilities без tool-calling, зачёт не выставляется (n/a). Два разных типа негативности шкала
 различает — дискриминативность подтверждена.</div>
 <p>Дальше по плану: полная сетка прогонов (все теги через pi-100k/ctx100k, thinking — максимум
-шкалы из /api/show, muse на high вместо max), 3–5 прогонов на модель, затем сводный отчёт этапа 2
+шкалы из /api/show, muse на high вместо max), 3–5 прогонов на модель;
+ревью — только изолированными pi-сессиями (judge_tier3.py), затем сводный отчёт этапа 2
 в формате этапа 1. Все артефакты прогонов — в папках моделей
 <code>models/&lt;модель&gt;/backend/test-assignment/run-XX/</code> (solution, сессия pi, чекер, метрики, scorecard).</p>
 
 <footer>
 Все числа — из артефактов прогонов: run.json, check.json, metrics.json, session-profile.md.
 Генератор: <code>interview/test-assignment/backend/billing/build_pilot_report.py</code> —
-правки данных только через него. Сводка ярусов в текстовом виде:
+правки данных только через него. Судьи: <code>checker/judge_tier3.py</code> (ревью),
+<code>checker/judge_tier2.py</code> (слепой судья). Сводка ярусов в текстовом виде:
 <code>reports/TEST-ASSIGNMENT-pilot-judges.md</code>.
 </footer>
 <script>{TOOLTIP_JS}</script>

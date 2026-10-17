@@ -1,9 +1,11 @@
 # Пилот этапа 2 (тестовое «биллинг LLM-токенов»): сводка ярусов
 
 12 прогонов, 8 моделей (qwen3.8:27b, huihui-ai, orcarouter-unc, gemma4:31b-qat,
-muse-glimmer, ornith-1.5, gemma4:e2b, medgemma). Ярусы: 0 — чекер (golden),
-0.5 — метрики, 1 — ревью ZCode (оси A/B), 2 — GLM-5.3-Flash (слепое ревью
-диффа, `checker/judge_tier2.py`, thinking=low).
+muse-glimmer, ornith-1.5, gemma4:e2b, medgemma). Ярусы: 1 — чекер (golden),
+2 — метрики, 3 — ревью ZCode (оси A/B; в пилоте — в рабочей сессии,
+для полной сетки — изолированная pi-сессия `checker/judge_tier3.py`),
+4 — GLM-5.3-Flash (слепое ревью диффа, `checker/judge_tier2.py`,
+thinking=low).
 
 | Прогон | Ярус 0 | Ярус 1: A | Ярус 2: A | Δ(A1−A2) | Время | Токены | Пик ctx | Компакты |
 |---|---|---|---|---|---|---|---|---|

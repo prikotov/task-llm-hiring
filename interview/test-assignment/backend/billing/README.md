@@ -14,9 +14,9 @@
 | `sample/` | те же sample-фикстуры отдельно (в скелет скопированы) |
 | `fixtures/` | **скрытые** фикстуры чекера (кандидату не показывать) + `golden/` |
 | `reference_calc.py` | референс арифметики: правила TASK.md на Decimal; генерирует `fixtures/golden/*` и числа worked example |
-| `checker/check.py` | ярус 0 — функциональный чекер (docker, чистая БД, сравнение с golden) |
-| `checker/metrics.py` | ярус 0.5 — phpstan/phpmd/phpcs/scc + AST-метрики coding-standard |
-| `RUBRIC.md` | рубрика ревью (ярус 1) и описание всех ярусов |
+| `checker/check.py` | ярус 1 — функциональный чекер (docker, чистая БД, сравнение с golden) |
+| `checker/metrics.py` | ярус 2 — phpstan/phpmd/phpcs/scc + AST-метрики coding-standard |
+| `RUBRIC.md` | рубрика ревью (ярус 3) и описание всех ярусов |
 | `runner_pi.py` | управляемый прогон: pi лидер отдельной process group (стоп по сигналу/таймауту убивает группу целиком — «зомби-pi» невозможны), live-лог `pi-run.log` (tail -f), метаданные `run.json` |
 | `analyze_session.py` | анализатор сессий: tool-calls по инструментам, объём thinking, таймлайн по 5-мин интервалам, файлы, категории bash-команд, повторы (детектор циклов), итерации тестов с исходами, финальный ответ; `--json` для агрегатов |
 
@@ -92,10 +92,10 @@ B=interview/test-assignment/backend/billing
 RESULTS=models/<модель>/backend/test-assignment/run-XX
 RUN=$(grep -oP '(?<=cwd=)\S+' "$RESULTS-pi.out" | head -1)  # репозиторий прогона (runner --keep)
 
-# ярус 0 — функциональные сценарии (docker, ~2 мин)
+# ярус 1 — функциональные сценарии (docker, ~2 мин)
 python3 "$B/checker/check.py" --repo "$RUN" > "$RESULTS/check.json"
 
-# ярус 0.5 — метрики качества (phpstan/phpcs/phpmd — phar-кэш, ~5 сек)
+# ярус 2 — метрики качества (phpstan/phpcs/phpmd — phar-кэш, ~5 сек)
 python3 "$B/checker/metrics.py" --repo "$RUN" > "$RESULTS/metrics.json"
 
 # полный анализ сессии (md) и карточка итогов
@@ -120,7 +120,7 @@ skeleton "$RESULTS/solution"`.)
   удобного чтения: `pi --export pi-session/<file>.jsonl out.html`;
 - `pi-run.log` — stdout прогона (финальный ответ, ход по времени);
 - `diff.patch` — компактное «что изменилось против скелета»;
-- `check.json`, `metrics.json` — ярусы 0/0.5;
+- `check.json`, `metrics.json` — ярусы 1/2;
 - `scorecard.md` — ревью по `RUBRIC.md`, оси A/B + лист конвенций из
   `interview/conventions-probe.md`.
 
