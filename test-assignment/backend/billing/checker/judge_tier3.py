@@ -62,15 +62,14 @@ SYSTEM = """Ты — изолированный ревьюер (ярус 3) те
 {"axis_a":<0-4, шаг 0.5>,"axis_b":<0-4, шаг 0.5>,"note":"5-10 предложений по-русски: сильные стороны, дефекты с цитатами, что учтено из чекера/метрик"}"""
 
 
-def judge_run(run_dir: Path, thinking: str) -> int:
-    task = (BILLING / "skeleton" / "TASK.md").read_text(encoding="utf-8")
-    diff = (run_dir / "diff.patch").read_text(encoding="utf-8")
-    diff_lines = diff.splitlines()
-    trimmed = len(diff_lines) > MAX_DIFF_LINES
-    diff_text = "\n".join(diff_lines[:MAX_DIFF_LINES])
-    if trimmed:
-        diff_text += f"\n… (обрезано, всего {len(diff_lines)} строк)"
+def build_facts(run_dir: Path) -> list[str]:
+    """Блок ФАКТОВ для промпта ревьюера: выжимка ярусов 1–2 по прогону.
 
+    Метрики подаются агрегатами (phpstan/phpmd/phpcs/LOC + AST-сводка);
+    сырые выводы инструментов ревьюеру не дают — только факты чекера
+    с деталями упавших сценариев. Используется и отчётом этапа
+    (build_pilot_report.py) как документация входа ревьюера.
+    """
     facts = []
     check = run_dir / "check.json"
     if check.exists():
@@ -91,6 +90,19 @@ def judge_run(run_dir: Path, thinking: str) -> int:
         if ast:
             facts.append(f"AST: cc_max {ast.get('method_cc_max')}, lcom4>1: {ast.get('lcom4_over_1')}, "
                          f"превышения порогов {ast.get('findings_thresholds')}")
+    return facts
+
+
+def judge_run(run_dir: Path, thinking: str) -> int:
+    task = (BILLING / "skeleton" / "TASK.md").read_text(encoding="utf-8")
+    diff = (run_dir / "diff.patch").read_text(encoding="utf-8")
+    diff_lines = diff.splitlines()
+    trimmed = len(diff_lines) > MAX_DIFF_LINES
+    diff_text = "\n".join(diff_lines[:MAX_DIFF_LINES])
+    if trimmed:
+        diff_text += f"\n… (обрезано, всего {len(diff_lines)} строк)"
+
+    facts = build_facts(run_dir)
 
     prompt = (f"ТЕКСТ ЗАДАНИЯ (TASK.md):\n{task}\n\n"
               f"ДИФФ РЕШЕНИЯ (против каркаса; vendor и тестовые фикстуры чекера вне диффа):\n{diff_text}\n\n"

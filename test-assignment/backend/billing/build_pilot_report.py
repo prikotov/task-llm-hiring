@@ -9,6 +9,7 @@ metrics.json, session-profile.md) моделей/<модель>/test-assignment/
 Запуск: python3 test-assignment/backend/billing/build_pilot_report.py
 Выход: reports/TEST-ASSIGNMENT-pilot-report.html
 """
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -469,6 +470,13 @@ A «код и архитектура» и B «процесс и коммуник
 <code>checker/judge_tier3.py</code>; на вход подаются TASK.md, дифф
 решения и факты ярусов 1–2):</div>
 <pre class=req>TIER3_SYSTEM_PLACEHOLDER</pre>
+<div>Что подаётся ревьюеру, кроме TASK.md и диффа (обрезается до 2600 строк —
+первые строки несут сущности и домен): блок <b>ФАКТЫ</b> — выжимка ярусов 1–2.
+Метрики идут агрегатами (phpstan/phpmd/phppcs/LOC + AST-сводка и превышения
+порогов), сырые выводы инструментов — нет; упавшие сценарии чекера —
+с деталями. Вот ФАКТЫ дословно для прогона qwen3.8 · r2
+(строит build_facts() из judge_tier3.py — тот же код, что в бою):</div>
+<pre class=req>TIER3_FACTS_PLACEHOLDER</pre>
 <div><b>Отступление пилота:</b> ревью прогонов пилота выполнено в рабочей
 сессии ассистента ZCode, а не изолированным запуском — до появления
 judge_tier3.py. Полная сетка проходит только изолированными сессиями;
@@ -550,6 +558,14 @@ def main():
     system = next(n.value.value for n in tree.body
                   if isinstance(n, _ast.Assign) and getattr(n.targets[0], "id", "") == "SYSTEM")
     page = HTML.replace("TIER3_SYSTEM_PLACEHOLDER", _html.escape(system))
+    sys.path.insert(0, str(BILLING / "checker"))
+    from judge_tier3 import build_facts  # noqa: E402
+    sample = ROOT / "models/qwen3.8-27b-pi-100k/backend/test-assignment/run-02"
+    if (sample / "check.json").is_file():
+        page = page.replace("TIER3_FACTS_PLACEHOLDER", _html.escape("\n".join(build_facts(sample))))
+    else:
+        page = page.replace("TIER3_FACTS_PLACEHOLDER",
+                            "(артефакты прогона недоступны при сборке отчёта)")
     OUT.write_text(page, encoding="utf-8")
     print(f"готово: {OUT} ({OUT.stat().st_size} байт)")
 

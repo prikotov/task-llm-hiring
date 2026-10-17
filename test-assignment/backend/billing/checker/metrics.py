@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Ярус 0.5 — детерминированные метрики качества кода кандидата.
 
-Работает на КОПИИ репозитория кандидата (оригинал не трогает).
+Работает на КОПИИ репозитория кандидата (оригинал не трогает);
+если vendor/ отсутствует (solution хранится без него) — в копии
+выполняется composer install по composer.json кандидата.
 
 Инструменты кэшируются в ~/.cache/billing-metrics/ в виде самодостаточных
 phar-архивов (phpstan / phpcs / phpmd): скачиваются один раз, дальше
@@ -87,7 +89,7 @@ def install_tools(work: Path) -> bool:
     """Медленный fallback: composer-установка инструментов в копию."""
     c = run(["composer", "require", "--dev",
              "phpstan/phpstan", "squizlabs/php_codesniffer", "phpmd/phpmd",
-             "--no-interaction", "--no-progress", "--no-audit"], work)
+             "--no-interaction", "--no-progress"], work)
     return c.returncode == 0
 
 
@@ -239,6 +241,17 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="billing-metrics-") as td:
         work = Path(td) / "repo"
         shutil.copytree(repo, work, ignore=shutil.ignore_patterns("var", ".git"))
+
+        # solution/ хранится без vendor: без зависимостей phpstan сыплет
+        # «unknown class» и счётчики деградируют — ставим по composer.json
+        # кандидата (кэш composer делает повторы быстрыми)
+        if not (work / "vendor").is_dir():
+            print("vendor отсутствует: composer install в одноразовой копии…", file=sys.stderr)
+            ci = run(["composer", "install", "--no-interaction", "--no-progress"], work)
+            if ci.returncode != 0 or not (work / "vendor").is_dir():
+                print("composer install не удался — метрики по коду без зависимостей "
+                      "некорректны: " + (ci.stderr or "")[-300:], file=sys.stderr)
+                return 3
 
         phpstan_phar, phpcs_phar, phpmd_phar = (phar(n) for n in PHAR_URLS)
         if phpstan_phar and phpcs_phar and phpmd_phar:
