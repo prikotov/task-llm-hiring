@@ -199,6 +199,79 @@ def ast_scatter(collector: dict) -> str:
             % (W, H, W, H, "".join(svg)))
 
 
+
+def dep_matrix(collector: dict) -> str:
+    """Матрица зависимостей классов (по сырью collector.json).
+
+    Классы отсортированы по полному имени — неймспейсы-слои кластеризуются,
+    жирные линии разделяют слои. Ячейка (строка → столбец) — число зависимостей;
+    последний столбец — исходящие связи наружу (к не-классам решения).
+    """
+    classes = [cl["name"] for cl in collector.get("classes") or []]
+    internal = set(classes)
+    counts: dict[tuple[str, str], int] = {}
+    ext_out: dict[str, int] = {}
+    for dep in collector.get("dependencies") or []:
+        src, dst = dep.get("source"), dep.get("target")
+        if src in internal and dst in internal and src != dst:
+            counts[(src, dst)] = counts.get((src, dst), 0) + 1
+        elif src in internal:
+            ext_out[src] = ext_out.get(src, 0) + 1
+    if not classes or not counts:
+        return ""
+    order = sorted(classes)
+    n = len(order)
+    cell = 13 if n <= 45 else 9
+    pad = 4
+    ML, MT = 176, 176
+    W = ML + (n + 1) * (cell + pad) + 8   # +1 столбец «внеш.»
+    H = MT + n * (cell + pad) + 34
+    mx = max(counts.values())
+    hue = lambda k: "#%02x%02x%02x" % tuple(  # noqa: E731
+        round(a + (b - a) * min(k / mx, 1)) for a, b in zip((221, 230, 242), (49, 95, 158)))
+
+    def group(name: str) -> str:
+        parts = name.split("\\")
+        return parts[1] if len(parts) > 2 else (parts[0] if parts else name)
+
+    svg = []
+    xi = {c: ML + i * (cell + pad) for i, c in enumerate(order)}
+    yi = {c: MT + i * (cell + pad) for i, c in enumerate(order)}
+    # сетка и подписи
+    prev_group = None
+    for i, c in enumerate(order):
+        short = c.split("\\")[-1]
+        g = group(c)
+        bold = 1.6 if g != prev_group else 0.6
+        if g != prev_group and prev_group is not None:
+            svg.append(f'<line x1={ML - 6} y1={yi[c] - pad / 2 - 1:.0f} x2={W - 8} y2={yi[c] - pad / 2 - 1:.0f} stroke="#aab3bf" stroke-width="1"/>')
+            svg.append(f'<line x1={xi[c] - pad / 2 - 1:.0f} y1={MT - 6} x2={xi[c] - pad / 2 - 1:.0f} y2={H - 34} stroke="#aab3bf" stroke-width="1"/>')
+        prev_group = g
+        svg.append(f'<text x={ML - 8} y={yi[c] + cell - 2:.0f} text-anchor=end font-size={min(10, cell - 1)} fill=#66707f>{short[:20]}</text>')
+        svg.append(f'<text x={xi[c] + cell / 2:.0f} y={MT - 8} font-size={min(10, cell - 1)} fill=#66707f '
+                   f'transform="rotate(-90 {xi[c] + cell / 2:.0f} {MT - 8})" text-anchor=end>{short[:20]}</text>')
+    # ячейки с зависимостями
+    for (src, dst), k in counts.items():
+        x, y = xi[dst], yi[src]
+        svg.append(f'<g class="pt"><rect x={x:.0f} y={y:.0f} width={cell} height={cell} rx=2 '
+                   f'fill="{hue(k)}"><title>{src.split(chr(92))[-1]} → {dst.split(chr(92))[-1]}: {k}</title></rect>'
+                   f'<g class="tip"><rect x={ML + 10} y={MT - 60} width=300 height=34 rx=7 fill="#1d2433" fill-opacity="0.95"/>'
+                   f'<text x={ML + 20} y={MT - 38} font-size=11.5 fill="#ffffff">{src.split(chr(92))[-1]} → {dst.split(chr(92))[-1]} · {k}</text></g></g>')
+    # столбец «внеш.»
+    xe = ML + n * (cell + pad)
+    for c in order:
+        k = ext_out.get(c, 0)
+        if k:
+            svg.append(f'<rect x={xe:.0f} y={yi[c]:.0f} width={cell} height={cell} rx=2 fill="#c9b458" fill-opacity={0.25 + 0.75 * min(k / max(ext_out.values()), 1):.2f}><title>{c.split(chr(92))[-1]} → внешнее: {k}</title></rect>')
+    svg.append(f'<text x={xe + cell / 2:.0f} y={MT - 8} font-size=10 fill=#8a7a3a transform="rotate(-90 {xe + cell / 2:.0f} {MT - 8})" text-anchor=end>внеш.</text>')
+    svg.append(f'<text x={ML} y={H - 14} font-size=12.5 fill=#66707f>строки — источник, столбцы — получатель; насыщенность — число зависимостей</text>')
+    return ('<svg class="scatter" width="%d" height="%d" viewBox="0 0 %d %d" style="max-width:100%%">%s<g class="tip-layer"></g></svg>'
+            '<p class=sub>Классы отсортированы по неймспейсам — жирные линии разделяют слои; '
+            "жёлтый столбец «внеш.» — исходящие связи к типам вне решения (DTO времени, коллекции). "
+            "Наведите на закрашенную ячейку — кто на кого и сколько раз.</p>"
+            % (W, H, W, H, "".join(svg)))
+
+
 def ast_tables(collector: dict) -> str:
     methods: dict[str, list] = {}
     fnames: dict[str, str] = {}
@@ -320,7 +393,7 @@ def session_html(events: list[dict], st: dict, ctx_limit: int) -> str:
 TOOLTIP_JS = """
 <script>
 document.querySelectorAll('svg.scatter g.pt').forEach(function (pt) {
-  var dot = pt.querySelector('.dot'), tip = pt.querySelector('.tip');
+  var dot = pt.querySelector('.dot') || pt.querySelector('rect,circle'), tip = pt.querySelector('.tip');
   if (!dot || !tip) return;
   dot.addEventListener('mouseenter', function () {
     pt.closest('svg').querySelector('.tip-layer').appendChild(tip);
@@ -407,10 +480,12 @@ def build(run_dir: Path) -> str:
         f'<div class="card"><b>{metrics.get("scc", {}).get("loc", "—")}</b><span>LOC решения</span></div>'
         "</div>")
 
+    matrix = dep_matrix(collector)
     tier2 = ('<h2>Ярус 2 · метрики кода</h2>'
              + bars_with_cohort(metrics, cohort)
              + '<h3>Классы: размер и связность</h3>'
              + ast_scatter(collector)
+             + (('<h3>Матрица зависимостей классов</h3>' + matrix) if matrix else "")
              + ast_tables(collector))
 
     sess = session_html(events, st, ctx) if st else '<div class=note>pi-сессия не найдена</div>'
