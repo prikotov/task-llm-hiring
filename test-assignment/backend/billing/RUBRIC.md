@@ -36,7 +36,9 @@ unified-тариф, cache-цены, unrated, эксклюзивность `--to`
 | phpmd_violations | phpmd (ruleset coding-standard) | нарушения порогов сложности/чистоты |
 | phpcs_violations | phpcs PSR12 | отступы/структура/импорты |
 | files, loc | scc | размер решения |
-| classes, methods, wmc_total, method_cc_max, lcom4_over_1, ca/ce_total, findings_thresholds | AST-сборщик coding-standard (`metrics-collect`) | сложность и связность классов; findings — превышения порогов (method cc > 10, loc > 50, class loc > 300, wmc > 50, lcom4 > 1) |
+| classes, methods, wmc_total, method_cc_max, lcom4_over_1, ca/ce_total, findings_thresholds | AST-сборщик coding-standard (`metrics-collect`) | агрегаты сложности/связности |
+| classes_detail | тот же сборщик | по-классовая выкладка: файл, LOC, методы/свойства, WMC, cc_max, LCOM4, Ca/Ce — сортировка по WMC |
+| method_findings | тот же сборщик | методы-нарушители порогов (cc > 10 или loc > 50) с классом, cc и LOC |
 
 Метрики сравнительные (модели между собой), не проходные: у эталонного
 решения судьи phpstan ≠ 0. Абсолютные значения + распределение по моделям
