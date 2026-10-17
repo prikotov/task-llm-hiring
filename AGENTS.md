@@ -86,7 +86,8 @@ solo-репо не может требовать аппрув второго ч�
   - `<роль>/test-assignment/run-XX/` — тестовое задание (этап 2):
     `solution/` (полный код решения), `pi-session/` (JSONL-след
     агентной сессии), `pi-run.log`, `diff.patch`, `run.json` (условия),
-    `check.json` (чекер), `metrics.json` (качество кода),
+    `check.json` (чекер), `metrics.json` (качество кода; сырые выводы
+    инструментов — в `metrics-raw/`),
     `session-profile.md`, `summary.md`, `scorecard.md`, `judge-glm.md`
     (ярус 2).
 - `interview/` — только методология собеседований (этап 1): blueprint,

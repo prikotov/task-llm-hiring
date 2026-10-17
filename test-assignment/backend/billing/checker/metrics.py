@@ -16,7 +16,14 @@ composer не нужен, если там собран vendor).
 Выход: JSON в stdout (tools_method: phar|composer). Любой инструмент
 может быть пропущен (status: skip) — остальные продолжают считаться.
 
-Запуск: python3 checker/metrics.py --repo /path/to/candidate
+Сырые артефакты (полные выводы phpstan/phpmd/phpcs/scc и отчёт
+AST-сборщика collector.json), на которых построены агрегаты,
+сохраняются в --raw-dir (обычно <run>/metrics-raw/) и перечисляются
+в metrics.json в полях raw каждого инструмента. Агрегаты без
+сырья не проверяемы.
+
+Запуск: python3 checker/metrics.py --repo /path/to/candidate \
+        --raw-dir <run>/metrics-raw
 """
 
 from __future__ import annotations
@@ -48,6 +55,14 @@ def run(cmd: list[str], cwd: Path, timeout: int = CMD_TIMEOUT) -> subprocess.Com
     return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
 
 
+def dump_raw(raw_dir: Path | None, name: str, text: str) -> str | None:
+    """Сохранить полный вывод инструмента; вернуть имя файла для metrics.json."""
+    if raw_dir is None:
+        return None
+    (raw_dir / name).write_text(text, encoding="utf-8")
+    return name
+
+
 def phar(name: str) -> Path | None:
     """Путь к phar из кэша; при отсутствии — однократное скачивание."""
     path = PHAR_CACHE / name
@@ -76,7 +91,7 @@ def install_tools(work: Path) -> bool:
     return c.returncode == 0
 
 
-def phpstan(work: Path, phpstan_bin: list[str]) -> dict:
+def phpstan(work: Path, phpstan_bin: list[str], raw_dir: Path | None = None) -> dict:
     (work / "phpstan.neon").write_text(
         "parameters:\n"
         "    level: 8\n"
@@ -86,10 +101,11 @@ def phpstan(work: Path, phpstan_bin: list[str]) -> dict:
     c = run([*phpstan_bin, "analyse", "--no-progress", "--error-format=raw"], work)
     errors = [ln for ln in c.stdout.splitlines() if ln.strip()]
     return {"status": "ok", "exit": c.returncode, "errors": len(errors),
-            "first": errors[:5]}
+            "first": errors[:5],
+            "raw": dump_raw(raw_dir, "phpstan-raw.txt", c.stdout)}
 
 
-def phpmd(work: Path, phpmd_bin: list[str]) -> dict:
+def phpmd(work: Path, phpmd_bin: list[str], raw_dir: Path | None = None) -> dict:
     ruleset = CODING_STANDARD / "docs/conventions/examples/phpmd.xml"
     rules = str(ruleset) if ruleset.is_file() else "cleancode,codesize,design"
     # у phpmd 3.x новый CLI (analyze --format --ruleset), у 2.x — позиционный
@@ -98,10 +114,11 @@ def phpmd(work: Path, phpmd_bin: list[str]) -> dict:
         c = run([*phpmd_bin, "src", "text", rules], work)
     violations = [ln for ln in c.stdout.splitlines() if ln.strip()]
     return {"status": "ok", "rules": rules, "violations": len(violations),
-            "first": violations[:5]}
+            "first": violations[:5],
+            "raw": dump_raw(raw_dir, "phpmd-raw.txt", c.stdout)}
 
 
-def phpcs(work: Path, phpcs_bin: list[str]) -> dict:
+def phpcs(work: Path, phpcs_bin: list[str], raw_dir: Path | None = None) -> dict:
     # Kernel.php дан скелетом — не код кандидата, из проверки исключён
     c = run([*phpcs_bin, "--standard=PSR12", "--report=summary",
              "--ignore=Kernel.php", "src"], work)
@@ -109,11 +126,15 @@ def phpcs(work: Path, phpcs_bin: list[str]) -> dict:
     m = re.search(r"TOTAL OF (\d+) ERRORS? AND (\d+) WARNINGS?", c.stdout)
     if m:
         errors, warnings = int(m.group(1)), int(m.group(2))
+    full = run([*phpcs_bin, "--standard=PSR12", "--report=full",
+                "--ignore=Kernel.php", "src"], work) if raw_dir else None
     return {"status": "ok", "errors": errors, "warnings": warnings,
-            "violations": errors + warnings, "exit": c.returncode}
+            "violations": errors + warnings, "exit": c.returncode,
+            "raw": dump_raw(raw_dir, "phpcs-full.txt",
+                            full.stdout if full else c.stdout)}
 
 
-def scc(work: Path) -> dict:
+def scc(work: Path, raw_dir: Path | None = None) -> dict:
     if shutil.which("scc") is None:
         return {"status": "skip", "reason": "scc не установлен"}
     c = run(["scc", "src", "--format", "json"], work)
@@ -125,10 +146,11 @@ def scc(work: Path) -> dict:
         return {"status": "skip", "reason": "scc отдал не-JSON"}
     files = sum(int(lang.get("Count", 0)) for lang in langs)
     lines = sum(int(lang.get("Code", 0)) for lang in langs)
-    return {"status": "ok", "files": files, "loc": lines}
+    return {"status": "ok", "files": files, "loc": lines,
+            "raw": dump_raw(raw_dir, "scc.json", c.stdout)}
 
 
-def ast_metrics(work: Path) -> dict:
+def ast_metrics(work: Path, raw_dir: Path | None = None) -> dict:
     """CC/WMC/LCOM4/Ca-Ce по сырой AST-статистике coding-standard.
 
     Сборщик запускается напрямую из чекаута coding-standard (без composer),
@@ -146,6 +168,11 @@ def ast_metrics(work: Path) -> dict:
     if c.returncode != 0 or not out.is_file():
         return {"status": "skip", "reason": "metrics-collect не удался: " + (c.stderr or "")[-200:]}
     report = json.loads(out.read_text(encoding="utf-8"))
+    raw_name = None
+    if raw_dir is not None:
+        (raw_dir / "collector.json").write_text(
+            json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
+        raw_name = "collector.json"
 
     internal = {cl["name"] for cl in report["classes"]}
     methods: dict[str, list[dict]] = {}
@@ -228,17 +255,24 @@ def ast_metrics(work: Path) -> dict:
         "findings_thresholds": findings,
         "classes_detail": classes_detail,
         "method_findings": method_findings,
+        "raw": raw_name,
     }
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", required=True, help="каталог кандидата")
+    parser.add_argument("--raw-dir", type=Path, default=None,
+                        help="куда сложить сырые выводы инструментов "
+                             "(обычно <run>/metrics-raw); без флага сырье не пишется")
     args = parser.parse_args()
     repo = Path(args.repo).resolve()
     if not (repo / "src").is_dir():
         print("нет src/ в репозитории кандидата", file=sys.stderr)
         return 2
+    raw_dir = args.raw_dir.resolve() if args.raw_dir else None
+    if raw_dir:
+        raw_dir.mkdir(parents=True, exist_ok=True)
 
     with tempfile.TemporaryDirectory(prefix="billing-metrics-") as td:
         work = Path(td) / "repo"
@@ -264,11 +298,11 @@ def main() -> int:
         report = {
             "repo": str(repo),
             "tools_method": method,
-            "phpstan": phpstan(work, phpstan_bin),
-            "phpmd": phpmd(work, phpmd_bin),
-            "phpcs": phpcs(work, phpcs_bin),
-            "scc": scc(work),
-            "ast_metrics": ast_metrics(work),
+            "phpstan": phpstan(work, phpstan_bin, raw_dir),
+            "phpmd": phpmd(work, phpmd_bin, raw_dir),
+            "phpcs": phpcs(work, phpcs_bin, raw_dir),
+            "scc": scc(work, raw_dir),
+            "ast_metrics": ast_metrics(work, raw_dir),
         }
         print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0

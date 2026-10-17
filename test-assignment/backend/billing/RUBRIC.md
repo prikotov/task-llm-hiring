@@ -39,6 +39,7 @@ unified-тариф, cache-цены, unrated, эксклюзивность `--to`
 | classes, methods, wmc_total, method_cc_max, lcom4_over_1, ca/ce_total, findings_thresholds | AST-сборщик coding-standard (`metrics-collect`) | агрегаты сложности/связности |
 | classes_detail | тот же сборщик | по-классовая выкладка: файл, LOC, методы/свойства, WMC, cc_max, LCOM4, Ca/Ce — сортировка по WMC |
 | method_findings | тот же сборщик | методы-нарушители порогов (cc > 10 или loc > 50) с классом, cc и LOC |
+| metrics-raw/ | все инструменты | сырые артефакты, на которых построены агрегаты: phpstan-raw.txt, phpmd-raw.txt, phpcs-full.txt, scc.json, collector.json (полный отчёт AST-сборщика); имена файлов продублированы в metrics.json в полях raw |
 
 Метрики сравнительные (модели между собой), не проходные: у эталонного
 решения судьи phpstan ≠ 0. Абсолютные значения + распределение по моделям
