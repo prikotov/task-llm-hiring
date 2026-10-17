@@ -52,7 +52,7 @@ header p{margin:5px 0;opacity:.93;max-width:74ch}
 .toc ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:5px 28px}
 .toc a{color:var(--acc);text-decoration:none}
 .toc a:hover{text-decoration:underline}
-h2{font-size:24px;margin:44px 0 4px;letter-spacing:-.01em}
+h2{font-size:24px;margin:44px 0 10px;letter-spacing:-.01em}
 h2 .no{color:var(--mut);font-weight:400;margin-right:8px}
 h3{font-size:17.5px;margin:26px 0 2px}
 .lead{color:var(--mut);margin:8px 0 14px;font-size:15px}
@@ -82,7 +82,10 @@ tr.top td{background:#eef6ef}
 .flow .step.hot{border-color:var(--bad)}.flow .step.hot b{color:var(--bad)}
 .flow .arrow{align-self:center;color:var(--mut);font-size:19px}
 a{color:var(--acc)}
-.note{background:#fff9e8;border:1px solid #eedd9f;border-radius:12px;padding:13px 17px;font-size:14.5px}
+.note{background:#fff9e8;border:1px solid #eedd9f;border-radius:12px;padding:13px 17px;font-size:14.5px;margin:14px 0}
+.scalebox{background:#f4f7fb;border:1px solid var(--line);border-radius:10px;padding:11px 16px;font-size:13.5px;color:var(--mut);margin:14px 0}
+.scalebox>b{display:block;margin:2px 0 9px;font-size:15px;color:var(--ink)}
+.scalebox div{margin-top:7px}
 .badge{display:inline-block;border-radius:5px;padding:1px 8px;font-size:12px;font-weight:600}
 .badge.b{background:#e9f1ec;color:var(--good)}.badge.r{background:#f8ebe7;color:var(--bad)}.badge.g{background:#edf1f7;color:var(--acc)}
 svg text{font-family:inherit}
