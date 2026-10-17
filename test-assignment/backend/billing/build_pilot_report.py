@@ -9,6 +9,7 @@ metrics.json, session-profile.md) моделей/<модель>/test-assignment/
 Запуск: python3 test-assignment/backend/billing/build_pilot_report.py
 Выход: reports/TEST-ASSIGNMENT-pilot-report.html
 """
+import json
 import sys
 from pathlib import Path
 
@@ -34,23 +35,6 @@ RUNS = [
     ("medgemma", "n/a: нет tools", 2, 0, 0, 0, None, None, None, None, 0, 0, 0, 27, "na"),
 ]
 FULL, PART, FAIL, NA = "full", "part", "fail", "na"
-
-# каталог прогона по метке строки (ссылки таблицы результатов);
-# цель может отсутствовать на машине сборки — тогда текст без ссылки
-RUN_DIRS = {
-    "qwen3.8 · r1": "models/qwen3.8-27b-pi-100k/backend/test-assignment/run-01",
-    "qwen3.8 · r2": "models/qwen3.8-27b-pi-100k/backend/test-assignment/run-02",
-    "huihui · r1": "models/huihui-ai-pi-100k/backend/test-assignment/run-01",
-    "huihui · r2": "models/huihui-ai-pi-100k/backend/test-assignment/run-02",
-    "orca · r1": "models/orcarouter-Qwen3.8-27B-Uncensored-latest/backend/test-assignment/run-01",
-    "orca · r2": "models/orcarouter-Qwen3.8-27B-Uncensored-latest/backend/test-assignment/run-02",
-    "gemma4:31b": "models/gemma4-31b-it-qat-pi-100k/backend/test-assignment/run-01",
-    "muse · r1": "models/muse-glimmer/backend/test-assignment/run-01",
-    "muse · r2": "models/muse-glimmer/backend/test-assignment/run-02",
-    "ornith · r1": "models/ornith-1.5-35b/backend/test-assignment/run-01",
-    "gemma4:e2b": "models/gemma4-e2b/backend/test-assignment/run-01",
-    "medgemma": "models/medgemma-27b/backend/test-assignment/run-01",
-}
 KIND_HUE = {FULL: "#2f7d54", PART: "#315f9e", FAIL: "#b3543f", NA: "#98a4b3"}
 KIND_NAME = {FULL: "полный зачёт (12–13)", PART: "почти (9–11)", FAIL: "провал (<9)", NA: "n/a"}
 
@@ -131,11 +115,8 @@ def results_table():
         bar = (f'<div class="barwrap"><div class="bar" style="width:{max(2, total / 13 * 100):.0f}%;'
                f'background:{KIND_HUE[kind]}"></div><span>{mand}+{bonus}</span></div>')
         delta = a1 - a2
-        run_dir = RUN_DIRS.get(label)
-        href = f"../{run_dir}/report.html" if run_dir and (ROOT / run_dir / "report.html").is_file() else None
-        label_html = f'<a href="{href}">{label}</a>' if href else label
         rows.append(
-            f"<tr{trcls}><td><b>{label_html}</b><div class=sub>{note}</div></td>"
+            f"<tr{trcls}><td><b>{label}</b><div class=sub>{note}</div></td>"
             f'<td class="narrow">{bar}</td><td class="narrow">{badge}</td>'
             f'<td class="narrow">{a1:g}</td><td class="narrow">{a2:g}</td>'
             f'<td class="narrow">{delta:+g}</td>'
@@ -155,12 +136,8 @@ def results_table():
             '<p class=sub>⇄ — автокомпакты + правки истории за прогон. A — ось «что сделано» '
             "(0–4): ревью — изолированная pi-сессия (в пилоте — рабочая сессия ZCode, см. §2), судья — слепое ревью GLM-5.3-Flash. "
             "medgemma — нетронутый каркас: 2/13 — базовый уровень скелета, модель без "
-            "tool-calling, зачёт не выставляется (n/a).<br>"
-            "Название прогона — ссылка на его визуальный отчёт "
-            "(&lt;run&gt;/report.html: сценарии чекера, метрики с матрицей зависимостей, "
-            "сессия, вердикты); код решения — рядом, в &lt;run&gt;/solution/. "
-            "Ссылки относительные из reports/, артефакты прогонов пока исключены из git — "
-            "перед финальным отчётом этапа вернём в репозиторий, как для интервью.</p>")
+            "tool-calling, зачёт не выставляется (n/a). Ссылки на артефакты каждого "
+            "прогона — в разделе 6.</p>")
 
 
 def cost_scatter():
@@ -332,6 +309,60 @@ def quality_chart():
                " · ".join(f'<span style="color:{h}">■</span> {n}' for h, n in zip(hues, names))))
 
 
+def runs_inventory() -> str:
+    """Раздел «Прогоны и данные»: скан models/*/<роль>/test-assignment/run-XX.
+
+    Как §9 отчёта интервью («Сессии и данные»): строки генерируются по факту
+    на диске — новые прогоны полной сетки попадают в таблицу автоматически.
+    """
+    rows, total = [], 0
+    for d in sorted((ROOT / "models").iterdir()):
+        base = d / "backend" / "test-assignment"
+        if not base.is_dir():
+            continue
+        for r in sorted(base.glob("run-*")):
+            rj = r / "run.json"
+            if not rj.is_file():
+                continue
+            total += 1
+            run = json.loads(rj.read_text(encoding="utf-8"))
+            cj = json.loads((r / "check.json").read_text()) if (r / "check.json").is_file() else {}
+            mj = json.loads((r / "metrics.json").read_text()) if (r / "metrics.json").is_file() else {}
+
+            def rel(name, title):
+                f = r / name
+                if f.exists():
+                    return f'<a href="../{f.relative_to(ROOT)}">{title}</a>'
+                return f'<span class=sub>{title}</span>'
+
+            cond = [f"thinking {run.get('thinking_effective') or run.get('thinking') or '?'}",
+                    f"ctx {(run.get('context') or 102400) // 1000}K"]
+            rows.append(
+                f"<tr><td><b>{d.name}</b></td><td class=narrow>{r.name}</td>"
+                f'<td class="narrow">{", ".join(cond)}'
+                f'<div class=sub>{run.get("model", "")}</div></td>'
+                f'<td class="narrow">{cj.get("mandatory_passed", "—")}/{cj.get("mandatory_total", "—")}'
+                f'+{cj.get("bonus_passed", "—")}</td>'
+                f'<td class="narrow">{fmt_dur(run.get("duration_s"))}</td>'
+                f'<td class="narrow">{(mj.get("phpstan") or {}).get("errors", "—")}</td>'
+                f'<td class="narrow">{(mj.get("scc") or {}).get("loc", "—")}</td>'
+                f'<td class="narrow">{rel("report.html", "отчёт")} · {rel("solution", "код")} · '
+                f'{rel("scorecard.md", "ревью")} · {rel("judge-glm.md", "судья")}</td></tr>')
+    if not rows:
+        return ""
+    return ('<h2 id=runs><span class=no>6.</span>Прогоны и данные</h2>'
+            f'<p class=lead>Все прогоны этапа — {total} на момент сборки отчёта. '
+            "Строки собираются сканом каталогов моделей: новые прогоны попадают сюда автоматически.</p>"
+            '<div style="overflow-x:auto"><table><thead><tr><th>Модель</th><th class=narrow>Прогон</th>'
+            "<th>Условия</th><th class=narrow>Чекер</th><th class=narrow>Время</th>"
+            "<th class=narrow>php-<br>stan</th><th class=narrow>LOC</th><th>Артефакты</th></tr></thead><tbody>"
+            + "".join(rows) + "</tbody></table></div>"
+            '<p class=sub>Артефакты: визуальный отчёт (дашборд показателей — сценарии чекера, метрики, '
+            "матрица зависимостей, сессия, вердикты), код решения целиком, ревью яруса 3, вердикт судьи "
+            "яруса 4. Ссылки относительные из reports/; артефакты прогонов пока исключены из git — "
+            "перед финальным отчётом этапа вернём в репозиторий (как транскрипты интервью).</p>")
+
+
 TOOLTIP_JS = """
 document.querySelectorAll('svg.scatter g.pt').forEach(function (pt) {
   var dot = pt.querySelector('.dot'), tip = pt.querySelector('.tip');
@@ -360,7 +391,8 @@ HTML = f"""<!DOCTYPE html>
 <li><a href="#results">3. Результаты прогонов</a></li>
 <li><a href="#charts">4. Что решило исход</a></li>
 <li><a href="#judges">5. Судьи: согласие ярусов</a></li>
-<li><a href="#next">6. Статус и дальше</a></li>
+<li><a href="#runs">6. Прогоны и данные</a></li>
+<li><a href="#next">7. Статус и дальше</a></li>
 </ul>
 </nav>
 
@@ -568,7 +600,7 @@ judge_tier3.py. Полная сетка проходит только изоли
 только ярус 0; ярус 2 полезен для поиска дефектов (float в деньгах, N+1), но не для итогового
 балла нерабочих решений.</div>
 
-<h2 id=next><span class=no>6.</span>Статус и дальше</h2>
+{runs_inventory()}<h2 id=next><span class=no>7.</span>Статус и дальше</h2>
 <div class=note><b>Негативные контроли различимы.</b> e2b (4.6B) — «не смогла сделать»:
 0/11 за 21 секунду, ниже базового уровня нетронутого каркаса. medgemma — «не может в принципе»:
 capabilities без tool-calling, зачёт не выставляется (n/a). Два разных типа негативности шкала
