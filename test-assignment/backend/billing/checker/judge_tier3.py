@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Ярус 3 — ревью решения изолированной pi-сессией с glm-5.3 (паттерн judge_glm.py).
+"""Ярус 3 — ревью решения изолированной pi-сессией с glm-5.3-flash, thinking low
+(паттерн judge_glm.py).
 
-В отличие от судьи яруса 4 (judge_tier2.py, glm-5.3-flash, слепое ревью
-одной оси), ревьюер яруса 3 знает результат чекера и метрик и оценивает
-обе оси рубрики (RUBRIC.md): A «код и архитектура» и B «процесс
-и коммуникация».
+В отличие от судьи яруса 4 (judge_tier2.py — тоже glm-5.3-flash low, но
+слепое ревью одной оси по диффу), ревьюер яруса 3 знает результат чекера
+и метрик и оценивает обе оси рубрики (RUBRIC.md): A «код и архитектура»
+и B «процесс и коммуникация».
 
 Запуск — отдельная pi-сессия с подписочной моделью zai/glm-5.3;
 сабагенты Agent tool и OpenRouter запрещены (правило AGENTS.md
@@ -12,9 +13,10 @@
 
 Использование:
     python3 judge_tier3.py --run models/<модель>/backend/test-assignment/run-XX \
-        [--thinking high]
+        [--thinking low]
 
-Результат: <run>/review-zcode.md (вердикт + сырой ответ). Вердикт:
+Результат: <run>/review-zcode.md (вердикт + сырой ответ; промпт — SYSTEM
+ниже, он же печатается в отчёте этапа). Вердикт:
 оси A и B 0–4 (шаг 0.5) + обоснование с цитатами из диффа.
 """
 
@@ -32,7 +34,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 BILLING = HERE.parent
 PI = "pi"
-MODEL = "zai/glm-5.3"
+MODEL = "zai/glm-5.3-flash"
 TIMEOUT_S = 1200
 RETRIES = 2
 # дифф больше этого размера обрезаем с конца (первые строки — самые важные)
@@ -146,8 +148,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--run", required=True, type=Path,
                     help="каталог прогона models/<модель>/backend/test-assignment/run-XX")
-    ap.add_argument("--thinking", default="high",
-                    help="уровень мышления ревьюера (по умолчанию high)")
+    ap.add_argument("--thinking", default="low",
+                    help="уровень мышления ревьюера (по умолчанию low)")
     args = ap.parse_args()
     run_dir = args.run.resolve()
     if not (run_dir / "diff.patch").exists():

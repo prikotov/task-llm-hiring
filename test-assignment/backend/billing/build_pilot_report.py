@@ -13,6 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 OUT = ROOT / "reports" / "TEST-ASSIGNMENT-pilot-report.html"
+BILLING = Path(__file__).resolve().parent
 
 # --- проверенные данные прогонов (run.json / check.json / metrics.json) -----
 # dur — минуты; tok — млн токенов; peak — K токенов; comp — автокомпакты+правки
@@ -458,12 +459,16 @@ cyclomatic complexity, LCOM4, afferent/efferent coupling и превышения
 
 <div class=scalebox><b>Ярус 3 — ревью: изолированная pi-сессия.</b>
 <div><pre class=req>python3 test-assignment/backend/billing/checker/judge_tier3.py \\
-  --run models/&lt;модель&gt;/backend/test-assignment/run-XX --thinking high</pre></div>
-<div>Отдельный запуск <code>pi -p --no-session --model zai/glm-5.3</code> (паттерн judge_glm.py,
+  --run models/&lt;модель&gt;/backend/test-assignment/run-XX --thinking low</pre></div>
+<div>Отдельный запуск <code>pi -p --no-session --model zai/glm-5.3-flash</code>, thinking low (паттерн judge_glm.py,
 подписка Z.AI; сабагенты Agent tool и OpenRouter запрещены правилами
 репозитория). Ревьюер знает результат чекера и метрик, оценивает две оси
 рубрики <a href="https://github.com/prikotov/task-llm-hiring/blob/main/test-assignment/backend/billing/RUBRIC.md">RUBRIC.md</a>:
 A «код и архитектура» и B «процесс и коммуникация», 0–4.</div>
+<div>Системный промпт ревьюера — дословно (SYSTEM в
+<code>checker/judge_tier3.py</code>; на вход подаются TASK.md, дифф
+решения и факты ярусов 1–2):</div>
+<pre class=req>TIER3_SYSTEM_PLACEHOLDER</pre>
 <div><b>Отступление пилота:</b> ревью прогонов пилота выполнено в рабочей
 сессии ассистента ZCode, а не изолированным запуском — до появления
 judge_tier3.py. Полная сетка проходит только изолированными сессиями;
@@ -538,7 +543,14 @@ capabilities без tool-calling, зачёт не выставляется (n/a)
 
 
 def main():
-    OUT.write_text(HTML, encoding="utf-8")
+    import ast as _ast
+    import html as _html
+    src = (BILLING / "checker" / "judge_tier3.py").read_text(encoding="utf-8")
+    tree = _ast.parse(src)
+    system = next(n.value.value for n in tree.body
+                  if isinstance(n, _ast.Assign) and getattr(n.targets[0], "id", "") == "SYSTEM")
+    page = HTML.replace("TIER3_SYSTEM_PLACEHOLDER", _html.escape(system))
+    OUT.write_text(page, encoding="utf-8")
     print(f"готово: {OUT} ({OUT.stat().st_size} байт)")
 
 

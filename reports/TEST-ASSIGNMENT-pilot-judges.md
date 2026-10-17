@@ -2,8 +2,8 @@
 
 12 прогонов, 8 моделей (qwen3.8:27b, huihui-ai, orcarouter-unc, gemma4:31b-qat,
 muse-glimmer, ornith-1.5, gemma4:e2b, medgemma). Ярусы: 1 — чекер (golden),
-2 — метрики, 3 — ревью ZCode (оси A/B; в пилоте — в рабочей сессии,
-для полной сетки — изолированная pi-сессия `checker/judge_tier3.py`),
+2 — метрики, 3 — ревью (оси A/B; изолированная pi-сессия `checker/judge_tier3.py`,
+glm-5.3-flash в thinking low; в пилоте — в рабочей сессии ZCode),
 4 — GLM-5.3-Flash (слепое ревью диффа, `checker/judge_tier2.py`,
 thinking=low).
 
