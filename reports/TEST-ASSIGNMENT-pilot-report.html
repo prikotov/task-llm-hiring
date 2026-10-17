@@ -106,12 +106,20 @@ doctrine/migrations 3.3, PHP ≥ 8.4; docker-compose с PostgreSQL 17; заго�
 </ul>
 
 <h3>Как запускается</h3>
-<p>Задание передаётся одним сырым сообщением без system prompt и подсказок —
-это единственный промпт прогона:</p>
-<pre class=req>Прочитай TASK.md в корне репозитория и выполни задание.</pre>
-<p><code>runner_pi.py</code> разворачивает свежую копию скелета (без var/,
-<code>.env</code> — из <code>.env.example</code>) во временный каталог и запускает:</p>
+<p>Задание передаётся одним сырым сообщением без system prompt и подсказок.
+Единственный промпт прогона — дословно, константа <code>TASK_PROMPT</code>
+в <code>runner_pi.py</code>:</p>
+<pre class=req># runner_pi.py, константа TASK_PROMPT — единственный промпт прогона
+Прочитай TASK.md в корне репозитория и выполни задание.</pre>
+<p>Раннер разворачивает свежую копию скелета (без var/, <code>.env</code> — из
+<code>.env.example</code>) во временный каталог и запускает pi одной командой:</p>
 <pre class=req>pi -p --session-dir &lt;run&gt;/pi-session --model &lt;тег&gt; --thinking &lt;уровень&gt; &quot;&lt;промпт&gt;&quot;</pre>
+<p>Реальный вызов из пилота (run-02 qwen3.8, после перевода thinking на честный
+xhigh):</p>
+<pre class=req>python3 interview/test-assignment/backend/billing/runner_pi.py \
+  --model qwen3.8:27b-pi-100k \
+  --results models/qwen3.8-27b-pi-100k/backend/test-assignment/run-02 \
+  --thinking max</pre>
 <p class=sub>cwd — копия скелета; окружение: PI_CODING_AGENT_DIR — одноразовый
 каталог (никаких глобальных конфигов и сессий pi), PI_OFFLINE=1; провайдер —
 ollama /v1 (openai-completions) внутреннего сервера, models.json раннера
@@ -157,7 +165,8 @@ medgemma — негативный контроль без tool-calling (n/a).</p
 </div>
 
 <div class=scalebox><b>Ярус 1 — чекер: детерминированный, без LLM.</b>
-<div><code>checker/check.py</code> поднимает чистую базу PostgreSQL в docker
+<div><pre class=req>python3 interview/test-assignment/backend/billing/checker/check.py --repo &lt;репозиторий кандидата&gt;</pre></div>
+<div>Чекер поднимает чистую базу PostgreSQL в docker
 на свободном порту, фиксирует способ разворота схемы (миграции или
 schema:update), гоняет команды кандидата и сравнивает вывод с golden-эталонами.
 Эталоны посчитаны дважды независимо — Python Decimal и PHP-референс судьи,
@@ -174,8 +183,9 @@ schema:update), гоняет команды кандидата и сравнив
 числом — REPRICED_EVENTS и REPRICE_DELTA_USD против эталона.</div></div>
 
 <div class=scalebox><b>Ярус 2 — метрики: детерминированные, сравнительные.</b>
-<div><code>checker/metrics.py</code> (инструменты — phar-кэш, без сети
-в окружении судьи): phpstan level 8 — ошибки строгого анализа; phpmd —
+<div><pre class=req>python3 interview/test-assignment/backend/billing/checker/metrics.py --repo &lt;репозиторий кандидата&gt;</pre></div>
+<div>Инструменты — phar-кэш, без сети в окружении судьи:
+phpstan level 8 — ошибки строгого анализа; phpmd —
 нарушения порогов сложности/чистоты (ruleset coding-standard); phpcs PSR12 —
 стиль; scc — размер (files, LOC); AST-сборщик coding-standard — WMC,
 cyclomatic complexity, LCOM4, afferent/efferent coupling и превышения порогов
@@ -184,8 +194,9 @@ cyclomatic complexity, LCOM4, afferent/efferent coupling и превышения
 эталонного решения судьи phpstan ≠ 0.</div></div>
 
 <div class=scalebox><b>Ярус 3 — ревью: изолированная pi-сессия.</b>
-<div><code>checker/judge_tier3.py</code> — отдельный запуск
-<code>pi -p --no-session --model zai/glm-5.3</code> (паттерн judge_glm.py,
+<div><pre class=req>python3 interview/test-assignment/backend/billing/checker/judge_tier3.py \
+  --run models/&lt;модель&gt;/backend/test-assignment/run-XX --thinking high</pre></div>
+<div>Отдельный запуск <code>pi -p --no-session --model zai/glm-5.3</code> (паттерн judge_glm.py,
 подписка Z.AI; сабагенты Agent tool и OpenRouter запрещены правилами
 репозитория). Ревьюер знает результат чекера и метрик, оценивает две оси
 рубрики <a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/test-assignment/backend/billing/RUBRIC.md">RUBRIC.md</a>:
@@ -196,9 +207,11 @@ judge_tier3.py. Полная сетка проходит только изоли
 таблица ниже помечает эти баллы как «пилотные».</div></div>
 
 <div class=scalebox><b>Ярус 4 — судья: слепое второе мнение.</b>
-<div><code>checker/judge_tier2.py</code> — pi-сессия с GLM-5.3-Flash
-(thinking low, изолированный запуск): судья видит только TASK.md и дифф
-решения, не зная чекера. Ось A, 0–4, вердикт с цитатами из диффа.</div></div>
+<div><pre class=req>python3 interview/test-assignment/backend/billing/checker/judge_tier2.py \
+  --run models/&lt;модель&gt;/backend/test-assignment/run-XX --thinking low</pre></div>
+<div>Pi-сессия с GLM-5.3-Flash (thinking low, изолированный запуск):
+судья видит только TASK.md и дифф решения, не зная чекера.
+Ось A, 0–4, вердикт с цитатами из диффа.</div></div>
 
 <h2 id=results><span class=no>3.</span>Результаты прогонов</h2>
 <div style="overflow-x:auto"><table><thead><tr><th>Прогон</th><th class=narrow>Чекер<br>из 13</th><th class=narrow>Статус</th><th class=narrow>A<br>ревью</th><th class=narrow>A<br>судья</th><th class=narrow>Δ</th><th class=narrow>Время</th><th class=narrow>Токены</th><th class=narrow>Пик ctx</th><th class=narrow>⇄</th><th class=narrow>php-<br>stan</th><th class=narrow>php-<br>md</th><th class=narrow>php-<br>cs</th><th class=narrow>LOC</th></tr></thead><tbody><tr class="top"><td><b>qwen3.8 · r2</b><div class=sub>xhigh</div></td><td class="narrow"><div class="barwrap"><div class="bar" style="width:100%;background:#2f7d54"></div><span>11+2</span></div></td><td class="narrow"><span class="badge b">полный зачёт</span></td><td class="narrow">4</td><td class="narrow">3.5</td><td class="narrow">+0.5</td><td class="narrow">22.4 мин</td><td class="narrow">6.79M</td><td class="narrow">87K</td><td class="narrow">2</td><td class="narrow">30</td><td class="narrow">39</td><td class="narrow">76</td><td class="narrow">1660</td></tr><tr class="top"><td><b>huihui · r2</b><div class=sub>xhigh</div></td><td class="narrow"><div class="barwrap"><div class="bar" style="width:100%;background:#2f7d54"></div><span>11+2</span></div></td><td class="narrow"><span class="badge b">полный зачёт</span></td><td class="narrow">4</td><td class="narrow">3.5</td><td class="narrow">+0.5</td><td class="narrow">40.2 мин</td><td class="narrow">14.45M</td><td class="narrow">87K</td><td class="narrow">5</td><td class="narrow">35</td><td class="narrow">18</td><td class="narrow">26</td><td class="narrow">1674</td></tr><tr><td><b>orca · r2</b><div class=sub>ctx100k</div></td><td class="narrow"><div class="barwrap"><div class="bar" style="width:92%;background:#315f9e"></div><span>10+2</span></div></td><td class="narrow"></td><td class="narrow">3</td><td class="narrow">3</td><td class="narrow">+0</td><td class="narrow">21.2 мин</td><td class="narrow">5.92M</td><td class="narrow">86.4K</td><td class="narrow">2</td><td class="narrow">33</td><td class="narrow">46</td><td class="narrow">36</td><td class="narrow">1149</td></tr><tr><td><b>qwen3.8 · r1</b><div class=sub>≈medium</div></td><td class="narrow"><div class="barwrap"><div class="bar" style="width:85%;background:#315f9e"></div><span>11+0</span></div></td><td class="narrow"></td><td class="narrow">3</td><td class="narrow">3.5</td><td class="narrow">-0.5</td><td class="narrow">21.1 мин</td><td class="narrow">7.39M</td><td class="narrow">87.9K</td><td class="narrow">2</td><td class="narrow">38</td><td class="narrow">42</td><td class="narrow">91</td><td class="narrow">1600</td></tr><tr><td><b>huihui · r1</b><div class=sub>≈medium</div></td><td class="narrow"><div class="barwrap"><div class="bar" style="width:85%;background:#315f9e"></div><span>11+0</span></div></td><td class="narrow"></td><td class="narrow">3</td><td class="narrow">3.5</td><td class="narrow">-0.5</td><td class="narrow">17.8 мин</td><td class="narrow">7.72M</td><td class="narrow">86.6K</td><td class="narrow">2</td><td class="narrow">27</td><td class="narrow">56</td><td class="narrow">86</td><td class="narrow">1212</td></tr><tr><td><b>orca · r1</b><div class=sub>окно 32K</div></td><td class="narrow"><div class="barwrap"><div class="bar" style="width:85%;background:#315f9e"></div><span>10+1</span></div></td><td class="narrow"></td><td class="narrow">3</td><td class="narrow">3.5</td><td class="narrow">-0.5</td><td class="narrow">25 мин</td><td class="narrow">4.64M</td><td class="narrow">32.8K</td><td class="narrow">15</td><td class="narrow">26</td><td class="narrow">42</td><td class="narrow">24</td><td class="narrow">1116</td></tr><tr><td><b>gemma4:31b</b><div class=sub>pi-100k</div></td><td class="narrow"><div class="barwrap"><div class="bar" style="width:85%;background:#315f9e"></div><span>10+1</span></div></td><td class="narrow"></td><td class="narrow">3</td><td class="narrow">2.5</td><td class="narrow">+0.5</td><td class="narrow">6.1 мин</td><td class="narrow">2.01M</td><td class="narrow">45.9K</td><td class="narrow">0</td><td class="narrow">21</td><td class="narrow">18</td><td class="narrow">17</td><td class="narrow">798</td></tr><tr><td><b>muse · r2</b><div class=sub>max</div></td><td class="narrow"><div class="barwrap"><div class="bar" style="width:69%;background:#315f9e"></div><span>9+0</span></div></td><td class="narrow"></td><td class="narrow">2</td><td class="narrow">1.5</td><td class="narrow">+0.5</td><td class="narrow">4.8 мин</td><td class="narrow">0.96M</td><td class="narrow">31.9K</td><td class="narrow">3</td><td class="narrow">24</td><td class="narrow">44</td><td class="narrow">8</td><td class="narrow">736</td></tr><tr class="neg"><td><b>muse · r1</b><div class=sub>32K, high</div></td><td class="narrow"><div class="barwrap"><div class="bar" style="width:8%;background:#b3543f"></div><span>1+0</span></div></td><td class="narrow"></td><td class="narrow">1</td><td class="narrow">2.5</td><td class="narrow">-1.5</td><td class="narrow">5.8 мин</td><td class="narrow">1.52M</td><td class="narrow">32.8K</td><td class="narrow">2</td><td class="narrow">17</td><td class="narrow">27</td><td class="narrow">20</td><td class="narrow">734</td></tr><tr class="neg"><td><b>ornith · r1</b><div class=sub>окно 32K</div></td><td class="narrow"><div class="barwrap"><div class="bar" style="width:8%;background:#b3543f"></div><span>1+0</span></div></td><td class="narrow"></td><td class="narrow">1</td><td class="narrow">1.5</td><td class="narrow">-0.5</td><td class="narrow">26 мин</td><td class="narrow">12.88M</td><td class="narrow">32.8K</td><td class="narrow">53</td><td class="narrow">50</td><td class="narrow">36</td><td class="narrow">12</td><td class="narrow">996</td></tr><tr class="neg"><td><b>gemma4:e2b</b><div class=sub>ctx100k</div></td><td class="narrow"><div class="barwrap"><div class="bar" style="width:2%;background:#b3543f"></div><span>0+0</span></div></td><td class="narrow"></td><td class="narrow">1</td><td class="narrow">0.5</td><td class="narrow">+0.5</td><td class="narrow">21 с</td><td class="narrow">0.11M</td><td class="narrow">13.8K</td><td class="narrow">0</td><td class="narrow">41</td><td class="narrow">10</td><td class="narrow">28</td><td class="narrow">282</td></tr><tr class="neg"><td><b>medgemma</b><div class=sub>n/a: нет tools</div></td><td class="narrow"><div class="barwrap"><div class="bar" style="width:15%;background:#98a4b3"></div><span>2+0</span></div></td><td class="narrow"><span class="badge g">n/a</span></td><td class="narrow">0</td><td class="narrow">0</td><td class="narrow">+0</td><td class="narrow">—</td><td class="narrow">None</td><td class="narrow">None</td><td class="narrow">None</td><td class="narrow">0</td><td class="narrow">0</td><td class="narrow">0</td><td class="narrow">27</td></tr></tbody></table></div><p class=sub>⇄ — автокомпакты + правки истории за прогон. A — ось «что сделано» (0–4): ревью — изолированная pi-сессия (в пилоте — рабочая сессия ZCode, см. §2), судья — слепое ревью GLM-5.3-Flash. medgemma — нетронутый каркас: 2/13 — базовый уровень скелета, модель без tool-calling, зачёт не выставляется (n/a).</p>

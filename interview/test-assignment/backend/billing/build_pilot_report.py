@@ -369,12 +369,20 @@ doctrine/migrations 3.3, PHP ≥ 8.4; docker-compose с PostgreSQL 17; заго�
 </ul>
 
 <h3>Как запускается</h3>
-<p>Задание передаётся одним сырым сообщением без system prompt и подсказок —
-это единственный промпт прогона:</p>
-<pre class=req>Прочитай TASK.md в корне репозитория и выполни задание.</pre>
-<p><code>runner_pi.py</code> разворачивает свежую копию скелета (без var/,
-<code>.env</code> — из <code>.env.example</code>) во временный каталог и запускает:</p>
+<p>Задание передаётся одним сырым сообщением без system prompt и подсказок.
+Единственный промпт прогона — дословно, константа <code>TASK_PROMPT</code>
+в <code>runner_pi.py</code>:</p>
+<pre class=req># runner_pi.py, константа TASK_PROMPT — единственный промпт прогона
+Прочитай TASK.md в корне репозитория и выполни задание.</pre>
+<p>Раннер разворачивает свежую копию скелета (без var/, <code>.env</code> — из
+<code>.env.example</code>) во временный каталог и запускает pi одной командой:</p>
 <pre class=req>pi -p --session-dir &lt;run&gt;/pi-session --model &lt;тег&gt; --thinking &lt;уровень&gt; &quot;&lt;промпт&gt;&quot;</pre>
+<p>Реальный вызов из пилота (run-02 qwen3.8, после перевода thinking на честный
+xhigh):</p>
+<pre class=req>python3 interview/test-assignment/backend/billing/runner_pi.py \\
+  --model qwen3.8:27b-pi-100k \\
+  --results models/qwen3.8-27b-pi-100k/backend/test-assignment/run-02 \\
+  --thinking max</pre>
 <p class=sub>cwd — копия скелета; окружение: PI_CODING_AGENT_DIR — одноразовый
 каталог (никаких глобальных конфигов и сессий pi), PI_OFFLINE=1; провайдер —
 ollama /v1 (openai-completions) внутреннего сервера, models.json раннера
@@ -420,7 +428,8 @@ medgemma — негативный контроль без tool-calling (n/a).</p
 </div>
 
 <div class=scalebox><b>Ярус 1 — чекер: детерминированный, без LLM.</b>
-<div><code>checker/check.py</code> поднимает чистую базу PostgreSQL в docker
+<div><pre class=req>python3 interview/test-assignment/backend/billing/checker/check.py --repo &lt;репозиторий кандидата&gt;</pre></div>
+<div>Чекер поднимает чистую базу PostgreSQL в docker
 на свободном порту, фиксирует способ разворота схемы (миграции или
 schema:update), гоняет команды кандидата и сравнивает вывод с golden-эталонами.
 Эталоны посчитаны дважды независимо — Python Decimal и PHP-референс судьи,
@@ -437,8 +446,9 @@ schema:update), гоняет команды кандидата и сравнив
 числом — REPRICED_EVENTS и REPRICE_DELTA_USD против эталона.</div></div>
 
 <div class=scalebox><b>Ярус 2 — метрики: детерминированные, сравнительные.</b>
-<div><code>checker/metrics.py</code> (инструменты — phar-кэш, без сети
-в окружении судьи): phpstan level 8 — ошибки строгого анализа; phpmd —
+<div><pre class=req>python3 interview/test-assignment/backend/billing/checker/metrics.py --repo &lt;репозиторий кандидата&gt;</pre></div>
+<div>Инструменты — phar-кэш, без сети в окружении судьи:
+phpstan level 8 — ошибки строгого анализа; phpmd —
 нарушения порогов сложности/чистоты (ruleset coding-standard); phpcs PSR12 —
 стиль; scc — размер (files, LOC); AST-сборщик coding-standard — WMC,
 cyclomatic complexity, LCOM4, afferent/efferent coupling и превышения порогов
@@ -447,8 +457,9 @@ cyclomatic complexity, LCOM4, afferent/efferent coupling и превышения
 эталонного решения судьи phpstan ≠ 0.</div></div>
 
 <div class=scalebox><b>Ярус 3 — ревью: изолированная pi-сессия.</b>
-<div><code>checker/judge_tier3.py</code> — отдельный запуск
-<code>pi -p --no-session --model zai/glm-5.3</code> (паттерн judge_glm.py,
+<div><pre class=req>python3 interview/test-assignment/backend/billing/checker/judge_tier3.py \\
+  --run models/&lt;модель&gt;/backend/test-assignment/run-XX --thinking high</pre></div>
+<div>Отдельный запуск <code>pi -p --no-session --model zai/glm-5.3</code> (паттерн judge_glm.py,
 подписка Z.AI; сабагенты Agent tool и OpenRouter запрещены правилами
 репозитория). Ревьюер знает результат чекера и метрик, оценивает две оси
 рубрики <a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/test-assignment/backend/billing/RUBRIC.md">RUBRIC.md</a>:
@@ -459,9 +470,11 @@ judge_tier3.py. Полная сетка проходит только изоли
 таблица ниже помечает эти баллы как «пилотные».</div></div>
 
 <div class=scalebox><b>Ярус 4 — судья: слепое второе мнение.</b>
-<div><code>checker/judge_tier2.py</code> — pi-сессия с GLM-5.3-Flash
-(thinking low, изолированный запуск): судья видит только TASK.md и дифф
-решения, не зная чекера. Ось A, 0–4, вердикт с цитатами из диффа.</div></div>
+<div><pre class=req>python3 interview/test-assignment/backend/billing/checker/judge_tier2.py \\
+  --run models/&lt;модель&gt;/backend/test-assignment/run-XX --thinking low</pre></div>
+<div>Pi-сессия с GLM-5.3-Flash (thinking low, изолированный запуск):
+судья видит только TASK.md и дифф решения, не зная чекера.
+Ось A, 0–4, вердикт с цитатами из диффа.</div></div>
 
 <h2 id=results><span class=no>3.</span>Результаты прогонов</h2>
 {results_table()}
