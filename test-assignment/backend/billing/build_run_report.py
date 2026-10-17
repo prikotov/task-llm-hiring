@@ -264,9 +264,26 @@ def dep_matrix(collector: dict) -> str:
         if k:
             svg.append(f'<rect x={xe:.0f} y={yi[c]:.0f} width={cell} height={cell} rx=2 fill="#c9b458" fill-opacity={0.25 + 0.75 * min(k / max(ext_out.values()), 1):.2f}><title>{c.split(chr(92))[-1]} → внешнее: {k}</title></rect>')
     svg.append(f'<text x={xe + cell / 2:.0f} y={MT - 8} font-size=10 fill=#8a7a3a transform="rotate(-90 {xe + cell / 2:.0f} {MT - 8})" text-anchor=end>внеш.</text>')
+    # подписи слоёв — вдоль диагональных блоков (диагональ пуста:	self-связи исключены)
+    spans: list[tuple[str, int, int]] = []
+    for i, c in enumerate(order):
+        g = group(c)
+        if spans and spans[-1][0] == g:
+            spans[-1][2] = i
+        else:
+            spans.append([g, i, i])
+    for g, i0, i1 in spans:
+        step = cell + pad
+        size = (i1 - i0 + 1) * step - pad
+        if size < len(g) * 6.2 + 8:
+            continue  # блок мал — подпись не влезает, слой виден по именам классов
+        cx = xi[order[i0]] + size / 2
+        cy = yi[order[i0]] + size / 2
+        svg.append(f'<text x={cx:.0f} y={cy:.0f} font-size=11 fill=#9aa3ad font-style=italic '
+                   f'text-anchor=middle transform="rotate(-90 {cx:.0f} {cy:.0f})">{g}</text>')
     svg.append(f'<text x={ML} y={H - 14} font-size=12.5 fill=#66707f>строки — источник, столбцы — получатель; насыщенность — число зависимостей</text>')
     return ('<svg class="scatter" width="%d" height="%d" viewBox="0 0 %d %d" style="max-width:100%%">%s<g class="tip-layer"></g></svg>'
-            '<p class=sub>Классы отсортированы по неймспейсам — жирные линии разделяют слои; '
+            '<p class=sub>Классы отсортированы по неймспейсам: слои подписаны на диагонали, жирные линии их разделяют; '
             "жёлтый столбец «внеш.» — исходящие связи к типам вне решения (DTO времени, коллекции). "
             "Наведите на закрашенную ячейку — кто на кого и сколько раз.</p>"
             % (W, H, W, H, "".join(svg)))
