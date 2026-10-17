@@ -350,8 +350,8 @@ HTML = f"""<!DOCTYPE html>
 <p>Модель получает <a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/test-assignment/backend/billing/skeleton/">каркас Symfony-проекта</a>
 (composer.json: symfony/framework-bundle 8.0, console/yaml, doctrine-bundle 3.2,
 doctrine/migrations 3.3, PHP ≥ 8.4; docker-compose с PostgreSQL 17; заготовка src/ и
-мigrations/; в require-dev — phpunit и инструменты статанализа: phpstan 2, phpmd,
-phpcs PSR12 — те же, что использует ярус 2) и два документа:</p>
+мigrations/; в require-dev — phpunit, psalm 6 и phpcs PSR12 — инструменты
+самопроверки кандидата) и два документа:</p>
 <ul>
 <li><a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/test-assignment/backend/billing/skeleton/TASK.md"><b>TASK.md</b></a> — спецификация
 «биллинга LLM-токенов»: импорт тарифов и событий, тарификация с effective dating,
