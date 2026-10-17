@@ -250,13 +250,17 @@ def dep_matrix(collector: dict) -> str:
         svg.append(f'<text x={ML - 8} y={yi[c] + cell - 2:.0f} text-anchor=end font-size={min(10, cell - 1)} fill=#66707f>{short[:20]}</text>')
         svg.append(f'<text x={xi[c] + cell / 2:.0f} y={MT - 8} font-size={min(10, cell - 1)} fill=#66707f '
                    f'transform="rotate(-90 {xi[c] + cell / 2:.0f} {MT - 8})" text-anchor=end>{short[:20]}</text>')
-    # ячейки с зависимостями
+    # ячейки с зависимостями; всплывашка привязана к клетке, у краёв разворачивается
     for (src, dst), k in counts.items():
         x, y = xi[dst], yi[src]
-        svg.append(f'<g class="pt"><rect x={x:.0f} y={y:.0f} width={cell} height={cell} rx=2 '
-                   f'fill="{hue(k)}"><title>{src.split(chr(92))[-1]} → {dst.split(chr(92))[-1]}: {k}</title></rect>'
-                   f'<g class="tip"><rect x={ML + 10} y={MT - 60} width=300 height=34 rx=7 fill="#1d2433" fill-opacity="0.95"/>'
-                   f'<text x={ML + 20} y={MT - 38} font-size=11.5 fill="#ffffff">{src.split(chr(92))[-1]} → {dst.split(chr(92))[-1]} · {k}</text></g></g>')
+        label = f"{src.split(chr(92))[-1]} → {dst.split(chr(92))[-1]} · {k}"
+        tw = len(label) * 7.0 + 18
+        tx = x + cell + 10 if x + cell + 10 + tw <= W - 8 else x - 10 - tw
+        ty = max(4, min(y - 42, H - 44))
+        svg.append(f'<g class="pt"><rect class="dot" x={x:.0f} y={y:.0f} width={cell} height={cell} rx=2 '
+                   f'fill="{hue(k)}"/>'
+                   f'<g class="tip"><rect x={tx:.0f} y={ty:.0f} width={tw:.0f} height=30 rx=7 fill="#1d2433" fill-opacity="0.95"/>'
+                   f'<text x={tx + 9:.0f} y={ty + 20:.0f} font-size=11.5 fill="#ffffff">{label}</text></g></g>')
     # столбец «внеш.»
     xe = ML + n * (cell + pad)
     for c in order:
