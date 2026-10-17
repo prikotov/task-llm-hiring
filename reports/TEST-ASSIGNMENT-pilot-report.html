@@ -84,20 +84,20 @@ footer{margin-top:56px;color:var(--mut);font-size:13.5px;border-top:1px solid va
 <p class=lead>Что получает кандидат, в каком окружении работает модель и как устроены четыре яруса оценки.</p>
 
 <h3>Скелет задания</h3>
-<p>Модель получает <a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/test-assignment/backend/billing/skeleton/">каркас Symfony-проекта</a>
+<p>Модель получает <a href="https://github.com/prikotov/task-llm-hiring/blob/main/test-assignment/backend/billing/skeleton/">каркас Symfony-проекта</a>
 (composer.json: symfony/framework-bundle 8.0, console/yaml, doctrine-bundle 3.2,
 doctrine/migrations 3.3, PHP ≥ 8.4; docker-compose с PostgreSQL 17; заготовка src/ и
 мigrations/; в require-dev — phpunit, psalm 6 и phpcs PSR12 — инструменты
 самопроверки кандидата) и два документа:</p>
 <ul>
-<li><a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/test-assignment/backend/billing/skeleton/TASK.md"><b>TASK.md</b></a> — само тестовое
+<li><a href="https://github.com/prikotov/task-llm-hiring/blob/main/test-assignment/backend/billing/skeleton/TASK.md"><b>TASK.md</b></a> — само тестовое
 задание: требования к «биллингу LLM-токенов», по которым работает кандидат —
 импорт тарифов и событий, тарификация с effective dating, оф-пик-окно
 16:30–00:30 UTC через полночь ×0.5, идемпотентность по
 (provider, provider_request_id), unrated-события, деньги на bcmath без float
 с одним округлением HALF_UP 6 знаков на событие, эксклюзивный --to,
 бонус — ретро-пересчёт после коррекции цен;</li>
-<li><a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/test-assignment/backend/billing/skeleton/AGENTS.md"><b>AGENTS.md</b></a> — базовые агентские
+<li><a href="https://github.com/prikotov/task-llm-hiring/blob/main/test-assignment/backend/billing/skeleton/AGENTS.md"><b>AGENTS.md</b></a> — базовые агентские
 инструкции проекта тестового задания: код в src/, самопроверка приёмки,
 артефакты COMMIT_MESSAGE.md/PR_DESCRIPTION.md с обоснованием отступлений,
 русский язык. Харнес pi подхватывает его сам — как любому агенту в этом
@@ -116,7 +116,7 @@ doctrine/migrations 3.3, PHP ≥ 8.4; docker-compose с PostgreSQL 17; заго�
 <pre class=req>pi -p --session-dir &lt;run&gt;/pi-session --model &lt;тег&gt; --thinking &lt;уровень&gt; &quot;&lt;промпт&gt;&quot;</pre>
 <p>Реальный вызов из пилота (run-02 qwen3.8, после перевода thinking на честный
 xhigh):</p>
-<pre class=req>python3 interview/test-assignment/backend/billing/runner_pi.py \
+<pre class=req>python3 test-assignment/backend/billing/runner_pi.py \
   --model qwen3.8:27b-pi-100k \
   --results models/qwen3.8-27b-pi-100k/backend/test-assignment/run-02 \
   --thinking max</pre>
@@ -165,7 +165,7 @@ medgemma — негативный контроль без tool-calling (n/a).</p
 </div>
 
 <div class=scalebox><b>Ярус 1 — чекер: детерминированный, без LLM.</b>
-<div><pre class=req>python3 interview/test-assignment/backend/billing/checker/check.py --repo &lt;репозиторий кандидата&gt;</pre></div>
+<div><pre class=req>python3 test-assignment/backend/billing/checker/check.py --repo &lt;репозиторий кандидата&gt;</pre></div>
 <div>Чекер поднимает чистую базу PostgreSQL в docker
 на свободном порту, фиксирует способ разворота схемы (миграции или
 schema:update), гоняет команды кандидата и сравнивает вывод с golden-эталонами.
@@ -183,7 +183,7 @@ schema:update), гоняет команды кандидата и сравнив
 числом — REPRICED_EVENTS и REPRICE_DELTA_USD против эталона.</div></div>
 
 <div class=scalebox><b>Ярус 2 — метрики: детерминированные, сравнительные.</b>
-<div><pre class=req>python3 interview/test-assignment/backend/billing/checker/metrics.py --repo &lt;репозиторий кандидата&gt;</pre></div>
+<div><pre class=req>python3 test-assignment/backend/billing/checker/metrics.py --repo &lt;репозиторий кандидата&gt;</pre></div>
 <div>Инструменты — phar-кэш, без сети в окружении судьи:
 phpstan level 8 — ошибки строгого анализа; phpmd —
 нарушения порогов сложности/чистоты (ruleset coding-standard); phpcs PSR12 —
@@ -194,12 +194,12 @@ cyclomatic complexity, LCOM4, afferent/efferent coupling и превышения
 эталонного решения судьи phpstan ≠ 0.</div></div>
 
 <div class=scalebox><b>Ярус 3 — ревью: изолированная pi-сессия.</b>
-<div><pre class=req>python3 interview/test-assignment/backend/billing/checker/judge_tier3.py \
+<div><pre class=req>python3 test-assignment/backend/billing/checker/judge_tier3.py \
   --run models/&lt;модель&gt;/backend/test-assignment/run-XX --thinking high</pre></div>
 <div>Отдельный запуск <code>pi -p --no-session --model zai/glm-5.3</code> (паттерн judge_glm.py,
 подписка Z.AI; сабагенты Agent tool и OpenRouter запрещены правилами
 репозитория). Ревьюер знает результат чекера и метрик, оценивает две оси
-рубрики <a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/test-assignment/backend/billing/RUBRIC.md">RUBRIC.md</a>:
+рубрики <a href="https://github.com/prikotov/task-llm-hiring/blob/main/test-assignment/backend/billing/RUBRIC.md">RUBRIC.md</a>:
 A «код и архитектура» и B «процесс и коммуникация», 0–4.</div>
 <div><b>Отступление пилота:</b> ревью прогонов пилота выполнено в рабочей
 сессии ассистента ZCode, а не изолированным запуском — до появления
@@ -207,7 +207,7 @@ judge_tier3.py. Полная сетка проходит только изоли
 таблица ниже помечает эти баллы как «пилотные».</div></div>
 
 <div class=scalebox><b>Ярус 4 — судья: слепое второе мнение.</b>
-<div><pre class=req>python3 interview/test-assignment/backend/billing/checker/judge_tier2.py \
+<div><pre class=req>python3 test-assignment/backend/billing/checker/judge_tier2.py \
   --run models/&lt;модель&gt;/backend/test-assignment/run-XX --thinking low</pre></div>
 <div>Pi-сессия с GLM-5.3-Flash (thinking low, изолированный запуск):
 судья видит только TASK.md и дифф решения, не зная чекера.
@@ -264,7 +264,7 @@ capabilities без tool-calling, зачёт не выставляется (n/a)
 
 <footer>
 Все числа — из артефактов прогонов: run.json, check.json, metrics.json, session-profile.md.
-Генератор: <code>interview/test-assignment/backend/billing/build_pilot_report.py</code> —
+Генератор: <code>test-assignment/backend/billing/build_pilot_report.py</code> —
 правки данных только через него. Судьи: <code>checker/judge_tier3.py</code> (ревью),
 <code>checker/judge_tier2.py</code> (слепой судья). Сводка ярусов в текстовом виде:
 <code>reports/TEST-ASSIGNMENT-pilot-judges.md</code>.

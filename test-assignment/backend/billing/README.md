@@ -30,7 +30,7 @@ Golden пересоздаются: `python3 reference_calc.py` (из этого 
 (сеть нужна только здесь; в прогонах сеть не обязательна — vendor уже в копии):
 
 ```bash
-cd interview/test-assignment/backend/billing/skeleton && composer install
+cd test-assignment/backend/billing/skeleton && composer install
 ```
 
 Каждый прогон — изолированная копия скелета **вне** дерева Models
@@ -39,7 +39,7 @@ cd interview/test-assignment/backend/billing/skeleton && composer install
 ```bash
 RUN=/tmp/billing-<model>-run<N>
 RESULTS=models/<модель>/backend/test-assignment/run-XX && mkdir -p "$RESULTS"
-cp -r interview/test-assignment/backend/billing/skeleton "$RUN"
+cp -r test-assignment/backend/billing/skeleton "$RUN"
 cd "$RUN" && cp .env.example .env
 timeout 5400 pi -p --session-dir "$RESULTS/pi-session" --model <тег> \
   "Прочитай TASK.md в корне репозитория и выполни задание." 2>&1 | tee "$RESULTS/pi-run.log"
@@ -88,7 +88,7 @@ python3 runner_pi.py --model qwen3.8:27b-pi-100k \
 ## Проверка и результаты
 
 ```bash
-B=interview/test-assignment/backend/billing
+B=test-assignment/backend/billing
 RESULTS=models/<модель>/backend/test-assignment/run-XX
 RUN=$(grep -oP '(?<=cwd=)\S+' "$RESULTS-pi.out" | head -1)  # репозиторий прогона (runner --keep)
 

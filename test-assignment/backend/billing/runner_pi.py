@@ -53,7 +53,7 @@ def models_repo() -> Path:
     for parent in BILLING.parents:
         if (parent / ".env.local").is_file() or (parent / ".git").is_dir():
             return parent
-    return BILLING.parents[3]
+    return BILLING.parents[2]
 
 DEFAULT_CONTEXT = 102_400
 DEFAULT_TIMEOUT = 5400

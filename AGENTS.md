@@ -89,9 +89,13 @@ solo-репо не может требовать аппрув второго ч�
     `check.json` (чекер), `metrics.json` (качество кода),
     `session-profile.md`, `summary.md`, `scorecard.md`, `judge-glm.md`
     (ярус 2).
-- `interview/` — только методология: blueprint, вопросники ролей,
-  рубрики, скрипты (`runner.py`, `score.py`, `judge_glm.py`), тестовое задание.
+- `interview/` — только методология собеседований (этап 1): blueprint,
+  вопросники ролей, рубрики, скрипты (`runner.py`, `score.py`, `judge_glm.py`).
   Никаких результатов.
+- `test-assignment/` — методология тестового задания (этап 2): параллельный
+  независимый этап отбора, не часть интервью. `backend/billing/` — задание
+  (TASK.md, скелет, чекер, судьи, README), `original.md` — исходное задание
+  до адаптации под TasK. Никаких результатов.
 - `reports/` — кросс-модельные сводные отчёты и агрегаты
   (`judges-all.csv` — все вердикты всех судей, `COMPARE-judges.md`,
   `AUDIT-glm-flash.md`, будущий `REPORT.md` по моделям).
