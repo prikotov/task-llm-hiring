@@ -49,6 +49,8 @@ tr:last-child td{border-bottom:none}
 .svgbox{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 8px 4px;margin:12px 0}
 svg{display:block;width:100%;height:auto}
 svg text{font-family:inherit}
+.scatter .dot{cursor:pointer}
+.scatter g.pt .tip{pointer-events:none;display:none}
 .quote{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 17px;margin:12px 0;font-size:14.5px;white-space:pre-wrap}
 .quote .who{font-size:12.5px;color:var(--mut);margin-bottom:6px;text-transform:uppercase;letter-spacing:.03em}
 .note{background:#fff9e8;border:1px solid #eedd9f;border-radius:12px;padding:12px 16px;font-size:14.5px}
@@ -175,15 +177,22 @@ def ast_scatter(collector: dict) -> str:
     hot = "#b3543f"
     for p in sorted(pts, key=lambda d: -d["wmc"]):
         hue = hot if p["cc"] > 10 else ("#d09a53" if p["cc"] > 5 else "#315f9e")
-        tip = f"{p['full']} — LOC {p['loc']}, LCOM4 {p['lcom']}, WMC {p['wmc']}, cc_max {p['cc']}"
-        svg.append(f'<g><circle cx={px(p["loc"]):.0f} cy={py(p["lcom"]):.0f} r={rad(p["wmc"]):.1f} '
-                   f'fill={hue} fill-opacity="0.72" stroke="#fff" stroke-width="1.2">'
-                   f"<title>{tip}</title></circle>"
+        x, y, r = px(p["loc"]), py(p["lcom"]), rad(p["wmc"])
+        lines = (p["full"], f"LOC {p['loc']} · LCOM4 {p['lcom']} · WMC {p['wmc']} · cc_max {p['cc']}")
+        tw = max(len(t) for t in lines) * 7.0 + 16
+        tx = x - 14 - tw if x + 16 + tw > W - ML else x + 14
+        tip = [f'<rect x={tx:.0f} y={y - 44:.0f} width={tw:.0f} height=46 rx=7 fill="#1d2433" fill-opacity="0.95"/>']
+        for i, t in enumerate(lines):
+            tip.append(f'<text x={tx + 9:.0f} y={y - 28 + i * 15:.0f} font-size=11.5 '
+                       f'fill="{"#ffffff" if i == 0 else "#c8d4e4"}"{" font-weight=bold" if i == 0 else ""}>{t}</text>')
+        svg.append(f'<g class="pt"><circle class="dot" cx={x:.0f} cy={y:.0f} r={r:.1f} '
+                   f'fill={hue} fill-opacity="0.72" stroke="#fff" stroke-width="1.2" stroke-opacity="0.001"/>'
+                   f'<g class="tip">' + "".join(tip) + "</g>"
                    + (label_point(p) if p["wmc"] >= rmax * 0.5 else "")
                    + "</g>")
     svg.append(f'<text x={ML+PW/2:.0f} y={H-8} text-anchor=middle font-size=12.5 fill=#66707f>LOC класса</text>')
     svg.append(f'<text x=16 y={MT+PH/2:.0f} font-size=12.5 fill=#66707f transform="rotate(-90 16 {MT+PH/2:.0f})">компоненты LCOM4</text>')
-    return ('<svg width="%d" height="%d" viewBox="0 0 %d %d">%s</svg>'
+    return ('<svg class="scatter" width="%d" height="%d" viewBox="0 0 %d %d">%s<g class="tip-layer"></g></svg>'
             '<p class=sub>Размер точки — WMC класса, цвет — максимальная CC метода: '
             '<span style="color:#315f9e">●</span> ≤5, <span style="color:#d09a53">●</span> 6–10, '
             '<span style="color:#b3543f">●</span> &gt;10. Наведите на точку — полная сводка.</p>'
@@ -308,6 +317,20 @@ def session_html(events: list[dict], st: dict, ctx_limit: int) -> str:
             f'{st.get("files_distinct", "?")}.</p>')
 
 
+TOOLTIP_JS = """
+<script>
+document.querySelectorAll('svg.scatter g.pt').forEach(function (pt) {
+  var dot = pt.querySelector('.dot'), tip = pt.querySelector('.tip');
+  if (!dot || !tip) return;
+  dot.addEventListener('mouseenter', function () {
+    pt.closest('svg').querySelector('.tip-layer').appendChild(tip);
+    tip.style.display = 'block';
+  });
+  dot.addEventListener('mouseleave', function () { tip.style.display = 'none'; });
+});
+</script>
+"""
+
 NAME_CHECKS = {
     "tests": "тесты (phpunit / make test)",
     "static_analysis": "статанализ (phpstan / psalm)",
@@ -406,6 +429,7 @@ def build(run_dir: Path) -> str:
 metrics-raw/collector.json, pi-session/*.jsonl (парсер — analyze_session.py).
 Генератор: <code>test-assignment/backend/billing/build_run_report.py</code>.</footer>
 </div></body></html>"""
+    page = page.replace("</body></html>", TOOLTIP_JS + "</body></html>")
     out = run_dir / "report.html"
     out.write_text(page, encoding="utf-8")
     return str(out)
