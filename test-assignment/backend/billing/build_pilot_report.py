@@ -483,11 +483,24 @@ judge_tier3.py. Полная сетка проходит только изоли
 таблица ниже помечает эти баллы как «пилотные».</div></div>
 
 <div class=scalebox><b>Ярус 4 — судья: слепое второе мнение.</b>
+<div><b>Зачем.</b> Ревьюер яруса 3 знает результат чекера и волей-неволей
+опирается на него — может пропустить дефект, который не виден в
+функциональных проверках, но виден в коде. Судья яруса 4 смотрит на
+решение «с улицы»: только TASK.md и дифф, без чекера и метрик. Это решает
+две задачи: (а) независимый контроль ревью — в пилоте согласие ярусов 3/4
+11 из 12 прогонов в пределах ±0.5 балла, систематического сдвига нет,
+значит ревью не подгонялось под чекер; (б) второй проход по коду —
+именно слепой судья нашёл то, что пропустило ревью: float в денежных
+функциях muse и ornith, N+1 в отчёте. Ограничение, выявленное пилотом:
+на аккуратном, но нерабочем коде судья завышает (muse r1: 2.5 против 1
+у ревью) — поэтому итоговый вердикт о работе решения выносит только
+чекер, а судья — источник дефектов и второе мнение, не истина.</div>
 <div><pre class=req>python3 test-assignment/backend/billing/checker/judge_tier2.py \\
   --run models/&lt;модель&gt;/backend/test-assignment/run-XX --thinking low</pre></div>
-<div>Pi-сессия с GLM-5.3-Flash (thinking low, изолированный запуск):
-судья видит только TASK.md и дифф решения, не зная чекера.
-Ось A, 0–4, вердикт с цитатами из диффа.</div></div>
+<div>Pi-сессия с GLM-5.3-Flash (thinking low, изолированный запуск).
+Системный промпт судьи — дословно (SYSTEM в
+<code>checker/judge_tier2.py</code>):</div>
+<pre class=req>TIER4_SYSTEM_PLACEHOLDER</pre></div>
 
 <h2 id=results><span class=no>3.</span>Результаты прогонов</h2>
 {results_table()}
@@ -558,6 +571,11 @@ def main():
     system = next(n.value.value for n in tree.body
                   if isinstance(n, _ast.Assign) and getattr(n.targets[0], "id", "") == "SYSTEM")
     page = HTML.replace("TIER3_SYSTEM_PLACEHOLDER", _html.escape(system))
+    src2 = (BILLING / "checker" / "judge_tier2.py").read_text(encoding="utf-8")
+    tree2 = _ast.parse(src2)
+    system2 = next(n.value.value for n in tree2.body
+                   if isinstance(n, _ast.Assign) and getattr(n.targets[0], "id", "") == "SYSTEM")
+    page = page.replace("TIER4_SYSTEM_PLACEHOLDER", _html.escape(system2))
     sys.path.insert(0, str(BILLING / "checker"))
     from judge_tier3 import build_facts  # noqa: E402
     sample = ROOT / "models/qwen3.8-27b-pi-100k/backend/test-assignment/run-02"
