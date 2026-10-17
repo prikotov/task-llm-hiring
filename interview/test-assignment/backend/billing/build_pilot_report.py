@@ -353,22 +353,41 @@ doctrine/migrations 3.3, PHP ≥ 8.4; docker-compose с PostgreSQL 17; заго�
 мigrations/; в require-dev — phpunit, psalm 6 и phpcs PSR12 — инструменты
 самопроверки кандидата) и два документа:</p>
 <ul>
-<li><a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/test-assignment/backend/billing/skeleton/TASK.md"><b>TASK.md</b></a> — спецификация
-«биллинга LLM-токенов»: импорт тарифов и событий, тарификация с effective dating,
-оф-пик-окно 16:30–00:30 UTC через полночь ×0.5, идемпотентность по
+<li><a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/test-assignment/backend/billing/skeleton/TASK.md"><b>TASK.md</b></a> — само тестовое
+задание: требования к «биллингу LLM-токенов», по которым работает кандидат —
+импорт тарифов и событий, тарификация с effective dating, оф-пик-окно
+16:30–00:30 UTC через полночь ×0.5, идемпотентность по
 (provider, provider_request_id), unrated-события, деньги на bcmath без float
 с одним округлением HALF_UP 6 знаков на событие, эксклюзивный --to,
 бонус — ретро-пересчёт после коррекции цен;</li>
-<li><a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/test-assignment/backend/billing/skeleton/AGENTS.md"><b>AGENTS.md</b></a> — минимальная памятка
-(код в src/, самопроверка приёмки, артефакты COMMIT_MESSAGE.md/PR_DESCRIPTION.md
-с обоснованием отступлений, русский язык). Практики (миграции или schema:update,
-офлайн или онлайн, менять ли файлы каркаса) модель выбирает сама — чекер наблюдает выбор.</li>
+<li><a href="https://github.com/prikotov/task-llm-hiring/blob/main/interview/test-assignment/backend/billing/skeleton/AGENTS.md"><b>AGENTS.md</b></a> — базовые агентские
+инструкции проекта тестового задания: код в src/, самопроверка приёмки,
+артефакты COMMIT_MESSAGE.md/PR_DESCRIPTION.md с обоснованием отступлений,
+русский язык. Харнес pi подхватывает его сам — как любому агенту в этом
+репозитории. Практики (миграции или schema:update, офлайн или онлайн,
+менять ли файлы каркаса) модель выбирает сама — чекер наблюдает выбор.</li>
 </ul>
+
+<h3>Как запускается</h3>
+<p>Задание передаётся одним сырым сообщением без system prompt и подсказок —
+это единственный промпт прогона:</p>
+<pre class=req>Прочитай TASK.md в корне репозитория и выполни задание.</pre>
+<p><code>runner_pi.py</code> разворачивает свежую копию скелета (без var/,
+<code>.env</code> — из <code>.env.example</code>) во временный каталог и запускает:</p>
+<pre class=req>pi -p --session-dir &lt;run&gt;/pi-session --model &lt;тег&gt; --thinking &lt;уровень&gt; &quot;&lt;промпт&gt;&quot;</pre>
+<p class=sub>cwd — копия скелета; окружение: PI_CODING_AGENT_DIR — одноразовый
+каталог (никаких глобальных конфигов и сессий pi), PI_OFFLINE=1; провайдер —
+ollama /v1 (openai-completions) внутреннего сервера, models.json раннера
+задаёт contextWindow=102400, maxTokens (8192; для xhigh/max — 32768, иначе
+thinking выжигает бюджет в пустой ответ) и thinkingLevelMap из фактической
+шкалы модели (/api/show). Бюджет — 90 минут на прогон, каждый с нуля.
+Полный след сессии (сообщения, tool-вызовы, размышления, токены) остаётся
+в &lt;run&gt;/pi-session/*.jsonl.</p>
 
 <h3>Модели и окружение</h3>
 <p>Харнес — <b>pi</b> (локально, изолированный PI_CODING_AGENT_DIR: никаких глобальных
 конфигов и сессий), один прогон с нуля, бюджет 90 минут. Модели — с внутреннего
-olla­ma-сервера (адрес — env <code>OLLAMA_BASE_URL</code>, в git не хранится),
+ollama-сервера (адрес — env <code>OLLAMA_BASE_URL</code>, в git не хранится),
 параметры генерации — дефолтные; контекст 102400 у всех (теги
 <code>-pi-100k</code> / серверные алиасы <code>-ctx100k</code> с num_ctx=102400),
 thinking — максимум шкалы модели по <code>/api/show</code>.</p>
