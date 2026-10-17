@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Пилот этапа 2: тестовое задание «биллинг LLM-токенов»</title>
+<style>
+:root{--ink:#1d2433;--mut:#66707f;--line:#e4e7ec;--bg:#fafbfc;--acc:#315f9e;--good:#2f7d54;--bad:#b3543f}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.62 "Segoe UI",system-ui,-apple-system,"Helvetica Neue",sans-serif;color:var(--ink);background:var(--bg)}
+.wrap{max-width:1040px;margin:0 auto;padding:26px 22px 90px}
+h1.pagetitle{margin:26px 4px 14px;font-size:34px;line-height:1.18;letter-spacing:-.01em;color:var(--ink)}
+header{background:linear-gradient(140deg,#1d2c46 0%,#315f9e 90%);color:#fff;border-radius:16px;padding:34px 40px 30px;margin-bottom:22px}
+header h1{margin:0 0 12px;font-size:31px;line-height:1.22;letter-spacing:-.01em}
+header p{margin:5px 0;opacity:.93;max-width:74ch}
+.toc{margin:20px 0 4px}
+.toc-title{font-size:13px;text-transform:uppercase;letter-spacing:.09em;color:var(--mut);margin-bottom:9px}
+.toc ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:5px 28px}
+.toc a{color:var(--acc);text-decoration:none}
+.toc a:hover{text-decoration:underline}
+h2{font-size:24px;margin:44px 0 10px;letter-spacing:-.01em}
+h2 .no{color:var(--mut);font-weight:400;margin-right:8px}
+h3{font-size:17.5px;margin:26px 0 2px}
+.lead{color:var(--mut);margin:8px 0 14px;font-size:15px}
+p{margin:10px 0}
+.sub{font-size:12.5px;color:var(--mut);margin-top:3px;line-height:1.5}
+.excap{font-size:15px;color:var(--ink);margin:12px 0 -4px;line-height:1.5}
+table{border-collapse:collapse;width:100%;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 2px rgba(20,30,50,.07);margin:14px 0}
+th{background:#eef1f6;text-align:left;font-size:12.5px;text-transform:uppercase;letter-spacing:.03em;color:#46536a;padding:10px 12px;border-bottom:2px solid var(--line)}
+th.narrow{padding-left:5px;padding-right:5px}
+td.narrow{padding-left:5px;padding-right:5px}
+td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top;font-size:14.5px}
+tr:last-child td{border-bottom:none}
+tr.neg td{background:#fdf6f4}
+tr.top td{background:#eef6ef}
+.barwrap{position:relative;background:#eef0f4;border-radius:6px;min-width:92px;max-width:110px;height:21px}
+.barwrap .bar{position:absolute;left:0;top:3px;bottom:3px;border-radius:5px;min-width:3px;opacity:.3}
+.barwrap span{position:absolute;left:7px;top:0;font-size:12.5px;line-height:21px;font-weight:600;color:var(--ink)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(295px,1fr));gap:13px;margin:16px 0}
+.card{background:#fff;border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:12px;padding:15px 17px;font-size:14.5px}
+.card b{display:block;margin-bottom:5px;font-size:15px;min-height:2.8em}
+.quote{background:#fff;border:1px solid var(--line);border-radius:12px;padding:15px 19px;margin:13px 0;font-size:14.5px}
+.quote .who{font-size:12.5px;color:var(--mut);margin-bottom:7px;text-transform:uppercase;letter-spacing:.03em}
+.quote.bad{border-left:4px solid var(--bad)}.quote.good{border-left:4px solid var(--good)}
+.flow{display:flex;flex-wrap:wrap;gap:7px;align-items:stretch;margin:15px 0}
+.flow .step{background:#fff;border:2px solid var(--acc);border-radius:12px;padding:11px 15px;flex:1;min-width:180px;font-size:14px}
+.flow .step b{color:var(--acc);display:block;margin-bottom:4px}
+.flow .step.hot{border-color:var(--bad)}.flow .step.hot b{color:var(--bad)}
+.flow .arrow{align-self:center;color:var(--mut);font-size:19px}
+a{color:var(--acc)}
+.mgroup{margin:20px 0}
+.mgroup h3{margin-bottom:2px}
+.mgroup table{width:auto;max-width:100%}
+.mgroup th,.mgroup td{white-space:nowrap}
+.mgroup td:last-child{white-space:normal}
+.note{background:#fff9e8;border:1px solid #eedd9f;border-radius:12px;padding:13px 17px;font-size:14.5px;margin:14px 0}
+.scalebox{background:#f4f7fb;border:1px solid var(--line);border-radius:10px;padding:11px 16px;font-size:13.5px;color:var(--mut);margin:14px 0}
+.scalebox>b{display:block;margin:2px 0 9px;font-size:15px;color:var(--ink)}
+.scalebox div{margin-top:7px}
+.badge{display:inline-block;border-radius:5px;padding:1px 8px;font-size:12px;font-weight:600}
+.badge.b{background:#e9f1ec;color:var(--good)}.badge.r{background:#f8ebe7;color:var(--bad)}.badge.g{background:#edf1f7;color:var(--acc)}
+svg text{font-family:inherit}
+.scatter .dot{cursor:pointer}
+.scatter g.pt .tip{pointer-events:none;display:none}
+footer{margin-top:56px;color:var(--mut);font-size:13.5px;border-top:1px solid var(--line);padding-top:18px;line-height:1.6}
+@media print{.toc{display:none}header{border-radius:0}h2{page-break-after:avoid}}
+</style></head><body><div class=wrap>
+<h1 class=pagetitle>Пилот этапа 2: тестовое задание «биллинг LLM-токенов»</h1>
+<p class=sub style="margin:-6px 4px 14px">12 прогонов · 8 моделей · 15–16 октября 2026 · отчёт собран в ZCode при содействии GLM-5.3. Ветка feat/billing-test-assignment (PR #14).</p>
+
+<nav class=toc>
+<div class=toc-title>Содержание</div>
+<ul>
+<li><a href="#tldr">1. Главные выводы</a></li>
+<li><a href="#method">2. Методика пилота</a></li>
+<li><a href="#results">3. Результаты прогонов</a></li>
+<li><a href="#charts">4. Что решило исход</a></li>
+<li><a href="#judges">5. Судьи: согласие ярусов</a></li>
+<li><a href="#runs">6. Прогоны и данные</a></li>
+<li><a href="#next">7. Статус и дальше</a></li>
+</ul>
+</nav>
+
+<h2 id=tldr><span class=no>1.</span>Главные выводы</h2>
+<p class=lead>Пилот проверял не модели, а систему: задание, чекер, ярусы оценки и харнес. Система работает; два полных зачёта — qwen3.8 и huihui на честном xhigh.</p>
+<div class=cards>
+<div class=card><b>Полный зачёт — 13/13</b>qwen3.8 и huihui прошли все обязательные сценарии и бонус retro-rebill. Оба — после перевода thinking на истинный максимум шкалы (xhigh из /api/show).</div>
+<div class=card><b>Thinking решает бонус</b>На «high», который сервер ollama поджимал до ≈medium, обе модели сдавали только обязательную часть (11/13). Честный xhigh дал 13/13.</div>
+<div class=card><b>Окно 32K ломало агентность</b>ornith: 53 автокомпакта и правок, потерянный финиш. ctx100k-алиас у orca: пик 32.8K → 86.4K, компакты 15 → 2, бонус 1/2 → 2/2.</div>
+<div class=card><b>Судья (ярус 4) слеп к чекеру</b>Слепой судья по диффу завышает на аккуратном, но нерабочем коде (muse r1: 2.5 против 1). Зато нашёл float в деньгах muse/ornith и N+1 — то, что пропустило ревью.</div>
+</div>
+
+<h2 id=method><span class=no>2.</span>Методика пилота</h2>
+<p class=lead>Что получает кандидат, в каком окружении работает модель и как устроены четыре яруса оценки.</p>
+
+<h3>Скелет задания</h3>
+<p>Модель получает <a href="https://github.com/prikotov/task-llm-hiring/blob/main/test-assignment/backend/billing/skeleton/">каркас Symfony-проекта</a>
+(composer.json: symfony/framework-bundle 8.0, console/yaml, doctrine-bundle 3.2,
+doctrine/migrations 3.3, PHP ≥ 8.4; docker-compose с PostgreSQL 17; заготовка src/ и
+мigrations/; в require-dev — phpunit, psalm 6 и phpcs PSR12 — инструменты
+самопроверки кандидата) и два документа:</p>
+<ul>
+<li><a href="https://github.com/prikotov/task-llm-hiring/blob/main/test-assignment/backend/billing/skeleton/TASK.md"><b>TASK.md</b></a> — само тестовое
+задание: требования к «биллингу LLM-токенов», по которым работает кандидат —
+импорт тарифов и событий, тарификация с effective dating, оф-пик-окно
+16:30–00:30 UTC через полночь ×0.5, идемпотентность по
+(provider, provider_request_id), unrated-события, деньги на bcmath без float
+с одним округлением HALF_UP 6 знаков на событие, эксклюзивный --to,
+бонус — ретро-пересчёт после коррекции цен;</li>
+<li><a href="https://github.com/prikotov/task-llm-hiring/blob/main/test-assignment/backend/billing/skeleton/AGENTS.md"><b>AGENTS.md</b></a> — базовые агентские
+инструкции проекта тестового задания: код в src/, самопроверка приёмки,
+артефакты COMMIT_MESSAGE.md/PR_DESCRIPTION.md с обоснованием отступлений,
+русский язык. Харнес pi подхватывает его сам — как любому агенту в этом
+репозитории. Практики (миграции или schema:update, офлайн или онлайн,
+менять ли файлы каркаса) модель выбирает сама — чекер наблюдает выбор.</li>
+</ul>
+
+<h3>Как запускается</h3>
+<p>Задание передаётся одним сырым сообщением без system prompt и подсказок.
+Единственный промпт прогона — дословно, константа <code>TASK_PROMPT</code>
+в <code>runner_pi.py</code>:</p>
+<pre class=req># runner_pi.py, константа TASK_PROMPT — единственный промпт прогона
+Прочитай TASK.md в корне репозитория и выполни задание.</pre>
+<p>Раннер разворачивает свежую копию скелета (без var/, <code>.env</code> — из
+<code>.env.example</code>) во временный каталог и запускает pi одной командой:</p>
+<pre class=req>pi -p --session-dir &lt;run&gt;/pi-session --model &lt;тег&gt; --thinking &lt;уровень&gt; &quot;&lt;промпт&gt;&quot;</pre>
+<p>Реальный вызов из пилота (run-02 qwen3.8, после перевода thinking на честный
+xhigh):</p>
+<pre class=req>python3 test-assignment/backend/billing/runner_pi.py \
+  --model qwen3.8:27b-pi-100k \
+  --results models/qwen3.8-27b-pi-100k/backend/test-assignment/run-02 \
+  --thinking max</pre>
+<p class=sub>cwd — копия скелета; окружение: PI_CODING_AGENT_DIR — одноразовый
+каталог (никаких глобальных конфигов и сессий pi), PI_OFFLINE=1; провайдер —
+ollama /v1 (openai-completions) внутреннего сервера, models.json раннера
+задаёт contextWindow=102400, maxTokens (8192; для xhigh/max — 32768, иначе
+thinking выжигает бюджет в пустой ответ) и thinkingLevelMap из фактической
+шкалы модели (/api/show). Бюджет — 90 минут на прогон, каждый с нуля.
+Полный след сессии (сообщения, tool-вызовы, размышления, токены) остаётся
+в &lt;run&gt;/pi-session/*.jsonl.</p>
+
+<h3>Модели и окружение</h3>
+<p>Харнес — <b>pi</b> (локально, изолированный PI_CODING_AGENT_DIR: никаких глобальных
+конфигов и сессий), один прогон с нуля, бюджет 90 минут. Модели — с внутреннего
+ollama-сервера (адрес — env <code>OLLAMA_BASE_URL</code>, в git не хранится),
+параметры генерации — дефолтные; контекст 102400 у всех (теги
+<code>-pi-100k</code> / серверные алиасы <code>-ctx100k</code> с num_ctx=102400),
+thinking — максимум шкалы модели по <code>/api/show</code>.</p>
+<table><thead><tr><th>Модель (папка)</th><th>Тег ollama</th><th class=narrow>Параметры</th>
+<th class=narrow>Квант</th><th>Thinking фактический</th><th class=narrow>Прогонов</th></tr></thead><tbody>
+<tr><td>qwen3.8-27b-pi-100k</td><td>qwen3.8:27b-pi-100k</td><td class=narrow>27.3B</td><td class=narrow>Q4_K_M</td><td>r1 ≈medium → r2 xhigh</td><td class=narrow>2</td></tr>
+<tr><td>huihui-ai-pi-100k</td><td>huihui-ai:pi-100k</td><td class=narrow>27.3B</td><td class=narrow>Q4_K_M</td><td>r1 ≈medium → r2 xhigh</td><td class=narrow>2</td></tr>
+<tr><td>orcarouter-…-latest</td><td>orcarouter/Qwen3.8-27B-Uncensored</td><td class=narrow>27.3B</td><td class=narrow>Q4_K_M</td><td>true (максимум шкалы)</td><td class=narrow>2</td></tr>
+<tr><td>gemma4-31b-it-qat-pi-100k</td><td>gemma4:31b-it-qat-pi-100k</td><td class=narrow>30.7B</td><td class=narrow>Q4_0</td><td>true (максимум шкалы)</td><td class=narrow>1</td></tr>
+<tr><td>muse-glimmer</td><td>muse-glimmer</td><td class=narrow>27.9B</td><td class=narrow>Q4_K_M</td><td>r1 high → r2 max</td><td class=narrow>2</td></tr>
+<tr><td>ornith-1.5-35b</td><td>ornith-1.5:35b</td><td class=narrow>35.5B</td><td class=narrow>Q4_K_M</td><td>default-on</td><td class=narrow>1</td></tr>
+<tr class=neg><td>gemma4-e2b (негативный)</td><td>gemma4:e2b-ctx100k</td><td class=narrow>4.6B</td><td class=narrow>Q4_K_M</td><td>true</td><td class=narrow>1</td></tr>
+<tr class=neg><td>medgemma-27b (негативный)</td><td>medgemma:27b-ctx100k</td><td class=narrow>27.4B</td><td class=narrow>Q4_K_M</td><td>—</td><td class=narrow>1</td></tr>
+</tbody></table>
+<p class=sub>Фактически: 8 моделей, 12 прогонов. Повторные прогоны (r2) — не ретраи:
+qwen/huihui перегнаны после исправления thinking-карты («high» сервер поджимал
+до ≈medium), orca — после перевода тега на ctx100k (r1 ушёл в дефолтное окно 32K),
+muse — повтор на max. r1 у orca и r1 у ornith фактически работали в окне 32768.
+medgemma — негативный контроль без tool-calling (n/a).</p>
+
+<h3>Четыре яруса оценки</h3>
+<div class=flow>
+<div class=step><b>1 · Чекер</b>детерминированный: golden-эталоны, чистая БД в docker</div>
+<div class=arrow>→</div>
+<div class=step><b>2 · Метрики</b>phpstan/phpmd/phpcs + AST-качество кода</div>
+<div class=arrow>→</div>
+<div class=step><b>3 · Ревью</b>изолированная pi-сессия (glm-5.3), оси A/B</div>
+<div class=arrow>→</div>
+<div class=step><b>4 · Судья</b>GLM-5.3-Flash, слепое ревью диффа, ось A</div>
+</div>
+
+<div class=scalebox><b>Ярус 1 — чекер: детерминированный, без LLM.</b>
+<div><pre class=req>python3 test-assignment/backend/billing/checker/check.py --repo &lt;репозиторий кандидата&gt;</pre></div>
+<div>Чекер поднимает чистую базу PostgreSQL в docker
+на свободном порту, фиксирует способ разворота схемы (миграции или
+schema:update), гоняет команды кандидата и сравнивает вывод с golden-эталонами.
+Эталоны посчитаны дважды независимо — Python Decimal и PHP-референс судьи,
+совпадение байт-в-байт.</div>
+<div>11 обязательных сценариев: создание БД, разворот схемы, импорт цен,
+импорт событий, тарификация (RATED/UNRATED), unrated в stderr, базовый отчёт,
+повторный импорт дублей (идемпотентность), тарификация после дублей, отчёт
+после дублей, вывод ретро-пересчёта, отчёт после ретро-коррекции; плюс
+информационный skeleton_changes (что изменено в каркасе). Сценарии построены
+на граничных нюансах: valid_from включительно, границы оф-пик-окна
+16:29:59/16:30:00 и 00:29:59/00:30:00, unified-тариф, cache-цены,
+коллизия id между провайдерами, округление HALF_UP на уровне события.</div>
+<div>2 бонусных (retro-rebill): ретро-пересчёт после коррекции цены задним
+числом — REPRICED_EVENTS и REPRICE_DELTA_USD против эталона.</div></div>
+
+<div class=scalebox><b>Ярус 2 — метрики: детерминированные, сравнительные.</b>
+<div><pre class=req>python3 test-assignment/backend/billing/checker/metrics.py --repo &lt;репозиторий кандидата&gt;</pre></div>
+<div>Инструменты — phar-кэш, без сети в окружении судьи:
+phpstan level 8 — ошибки строгого анализа; phpmd —
+нарушения порогов сложности/чистоты (ruleset coding-standard); phpcs PSR12 —
+стиль; scc — размер (files, LOC); AST-сборщик coding-standard — WMC,
+cyclomatic complexity, LCOM4, afferent/efferent coupling и превышения порогов
+(method cc &gt; 10, method loc &gt; 50, class loc &gt; 300, wmc &gt; 50). Сырые артефакты инструментов — полные выводы phpstan/phpmd/phpcs, scc.json и полный отчёт AST-сборщика collector.json (классы с LOC/LCOM4, методы с cc/loc, зависимости) — сохраняются рядом, в <code>&lt;run&gt;/metrics-raw/</code>, имена файлов продублированы в metrics.json в полях raw: агрегаты проверяемы по сырью, за деталями есть куда сходить.</div>
+<div>Метрики сравнивают модели между собой, проходного порога нет: у
+эталонного решения судьи phpstan ≠ 0.</div></div>
+
+<div class=scalebox><b>Ярус 3 — ревью: изолированная pi-сессия.</b>
+<div><pre class=req>python3 test-assignment/backend/billing/checker/judge_tier3.py \
+  --run models/&lt;модель&gt;/backend/test-assignment/run-XX --thinking low</pre></div>
+<div>Отдельный запуск <code>pi -p --no-session --model zai/glm-5.3-flash</code>, thinking low (паттерн judge_glm.py,
+подписка Z.AI; сабагенты Agent tool и OpenRouter запрещены правилами
+репозитория). Ревьюер знает результат чекера и метрик, оценивает две оси
+рубрики <a href="https://github.com/prikotov/task-llm-hiring/blob/main/test-assignment/backend/billing/RUBRIC.md">RUBRIC.md</a>:
+A «код и архитектура» и B «процесс и коммуникация», 0–4.</div>
+<div>Системный промпт ревьюера — дословно (SYSTEM в
+<code>checker/judge_tier3.py</code>; на вход подаются TASK.md, дифф
+решения и факты ярусов 1–2):</div>
+<pre class=req>Ты — изолированный ревьюер (ярус 3) тестового задания «биллинг LLM-токенов» (PHP/Symfony/Doctrine). Тебе дают текст задания (TASK.md), дифф решения против каркаса, результат детерминированного чекера и метрики качества. Оцени решение по ДВУМ осям рубрики.
+
+Ось A «код и архитектура» (0–4):
+0 — решение нерабочее/отсутствует;
+1 — частично работает; домен не смоделирован; деньги или время на float;
+2 — обязательная часть в целом работает; сущности есть, границы слоёв условные; edge-case&#x27;ы (границы окон, unrated, дубли) поверхностно;
+3 — корректная доменная модель (тарификация отделена от приёма и отчёта); точные деньги (bcmath, одно округление) и время; схема воспроизводима; edge-case&#x27;ы покрыты;
+4 — то же + бонус; «дешёвые» решения где можно, явность где нужно; тесты добавляют уверенность.
+
+Ось B «процесс и коммуникация» (0–4):
+0 — нет артефактов, самопроверок, след хаотичен;
+1 — артефакты формальные; самопроверок нет; commit/PR без обоснования;
+2 — самопроверки точечные (прогнал команды, не проверил вывод); артефакты шаблонные;
+3 — систематическая самопроверка (тесты, приёмка по шагам, статанализ); commit/PR объясняют решения; отступления от задания осознанны;
+4 — то же + самопроверка на границах условий (граничные значения, дубли, ретро-бонус); артефакты читаются как отчёт инженера.
+
+Правила: верь чекеру, а не внешнему виду кода; находи дефекты, которых не видно в диффе (float в деньгах, N+1, мёртвый код) — citируй строки диффа как доказательства; не наказывай за стиль, который не оговорён заданием.
+
+Финальное сообщение — ТОЛЬКО JSON одной строкой:
+{&quot;axis_a&quot;:&lt;0-4, шаг 0.5&gt;,&quot;axis_b&quot;:&lt;0-4, шаг 0.5&gt;,&quot;note&quot;:&quot;5-10 предложений по-русски: сильные стороны, дефекты с цитатами, что учтено из чекера/метрик&quot;}</pre>
+<div>Что подаётся ревьюеру, кроме TASK.md и диффа (обрезается до 2600 строк —
+первые строки несут сущности и домен): блок <b>ФАКТЫ</b> — выжимка ярусов 1–2.
+Метрики идут агрегатами (phpstan/phpmd/phppcs/LOC + AST-сводка и превышения
+порогов), сырые выводы инструментов — нет; упавшие сценарии чекера —
+с деталями. Вот ФАКТЫ дословно для прогона qwen3.8 · r2
+(строит build_facts() из judge_tier3.py — тот же код, что в бою):</div>
+<pre class=req>Чекер: обязательных 11/11, бонус 2/2
+Метрики: phpstan 30, phpmd 39, phpcs 76, loc 1660
+AST: cc_max 13, lcom4&gt;1: 12, превышения порогов {&#x27;method_cc_over_10&#x27;: 2, &#x27;method_loc_over_50&#x27;: 5, &#x27;class_loc_over_300&#x27;: 0, &#x27;class_wmc_over_50&#x27;: 0, &#x27;class_lcom4_over_1&#x27;: 12}</pre>
+<div><b>Отступление пилота:</b> ревью прогонов пилота выполнено в рабочей
+сессии ассистента ZCode, а не изолированным запуском — до появления
+judge_tier3.py. Полная сетка проходит только изолированными сессиями;
+таблица ниже помечает эти баллы как «пилотные».</div></div>
+
+<div class=scalebox><b>Ярус 4 — судья: слепое второе мнение.</b>
+<div><b>Зачем.</b> Ревьюер яруса 3 знает результат чекера и волей-неволей
+опирается на него — может пропустить дефект, который не виден в
+функциональных проверках, но виден в коде. Судья яруса 4 смотрит на
+решение «с улицы»: только TASK.md и дифф, без чекера и метрик. Это решает
+две задачи: (а) независимый контроль ревью — в пилоте согласие ярусов 3/4
+11 из 12 прогонов в пределах ±0.5 балла, систематического сдвига нет,
+значит ревью не подгонялось под чекер; (б) второй проход по коду —
+именно слепой судья нашёл то, что пропустило ревью: float в денежных
+функциях muse и ornith, N+1 в отчёте. Ограничение, выявленное пилотом:
+на аккуратном, но нерабочем коде судья завышает (muse r1: 2.5 против 1
+у ревью) — поэтому итоговый вердикт о работе решения выносит только
+чекер, а судья — источник дефектов и второе мнение, не истина.</div>
+<div><pre class=req>python3 test-assignment/backend/billing/checker/judge_tier2.py \
+  --run models/&lt;модель&gt;/backend/test-assignment/run-XX --thinking low</pre></div>
+<div>Pi-сессия с GLM-5.3-Flash (thinking low, изолированный запуск).
+Системный промпт судьи — дословно (SYSTEM в
+<code>checker/judge_tier2.py</code>):</div>
+<pre class=req>Ты — изолированный судья-ревьюер (ярус 4, слепой) тестового задания «биллинг LLM-токенов» (PHP/Symfony/Doctrine). Тебе дают текст задания (TASK.md) и дифф решения против пустого каркаса. Оцени код по ОСИ A рубрики — «код и архитектура».
+
+Шкала оси A (0–4):
+0 — решения нет / не работает вовсе;
+1 — частично; домен не смоделирован (всё в командах); деньги или время на float;
+2 — обязательная часть в целом работает; сущности есть, но границы слоёв условные; к edge-case&#x27;ам (границы окон, unrated, дубли) отношение поверхностное;
+3 — корректная доменная модель (тарификация отделена от приёма и отчёта); точная работа с деньгами (bcmath/decimal, без float) и временем; схема воспроизводима; edge-cases покрыты кодом или тестами;
+4 — то же + решения «дешёвые» там, где можно проще, и явные там, где нужна явность; тесты добавляют уверенность; код читается как объяснение домена.
+
+Обращай внимание: одна схема округления HALF_UP до 6 знаков на уровне события; выбор строки цены по valid_from &lt;= ts; оф-пик-окно через полночь в UTC; идемпотентность по (provider, provider_request_id); исключение float для денег.
+
+Финальное сообщение — ТОЛЬКО JSON одной строкой:
+{&quot;axis_a&quot;: &lt;0-4, шаг 0.5&gt;, &quot;quotes&quot;: [&quot;2-4 короткие цитаты из диффа как доказательства&quot;], &quot;note&quot;: &quot;2-4 предложения по-русски: сильные стороны, слабости, что смутило&quot;}</pre></div>
+
+<h2 id=results><span class=no>3.</span>Результаты прогонов</h2>
+<div style="overflow-x:auto"><table><thead><tr><th>Прогон</th><th class=narrow>Чекер<br>из 13</th><th class=narrow>Статус</th><th class=narrow>A<br>ревью</th><th class=narrow>A<br>судья</th><th class=narrow>Δ</th><th class=narrow>Время</th><th class=narrow>Токены</th><th class=narrow>Пик ctx</th><th class=narrow>⇄</th><th class=narrow>php-<br>stan</th><th class=narrow>php-<br>md</th><th class=narrow>php-<br>cs</th><th class=narrow>LOC</th></tr></thead><tbody><tr class="top"><td><b>qwen3.8 · r2</b><div class=sub>xhigh</div></td><td class="narrow"><div class="barwrap"><div class="bar" style="width:100%;background:#2f7d54"></div><span>11+2</span></div></td><td class="narrow"><span class="badge b">полный зачёт</span></td><td class="narrow">4</td><td class="narrow">3.5</td><td class="narrow">+0.5</td><td class="narrow">22.4 мин</td><td class="narrow">6.79M</td><td class="narrow">87K</td><td class="narrow">2</td><td class="narrow">30</td><td class="narrow">39</td><td class="narrow">76</td><td class="narrow">1660</td></tr><tr class="top"><td><b>huihui · r2</b><div class=sub>xhigh</div></td><td class="narrow"><div class="barwrap"><div class="bar" style="width:100%;background:#2f7d54"></div><span>11+2</span></div></td><td class="narrow"><span class="badge b">полный зачёт</span></td><td class="narrow">4</td><td class="narrow">3.5</td><td class="narrow">+0.5</td><td class="narrow">40.2 мин</td><td class="narrow">14.45M</td><td class="narrow">87K</td><td class="narrow">5</td><td class="narrow">35</td><td class="narrow">18</td><td class="narrow">26</td><td class="narrow">1674</td></tr><tr><td><b>orca · r2</b><div class=sub>ctx100k</div></td><td class="narrow"><div class="barwrap"><div class="bar" style="width:92%;background:#315f9e"></div><span>10+2</span></div></td><td class="narrow"></td><td class="narrow">3</td><td class="narrow">3</td><td class="narrow">+0</td><td class="narrow">21.2 мин</td><td class="narrow">5.92M</td><td class="narrow">86.4K</td><td class="narrow">2</td><td class="narrow">33</td><td class="narrow">46</td><td class="narrow">36</td><td class="narrow">1149</td></tr><tr><td><b>qwen3.8 · r1</b><div class=sub>≈medium</div></td><td class="narrow"><div class="barwrap"><div class="bar" style="width:85%;background:#315f9e"></div><span>11+0</span></div></td><td class="narrow"></td><td class="narrow">3</td><td class="narrow">3.5</td><td class="narrow">-0.5</td><td class="narrow">21.1 мин</td><td class="narrow">7.39M</td><td class="narrow">87.9K</td><td class="narrow">2</td><td class="narrow">38</td><td class="narrow">42</td><td class="narrow">91</td><td class="narrow">1600</td></tr><tr><td><b>huihui · r1</b><div class=sub>≈medium</div></td><td class="narrow"><div class="barwrap"><div class="bar" style="width:85%;background:#315f9e"></div><span>11+0</span></div></td><td class="narrow"></td><td class="narrow">3</td><td class="narrow">3.5</td><td class="narrow">-0.5</td><td class="narrow">17.8 мин</td><td class="narrow">7.72M</td><td class="narrow">86.6K</td><td class="narrow">2</td><td class="narrow">27</td><td class="narrow">56</td><td class="narrow">86</td><td class="narrow">1212</td></tr><tr><td><b>orca · r1</b><div class=sub>окно 32K</div></td><td class="narrow"><div class="barwrap"><div class="bar" style="width:85%;background:#315f9e"></div><span>10+1</span></div></td><td class="narrow"></td><td class="narrow">3</td><td class="narrow">3.5</td><td class="narrow">-0.5</td><td class="narrow">25 мин</td><td class="narrow">4.64M</td><td class="narrow">32.8K</td><td class="narrow">15</td><td class="narrow">26</td><td class="narrow">42</td><td class="narrow">24</td><td class="narrow">1116</td></tr><tr><td><b>gemma4:31b</b><div class=sub>pi-100k</div></td><td class="narrow"><div class="barwrap"><div class="bar" style="width:85%;background:#315f9e"></div><span>10+1</span></div></td><td class="narrow"></td><td class="narrow">3</td><td class="narrow">2.5</td><td class="narrow">+0.5</td><td class="narrow">6.1 мин</td><td class="narrow">2.01M</td><td class="narrow">45.9K</td><td class="narrow">0</td><td class="narrow">21</td><td class="narrow">18</td><td class="narrow">17</td><td class="narrow">798</td></tr><tr><td><b>muse · r2</b><div class=sub>max</div></td><td class="narrow"><div class="barwrap"><div class="bar" style="width:69%;background:#315f9e"></div><span>9+0</span></div></td><td class="narrow"></td><td class="narrow">2</td><td class="narrow">1.5</td><td class="narrow">+0.5</td><td class="narrow">4.8 мин</td><td class="narrow">0.96M</td><td class="narrow">31.9K</td><td class="narrow">3</td><td class="narrow">24</td><td class="narrow">44</td><td class="narrow">8</td><td class="narrow">736</td></tr><tr class="neg"><td><b>muse · r1</b><div class=sub>32K, high</div></td><td class="narrow"><div class="barwrap"><div class="bar" style="width:8%;background:#b3543f"></div><span>1+0</span></div></td><td class="narrow"></td><td class="narrow">1</td><td class="narrow">2.5</td><td class="narrow">-1.5</td><td class="narrow">5.8 мин</td><td class="narrow">1.52M</td><td class="narrow">32.8K</td><td class="narrow">2</td><td class="narrow">17</td><td class="narrow">27</td><td class="narrow">20</td><td class="narrow">734</td></tr><tr class="neg"><td><b>ornith · r1</b><div class=sub>окно 32K</div></td><td class="narrow"><div class="barwrap"><div class="bar" style="width:8%;background:#b3543f"></div><span>1+0</span></div></td><td class="narrow"></td><td class="narrow">1</td><td class="narrow">1.5</td><td class="narrow">-0.5</td><td class="narrow">26 мин</td><td class="narrow">12.88M</td><td class="narrow">32.8K</td><td class="narrow">53</td><td class="narrow">50</td><td class="narrow">36</td><td class="narrow">12</td><td class="narrow">996</td></tr><tr class="neg"><td><b>gemma4:e2b</b><div class=sub>ctx100k</div></td><td class="narrow"><div class="barwrap"><div class="bar" style="width:2%;background:#b3543f"></div><span>0+0</span></div></td><td class="narrow"></td><td class="narrow">1</td><td class="narrow">0.5</td><td class="narrow">+0.5</td><td class="narrow">21 с</td><td class="narrow">0.11M</td><td class="narrow">13.8K</td><td class="narrow">0</td><td class="narrow">41</td><td class="narrow">10</td><td class="narrow">28</td><td class="narrow">282</td></tr><tr class="neg"><td><b>medgemma</b><div class=sub>n/a: нет tools</div></td><td class="narrow"><div class="barwrap"><div class="bar" style="width:15%;background:#98a4b3"></div><span>2+0</span></div></td><td class="narrow"><span class="badge g">n/a</span></td><td class="narrow">0</td><td class="narrow">0</td><td class="narrow">+0</td><td class="narrow">—</td><td class="narrow">None</td><td class="narrow">None</td><td class="narrow">None</td><td class="narrow">0</td><td class="narrow">0</td><td class="narrow">0</td><td class="narrow">27</td></tr></tbody></table></div><p class=sub>⇄ — автокомпакты + правки истории за прогон. A — ось «что сделано» (0–4): ревью — изолированная pi-сессия (в пилоте — рабочая сессия ZCode, см. §2), судья — слепое ревью GLM-5.3-Flash. medgemma — нетронутый каркас: 2/13 — базовый уровень скелета, модель без tool-calling, зачёт не выставляется (n/a). Ссылки на артефакты каждого прогона — в разделе 6.</p>
+
+<h2 id=charts><span class=no>4.</span>Что решило исход</h2>
+<h3>Время и токены</h3>
+<p class=excap>Каждая точка — прогон: по горизонтали время, по вертикали суммарные токены,
+цвет — итог чекера. Два лидера прошли 13/13 без аномалий по бюджету; ornith сжёг 12.9M токенов
+в окне 32K без результата.</p>
+<svg class="scatter" width="920" height="480" viewBox="0 0 920 480" style="max-width:100%"><line x1=56 y1=327 x2=896 y2=327 stroke="#e4e7ec"/><text x=46 y=331 text-anchor=end font-size=12 fill=#66707f>4</text><line x1=56 y1=226 x2=896 y2=226 stroke="#e4e7ec"/><text x=46 y=230 text-anchor=end font-size=12 fill=#66707f>8</text><line x1=56 y1=125 x2=896 y2=125 stroke="#e4e7ec"/><text x=46 y=129 text-anchor=end font-size=12 fill=#66707f>12</text><line x1=56 y1=24 x2=896 y2=24 stroke="#e4e7ec"/><text x=46 y=28 text-anchor=end font-size=12 fill=#66707f>16</text><line x1=56 y1=24 x2=56 y2=428 stroke="#e4e7ec"/><text x=56 y=448 text-anchor=middle font-size=12 fill=#66707f>0</text><line x1=247 y1=24 x2=247 y2=428 stroke="#e4e7ec"/><text x=247 y=448 text-anchor=middle font-size=12 fill=#66707f>10</text><line x1=438 y1=24 x2=438 y2=428 stroke="#e4e7ec"/><text x=438 y=448 text-anchor=middle font-size=12 fill=#66707f>20</text><line x1=629 y1=24 x2=629 y2=428 stroke="#e4e7ec"/><text x=629 y=448 text-anchor=middle font-size=12 fill=#66707f>30</text><line x1=820 y1=24 x2=820 y2=428 stroke="#e4e7ec"/><text x=820 y=448 text-anchor=middle font-size=12 fill=#66707f>40</text><g class="pt"><circle class="dot" cx=484 cy=257 r=14.7 fill=#2f7d54 fill-opacity="0.8" stroke="#fff" stroke-width="1.5"/><text x=472 y=261 text-anchor="end" font-size=11 fill=#2f7d54>qwen3.8</text><g class="tip"><rect x=498 y=205 width=275 height=68 rx=7 fill="#1d2433" fill-opacity="0.95"/><text x=506 y=223 font-size=11.5 fill="#ffffff" font-weight=bold>qwen3.8 · r2</text><text x=506 y=238 font-size=11.5 fill="#c8d4e4">чекер 11+2 (xhigh)</text><text x=506 y=253 font-size=11.5 fill="#c8d4e4">22.4 мин · 6.79M токенов · пик 87K · ⇄2</text></g></g><g class="pt"><circle class="dot" cx=823 cy=63 r=14.7 fill=#2f7d54 fill-opacity="0.8" stroke="#fff" stroke-width="1.5"/><text x=811 y=67 text-anchor="end" font-size=11 fill=#2f7d54>huihui</text><g class="tip"><rect x=527 y=11 width=282 height=68 rx=7 fill="#1d2433" fill-opacity="0.95"/><text x=535 y=29 font-size=11.5 fill="#ffffff" font-weight=bold>huihui · r2</text><text x=535 y=44 font-size=11.5 fill="#c8d4e4">чекер 11+2 (xhigh)</text><text x=535 y=59 font-size=11.5 fill="#c8d4e4">40.2 мин · 14.45M токенов · пик 87K · ⇄5</text></g></g><g class="pt"><circle class="dot" cx=461 cy=279 r=14.7 fill=#315f9e fill-opacity="0.8" stroke="#fff" stroke-width="1.5"/><text x=449 y=287 text-anchor="end" font-size=11 fill=#315f9e>orca</text><g class="tip"><rect x=475 y=227 width=289 height=68 rx=7 fill="#1d2433" fill-opacity="0.95"/><text x=483 y=245 font-size=11.5 fill="#ffffff" font-weight=bold>orca · r2</text><text x=483 y=260 font-size=11.5 fill="#c8d4e4">чекер 10+2 (ctx100k)</text><text x=483 y=275 font-size=11.5 fill="#c8d4e4">21.2 мин · 5.92M токенов · пик 86.4K · ⇄2</text></g></g><g class="pt"><circle class="dot" cx=459 cy=241 r=14.8 fill=#315f9e fill-opacity="0.8" stroke="#fff" stroke-width="1.5"/><text x=445 y=235 text-anchor="end" font-size=11 fill=#315f9e>qwen3.8</text><g class="tip"><rect x=473 y=189 width=289 height=68 rx=7 fill="#1d2433" fill-opacity="0.95"/><text x=481 y=207 font-size=11.5 fill="#ffffff" font-weight=bold>qwen3.8 · r1</text><text x=481 y=222 font-size=11.5 fill="#c8d4e4">чекер 11+0 (≈medium)</text><text x=481 y=237 font-size=11.5 fill="#c8d4e4">21.1 мин · 7.39M токенов · пик 87.9K · ⇄2</text></g></g><g class="pt"><circle class="dot" cx=396 cy=233 r=14.7 fill=#315f9e fill-opacity="0.8" stroke="#fff" stroke-width="1.5"/><text x=384 y=237 text-anchor="end" font-size=11 fill=#315f9e>huihui</text><g class="tip"><rect x=410 y=181 width=289 height=68 rx=7 fill="#1d2433" fill-opacity="0.95"/><text x=418 y=199 font-size=11.5 fill="#ffffff" font-weight=bold>huihui · r1</text><text x=418 y=214 font-size=11.5 fill="#c8d4e4">чекер 11+0 (≈medium)</text><text x=418 y=229 font-size=11.5 fill="#c8d4e4">17.8 мин · 7.72M токенов · пик 86.6K · ⇄2</text></g></g><g class="pt"><circle class="dot" cx=533 cy=311 r=9.9 fill=#315f9e fill-opacity="0.8" stroke="#fff" stroke-width="1.5"/><text x=541 y=303 text-anchor="start" font-size=11 fill=#315f9e>orca</text><g class="tip"><rect x=547 y=259 width=282 height=68 rx=7 fill="#1d2433" fill-opacity="0.95"/><text x=555 y=277 font-size=11.5 fill="#ffffff" font-weight=bold>orca · r1</text><text x=555 y=292 font-size=11.5 fill="#c8d4e4">чекер 10+1 (окно 32K)</text><text x=555 y=307 font-size=11.5 fill="#c8d4e4">25 мин · 4.64M токенов · пик 32.8K · ⇄15</text></g></g><g class="pt"><circle class="dot" cx=172 cy=377 r=11.1 fill=#315f9e fill-opacity="0.8" stroke="#fff" stroke-width="1.5"/><text x=162 y=389 text-anchor="end" font-size=11 fill=#315f9e>gemma4:31b</text><g class="tip"><rect x=186 y=325 width=282 height=68 rx=7 fill="#1d2433" fill-opacity="0.95"/><text x=194 y=343 font-size=11.5 fill="#ffffff" font-weight=bold>gemma4:31b</text><text x=194 y=358 font-size=11.5 fill="#c8d4e4">чекер 10+1 (pi-100k)</text><text x=194 y=373 font-size=11.5 fill="#c8d4e4">6.1 мин · 2.01M токенов · пик 45.9K · ⇄0</text></g></g><g class="pt"><circle class="dot" cx=148 cy=404 r=9.8 fill=#315f9e fill-opacity="0.8" stroke="#fff" stroke-width="1.5"/><text x=157 y=406 text-anchor="start" font-size=11 fill=#315f9e>muse</text><g class="tip"><rect x=162 y=352 width=282 height=68 rx=7 fill="#1d2433" fill-opacity="0.95"/><text x=170 y=370 font-size=11.5 fill="#ffffff" font-weight=bold>muse · r2</text><text x=170 y=385 font-size=11.5 fill="#c8d4e4">чекер 9+0 (max)</text><text x=170 y=400 font-size=11.5 fill="#c8d4e4">4.8 мин · 0.96M токенов · пик 31.9K · ⇄3</text></g></g><g class="pt"><circle class="dot" cx=167 cy=390 r=9.9 fill=#b3543f fill-opacity="0.8" stroke="#fff" stroke-width="1.5"/><text x=178 y=387 text-anchor="start" font-size=11 fill=#b3543f>muse</text><g class="tip"><rect x=181 y=338 width=282 height=68 rx=7 fill="#1d2433" fill-opacity="0.95"/><text x=189 y=356 font-size=11.5 fill="#ffffff" font-weight=bold>muse · r1</text><text x=189 y=371 font-size=11.5 fill="#c8d4e4">чекер 1+0 (32K, high)</text><text x=189 y=386 font-size=11.5 fill="#c8d4e4">5.8 мин · 1.52M токенов · пик 32.8K · ⇄2</text></g></g><g class="pt"><circle class="dot" cx=552 cy=103 r=9.9 fill=#b3543f fill-opacity="0.8" stroke="#fff" stroke-width="1.5"/><text x=552 y=123 text-anchor="middle" font-size=11 fill=#b3543f>ornith</text><g class="tip"><rect x=566 y=51 width=289 height=68 rx=7 fill="#1d2433" fill-opacity="0.95"/><text x=574 y=69 font-size=11.5 fill="#ffffff" font-weight=bold>ornith · r1</text><text x=574 y=84 font-size=11.5 fill="#c8d4e4">чекер 1+0 (окно 32K)</text><text x=574 y=99 font-size=11.5 fill="#c8d4e4">26 мин · 12.88M токенов · пик 32.8K · ⇄53</text></g></g><g class="pt"><circle class="dot" cx=63 cy=425 r=8.2 fill=#b3543f fill-opacity="0.8" stroke="#fff" stroke-width="1.5"/><text x=72 y=417 text-anchor="start" font-size=11 fill=#b3543f>gemma4:e2b</text><g class="tip"><rect x=77 y=373 width=262 height=68 rx=7 fill="#1d2433" fill-opacity="0.95"/><text x=85 y=391 font-size=11.5 fill="#ffffff" font-weight=bold>gemma4:e2b</text><text x=85 y=406 font-size=11.5 fill="#c8d4e4">чекер 0+0 (ctx100k)</text><text x=85 y=421 font-size=11.5 fill="#c8d4e4">21 с · 0.11M токенов · пик 13.8K · ⇄0</text></g></g><text x=476 y=466 text-anchor=middle font-size=12.5 fill=#66707f>минуты прогона (бюджет 90 мин)</text><text x=16 y=226 font-size=12.5 fill=#66707f transform="rotate(-90 16 226)">млн токенов</text><g class="tip-layer"></g></svg><p class=sub><span style="color:full">●</span> полный зачёт (12–13) · <span style="color:part">●</span> почти (9–11) · <span style="color:fail">●</span> провал (<9). Диаметр точки — пик контекста (13.8K–87.9K).</p>
+
+<h3>Эффект окна 32K → 100K</h3>
+<p class=excap>Дефолт сервера ollama (ctx 32768) душил агентность: ornith упёрся в лимит,
+накрутив 53 компакта. После перевода всех тегов на ctx100k-алиасы (num_ctx 102400) пик
+контекста у orca вырос до 86.4K при 2 компактах.</p>
+<svg width="620" height="300" viewBox="0 0 620 300" style="max-width:100%"><line x1=46 y1=254 x2=606 y2=254 stroke="#e4e7ec"/><text x=36 y=258 text-anchor=end font-size=12 fill=#66707f>0</text><line x1=46 y1=202 x2=606 y2=202 stroke="#e4e7ec"/><text x=36 y=206 text-anchor=end font-size=12 fill=#66707f>25</text><line x1=46 y1=150 x2=606 y2=150 stroke="#e4e7ec"/><text x=36 y=154 text-anchor=end font-size=12 fill=#66707f>50</text><line x1=46 y1=99 x2=606 y2=99 stroke="#e4e7ec"/><text x=36 y=103 text-anchor=end font-size=12 fill=#66707f>75</text><line x1=46 y1=47 x2=606 y2=47 stroke="#e4e7ec"/><text x=36 y=51 text-anchor=end font-size=12 fill=#66707f>100</text><rect x=80 y=186 width=73 height=68 rx=4 fill=#b3543f fill-opacity="0.82"/><text x=116 y=162 text-anchor=middle font-size=12.5 font-weight=600 fill=#1d2433>32.8K</text><text x=116 y=177 text-anchor=middle font-size=11.5 fill=#66707f>⇄15</text><text x=116 y=272 text-anchor=middle font-size=12 fill=#66707f>orca r1 · 32K</text><rect x=220 y=75 width=73 height=179 rx=4 fill=#2f7d54 fill-opacity="0.82"/><text x=256 y=51 text-anchor=middle font-size=12.5 font-weight=600 fill=#1d2433>86.4K</text><text x=256 y=66 text-anchor=middle font-size=11.5 fill=#66707f>⇄2</text><text x=256 y=272 text-anchor=middle font-size=12 fill=#66707f>orca r2 · 100K</text><rect x=360 y=186 width=73 height=68 rx=4 fill=#b3543f fill-opacity="0.82"/><text x=396 y=162 text-anchor=middle font-size=12.5 font-weight=600 fill=#1d2433>32.8K</text><text x=396 y=177 text-anchor=middle font-size=11.5 fill=#66707f>⇄53</text><text x=396 y=272 text-anchor=middle font-size=12 fill=#66707f>ornith r1 · 32K</text><rect x=500 y=74 width=73 height=180 rx=4 fill=#2f7d54 fill-opacity="0.82"/><text x=536 y=50 text-anchor=middle font-size=12.5 font-weight=600 fill=#1d2433>87K</text><text x=536 y=65 text-anchor=middle font-size=11.5 fill=#66707f>⇄2</text><text x=536 y=272 text-anchor=middle font-size=12 fill=#66707f>qwen r2 · 100K</text><line x1=46 y1=42 x2=606 y2=42 stroke="#aab3bf" stroke-dasharray="6,4"/><text x=606 y=37 text-anchor=end font-size=11.5 font-style=italic fill=#9aa3ad>лимит 102.4K</text><text x=326 y=292 text-anchor=middle font-size=12.5 fill=#66707f>пик контекста, K токенов; ⇄ — автокомпакты + правки истории</text></svg>
+
+<h3>Эффект thinking: run-01 → run-02</h3>
+<p class=excap>Первые прогоны qwen/huihui ушли на «high», которого в шкале моделей нет —
+сервер поджимал его до ≈medium. После карты уровней из /api/show повтор на честном xhigh
+закрыл бонус. muse показала тот же паттерн на своей шкале (high → max).</p>
+<svg width="620" height="166" viewBox="0 0 620 166" style="max-width:100%"><line x1=118 y1=16 x2=118 y2=122 stroke="#e4e7ec"/><text x=118 y=140 text-anchor=middle font-size=12 fill=#66707f>0</text><line x1=286 y1=16 x2=286 y2=122 stroke="#e4e7ec"/><text x=286 y=140 text-anchor=middle font-size=12 fill=#66707f>5</text><line x1=487 y1=16 x2=487 y2=122 stroke="#e4e7ec"/><text x=487 y=140 text-anchor=middle font-size=12 fill=#66707f>11</text><line x1=554 y1=16 x2=554 y2=122 stroke="#e4e7ec"/><text x=554 y=140 text-anchor=middle font-size=12 fill=#66707f>13</text><line x1=487 y1=16 x2=487 y2=122 stroke="#aab3bf" stroke-dasharray="6,4"/><line x1=554 y1=16 x2=554 y2=122 stroke="#aab3bf" stroke-dasharray="6,4"/><line x1=487 y1=33 x2=554 y2=33 stroke="#c3cad4" stroke-width="2.5"/><circle cx=487 cy=33 r=5 fill="#5b9bd5"/><circle cx=554 cy=33 r=5 fill="#315f9e"/><text x=108 y=37 text-anchor=end font-size=12 fill=#1d2433>qwen3.8</text><text x=563 y=37 font-size=12 font-weight=600 fill=#1d2433>13</text><line x1=487 y1=67 x2=554 y2=67 stroke="#c3cad4" stroke-width="2.5"/><circle cx=487 cy=67 r=5 fill="#5b9bd5"/><circle cx=554 cy=67 r=5 fill="#315f9e"/><text x=108 y=71 text-anchor=end font-size=12 fill=#1d2433>huihui</text><text x=563 y=71 font-size=12 font-weight=600 fill=#1d2433>13</text><line x1=152 y1=101 x2=420 y2=101 stroke="#c3cad4" stroke-width="2.5"/><circle cx=152 cy=101 r=5 fill="#5b9bd5"/><circle cx=420 cy=101 r=5 fill="#315f9e"/><text x=108 y=105 text-anchor=end font-size=12 fill=#1d2433>muse</text><text x=429 y=105 font-size=12 font-weight=600 fill=#1d2433>9</text><text x=346 y=160 text-anchor=middle font-size=12.5 fill=#66707f>сценарии чекера (из 13)</text></svg><p class=sub><span style="color:#5b9bd5">●</span> run-01 ≈medium &nbsp; <span style="color:#315f9e">●</span> run-02 xhigh &nbsp; пунктир: обязательные 11 / полный зачёт 13</p>
+
+<h3>Качество кода лучших решений</h3>
+<p class=excap>Ярус 2 по четырём лучшим решениям. huihui r2 на xhigh пишет заметно чище
+своего ≈medium-прогона (phpmd 56 → 18, phpcs 86 → 26) — максимум мышления окупается и качеством,
+не только функциональностью.</p>
+<svg width="620" height="214" viewBox="0 0 620 214" style="max-width:100%"><line x1=213 y1=8 x2=213 y2=168 stroke="#e4e7ec"/><text x=213 y=184 text-anchor=middle font-size=12 fill=#66707f>20</text><line x1=322 y1=8 x2=322 y2=168 stroke="#e4e7ec"/><text x=322 y=184 text-anchor=middle font-size=12 fill=#66707f>40</text><line x1=431 y1=8 x2=431 y2=168 stroke="#e4e7ec"/><text x=431 y=184 text-anchor=middle font-size=12 fill=#66707f>60</text><line x1=540 y1=8 x2=540 y2=168 stroke="#e4e7ec"/><text x=540 y=184 text-anchor=middle font-size=12 fill=#66707f>80</text><text x=94 y=32 text-anchor=end font-size=12 fill=#1d2433>qwen r2</text><rect x=104 y=10 width=164 height=6 rx=3 fill=#315f9e fill-opacity="0.9"/><rect x=104 y=18 width=213 height=6 rx=3 fill=#5b9bd5 fill-opacity="0.9"/><rect x=104 y=26 width=414 height=6 rx=3 fill=#98a4b3 fill-opacity="0.9"/><text x=526 y=32 font-size=12 font-weight=600 fill=#1d2433>76</text><text x=94 y=72 text-anchor=end font-size=12 fill=#1d2433>huihui r2</text><rect x=104 y=50 width=191 height=6 rx=3 fill=#315f9e fill-opacity="0.9"/><rect x=104 y=58 width=98 height=6 rx=3 fill=#5b9bd5 fill-opacity="0.9"/><rect x=104 y=66 width=142 height=6 rx=3 fill=#98a4b3 fill-opacity="0.9"/><text x=254 y=72 font-size=12 font-weight=600 fill=#1d2433>26</text><text x=94 y=112 text-anchor=end font-size=12 fill=#1d2433>orca r2</text><rect x=104 y=90 width=180 height=6 rx=3 fill=#315f9e fill-opacity="0.9"/><rect x=104 y=98 width=251 height=6 rx=3 fill=#5b9bd5 fill-opacity="0.9"/><rect x=104 y=106 width=196 height=6 rx=3 fill=#98a4b3 fill-opacity="0.9"/><text x=308 y=112 font-size=12 font-weight=600 fill=#1d2433>36</text><text x=94 y=152 text-anchor=end font-size=12 fill=#1d2433>gemma4:31b</text><rect x=104 y=130 width=114 height=6 rx=3 fill=#315f9e fill-opacity="0.9"/><rect x=104 y=138 width=98 height=6 rx=3 fill=#5b9bd5 fill-opacity="0.9"/><rect x=104 y=146 width=93 height=6 rx=3 fill=#98a4b3 fill-opacity="0.9"/><text x=205 y=152 font-size=12 font-weight=600 fill=#1d2433>17</text><text x=336 y=206 text-anchor=middle font-size=12.5 fill=#66707f>нарушений, меньше — лучше (подпись справа — phpcs)</text></svg><p class=sub><span style="color:#315f9e">■</span> phpstan L8 · <span style="color:#5b9bd5">■</span> phpmd · <span style="color:#98a4b3">■</span> phpcs PSR12</p>
+
+<h2 id=judges><span class=no>5.</span>Ревью против судьи: согласие ярусов 3 и 4</h2>
+<p class=excap>Ревью яруса 3 (в пилоте — ZCode) против слепого судьи яруса 4 (GLM-5.3-Flash) по оси A.
+11 из 12 прогонов — в пределах ±0.5 балла, систематического сдвига нет.</p>
+<svg width="620" height="438" viewBox="0 0 620 438" style="max-width:100%"><line x1=118 y1=16 x2=118 y2=394 stroke="#e4e7ec"/><text x=118 y=412 text-anchor=middle font-size=12 fill=#66707f>0</text><line x1=232 y1=16 x2=232 y2=394 stroke="#e4e7ec"/><text x=232 y=412 text-anchor=middle font-size=12 fill=#66707f>1</text><line x1=346 y1=16 x2=346 y2=394 stroke="#e4e7ec"/><text x=346 y=412 text-anchor=middle font-size=12 fill=#66707f>2</text><line x1=460 y1=16 x2=460 y2=394 stroke="#e4e7ec"/><text x=460 y=412 text-anchor=middle font-size=12 fill=#66707f>3</text><line x1=574 y1=16 x2=574 y2=394 stroke="#e4e7ec"/><text x=574 y=412 text-anchor=middle font-size=12 fill=#66707f>4</text><line x1=517 y1=33 x2=574 y2=33 stroke="#c3cad4" stroke-width="2.5"/><circle cx=517 cy=33 r=5 fill="#5b9bd5"/><circle cx=574 cy=33 r=5 fill="#315f9e"/><text x=108 y=37 text-anchor=end font-size=12 fill=#1d2433>qwen3.8 · r2</text><text x=583 y=37 font-size=12 font-weight=600 fill=#1d2433>4</text><line x1=517 y1=67 x2=574 y2=67 stroke="#c3cad4" stroke-width="2.5"/><circle cx=517 cy=67 r=5 fill="#5b9bd5"/><circle cx=574 cy=67 r=5 fill="#315f9e"/><text x=108 y=71 text-anchor=end font-size=12 fill=#1d2433>huihui · r2</text><text x=583 y=71 font-size=12 font-weight=600 fill=#1d2433>4</text><line x1=460 y1=101 x2=460 y2=101 stroke="#c3cad4" stroke-width="2.5"/><circle cx=460 cy=101 r=5 fill="#5b9bd5"/><circle cx=460 cy=101 r=5 fill="#315f9e"/><text x=108 y=105 text-anchor=end font-size=12 fill=#1d2433>orca · r2</text><text x=469 y=105 font-size=12 font-weight=600 fill=#1d2433>3</text><line x1=517 y1=135 x2=460 y2=135 stroke="#c3cad4" stroke-width="2.5"/><circle cx=517 cy=135 r=5 fill="#5b9bd5"/><circle cx=460 cy=135 r=5 fill="#315f9e"/><text x=108 y=139 text-anchor=end font-size=12 fill=#1d2433>qwen3.8 · r1</text><text x=469 y=139 font-size=12 font-weight=600 fill=#1d2433>3</text><line x1=517 y1=169 x2=460 y2=169 stroke="#c3cad4" stroke-width="2.5"/><circle cx=517 cy=169 r=5 fill="#5b9bd5"/><circle cx=460 cy=169 r=5 fill="#315f9e"/><text x=108 y=173 text-anchor=end font-size=12 fill=#1d2433>huihui · r1</text><text x=469 y=173 font-size=12 font-weight=600 fill=#1d2433>3</text><line x1=517 y1=203 x2=460 y2=203 stroke="#c3cad4" stroke-width="2.5"/><circle cx=517 cy=203 r=5 fill="#5b9bd5"/><circle cx=460 cy=203 r=5 fill="#315f9e"/><text x=108 y=207 text-anchor=end font-size=12 fill=#1d2433>orca · r1</text><text x=469 y=207 font-size=12 font-weight=600 fill=#1d2433>3</text><line x1=403 y1=237 x2=460 y2=237 stroke="#c3cad4" stroke-width="2.5"/><circle cx=403 cy=237 r=5 fill="#5b9bd5"/><circle cx=460 cy=237 r=5 fill="#315f9e"/><text x=108 y=241 text-anchor=end font-size=12 fill=#1d2433>gemma4:31b</text><text x=469 y=241 font-size=12 font-weight=600 fill=#1d2433>3</text><line x1=289 y1=271 x2=346 y2=271 stroke="#c3cad4" stroke-width="2.5"/><circle cx=289 cy=271 r=5 fill="#5b9bd5"/><circle cx=346 cy=271 r=5 fill="#315f9e"/><text x=108 y=275 text-anchor=end font-size=12 fill=#1d2433>muse · r2</text><text x=355 y=275 font-size=12 font-weight=600 fill=#1d2433>2</text><line x1=403 y1=305 x2=232 y2=305 stroke="#c3cad4" stroke-width="2.5"/><circle cx=403 cy=305 r=5 fill="#5b9bd5"/><circle cx=232 cy=305 r=5 fill="#315f9e"/><text x=108 y=309 text-anchor=end font-size=12 fill=#1d2433>muse · r1</text><text x=241 y=309 font-size=12 font-weight=600 fill=#1d2433>1</text><line x1=289 y1=339 x2=232 y2=339 stroke="#c3cad4" stroke-width="2.5"/><circle cx=289 cy=339 r=5 fill="#5b9bd5"/><circle cx=232 cy=339 r=5 fill="#315f9e"/><text x=108 y=343 text-anchor=end font-size=12 fill=#1d2433>ornith · r1</text><text x=241 y=343 font-size=12 font-weight=600 fill=#1d2433>1</text><line x1=175 y1=373 x2=232 y2=373 stroke="#c3cad4" stroke-width="2.5"/><circle cx=175 cy=373 r=5 fill="#5b9bd5"/><circle cx=232 cy=373 r=5 fill="#315f9e"/><text x=108 y=377 text-anchor=end font-size=12 fill=#1d2433>gemma4:e2b</text><text x=241 y=377 font-size=12 font-weight=600 fill=#1d2433>1</text><text x=346 y=432 text-anchor=middle font-size=12.5 fill=#66707f>ось A: что сделано (0–4)</text></svg><p class=sub><span style="color:#5b9bd5">●</span> судья, ярус 4 (GLM-флеш) &nbsp; <span style="color:#315f9e">●</span> ревью, ярус 3 (ZCode)</p>
+<div class="quote bad"><div class=who>Слепое пятно судьи (ярус 4)</div>
+Судья видит только дифф и не знает результата чекера. На muse r1 (1/11, схема не разворачивается,
+но код аккуратный) он поставил 2.5 — против 1 у ревью. Вывод пилота: функциональная истина —
+только ярус 0; ярус 2 полезен для поиска дефектов (float в деньгах, N+1), но не для итогового
+балла нерабочих решений.</div>
+
+<h2 id=runs><span class=no>6.</span>Прогоны и данные</h2><p class=lead>Все прогоны этапа — 12 на момент сборки отчёта, сгруппированы по моделям. Строки собираются сканом каталогов: новые прогоны попадают сюда автоматически.</p><div class=mgroup><h3>gemma4-31b-it-qat-pi-100k</h3><p class=sub>gemma4:31b-it-qat-pi-100k · прогон: 1</p><table><thead><tr><th class=narrow>Прогон</th><th>Условия</th><th class=narrow>Чекер</th><th class=narrow>Время</th><th class=narrow>php-<br>stan</th><th class=narrow>LOC</th><th>Артефакты</th></tr></thead><tbody><tr><td class=narrow>run-01</td><td class="narrow">thinking true (максимум шкалы) · ctx 102K</td><td class="narrow">10/11+1</td><td class="narrow">368.2 мин</td><td class="narrow">21</td><td class="narrow">798</td><td><a href="../models/gemma4-31b-it-qat-pi-100k/backend/test-assignment/run-01/report.html">отчёт</a> · <a href="../models/gemma4-31b-it-qat-pi-100k/backend/test-assignment/run-01/solution">код</a> · <a href="../models/gemma4-31b-it-qat-pi-100k/backend/test-assignment/run-01/scorecard.md">ревью</a> · <a href="../models/gemma4-31b-it-qat-pi-100k/backend/test-assignment/run-01/judge-glm.md">судья</a></td></tr></tbody></table></div><div class=mgroup><h3>gemma4-e2b</h3><p class=sub>gemma4:e2b-ctx100k · прогон: 1</p><table><thead><tr><th class=narrow>Прогон</th><th>Условия</th><th class=narrow>Чекер</th><th class=narrow>Время</th><th class=narrow>php-<br>stan</th><th class=narrow>LOC</th><th>Артефакты</th></tr></thead><tbody><tr><td class=narrow>run-01</td><td class="narrow">thinking max · ctx 102K</td><td class="narrow">0/11+0</td><td class="narrow">20.9 мин</td><td class="narrow">41</td><td class="narrow">282</td><td><a href="../models/gemma4-e2b/backend/test-assignment/run-01/report.html">отчёт</a> · <a href="../models/gemma4-e2b/backend/test-assignment/run-01/solution">код</a> · <a href="../models/gemma4-e2b/backend/test-assignment/run-01/scorecard.md">ревью</a> · <a href="../models/gemma4-e2b/backend/test-assignment/run-01/judge-glm.md">судья</a></td></tr></tbody></table></div><div class=mgroup><h3>huihui-ai-pi-100k</h3><p class=sub>huihui-ai:pi-100k · прогона: 2</p><table><thead><tr><th class=narrow>Прогон</th><th>Условия</th><th class=narrow>Чекер</th><th class=narrow>Время</th><th class=narrow>php-<br>stan</th><th class=narrow>LOC</th><th>Артефакты</th></tr></thead><tbody><tr><td class=narrow>run-01</td><td class="narrow">thinking ~medium · ctx 102K</td><td class="narrow">11/11+0</td><td class="narrow">1066 мин</td><td class="narrow">27</td><td class="narrow">1212</td><td><a href="../models/huihui-ai-pi-100k/backend/test-assignment/run-01/report.html">отчёт</a> · <a href="../models/huihui-ai-pi-100k/backend/test-assignment/run-01/solution">код</a> · <a href="../models/huihui-ai-pi-100k/backend/test-assignment/run-01/scorecard.md">ревью</a> · <a href="../models/huihui-ai-pi-100k/backend/test-assignment/run-01/judge-glm.md">судья</a></td></tr><tr><td class=narrow>run-02</td><td class="narrow">thinking max · ctx 102K</td><td class="narrow">11/11+2</td><td class="narrow">2410.4 мин</td><td class="narrow">35</td><td class="narrow">1674</td><td><a href="../models/huihui-ai-pi-100k/backend/test-assignment/run-02/report.html">отчёт</a> · <a href="../models/huihui-ai-pi-100k/backend/test-assignment/run-02/solution">код</a> · <a href="../models/huihui-ai-pi-100k/backend/test-assignment/run-02/scorecard.md">ревью</a> · <a href="../models/huihui-ai-pi-100k/backend/test-assignment/run-02/judge-glm.md">судья</a></td></tr></tbody></table></div><div class=mgroup><h3>medgemma-27b</h3><p class=sub>medgemma:27b-ctx100k · прогон: 1</p><table><thead><tr><th class=narrow>Прогон</th><th>Условия</th><th class=narrow>Чекер</th><th class=narrow>Время</th><th class=narrow>php-<br>stan</th><th class=narrow>LOC</th><th>Артефакты</th></tr></thead><tbody><tr><td class=narrow>run-01</td><td class="narrow">thinking max · ctx 102K</td><td class="narrow">2/11+0</td><td class="narrow">54 с</td><td class="narrow">0</td><td class="narrow">27</td><td><a href="../models/medgemma-27b/backend/test-assignment/run-01/report.html">отчёт</a> · <a href="../models/medgemma-27b/backend/test-assignment/run-01/solution">код</a> · <a href="../models/medgemma-27b/backend/test-assignment/run-01/scorecard.md">ревью</a> · <a href="../models/medgemma-27b/backend/test-assignment/run-01/judge-glm.md">судья</a></td></tr></tbody></table></div><div class=mgroup><h3>muse-glimmer</h3><p class=sub>muse-glimmer · прогона: 2</p><table><thead><tr><th class=narrow>Прогон</th><th>Условия</th><th class=narrow>Чекер</th><th class=narrow>Время</th><th class=narrow>php-<br>stan</th><th class=narrow>LOC</th><th>Артефакты</th></tr></thead><tbody><tr><td class=narrow>run-01</td><td class="narrow">thinking high · ctx 102K</td><td class="narrow">1/11+0</td><td class="narrow">350.5 мин</td><td class="narrow">17</td><td class="narrow">734</td><td><a href="../models/muse-glimmer/backend/test-assignment/run-01/report.html">отчёт</a> · <a href="../models/muse-glimmer/backend/test-assignment/run-01/solution">код</a> · <a href="../models/muse-glimmer/backend/test-assignment/run-01/scorecard.md">ревью</a> · <a href="../models/muse-glimmer/backend/test-assignment/run-01/judge-glm.md">судья</a></td></tr><tr><td class=narrow>run-02</td><td class="narrow">thinking max · ctx 102K</td><td class="narrow">9/11+0</td><td class="narrow">287.6 мин</td><td class="narrow">24</td><td class="narrow">736</td><td><a href="../models/muse-glimmer/backend/test-assignment/run-02/report.html">отчёт</a> · <a href="../models/muse-glimmer/backend/test-assignment/run-02/solution">код</a> · <a href="../models/muse-glimmer/backend/test-assignment/run-02/scorecard.md">ревью</a> · <a href="../models/muse-glimmer/backend/test-assignment/run-02/judge-glm.md">судья</a></td></tr></tbody></table></div><div class=mgroup><h3>orcarouter-Qwen3.8-27B-Uncensored-latest</h3><p class=sub>orcarouter/Qwen3.8-27B-Uncensored:latest · прогона: 2</p><table><thead><tr><th class=narrow>Прогон</th><th>Условия</th><th class=narrow>Чекер</th><th class=narrow>Время</th><th class=narrow>php-<br>stan</th><th class=narrow>LOC</th><th>Артефакты</th></tr></thead><tbody><tr><td class=narrow>run-01</td><td class="narrow">thinking true (максимум шкалы) · ctx 102K</td><td class="narrow">10/11+1</td><td class="narrow">1502.9 мин</td><td class="narrow">26</td><td class="narrow">1116</td><td><a href="../models/orcarouter-Qwen3.8-27B-Uncensored-latest/backend/test-assignment/run-01/report.html">отчёт</a> · <a href="../models/orcarouter-Qwen3.8-27B-Uncensored-latest/backend/test-assignment/run-01/solution">код</a> · <a href="../models/orcarouter-Qwen3.8-27B-Uncensored-latest/backend/test-assignment/run-01/scorecard.md">ревью</a> · <a href="../models/orcarouter-Qwen3.8-27B-Uncensored-latest/backend/test-assignment/run-01/judge-glm.md">судья</a></td></tr><tr><td class=narrow>run-02</td><td class="narrow">thinking max · ctx 102K</td><td class="narrow">10/11+2</td><td class="narrow">1270 мин</td><td class="narrow">33</td><td class="narrow">1149</td><td><a href="../models/orcarouter-Qwen3.8-27B-Uncensored-latest/backend/test-assignment/run-02/report.html">отчёт</a> · <a href="../models/orcarouter-Qwen3.8-27B-Uncensored-latest/backend/test-assignment/run-02/solution">код</a> · <a href="../models/orcarouter-Qwen3.8-27B-Uncensored-latest/backend/test-assignment/run-02/scorecard.md">ревью</a> · <a href="../models/orcarouter-Qwen3.8-27B-Uncensored-latest/backend/test-assignment/run-02/judge-glm.md">судья</a></td></tr></tbody></table></div><div class=mgroup><h3>ornith-1.5-35b</h3><p class=sub>ornith-1.5:35b · прогон: 1</p><table><thead><tr><th class=narrow>Прогон</th><th>Условия</th><th class=narrow>Чекер</th><th class=narrow>Время</th><th class=narrow>php-<br>stan</th><th class=narrow>LOC</th><th>Артефакты</th></tr></thead><tbody><tr><td class=narrow>run-01</td><td class="narrow">thinking default-on (максимум модели) · ctx 102K</td><td class="narrow">1/11+0</td><td class="narrow">1558 мин</td><td class="narrow">50</td><td class="narrow">996</td><td><a href="../models/ornith-1.5-35b/backend/test-assignment/run-01/report.html">отчёт</a> · <a href="../models/ornith-1.5-35b/backend/test-assignment/run-01/solution">код</a> · <a href="../models/ornith-1.5-35b/backend/test-assignment/run-01/scorecard.md">ревью</a> · <a href="../models/ornith-1.5-35b/backend/test-assignment/run-01/judge-glm.md">судья</a></td></tr></tbody></table></div><div class=mgroup><h3>qwen3.8-27b-pi-100k</h3><p class=sub>qwen3.8:27b-pi-100k · прогона: 2</p><table><thead><tr><th class=narrow>Прогон</th><th>Условия</th><th class=narrow>Чекер</th><th class=narrow>Время</th><th class=narrow>php-<br>stan</th><th class=narrow>LOC</th><th>Артефакты</th></tr></thead><tbody><tr><td class=narrow>run-01</td><td class="narrow">thinking ~medium · ctx 102K</td><td class="narrow">11/11+0</td><td class="narrow">1267 мин</td><td class="narrow">38</td><td class="narrow">1600</td><td><a href="../models/qwen3.8-27b-pi-100k/backend/test-assignment/run-01/report.html">отчёт</a> · <a href="../models/qwen3.8-27b-pi-100k/backend/test-assignment/run-01/solution">код</a> · <a href="../models/qwen3.8-27b-pi-100k/backend/test-assignment/run-01/scorecard.md">ревью</a> · <a href="../models/qwen3.8-27b-pi-100k/backend/test-assignment/run-01/judge-glm.md">судья</a></td></tr><tr><td class=narrow>run-02</td><td class="narrow">thinking max · ctx 102K</td><td class="narrow">11/11+2</td><td class="narrow">1344 мин</td><td class="narrow">30</td><td class="narrow">1660</td><td><a href="../models/qwen3.8-27b-pi-100k/backend/test-assignment/run-02/report.html">отчёт</a> · <a href="../models/qwen3.8-27b-pi-100k/backend/test-assignment/run-02/solution">код</a> · <a href="../models/qwen3.8-27b-pi-100k/backend/test-assignment/run-02/scorecard.md">ревью</a> · <a href="../models/qwen3.8-27b-pi-100k/backend/test-assignment/run-02/judge-glm.md">судья</a></td></tr></tbody></table></div><p class=sub>Артефакты: визуальный отчёт (дашборд показателей — сценарии чекера, метрики, матрица зависимостей, сессия, вердикты), код решения целиком, ревью яруса 3, вердикт судьи яруса 4. Ссылки относительные из reports/; артефакты прогонов пока исключены из git — перед финальным отчётом этапа вернём в репозиторий (как транскрипты интервью).</p><h2 id=next><span class=no>7.</span>Статус и дальше</h2>
+<div class=note><b>Негативные контроли различимы.</b> e2b (4.6B) — «не смогла сделать»:
+0/11 за 21 секунду, ниже базового уровня нетронутого каркаса. medgemma — «не может в принципе»:
+capabilities без tool-calling, зачёт не выставляется (n/a). Два разных типа негативности шкала
+различает — дискриминативность подтверждена.</div>
+<p>Дальше по плану: полная сетка прогонов (все теги через pi-100k/ctx100k, thinking — максимум
+шкалы из /api/show, muse на high вместо max), 3–5 прогонов на модель;
+ревью — только изолированными pi-сессиями (judge_tier3.py), затем сводный отчёт этапа 2
+в формате этапа 1. Все артефакты прогонов — в папках моделей
+<code>models/&lt;модель&gt;/backend/test-assignment/run-XX/</code> (solution, сессия pi, чекер, метрики, scorecard).</p>
+
+<footer>
+Все числа — из артефактов прогонов: run.json, check.json, metrics.json, session-profile.md.
+Генератор: <code>test-assignment/backend/billing/build_pilot_report.py</code> —
+правки данных только через него. Судьи: <code>checker/judge_tier3.py</code> (ревью),
+<code>checker/judge_tier2.py</code> (слепой судья). Сводка ярусов в текстовом виде:
+<code>reports/TEST-ASSIGNMENT-pilot-judges.md</code>.
+</footer>
+<script>
+document.querySelectorAll('svg.scatter g.pt').forEach(function (pt) {
+  var dot = pt.querySelector('.dot'), tip = pt.querySelector('.tip');
+  if (!dot || !tip) return;
+  dot.addEventListener('mouseenter', function () {
+    pt.closest('svg').querySelector('.tip-layer').appendChild(tip);
+    tip.style.display = 'block';
+  });
+  dot.addEventListener('mouseleave', function () { tip.style.display = 'none'; });
+});
+</script>
+</div></body></html>
