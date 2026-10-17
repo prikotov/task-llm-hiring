@@ -88,7 +88,8 @@ solo-репо не может требовать аппрув второго ч�
     агентной сессии), `pi-run.log`, `diff.patch`, `run.json` (условия),
     `check.json` (чекер), `metrics.json` (качество кода; сырые выводы
     инструментов — в `metrics-raw/`),
-    `session-profile.md`, `summary.md`, `scorecard.md`, `judge-glm.md`
+    `session-profile.md`, `summary.md`, `report.html` (визуальный отчёт
+    прогона — дашборд показателей), `scorecard.md`, `judge-glm.md`
     (ярус 2).
 - `interview/` — только методология собеседований (этап 1): blueprint,
   вопросники ролей, рубрики, скрипты (`runner.py`, `score.py`, `judge_glm.py`).

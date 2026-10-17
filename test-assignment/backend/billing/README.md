@@ -120,7 +120,14 @@ skeleton "$RESULTS/solution"`.)
   удобного чтения: `pi --export pi-session/<file>.jsonl out.html`;
 - `pi-run.log` — stdout прогона (финальный ответ, ход по времени);
 - `diff.patch` — компактное «что изменилось против скелета»;
-- `check.json`, `metrics.json` — ярусы 1/2;
+- `check.json`, `metrics.json` — ярусы 1/2 (сырые выводы инструментов —
+  в `metrics-raw/`: phpstan/phpmd/phpcs/scc + полный отчёт AST-сборщика
+  `collector.json`);
+- `report.html` — визуальный отчёт прогона (`build_run_report.py`,
+  `python3 test-assignment/backend/billing/build_run_report.py <run>`):
+  карточки-показатели, сценарии чекера, бары метрик с медианой пилота,
+  скаттер классов (LOC × LCOM4, размер WMC, цвет cc_max), рост контекста
+  по вызовам с обрывами автокомпактов, самопроверка, вердикты;
 - `scorecard.md` — ревью по `RUBRIC.md`, оси A/B + лист конвенций из
   `interview/conventions-probe.md`.
 
