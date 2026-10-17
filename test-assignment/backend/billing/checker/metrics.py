@@ -202,44 +202,8 @@ def ast_metrics(work: Path, raw_dir: Path | None = None) -> dict:
         "class_lcom4_over_1": sum(1 for v in lcom4 if v > 1),
     }
 
-    # по-классовая выкладка и нарушители порогов: сырой отчёт сборщика
-    # (collector.json) живёт только в одноразовой копии — фиксируем выжимку
-    cc_max = {name: max((m.get("cc", 0) for m in ms), default=0) for name, ms in methods.items()}
-    classes_detail = []
-    for cl in report["classes"]:
-        name = cl["name"]
-        m = cl["metrics"]
-        classes_detail.append({
-            "class": name,
-            "file": str(m.get("filePath", "")).split("/")[-1],
-            "kind": ("interface" if m.get("interface") else
-                     "trait" if m.get("trait") else
-                     "enum" if m.get("enum") else "class"),
-            "loc": m.get("loc", 0),
-            "methods": m.get("methodCount", 0),
-            "props": m.get("propertyCount", 0),
-            "wmc": wmc.get(name, 0),
-            "cc_max": cc_max.get(name, 0),
-            "lcom4": m.get("lcom", 0),
-            "ca": ca.get(name, 0),
-            "ce": ce.get(name, 0),
-        })
-    classes_detail.sort(key=lambda d: (-d["wmc"], -d["loc"]))
-    method_findings = []
-    for fn in report["functions"]:
-        if fn.get("type") != "method":
-            continue
-        mm = fn["metrics"]
-        cc, loc = mm.get("cc", 0), mm.get("loc", 0)
-        if cc > 10 or loc > 50:
-            method_findings.append({
-                "class": str(mm.get("classInfo", "")).split(", ", 1)[-1],
-                "method": fn["name"],
-                "cc": cc,
-                "loc": loc,
-            })
-    method_findings.sort(key=lambda d: (-d["cc"], -d["loc"]))
-
+    # по-классовые/по-методные детали не дублируем: полный отчёт сборщика
+    # сохраняется в metrics-raw/collector.json (поле raw ниже)
     return {
         "status": "ok",
         "classes": len(report["classes"]),
@@ -253,8 +217,6 @@ def ast_metrics(work: Path, raw_dir: Path | None = None) -> dict:
         "ca_total": sum(ca.values()),
         "ce_total": sum(ce.values()),
         "findings_thresholds": findings,
-        "classes_detail": classes_detail,
-        "method_findings": method_findings,
         "raw": raw_name,
     }
 

@@ -452,7 +452,7 @@ phpstan level 8 — ошибки строгого анализа; phpmd —
 нарушения порогов сложности/чистоты (ruleset coding-standard); phpcs PSR12 —
 стиль; scc — размер (files, LOC); AST-сборщик coding-standard — WMC,
 cyclomatic complexity, LCOM4, afferent/efferent coupling и превышения порогов
-(method cc &gt; 10, method loc &gt; 50, class loc &gt; 300, wmc &gt; 50). Сырые артефакты инструментов (полные выводы phpstan/phpmd/phpcs, scc.json, полный отчёт AST-сборщика collector.json) сохраняются рядом — в <code>&lt;run&gt;/metrics-raw/</code> — агрегаты проверяемы по сырью. В metrics.json сохраняется и по-классовая выкладка (classes_detail: LOC/WMC/cc_max/LCOM4/Ca-Ce каждого класса, сортировка по WMC) и список методов-нарушителей порогов (method_findings).</div>
+(method cc &gt; 10, method loc &gt; 50, class loc &gt; 300, wmc &gt; 50). Сырые артефакты инструментов — полные выводы phpstan/phpmd/phpcs, scc.json и полный отчёт AST-сборщика collector.json (классы с LOC/LCOM4, методы с cc/loc, зависимости) — сохраняются рядом, в <code>&lt;run&gt;/metrics-raw/</code>, имена файлов продублированы в metrics.json в полях raw: агрегаты проверяемы по сырью, за деталями есть куда сходить.</div>
 <div>Метрики сравнивают модели между собой, проходного порога нет: у
 эталонного решения судьи phpstan ≠ 0.</div></div>
 
