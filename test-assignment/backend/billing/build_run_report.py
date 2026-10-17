@@ -211,12 +211,15 @@ def dep_matrix(collector: dict) -> str:
     internal = set(classes)
     counts: dict[tuple[str, str], int] = {}
     ext_out: dict[str, int] = {}
+    ext_detail: dict[str, dict[str, int]] = {}
     for dep in collector.get("dependencies") or []:
         src, dst = dep.get("source"), dep.get("target")
         if src in internal and dst in internal and src != dst:
             counts[(src, dst)] = counts.get((src, dst), 0) + 1
         elif src in internal:
             ext_out[src] = ext_out.get(src, 0) + 1
+            d = ext_detail.setdefault(src, {})
+            d[dst] = d.get(dst, 0) + 1
     if not classes or not counts:
         return ""
     order = sorted(classes)
@@ -261,12 +264,27 @@ def dep_matrix(collector: dict) -> str:
                    f'fill="{hue(k)}"/>'
                    f'<g class="tip"><rect x={tx:.0f} y={ty:.0f} width={tw:.0f} height=30 rx=7 fill="#1d2433" fill-opacity="0.95"/>'
                    f'<text x={tx + 9:.0f} y={ty + 20:.0f} font-size=11.5 fill="#ffffff">{label}</text></g></g>')
-    # столбец «внеш.»
+    # столбец «внеш.» — всплывашка перечисляет сами внешние типы
     xe = ML + n * (cell + pad)
     for c in order:
         k = ext_out.get(c, 0)
-        if k:
-            svg.append(f'<rect x={xe:.0f} y={yi[c]:.0f} width={cell} height={cell} rx=2 fill="#c9b458" fill-opacity={0.25 + 0.75 * min(k / max(ext_out.values()), 1):.2f}><title>{c.split(chr(92))[-1]} → внешнее: {k}</title></rect>')
+        if not k:
+            continue
+        pairs = sorted(ext_detail[c].items(), key=lambda kv: -kv[1])
+        shown = ", ".join(f"{t.split(chr(92))[-1]} ×{n}" for t, n in pairs[:3])
+        if len(pairs) > 3:
+            shown += ", …"
+        label = f"{c.split(chr(92))[-1]} → {shown}"
+        if len(label) > 64:  # FQCN-цели укорочены; страхуем потолок ширины карточки
+            label = label[:63] + "…"
+        tw = len(label) * 7.0 + 18
+        tx = xe + cell + 10 if xe + cell + 10 + tw <= W - 8 else xe - 10 - tw
+        ty = max(4, min(yi[c] - 42, H - 44))
+        op = 0.25 + 0.75 * min(k / max(ext_out.values()), 1)
+        svg.append(f'<g class="pt"><rect class="dot" x={xe:.0f} y={yi[c]:.0f} width={cell} height={cell} rx=2 '
+                   f'fill="#c9b458" fill-opacity={op:.2f}/>'
+                   f'<g class="tip"><rect x={tx:.0f} y={ty:.0f} width={tw:.0f} height=30 rx=7 fill="#1d2433" fill-opacity="0.95"/>'
+                   f'<text x={tx + 9:.0f} y={ty + 20:.0f} font-size=11.5 fill="#ffffff">{label}</text></g></g>')
     svg.append(f'<text x={xe + cell / 2:.0f} y={MT - 8} font-size=10 fill=#8a7a3a transform="rotate(-90 {xe + cell / 2:.0f} {MT - 8})" text-anchor=end>внеш.</text>')
     # подписи слоёв — вдоль диагональных блоков (диагональ пуста:	self-связи исключены)
     spans: list[tuple[str, int, int]] = []
