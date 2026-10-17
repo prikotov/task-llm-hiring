@@ -61,4 +61,4 @@
 дайджест тот же) — для серий использовать его. Thinking: шкала
 [false, low, medium, high, max]; run-02 на max — 9/11, но обрыв стрима
 (Stream ended without finish_reason) — рекомендация: гонять на high.
-Результаты — test-assignment/backend/run-01…02.
+Результаты — backend/test-assignment/run-01…02.

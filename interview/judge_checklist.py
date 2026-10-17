@@ -2,7 +2,7 @@
 """Чек-листовое судейство: clef проверяет каждый пункт good/bad отдельным
 noul-вопросом. Итог = нормировка (mean(good) − mean(bad)) в 0–4.
 
-    python3 judge_checklist.py --run ../ornith-1.5-9b/backend/run-01
+    python3 judge_checklist.py --run ../ornith-1.5-9b/backend/interview/run-01
 """
 
 import argparse

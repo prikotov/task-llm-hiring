@@ -8,7 +8,7 @@
 Каждый ответ судится изолированным запуском: `pi -p --no-session --model glm-5.3-flash
 --tools bash` с системным промптом судьи; проверки фактов модель делает сама
 запусками php/psql через bash. Итог — JSON-вердикт {id, score, hallucination, note},
-сливаемый в <модель>/backend/judgments/glm-5.3-flash-iso/<run>.json.
+сливаемый в <модель>/backend/interview/judgments/glm-5.3-flash-iso/<run>.json.
 
 По умолчанию судятся только знаниевые ответы (30 из 41: поле knowledge
 в questions.json; разминка/задачи/процесс/финал не судятся ярусом 2).
@@ -105,7 +105,7 @@ def main():
         ap.error("нужен --ids, --missing или --all")
 
     model = args.folder.rstrip("/").split("/")[-1]
-    jd = ROOT / model / "backend/judgments"
+    jd = ROOT / model / "backend/interview/judgments"
     tasks = json.loads((jd / "tasks" / f"{model}_{args.run}.json").read_text())
     checklists = json.loads((ROOT / "interview/rubrics/backend/checklists.json").read_text())
     out_path = jd / "glm-5.3-flash-iso" / f"{args.run}.json"

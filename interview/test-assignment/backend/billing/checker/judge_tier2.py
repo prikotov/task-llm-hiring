@@ -7,7 +7,7 @@ JSON-вердиктом. Сабагенты Agent tool и OpenRouter запре�
 AGENTS.md рабочего репозитория); подписка Z.AI — единственный канал.
 
 Использование:
-    python3 judge_tier2.py --run models/<модель>/test-assignment/backend/run-XX \
+    python3 judge_tier2.py --run models/<модель>/backend/test-assignment/run-XX \
         [--thinking low]
 
 Результат: <run>/judge-glm.md (вердикт + сырой ответ). Вердикт: ось A 0–4

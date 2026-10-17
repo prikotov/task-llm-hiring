@@ -18,7 +18,7 @@ env OLLAMA_BASE_URL (или из .env.local корня репозитория) �
 Использование (из каталога billing/):
 
     python3 runner_pi.py --model qwen3.8:27b-pi-100k \
-        --results models/qwen3.8-27b-pi-100k/test-assignment/backend/run-01
+        --results models/qwen3.8-27b-pi-100k/backend/test-assignment/run-01
 
 Опции: --thinking (default max), --context (default 102400),
 --timeout секунд (default 5400), --reasoning/--no-reasoning,

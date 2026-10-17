@@ -232,7 +232,7 @@ def section_clef(folder: str, run: str) -> dict:
     _q = _q["questions"] if isinstance(_q, dict) else _q
     secs = {q["id"]: q["section"] for q in _q}
     agg = defaultdict(list)
-    for r in csv.DictReader(open(MODEL_ROOT / folder / "backend" / "judgments"
+    for r in csv.DictReader(open(MODEL_ROOT / folder / "backend" / "interview" / "judgments"
                                  / f"decision-clef-{run}.csv", encoding="utf-8-sig")):
         if not r.get("error"):
             agg[secs.get(r["question"], "")].append(float(r["score"]))
@@ -243,7 +243,7 @@ def judge_section_scores(folder: str, glm_run) -> dict:
     """Средний балл судьи GLM-5.3-Flash (0-4) по секциям; пусто — если не судился."""
     if not glm_run:
         return {}
-    p = MODEL_ROOT / folder / "backend" / "judgments" / "glm-5.3-flash-iso" / f"{glm_run}.json"
+    p = MODEL_ROOT / folder / "backend" / "interview" / "judgments" / "glm-5.3-flash-iso" / f"{glm_run}.json"
     if not p.exists():
         return {}
     _q = json.loads((ROOT / "interview" / "roles" / "backend" / "questions.json").read_text())
@@ -545,7 +545,7 @@ def stability_html(models) -> str:
     for m in models:
         if len(m["runs"]) < 2:
             continue
-        base = MODEL_ROOT / m["folder"] / "backend" / "judgments"
+        base = MODEL_ROOT / m["folder"] / "backend" / "interview" / "judgments"
         per_q = {}
         for run in m["runs"]:
             d = {r["question"]: r for r in csv.DictReader(
@@ -1029,7 +1029,7 @@ def self_assessment_html(models) -> str:
 
     def radar_card(m):
         run = m["runs"][0]
-        s = json.loads((MODEL_ROOT / m["folder"] / "backend" / run / "session.json").read_text())
+        s = json.loads((MODEL_ROOT / m["folder"] / "backend" / "interview" / run / "session.json").read_text())
         q00 = next((t["answer"] for t in s["turns"] if t["id"] == "Q00"), "")
         self_sc = parse_self_scores(q00)
         sec = section_clef(m["folder"], run)
@@ -1129,7 +1129,7 @@ def load_metrics():
         run_means = []
         for run in m["runs"]:
             run_scores = []
-            base = MODEL_ROOT / m["folder"] / "backend" / "judgments"
+            base = MODEL_ROOT / m["folder"] / "backend" / "interview" / "judgments"
             d = {r["question"]: r for r in csv.DictReader(
                 open(base / f"decision-clef-{run}.csv", encoding="utf-8-sig"))}
             e = {r["question"]: r for r in csv.DictReader(
@@ -1143,12 +1143,12 @@ def load_metrics():
                 if q in e and not e[q].get("error"):
                     nrs.append(float(e[q]["need_review"]))
             run_means.append(statistics.mean(run_scores))
-            s = json.loads((MODEL_ROOT / m["folder"] / "backend" / run / "session.json").read_text())
+            s = json.loads((MODEL_ROOT / m["folder"] / "backend" / "interview" / run / "session.json").read_text())
             durs.append(sum(t["duration_s"] for t in s["turns"]))
             u = s.get("usage", {})
             out_toks.append(u.get("output_tokens") or sum(t.get("eval_count") or 0 for t in s["turns"]))
         # судья GLM-5.3-Flash (ярус 2)
-        gp = MODEL_ROOT / m["folder"] / "backend" / "judgments" / "glm-5.3-flash-iso" / f"{m['glm_run']}.json"
+        gp = MODEL_ROOT / m["folder"] / "backend" / "interview" / "judgments" / "glm-5.3-flash-iso" / f"{m['glm_run']}.json"
         glm_avg = glm_hall = None
         glm_n = 0
         if gp.exists():
@@ -1161,7 +1161,7 @@ def load_metrics():
                     else f"выборка {glm_n} факт-вопросов" if glm_n == 10
                     else f"все {glm_n} ответов на знания")
         if m["kind"] == "cloud":
-            s0 = json.loads((MODEL_ROOT / m["folder"] / "backend" / m["runs"][0] / "session.json").read_text())
+            s0 = json.loads((MODEL_ROOT / m["folder"] / "backend" / "interview" / m["runs"][0] / "session.json").read_text())
             u0 = s0.get("usage", {})
             cost = (u0.get("cost_usd") or 0) / len(m["runs"]) if u0.get("cost_usd") else 0
             if not cost and u0.get("cost_rub"):
@@ -1213,7 +1213,7 @@ def sessions_inventory():
     """Все завершённые прогоны: (модель, прогон, серия, вопросов, минут)."""
     rows = []
     for d in sorted(MODEL_ROOT.iterdir()):
-        b = d / "backend"
+        b = d / "backend" / "interview"
         if not b.is_dir():
             continue
         for r in sorted(b.glob("run-*")):
@@ -1553,12 +1553,12 @@ backend-роли</a> и одинаковы для всех кандидатов 
 ответ встречным вопросом, и раннер такое уточнением не считает.</p>
 <p>Каждый прогон сохраняется в два файла: человекочитаемый транскрипт и
 сырая сессия session.json с полным массивом сообщений, ходом мышления и
-таймингами (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/muse-glimmer/backend/run-01/transcript.md">пример
-транскрипта</a>, <a href="https://github.com/prikotov/task-llm-hiring/blob/main/muse-glimmer/backend/run-01/session.json">пример
+таймингами (<a href="https://github.com/prikotov/task-llm-hiring/blob/main/muse-glimmer/backend/interview/run-01/transcript.md">пример
+транскрипта</a>, <a href="https://github.com/prikotov/task-llm-hiring/blob/main/muse-glimmer/backend/interview/run-01/session.json">пример
 сессии</a>); судейство идёт по протоколам постфактум. Отдельного выбора роли
 нет: роль — это имя папки вопросника. Вопросник
 interview/roles/backend/questions.json задаёт роль backend, прогоны
-складываются в папку модели &lt;модель&gt;/backend/run-NN, существующие прогоны
+складываются в папку модели &lt;модель&gt;/backend/interview/run-NN, существующие прогоны
 не перезаписываются.</p>
 <p>Транспорт и изоляция прогонов: локальные модели опрашиваются с сервера
 ollama с выгрузкой из памяти до и после каждого прогона, чтобы кэш одного
@@ -1678,14 +1678,14 @@ true значит «есть хотя бы одна выдуманная дет�
 уверен. Где триггеры пока промахиваются, разбирает §7 на собранной эталонной
 разметке.</p>
 <p>Вердикты каждого прогона лежат рядом с ним по пути
-&lt;модель&gt;/&lt;роль&gt;/judgments/ (в примерах ниже: muse-glimmer/backend/judgments/):
+&lt;модель&gt;/&lt;роль&gt;/interview/judgments/ (в примерах ниже: muse-glimmer/backend/interview/judgments/):
 таблица
 яруса 1 с баллом и вероятностью галлюцинаций
-(<a href="https://github.com/prikotov/task-llm-hiring/blob/main/muse-glimmer/backend/judgments/decision-clef-run-01.csv">пример</a>),
+(<a href="https://github.com/prikotov/task-llm-hiring/blob/main/muse-glimmer/backend/interview/judgments/decision-clef-run-01.csv">пример</a>),
 отдельная таблица эскалационных признаков
-(<a href="https://github.com/prikotov/task-llm-hiring/blob/main/muse-glimmer/backend/judgments/escalation-clef-run-01.csv">пример</a>)
+(<a href="https://github.com/prikotov/task-llm-hiring/blob/main/muse-glimmer/backend/interview/judgments/escalation-clef-run-01.csv">пример</a>)
 и вердикты яруса 2 в glm-5.3-flash-iso/
-(<a href="https://github.com/prikotov/task-llm-hiring/blob/main/muse-glimmer/backend/judgments/glm-5.3-flash-iso/run-01.json">пример</a>).</p>
+(<a href="https://github.com/prikotov/task-llm-hiring/blob/main/muse-glimmer/backend/interview/judgments/glm-5.3-flash-iso/run-01.json">пример</a>).</p>
 <div class=note><b>Ремарка.</b> Описанное выше — это система, к которой стремимся.
 В самом исследовании оценка и эскалация шли двумя раздельными вызовами
 clef, с прежней формулировкой need_review, а судья яруса 2 проверил
@@ -1822,11 +1822,11 @@ clef, с прежней формулировкой need_review, а судья я
 <tr><th>Данные</th><th>Где</th><th>Что внутри</th></tr>
 <tr><td>Папки моделей</td><td><a href="https://github.com/prikotov/task-llm-hiring/tree/main/models">models/</a></td><td>29 папок, по одной на модель; всё её данные (карточка, прогоны, свод результатов, вердикты) лежат внутри — расшифровка ниже</td></tr>
 <tr><td>Карточки моделей</td><td>models/&lt;модель&gt;/model.md</td><td>29 карточек: характеристики, статус, история прогонов, наблюдения по каждой модели</td></tr>
-<tr><td>Прогоны</td><td>models/&lt;модель&gt;/backend/run-XX/</td><td>96 прогонов: session.json (вопросы, ответы, размышления, тайминги, условия серии) и transcript.md — читаемый транскрипт</td></tr>
+<tr><td>Прогоны</td><td>models/&lt;модель&gt;/backend/interview/run-XX/</td><td>96 прогонов: session.json (вопросы, ответы, размышления, тайминги, условия серии) и transcript.md — читаемый транскрипт</td></tr>
 <tr><td>Своды результатов моделей</td><td>models/&lt;модель&gt;/backend/scorecard.md</td><td>6 сводок: итоги прогонов модели — устойчивость ответов, провокации, самооценка, подходы к решениям</td></tr>
-<tr><td>Вердикты clef (ярус 1)</td><td>models/&lt;модель&gt;/backend/judgments/</td><td>clef/&lt;run&gt;.json — 13, новый формат с телеметрией вызовов; decision-clef-&lt;run&gt;.csv — 86, прежний формат; escalation-clef-&lt;run&gt;.csv — эскалационные признаки. Балл и вероятности галлюцинации по каждому ответу</td></tr>
-<tr><td>Вердикты LLM-судьи (ярус 2)</td><td>models/&lt;модель&gt;/backend/judgments/glm-5.3-flash-iso/</td><td>27 файлов: балл, флаг галлюцинации, пояснение с проверками кодом; run-16.low.json — артефакт сравнения low/max</td></tr>
-<tr><td>Задачи судейства</td><td>models/&lt;модель&gt;/backend/judgments/tasks/</td><td>26 наборов входных пар вопрос-ответ для воспроизводимости вердиктов</td></tr>
+<tr><td>Вердикты clef (ярус 1)</td><td>models/&lt;модель&gt;/backend/interview/judgments/</td><td>clef/&lt;run&gt;.json — 13, новый формат с телеметрией вызовов; decision-clef-&lt;run&gt;.csv — 86, прежний формат; escalation-clef-&lt;run&gt;.csv — эскалационные признаки. Балл и вероятности галлюцинации по каждому ответу</td></tr>
+<tr><td>Вердикты LLM-судьи (ярус 2)</td><td>models/&lt;модель&gt;/backend/interview/judgments/glm-5.3-flash-iso/</td><td>27 файлов: балл, флаг галлюцинации, пояснение с проверками кодом; run-16.low.json — артефакт сравнения low/max</td></tr>
+<tr><td>Задачи судейства</td><td>models/&lt;модель&gt;/backend/interview/judgments/tasks/</td><td>26 наборов входных пар вопрос-ответ для воспроизводимости вердиктов</td></tr>
 <tr><td>Кросс-модельные агрегаты</td><td><a href="https://github.com/prikotov/task-llm-hiring/tree/main/reports">reports/</a></td><td>Своды и исследования: decision-all.csv — свод вердиктов clef/clef-flash (неполон: облачные прогоны есть только в папках моделей), judges-all.csv — все судьи, scoring-calls.jsonl — журнал вызовов оценщиков с латентностью и токенами (с 14 октября), исследования судей (COMPARE-*, AUDIT, EMBEDDINGS, LOW-vs-MAX), журнал трат OpenRouter; field/ — полевые документы эксплуатации (копии отчётов агентов TasK о ревьювере на qwen3.8, §10)</td></tr>
 <tr><td>Методика</td><td><a href="https://github.com/prikotov/task-llm-hiring/tree/main/interview">interview/</a></td><td>вопросники ролей, раннеры, скрипты судейства и оценки; task-roles/ — описания ролей команды TasK (ru), под которые проводятся собеседования</td></tr>
 </table>
@@ -1924,7 +1924,7 @@ def build(models, sessions, primer, low_json=None):
             if r["judge"] == "clef" and r["model"] == folder and r["series"] == "primer-v2"}
         durs, toks = [], []
         for run in sorted(v2_runs):
-            s = json.loads((MODEL_ROOT / folder / "backend" / run / "session.json").read_text())
+            s = json.loads((MODEL_ROOT / folder / "backend" / "interview" / run / "session.json").read_text())
             durs.append(sum(tt["duration_s"] for tt in s["turns"]))
             u = s.get("usage", {})
             toks.append(u.get("output_tokens")
@@ -1944,7 +1944,7 @@ def build(models, sessions, primer, low_json=None):
                      out_tok=round(statistics.mean(toks)) if toks else None, cost=cost,
                      glm=None, glm_hall=None, glm_n=None, glm_level=None,
                      glm_note="не проверялся судьём")
-        glm_file = (MODEL_ROOT / folder / "backend" / "judgments" / "glm-5.3-flash-iso"
+        glm_file = (MODEL_ROOT / folder / "backend" / "interview" / "judgments" / "glm-5.3-flash-iso"
                     / f"{sorted(v2_runs)[0]}.json")
         if glm_file.exists():
             g = [v for v in json.loads(glm_file.read_text())["results"] if v["id"] in KNOW]
@@ -1961,25 +1961,25 @@ def build(models, sessions, primer, low_json=None):
     # провокации размечены по транскриптам (15/15). Серия run-16…20 на 131k
     # оставлена как артефакт: в 4 прогонах из 5 последние вопросы — заглушки.
     tl_runs = sorted(
-        p.name for p in (MODEL_ROOT / "qwen3.8" / "backend").glob("run-*")
+        p.name for p in (MODEL_ROOT / "qwen3.8" / "backend" / "interview").glob("run-*")
         if (p / "session.json").exists()
         and json.loads((p / "session.json").read_text()).get("think") == "low"
         and json.loads((p / "session.json").read_text()).get("num_ctx") == 262144)
     if tl_runs:
         tl_scores, tl_phall, tl_durs, tl_toks = [], [], [], []
         for run in tl_runs:
-            s = json.loads((MODEL_ROOT / "qwen3.8" / "backend" / run / "session.json").read_text())
+            s = json.loads((MODEL_ROOT / "qwen3.8" / "backend" / "interview" / run / "session.json").read_text())
             tl_durs.append(sum(t["duration_s"] for t in s["turns"]) / 60)
             tl_toks.append(s.get("usage", {}).get("output_tokens")
                            or sum(t.get("eval_count") or 0 for t in s["turns"]))
-            vv = json.loads((MODEL_ROOT / "qwen3.8" / "backend" / "judgments" / "clef"
+            vv = json.loads((MODEL_ROOT / "qwen3.8" / "backend" / "interview" / "judgments" / "clef"
                              / f"{run}.json").read_text())["results"]
             tl_scores.append(statistics.mean([v["score"] for v in vv if v["id"] in KNOW]))
             tl_phall.append(statistics.mean([v["hallucination_p"] for v in vv]))
         tl_g_run = next((r for r in tl_runs
-                         if (MODEL_ROOT / "qwen3.8" / "backend" / "judgments" / "glm-5.3-flash-iso"
+                         if (MODEL_ROOT / "qwen3.8" / "backend" / "interview" / "judgments" / "glm-5.3-flash-iso"
                              / f"{r}.json").exists()), None)
-        tl_g = ([v for v in json.loads((MODEL_ROOT / "qwen3.8" / "backend" / "judgments"
+        tl_g = ([v for v in json.loads((MODEL_ROOT / "qwen3.8" / "backend" / "interview" / "judgments"
                                         / "glm-5.3-flash-iso" / f"{tl_g_run}.json").read_text())["results"]
                  if v["id"] in KNOW] if tl_g_run else [])
         prompt_rows.append(dict(folder="qwen3.8", label="qwen3.8 27B", series="think-low",
@@ -2006,7 +2006,7 @@ def build(models, sessions, primer, low_json=None):
         if m["folder"] in FREEMIUM:
             quota, _ = FREEMIUM[m["folder"]]
             tin, tout = BUSINESS_RUB_1M[m["folder"]]
-            s0 = json.loads((MODEL_ROOT / m["folder"] / "backend" / m["runs"][0]
+            s0 = json.loads((MODEL_ROOT / m["folder"] / "backend" / "interview" / m["runs"][0]
                              / "session.json").read_text())
             u0 = s0.get("usage", {})
             i_t, o_t = u0.get("input_tokens", 0), u0.get("output_tokens", 0)
@@ -2018,7 +2018,7 @@ def build(models, sessions, primer, low_json=None):
             sber_no[m["folder"]] = COL_FOOT_N + len(sber_no) + 1
             cost = f"₽0<sup>{sber_no[m['folder']]}</sup>"
         elif m["folder"] == "yandexgpt":
-            s0 = json.loads((MODEL_ROOT / m["folder"] / "backend" / m["runs"][0] / "session.json").read_text())
+            s0 = json.loads((MODEL_ROOT / m["folder"] / "backend" / "interview" / m["runs"][0] / "session.json").read_text())
             rub = s0.get("usage", {}).get("cost_rub") or m["cost"] * RUB_USD
             cost = f"${fmt_cost(m['cost'])}<div class=sub>₽{fmt_cost(rub)}</div>"
         else:
@@ -2032,7 +2032,7 @@ def build(models, sessions, primer, low_json=None):
         if m["kind"] == "cloud":
             cr_sum = den_sum = 0.0
             est = False
-            for p in sorted((MODEL_ROOT / m["folder"] / "backend").glob("run-*/session.json")):
+            for p in sorted((MODEL_ROOT / m["folder"] / "backend" / "interview").glob("run-*/session.json")):
                 u = json.loads(p.read_text()).get("usage", {})
                 b = u.get("billing")
                 if b:      # детализация биллинга (Яндекс): кэш считается отдельно
@@ -2063,7 +2063,7 @@ def build(models, sessions, primer, low_json=None):
             cached = psum = 0
             est = False
             for run in m["runs"]:
-                s = json.loads((MODEL_ROOT / m["folder"] / "backend" / run / "session.json").read_text())
+                s = json.loads((MODEL_ROOT / m["folder"] / "backend" / "interview" / run / "session.json").read_text())
                 cs = local_cache_stats(s)
                 if cs:
                     cached += cs[0]
@@ -2213,7 +2213,7 @@ def build(models, sessions, primer, low_json=None):
                      'собственных рассуждений модели не заменяет и фактологию не чинит: '
                      'он меняет подачу, а не знания.</p>')
     def judge_mean(folder, run):
-        gp = MODEL_ROOT / folder / "backend/judgments/glm-5.3-flash-iso" / f"{run}.json"
+        gp = MODEL_ROOT / folder / "backend/interview/judgments/glm-5.3-flash-iso" / f"{run}.json"
         if not gp.exists():
             return None
         g = [v for v in json.loads(gp.read_text())["results"] if v["id"] in KNOW]
@@ -2223,7 +2223,7 @@ def build(models, sessions, primer, low_json=None):
     def clef_direct(folder, runs):
         scores, halls, prov = [], [], []
         for r in runs:
-            vv = json.loads((MODEL_ROOT / folder / "backend" / "judgments" / "clef"
+            vv = json.loads((MODEL_ROOT / folder / "backend" / "interview" / "judgments" / "clef"
                              / f"{r}.json").read_text())["results"]
             for v in vv:
                 if v["id"] not in KNOW:
@@ -2304,7 +2304,7 @@ def build(models, sessions, primer, low_json=None):
     def _cgroups_json(folder, runs):
         d = {"ф": {}, "р": {}}
         for run in runs:
-            for r in json.load(open(MODEL_ROOT / folder / "backend" / "judgments" / "clef"
+            for r in json.load(open(MODEL_ROOT / folder / "backend" / "interview" / "judgments" / "clef"
                                     / f"{run}.json"))["results"]:
                 if r["id"] in KNOW:
                     d[_g(r["id"])].setdefault(r["id"], []).append(r["score"])
@@ -2313,7 +2313,7 @@ def build(models, sessions, primer, low_json=None):
     def _jgroups(folder, runs):
         d = {"ф": [], "р": []}
         for run in ([runs] if isinstance(runs, str) else runs):
-            for r in json.load(open(MODEL_ROOT / folder / "backend" / "judgments"
+            for r in json.load(open(MODEL_ROOT / folder / "backend" / "interview" / "judgments"
                                     / "glm-5.3-flash-iso" / f"{run}.json"))["results"]:
                 if r["id"] in KNOW:
                     d[_g(r["id"])].append(r["score"])
@@ -2421,17 +2421,17 @@ def build(models, sessions, primer, low_json=None):
     for r in csv.DictReader(open(ROOT / "reports" / "decision-all.csv", encoding="utf-8-sig")):
         if r["judge"] == "clef":
             clef_calls.add((r["model"], r["run"], r["question"]))
-    for p in MODEL_ROOT.glob("*/backend/judgments/decision-clef-run-*.csv"):
+    for p in MODEL_ROOT.glob("*/backend/interview/judgments/decision-clef-run-*.csv"):
         for r in csv.DictReader(open(p, encoding="utf-8-sig")):
             clef_calls.add((p.parents[2].name, p.stem[len("decision-clef-"):], r["question"]))
-    for p in MODEL_ROOT.glob("*/backend/judgments/clef/*.json"):
+    for p in MODEL_ROOT.glob("*/backend/interview/judgments/clef/*.json"):
         for v in json.loads(p.read_text())["results"]:
             clef_calls.add((p.parents[3].name, p.stem, v["id"]))
 
     def _state_tokens(model, run, qid):
         """Оценка входа одного clef-вызова: вопрос + ответ, ~3.5 символа на токен."""
         try:
-            s = json.loads((MODEL_ROOT / model / "backend" / run / "session.json").read_text())
+            s = json.loads((MODEL_ROOT / model / "backend" / "interview" / run / "session.json").read_text())
         except FileNotFoundError:
             return 0
         base, _, fus = qid.partition(".")
@@ -2459,7 +2459,7 @@ def build(models, sessions, primer, low_json=None):
                        for n, runs in _per.values())
     clef_runs = sum(len(runs) for n, runs in _per.values())
     judge_verdicts = 0
-    for p in MODEL_ROOT.glob("*/backend/judgments/glm-5.3-flash-iso/*.json"):
+    for p in MODEL_ROOT.glob("*/backend/interview/judgments/glm-5.3-flash-iso/*.json"):
         judge_verdicts += len(json.loads(p.read_text())["results"])
     judge_verdicts -= 30   # run-16.low.json — артефакт сравнения low/max, не отдельное судейство
     _sec = round(clef_total_s / clef_runs)
@@ -2474,7 +2474,7 @@ def build(models, sessions, primer, low_json=None):
         if m["folder"] in FREEMIUM:
             price = "₽0<div class=sub>freemium</div>"
         elif m["folder"] == "yandexgpt":
-            s0 = json.loads((MODEL_ROOT / m["folder"] / "backend" / m["runs"][0]
+            s0 = json.loads((MODEL_ROOT / m["folder"] / "backend" / "interview" / m["runs"][0]
                              / "session.json").read_text())
             rub = s0.get("usage", {}).get("cost_rub") or m["cost"] * RUB_USD
             price = f"${fmt_cost(m['cost'])}<div class=sub>₽{fmt_cost(rub)}</div>"
@@ -2543,18 +2543,18 @@ def build(models, sessions, primer, low_json=None):
         pairs = []
         for m in low_json.get("all", []):
             mx = {v["id"]: v for v in json.loads(
-                (MODEL_ROOT / m["model"] / "backend" / "judgments" / "glm-5.3-flash-iso" /
+                (MODEL_ROOT / m["model"] / "backend" / "interview" / "judgments" / "glm-5.3-flash-iso" /
                  f"{m['run']}.json").read_text())["results"]}
             for v in m["verdicts"]:
                 if v["id"] in mx:
                     pairs.append((v["score"], v["hallucination"],
                                   mx[v["id"]]["score"], mx[v["id"]]["hallucination"]))
         # плюс полный прогон qwen3.8 run-16: судился на low, затем пересужен на max
-        low16 = MODEL_ROOT / "qwen3.8" / "backend" / "judgments" / "glm-5.3-flash-iso" / "run-16.low.json"
+        low16 = MODEL_ROOT / "qwen3.8" / "backend" / "interview" / "judgments" / "glm-5.3-flash-iso" / "run-16.low.json"
         if low16.exists():
             lo16 = {v["id"]: v for v in json.loads(low16.read_text())["results"]}
             ma16 = {v["id"]: v for v in json.loads(
-                (MODEL_ROOT / "qwen3.8" / "backend" / "judgments" / "glm-5.3-flash-iso"
+                (MODEL_ROOT / "qwen3.8" / "backend" / "interview" / "judgments" / "glm-5.3-flash-iso"
                  / "run-16.json").read_text())["results"]}
             for q, v in lo16.items():
                 if q in ma16:
@@ -2667,7 +2667,7 @@ def build(models, sessions, primer, low_json=None):
                      'не сохранялись (учтены основные вопросы).</div>' + "\n".join(parts))
 
     # дословный текст системного промпта — из session.json прогона (без пересказа)
-    primer_src = json.loads((MODEL_ROOT / "ornith-1.5-35b" / "backend" / "run-17"
+    primer_src = json.loads((MODEL_ROOT / "ornith-1.5-35b" / "backend" / "interview" / "run-17"
                              / "session.json").read_text())["primer"]
     primer_text_html = ('<div class="quote"><div class=who>Дословный текст системного промпта '
                         '(поле primer в session.json каждого прогона)</div>'

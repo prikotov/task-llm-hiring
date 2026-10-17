@@ -79,7 +79,7 @@ unified-тариф, cache-цены, unrated, эксклюзивность `--to`
    каркаса (`skeleton_changes`), наличие тестов и их исполнение.
 3. Выставить A и B с цитатами-доказательствами (по строкам кода).
 4. Заполнить лист конвенций (по одному наблюдению на строку).
-5. Итог — `models/<модель>/test-assignment/run-XX/scorecard.md`.
+5. Итог — `models/<модель>/backend/test-assignment/run-XX/scorecard.md`.
 
 ## Ярус 2 — GLM-5.3-Flash (опционально)
 

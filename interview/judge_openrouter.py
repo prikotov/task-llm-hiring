@@ -27,7 +27,7 @@ POST https://openrouter.ai/api/alpha/decisions (Decisions API, формат ка
     <run>/../judgments/<name>/<run>.json   (сырые ответы + usage)
 
 Пример:
-    python3 judge_openrouter.py --run ../ornith-1.5-9b/backend/run-01
+    python3 judge_openrouter.py --run ../ornith-1.5-9b/backend/interview/run-01
 """
 
 import argparse

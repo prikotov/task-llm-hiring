@@ -8,15 +8,15 @@ clef не судья, а оценщик: проставляет балл и ве
 контекстом родительского вопроса), пять вопросов сразу:
 quality (балл 0–4), hallucination, need_review, unsure, factcheck_zone.
 Выходы:
-- <модель>/<роль>/judgments/<judge>/<run>.json — балл и вероятность галлюцинаций
-- <модель>/<роль>/judgments/escalation-<judge>-<run>.csv — эскалационные признаки
+- <модель>/<роль>/interview/judgments/<judge>/<run>.json — балл и вероятность галлюцинаций
+- <модель>/<роль>/interview/judgments/escalation-<judge>-<run>.csv — эскалационные признаки
 
 Историческая справка: в исследовании (октябрь 2026) оценка и эскалация шли
 двумя раздельными вызовами (judge.py + judge_escalation.py); объединение в
 один запрос — методология после отчёта.
 
 Пример:
-    python3 score.py --run ../ornith-1.5-35b/backend/run-06 --judge clef
+    python3 score.py --run ../ornith-1.5-35b/backend/interview/run-06 --judge clef
 """
 
 import argparse
@@ -188,7 +188,7 @@ def main() -> int:
                  "telemetry": telemetry},
         "results": results}, ensure_ascii=False, indent=2))
     # общий журнал вызовов оценщиков: токены и латентность каждого вызова
-    log_path = run_dir.parent.parent.parent / "reports" / "scoring-calls.jsonl"
+    log_path = Path(__file__).resolve().parent.parent / "reports" / "scoring-calls.jsonl"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with open(log_path, "a", encoding="utf-8") as f:
         for t in telemetry:

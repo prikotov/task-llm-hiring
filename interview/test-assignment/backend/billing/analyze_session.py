@@ -11,7 +11,7 @@ bash-команды по категориям (тесты, консоль, compo
 
 Использование:
 
-    python3 analyze_session.py models/<модель>/test-assignment/backend/run-01/pi-session/
+    python3 analyze_session.py models/<модель>/backend/test-assignment/run-01/pi-session/
     python3 analyze_session.py <файл.jsonl> --json
 """
 

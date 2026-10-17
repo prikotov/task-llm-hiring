@@ -7,7 +7,7 @@
 analyze_session). Ревью судьи (оси A/B) потом дополняет её в scorecard.md.
 
 Использование:
-    python3 summarize.py models/<модель>/test-assignment/backend/run-01
+    python3 summarize.py models/<модель>/backend/test-assignment/run-01
 """
 
 from __future__ import annotations
