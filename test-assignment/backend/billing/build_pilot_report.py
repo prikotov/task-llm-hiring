@@ -83,6 +83,11 @@ tr.top td{background:#eef6ef}
 .flow .step.hot{border-color:var(--bad)}.flow .step.hot b{color:var(--bad)}
 .flow .arrow{align-self:center;color:var(--mut);font-size:19px}
 a{color:var(--acc)}
+.mgroup{margin:20px 0}
+.mgroup h3{margin-bottom:2px}
+.mgroup table{width:auto;max-width:100%}
+.mgroup th,.mgroup td{white-space:nowrap}
+.mgroup td:last-child{white-space:normal}
 .note{background:#fff9e8;border:1px solid #eedd9f;border-radius:12px;padding:13px 17px;font-size:14.5px;margin:14px 0}
 .scalebox{background:#f4f7fb;border:1px solid var(--line);border-radius:10px;padding:11px 16px;font-size:13.5px;color:var(--mut);margin:14px 0}
 .scalebox>b{display:block;margin:2px 0 9px;font-size:15px;color:var(--ink)}
@@ -312,14 +317,16 @@ def quality_chart():
 def runs_inventory() -> str:
     """Раздел «Прогоны и данные»: скан models/*/<роль>/test-assignment/run-XX.
 
-    Как §9 отчёта интервью («Сессии и данные»): строки генерируются по факту
-    на диске — новые прогоны полной сетки попадают в таблицу автоматически.
+    Как §9 отчёта интервью: прогоны сгруппированы по моделям (.mgroup —
+    заголовок модели + своя таблица). Строки генерируются по факту на
+    диске — новые прогоны полной сетки попадают сюда автоматически.
     """
-    rows, total = [], 0
+    groups, total = [], 0
     for d in sorted((ROOT / "models").iterdir()):
         base = d / "backend" / "test-assignment"
         if not base.is_dir():
             continue
+        runs = []
         for r in sorted(base.glob("run-*")):
             rj = r / "run.json"
             if not rj.is_file():
@@ -335,29 +342,39 @@ def runs_inventory() -> str:
                     return f'<a href="../{f.relative_to(ROOT)}">{title}</a>'
                 return f'<span class=sub>{title}</span>'
 
-            cond = [f"thinking {run.get('thinking_effective') or run.get('thinking') or '?'}",
-                    f"ctx {(run.get('context') or 102400) // 1000}K"]
-            rows.append(
-                f"<tr><td><b>{d.name}</b></td><td class=narrow>{r.name}</td>"
-                f'<td class="narrow">{", ".join(cond)}'
-                f'<div class=sub>{run.get("model", "")}</div></td>'
+            cond = (f"thinking {run.get('thinking_effective') or run.get('thinking') or '?'} · "
+                    f"ctx {(run.get('context') or 102400) // 1000}K")
+            runs.append(
+                f"<tr><td class=narrow>{r.name}</td>"
+                f'<td class="narrow">{cond}</td>'
                 f'<td class="narrow">{cj.get("mandatory_passed", "—")}/{cj.get("mandatory_total", "—")}'
                 f'+{cj.get("bonus_passed", "—")}</td>'
                 f'<td class="narrow">{fmt_dur(run.get("duration_s"))}</td>'
                 f'<td class="narrow">{(mj.get("phpstan") or {}).get("errors", "—")}</td>'
                 f'<td class="narrow">{(mj.get("scc") or {}).get("loc", "—")}</td>'
-                f'<td class="narrow">{rel("report.html", "отчёт")} · {rel("solution", "код")} · '
+                f'<td>{rel("report.html", "отчёт")} · {rel("solution", "код")} · '
                 f'{rel("scorecard.md", "ревью")} · {rel("judge-glm.md", "судья")}</td></tr>')
-    if not rows:
+        if not runs:
+            continue
+        first_run = json.loads((sorted(base.glob("run-*"))[0] / "run.json").read_text(encoding="utf-8"))
+        tag = first_run.get("model", "")
+        n = len(runs)
+        word = "прогон" if n == 1 else ("прогона" if n < 5 else "прогонов")
+        groups.append(
+            f'<div class=mgroup><h3>{d.name}</h3>'
+            f'<p class=sub>{tag} · {word}: {n}</p>'
+            '<table><thead><tr><th class=narrow>Прогон</th><th>Условия</th>'
+            "<th class=narrow>Чекер</th><th class=narrow>Время</th>"
+            "<th class=narrow>php-<br>stan</th><th class=narrow>LOC</th><th>Артефакты</th></tr></thead><tbody>"
+            + "".join(runs) + "</tbody></table></div>")
+    if not groups:
         return ""
     return ('<h2 id=runs><span class=no>6.</span>Прогоны и данные</h2>'
-            f'<p class=lead>Все прогоны этапа — {total} на момент сборки отчёта. '
-            "Строки собираются сканом каталогов моделей: новые прогоны попадают сюда автоматически.</p>"
-            '<div style="overflow-x:auto"><table><thead><tr><th>Модель</th><th class=narrow>Прогон</th>'
-            "<th>Условия</th><th class=narrow>Чекер</th><th class=narrow>Время</th>"
-            "<th class=narrow>php-<br>stan</th><th class=narrow>LOC</th><th>Артефакты</th></tr></thead><tbody>"
-            + "".join(rows) + "</tbody></table></div>"
-            '<p class=sub>Артефакты: визуальный отчёт (дашборд показателей — сценарии чекера, метрики, '
+            f'<p class=lead>Все прогоны этапа — {total} на момент сборки отчёта, '
+            "сгруппированы по моделям. Строки собираются сканом каталогов: новые "
+            "прогоны попадают сюда автоматически.</p>"
+            + "".join(groups)
+            + '<p class=sub>Артефакты: визуальный отчёт (дашборд показателей — сценарии чекера, метрики, '
             "матрица зависимостей, сессия, вердикты), код решения целиком, ревью яруса 3, вердикт судьи "
             "яруса 4. Ссылки относительные из reports/; артефакты прогонов пока исключены из git — "
             "перед финальным отчётом этапа вернём в репозиторий (как транскрипты интервью).</p>")
