@@ -1,0 +1,117 @@
+{
+  "workdir": "/tmp/billing-pi-dme9neh5/repo",
+  "signals": [
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-dme9neh5/repo && php bin/console app:prices:import fixtures/prices.json; echo \"exit=$?\"; php bin/console app:usage:import fixtures/usage.jsonl; echo \"exit=$?\"; php bin/console app:billing:rate >/tmp/ra",
+      "detail": "/tmp/rate_out"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-dme9neh5/repo && printf 'user,model,tokens_input,tokens_output,tokens_cache_read,tokens_cache_write,cost_usd\\nu-alice,prism/lumen-8,1200000,800000,2500000,83333,14.262499\\nu-alice,sfera/gyro-pro,300000",
+      "detail": "/tmp/expected"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-dme9neh5/repo && php bin/console app:prices:import fixtures/prices.json; php bin/console app:usage:import fixtures/usage.jsonl; php bin/console app:billing:rate; php bin/console app:billing:report --fr",
+      "detail": "/tmp/actual2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-dme9neh5/repo && cat > /tmp/correction.json <<'EOF' ⏎ { ⏎   \"prices\": [ ⏎     { ⏎       \"provider\": \"prism\", ⏎       \"model\": \"lumen-8\", ⏎       \"valid_from\": \"2026-08-01T00:00:00Z\", ⏎       \"currency\"",
+      "detail": "/tmp/correction"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-dme9neh5/repo && cat > /tmp/usage_ext.jsonl <<'EOF' ⏎ {\"provider\":\"prism\",\"provider_request_id\":\"e4\",\"user\":\"u-alice\",\"ts\":\"2026-09-16T17:00:00Z\",\"tokens_input\":1000000,\"tokens_output\":0,\"tokens_cache_",
+      "detail": "/tmp/usage_ext"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-dme9neh5/repo && sed -E 's/(\"provider_request_id\":\"[^\"]+\"),\"user\"/\\1,\"model\":\"lumen-8\",\"user\"/; ' /tmp/usage_ext.jsonl > /tmp/usage_ext2.jsonl && sed -i '2s/\"model\":\"lumen-8\",\"user\":\"u-dave\"/\"model\":\"l",
+      "detail": "/tmp/usage_ext"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-dme9neh5/repo && cat > /tmp/backfill.json <<'EOF' ⏎ { ⏎   \"providers\": [], ⏎   \"models\": [], ⏎   \"prices\": [ ⏎     { ⏎       \"provider\": \"prism\", ⏎       \"model\": \"lumen-mini\", ⏎       \"valid_from\": \"2",
+      "detail": "/tmp/backfill"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-dme9neh5/repo && php -l src/Application/PricesImportService.php && php bin/console app:prices:import /tmp/backfill.json && php bin/console app:billing:rate 2>/tmp/rerr.txt >/tmp/rout.txt; echo \"exit=$?",
+      "detail": "/tmp/backfill"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-dme9neh5/repo && cat > /tmp/backfill.json <<'EOF' ⏎ { ⏎   \"prices\": [ ⏎     { ⏎       \"provider\": \"prism\", ⏎       \"model\": \"lumen-mini\", ⏎       \"valid_from\": \"2026-07-01T00:00:00Z\", ⏎       \"currency",
+      "detail": "/tmp/backfill"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-dme9neh5/repo && php bin/console app:prices:import /tmp/backfill.json && php bin/console app:billing:rate >/tmp/rout.txt 2>/tmp/rerr.txt; echo \"exit=$?\"; echo \"--stdout:\"; cat /tmp/rout.txt; echo \"--st",
+      "detail": "/tmp/backfill"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-dme9neh5/repo && echo \"=== 1) некорректный JSON:\"; echo '{broken' > /tmp/bad.json; php bin/console app:prices:import /tmp/bad.json 2>&1; echo \"exit=$?\"; echo \"=== 2) file doesn't exist:\"; php bin/conso",
+      "detail": "/tmp/bad"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-dme9neh5/repo && php bin/console app:usage:import /tmp/bad.jsonl >/dev/null 2>&1; echo \"badjsonl exit=$?\"; php bin/console app:prices:import /tmp/empty.json >/dev/null 2>&1; echo \"empty exit=$?\"; php b",
+      "detail": "/tmp/bad"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "docker ps --format '{{.Names}}\\t{{.Ports}}\\t{{.Image}}' | grep -i 'postgres\\|5544' ; ss -ltnp 2>/dev/null | grep 5544 || netstat -ltnp 2>/dev/null | grep 5544; ls /tmp/billing-pi-dme9neh5/",
+      "detail": "/tmp/billing-pi-dme9neh5/"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-dme9neh5/repo && echo \"== шаг 3:\" && php bin/console app:prices:import fixtures/prices.json && php bin/console app:usage:import fixtures/usage.jsonl && php bin/console app:billing:rate && echo \"== шаг ",
+      "detail": "/tmp/acc_4"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-dme9neh5/repo && run(){ desc=\"$1\"; shift; out=$(php bin/console \"$@\" 2>&1 >/dev/null); code=$?; printf '%-38s -> %s\\n' \"$desc\" \"$code\"; }; ⏎ run \"prices: bad JSON\" app:prices:import /tmp/bad.json ⏎ run",
+      "detail": "/tmp/bad"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-dme9neh5/repo && ls -la /tmp/correction-e2.json /tmp/bad.json /tmp/badusage.jsonl 2>&1; php bin/console app:billing:reprice /tmp/correction-e2.json; echo \"exit=$?\"",
+      "detail": "/tmp/correction-e2"
+    },
+    {
+      "kind": "вне cwd (запись)",
+      "cmd": "write /tmp/correction-e2.json",
+      "detail": "/tmp/correction-e2.json"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-dme9neh5/repo && echo \"--- 1st:\" && php bin/console app:billing:reprice /tmp/correction-e2.json; echo \"exit=$?\"; echo \"--- 2nd (повтор):\" && php bin/console app:billing:reprice /tmp/correction-e2.json;",
+      "detail": "/tmp/correction-e2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-dme9neh5/repo && PGPASSWORD=app psql -h 127.0.0.1 -p 5544 -U app -d postgres -c \"DROP DATABASE IF EXISTS app;\" -c \"CREATE DATABASE app OWNER app;\" >/dev/null && make migrate 2>&1 | tail -1 && php bin/c",
+      "detail": "/tmp/expected"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-dme9neh5/repo && ls *.md && echo \"--- exit battery:\" && run(){ d=\"$1\"; shift; php bin/console \"$@\" >/dev/null 2>&1; printf '%-32s %s\\n' \"$d\" \"$?\"; }; ⏎ run \"prices import ok\" app:prices:import fixtures",
+      "detail": "/tmp/bad"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-dme9neh5/repo && printf '{ok}\\n' > /tmp/badusage.jsonl && printf '{\"prices\":[{\"provider\":\"prism\",\"model\":\"nope\",\"valid_from\":\"2026-09-15T12:00:00Z\",\"currency\":\"USD\",\"unit\":\"per_1m_tokens\",\"rates\":{\"inp",
+      "detail": "/tmp/badusage"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-dme9neh5/repo && \\ ⏎ printf 'user,model,tokens_input,tokens_output,tokens_cache_read,tokens_cache_write,cost_usd\\nu-alice,prism/lumen-8,1200000,800000,2500000,83333,14.262499\\nu-alice,sfera/gyro-pro,30",
+      "detail": "/tmp/expected_final"
+    }
+  ],
+  "network": 0,
+  "outside_cwd": 22
+}

@@ -1,0 +1,318 @@
+PHPUnit 11.5.57 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.5.11
+Configuration: /tmp/billing-metrics-6j7l3yvq/repo/phpunit.xml.dist
+
+.............................................                     45 / 45 (100%)
+
+Time: 00:00.415, Memory: 16.00 MB
+
+OK (45 tests, 112 assertions)
+
+[info] Connecting with parameters [array]
+[debug] Executing statement: CREATE TABLE models (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, code VARCHAR(128) NOT NULL, provider_id BIGINT DEFAULT NULL, CONSTRAINT FK_E4D63009A53A8AA FOREIGN KEY (provider_id) REFERENCES providers (id) NOT DEFERRABLE INITIALLY IMMEDIATE)
+[debug] Executing statement: CREATE UNIQUE INDEX uniq_models_provider_code ON models (provider_id, code)
+[debug] Executing statement: CREATE INDEX IDX_E4D63009A53A8AA ON models (provider_id)
+[debug] Executing statement: CREATE TABLE price_corrections (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, old_cost NUMERIC(20, 6) NOT NULL, new_cost NUMERIC(20, 6) NOT NULL, created_at DATETIME NOT NULL, usage_event_id BIGINT DEFAULT NULL, price_row_id BIGINT DEFAULT NULL, CONSTRAINT FK_D9CF2502FCA16108 FOREIGN KEY (usage_event_id) REFERENCES usage_events (id) NOT DEFERRABLE INITIALLY IMMEDIATE, CONSTRAINT FK_D9CF2502CE3BC1A2 FOREIGN KEY (price_row_id) REFERENCES price_rows (id) NOT DEFERRABLE INITIALLY IMMEDIATE)
+[debug] Executing statement: CREATE INDEX idx_price_corrections_event ON price_corrections (usage_event_id)
+[debug] Executing statement: CREATE INDEX IDX_D9CF2502CE3BC1A2 ON price_corrections (price_row_id)
+[debug] Executing statement: CREATE TABLE price_rows (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, valid_from DATETIME NOT NULL, currency VARCHAR(3) DEFAULT 'USD' NOT NULL, unit VARCHAR(32) NOT NULL, input_rate NUMERIC(20, 10) DEFAULT NULL, output_rate NUMERIC(20, 10) DEFAULT NULL, cache_read_rate NUMERIC(20, 10) DEFAULT NULL, cache_write_rate NUMERIC(20, 10) DEFAULT NULL, any_rate NUMERIC(20, 10) DEFAULT NULL, provider_id BIGINT DEFAULT NULL, model_id BIGINT DEFAULT NULL, CONSTRAINT FK_77D9061BA53A8AA FOREIGN KEY (provider_id) REFERENCES providers (id) NOT DEFERRABLE INITIALLY IMMEDIATE, CONSTRAINT FK_77D9061B7975B7E7 FOREIGN KEY (model_id) REFERENCES models (id) NOT DEFERRABLE INITIALLY IMMEDIATE)
+[debug] Executing statement: CREATE UNIQUE INDEX uniq_price_rows ON price_rows (provider_id, model_id, valid_from)
+[debug] Executing statement: CREATE INDEX IDX_77D9061BA53A8AA ON price_rows (provider_id)
+[debug] Executing statement: CREATE INDEX IDX_77D9061B7975B7E7 ON price_rows (model_id)
+[debug] Executing statement: CREATE TABLE providers (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, code VARCHAR(128) NOT NULL, name CLOB NOT NULL, off_peak_start_minutes INTEGER DEFAULT NULL --Оф-пик: начало окна, минуты от 00:00 UTC, включительно
+, off_peak_end_minutes INTEGER DEFAULT NULL --Оф-пик: конец окна, минуты от 00:00 UTC, исключительно
+, off_peak_multiplier VARCHAR(32) DEFAULT NULL --Оф-пик: множитель стоимости (десятичная строка)
+)
+[debug] Executing statement: CREATE UNIQUE INDEX uniq_providers_code ON providers (code)
+[debug] Executing statement: CREATE TABLE usage_events (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, provider_request_id VARCHAR(255) NOT NULL, user VARCHAR(255) NOT NULL, ts DATETIME NOT NULL, tokens_input BIGINT NOT NULL, tokens_output BIGINT NOT NULL, tokens_cache_read BIGINT NOT NULL, tokens_cache_write BIGINT NOT NULL, status VARCHAR(16) DEFAULT 'pending' NOT NULL, cost NUMERIC(20, 6) DEFAULT NULL, rated_at DATETIME DEFAULT NULL, created_at DATETIME NOT NULL, provider_id BIGINT DEFAULT NULL, model_id BIGINT DEFAULT NULL, price_row_id BIGINT DEFAULT NULL, CONSTRAINT FK_9084632A53A8AA FOREIGN KEY (provider_id) REFERENCES providers (id) NOT DEFERRABLE INITIALLY IMMEDIATE, CONSTRAINT FK_90846327975B7E7 FOREIGN KEY (model_id) REFERENCES models (id) NOT DEFERRABLE INITIALLY IMMEDIATE, CONSTRAINT FK_9084632CE3BC1A2 FOREIGN KEY (price_row_id) REFERENCES price_rows (id) NOT DEFERRABLE INITIALLY IMMEDIATE)
+[debug] Executing statement: CREATE INDEX idx_usage_events_ts ON usage_events (ts)
+[debug] Executing statement: CREATE INDEX idx_usage_events_lookup ON usage_events (provider_id, model_id, status)
+[debug] Executing statement: CREATE UNIQUE INDEX uniq_usage_events_provider_request ON usage_events (provider_id, provider_request_id)
+[debug] Executing statement: CREATE INDEX IDX_9084632A53A8AA ON usage_events (provider_id)
+[debug] Executing statement: CREATE INDEX IDX_90846327975B7E7 ON usage_events (model_id)
+[debug] Executing statement: CREATE INDEX IDX_9084632CE3BC1A2 ON usage_events (price_row_id)
+[debug] Beginning transaction
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_start_minutes AS off_peak_start_minutes_4, t0.off_peak_end_minutes AS off_peak_end_minutes_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_start_minutes AS off_peak_start_minutes_4, t0.off_peak_end_minutes AS off_peak_end_minutes_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider_id AS provider_id_3 FROM models t0 WHERE t0.provider_id = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider_id AS provider_id_3 FROM models t0 WHERE t0.provider_id = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider_id AS provider_id_3 FROM models t0 WHERE t0.provider_id = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.input_rate AS input_rate_5, t0.output_rate AS output_rate_6, t0.cache_read_rate AS cache_read_rate_7, t0.cache_write_rate AS cache_write_rate_8, t0.any_rate AS any_rate_9, t0.provider_id AS provider_id_10, t0.model_id AS model_id_11 FROM price_rows t0 WHERE t0.provider_id = ? AND t0.model_id = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.input_rate AS input_rate_5, t0.output_rate AS output_rate_6, t0.cache_read_rate AS cache_read_rate_7, t0.cache_write_rate AS cache_write_rate_8, t0.any_rate AS any_rate_9, t0.provider_id AS provider_id_10, t0.model_id AS model_id_11 FROM price_rows t0 WHERE t0.provider_id = ? AND t0.model_id = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.input_rate AS input_rate_5, t0.output_rate AS output_rate_6, t0.cache_read_rate AS cache_read_rate_7, t0.cache_write_rate AS cache_write_rate_8, t0.any_rate AS any_rate_9, t0.provider_id AS provider_id_10, t0.model_id AS model_id_11 FROM price_rows t0 WHERE t0.provider_id = ? AND t0.model_id = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.input_rate AS input_rate_5, t0.output_rate AS output_rate_6, t0.cache_read_rate AS cache_read_rate_7, t0.cache_write_rate AS cache_write_rate_8, t0.any_rate AS any_rate_9, t0.provider_id AS provider_id_10, t0.model_id AS model_id_11 FROM price_rows t0 WHERE t0.provider_id = ? AND t0.model_id = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SAVEPOINT DOCTRINE_2
+[debug] Executing statement: INSERT INTO providers (code, name, off_peak_start_minutes, off_peak_end_minutes, off_peak_multiplier) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO providers (code, name, off_peak_start_minutes, off_peak_end_minutes, off_peak_multiplier) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO models (code, provider_id) VALUES (?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO models (code, provider_id) VALUES (?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO models (code, provider_id) VALUES (?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO price_rows (valid_from, currency, unit, input_rate, output_rate, cache_read_rate, cache_write_rate, any_rate, provider_id, model_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO price_rows (valid_from, currency, unit, input_rate, output_rate, cache_read_rate, cache_write_rate, any_rate, provider_id, model_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO price_rows (valid_from, currency, unit, input_rate, output_rate, cache_read_rate, cache_write_rate, any_rate, provider_id, model_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO price_rows (valid_from, currency, unit, input_rate, output_rate, cache_read_rate, cache_write_rate, any_rate, provider_id, model_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: RELEASE SAVEPOINT DOCTRINE_2
+[debug] Committing transaction
+[debug] Executing query: SELECT id, code FROM providers
+[debug] Executing query: SELECT m.id AS id, p.code AS provider_code, m.code AS model_code
+                 FROM models m
+                 JOIN providers p ON p.id = m.provider_id
+[debug] Beginning transaction
+[debug] Executing statement: INSERT INTO usage_events (provider_id, provider_request_id, model_id, "user", ts, tokens_input, tokens_output, tokens_cache_read, tokens_cache_write, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (provider_id, provider_request_id) DO NOTHING (parameters: [array], types: [array])
+[debug] Committing transaction
+[debug] Beginning transaction
+[debug] Executing statement: SELECT u0_.id AS id_0, u0_.provider_request_id AS provider_request_id_1, u0_.user AS user_2, u0_.ts AS ts_3, u0_.tokens_input AS tokens_input_4, u0_.tokens_output AS tokens_output_5, u0_.tokens_cache_read AS tokens_cache_read_6, u0_.tokens_cache_write AS tokens_cache_write_7, u0_.status AS status_8, u0_.cost AS cost_9, u0_.rated_at AS rated_at_10, u0_.created_at AS created_at_11, u0_.provider_id AS provider_id_12, u0_.model_id AS model_id_13, u0_.price_row_id AS price_row_id_14 FROM usage_events u0_ WHERE u0_.status = ? OR u0_.status = ? ORDER BY u0_.id ASC (parameters: [array], types: [array])
+[debug] Executing statement: SELECT p0_.id AS id_0, p0_.valid_from AS valid_from_1, p0_.currency AS currency_2, p0_.unit AS unit_3, p0_.input_rate AS input_rate_4, p0_.output_rate AS output_rate_5, p0_.cache_read_rate AS cache_read_rate_6, p0_.cache_write_rate AS cache_write_rate_7, p0_.any_rate AS any_rate_8, p0_.provider_id AS provider_id_9, p0_.model_id AS model_id_10 FROM price_rows p0_ WHERE p0_.provider_id = ? AND p0_.model_id = ? (parameters: [array], types: [array])
+[debug] Executing statement: SELECT p0_.id AS id_0, p0_.valid_from AS valid_from_1, p0_.currency AS currency_2, p0_.unit AS unit_3, p0_.input_rate AS input_rate_4, p0_.output_rate AS output_rate_5, p0_.cache_read_rate AS cache_read_rate_6, p0_.cache_write_rate AS cache_write_rate_7, p0_.any_rate AS any_rate_8, p0_.provider_id AS provider_id_9, p0_.model_id AS model_id_10 FROM price_rows p0_ WHERE p0_.provider_id = ? AND p0_.model_id = ? (parameters: [array], types: [array])
+[debug] Executing statement: SAVEPOINT DOCTRINE_2
+[debug] Executing statement: UPDATE usage_events SET status = ?, cost = ?, rated_at = ?, price_row_id = ? WHERE id = ? (parameters: [array], types: [array])
+[debug] Executing statement: UPDATE usage_events SET status = ?, cost = ?, rated_at = ?, price_row_id = ? WHERE id = ? (parameters: [array], types: [array])
+[debug] Executing statement: UPDATE usage_events SET status = ?, cost = ?, rated_at = ?, price_row_id = ? WHERE id = ? (parameters: [array], types: [array])
+[debug] Executing statement: RELEASE SAVEPOINT DOCTRINE_2
+[debug] Committing transaction
+[debug] Executing statement: SELECT u0_.user AS user_0, p1_.code AS code_1, m2_.code AS code_2, SUM(u0_.tokens_input) AS sclr_3, SUM(u0_.tokens_output) AS sclr_4, SUM(u0_.tokens_cache_read) AS sclr_5, SUM(u0_.tokens_cache_write) AS sclr_6, SUM(u0_.cost) AS sclr_7 FROM usage_events u0_ INNER JOIN providers p1_ ON u0_.provider_id = p1_.id INNER JOIN models m2_ ON u0_.model_id = m2_.id WHERE u0_.status = ? AND u0_.ts >= ? AND u0_.ts < ? GROUP BY u0_.user, p1_.code, m2_.code (parameters: [array], types: [array])
+[debug] Executing query: SELECT id, code FROM providers
+[debug] Executing query: SELECT m.id AS id, p.code AS provider_code, m.code AS model_code
+                 FROM models m
+                 JOIN providers p ON p.id = m.provider_id
+[debug] Beginning transaction
+[debug] Executing statement: INSERT INTO usage_events (provider_id, provider_request_id, model_id, "user", ts, tokens_input, tokens_output, tokens_cache_read, tokens_cache_write, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (provider_id, provider_request_id) DO NOTHING (parameters: [array], types: [array])
+[debug] Committing transaction
+[debug] Beginning transaction
+[debug] Executing statement: SELECT u0_.id AS id_0, u0_.provider_request_id AS provider_request_id_1, u0_.user AS user_2, u0_.ts AS ts_3, u0_.tokens_input AS tokens_input_4, u0_.tokens_output AS tokens_output_5, u0_.tokens_cache_read AS tokens_cache_read_6, u0_.tokens_cache_write AS tokens_cache_write_7, u0_.status AS status_8, u0_.cost AS cost_9, u0_.rated_at AS rated_at_10, u0_.created_at AS created_at_11, u0_.provider_id AS provider_id_12, u0_.model_id AS model_id_13, u0_.price_row_id AS price_row_id_14 FROM usage_events u0_ WHERE u0_.status = ? OR u0_.status = ? ORDER BY u0_.id ASC (parameters: [array], types: [array])
+[debug] Committing transaction
+[debug] Executing statement: SELECT u0_.user AS user_0, p1_.code AS code_1, m2_.code AS code_2, SUM(u0_.tokens_input) AS sclr_3, SUM(u0_.tokens_output) AS sclr_4, SUM(u0_.tokens_cache_read) AS sclr_5, SUM(u0_.tokens_cache_write) AS sclr_6, SUM(u0_.cost) AS sclr_7 FROM usage_events u0_ INNER JOIN providers p1_ ON u0_.provider_id = p1_.id INNER JOIN models m2_ ON u0_.model_id = m2_.id WHERE u0_.status = ? GROUP BY u0_.user, p1_.code, m2_.code (parameters: [array], types: [array])
+[debug] Executing query: SELECT COUNT(u0_.id) AS sclr_0 FROM usage_events u0_
+[info] Disconnecting
+[info] Connecting with parameters [array]
+[debug] Executing statement: CREATE TABLE models (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, code VARCHAR(128) NOT NULL, provider_id BIGINT DEFAULT NULL, CONSTRAINT FK_E4D63009A53A8AA FOREIGN KEY (provider_id) REFERENCES providers (id) NOT DEFERRABLE INITIALLY IMMEDIATE)
+[debug] Executing statement: CREATE UNIQUE INDEX uniq_models_provider_code ON models (provider_id, code)
+[debug] Executing statement: CREATE INDEX IDX_E4D63009A53A8AA ON models (provider_id)
+[debug] Executing statement: CREATE TABLE price_corrections (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, old_cost NUMERIC(20, 6) NOT NULL, new_cost NUMERIC(20, 6) NOT NULL, created_at DATETIME NOT NULL, usage_event_id BIGINT DEFAULT NULL, price_row_id BIGINT DEFAULT NULL, CONSTRAINT FK_D9CF2502FCA16108 FOREIGN KEY (usage_event_id) REFERENCES usage_events (id) NOT DEFERRABLE INITIALLY IMMEDIATE, CONSTRAINT FK_D9CF2502CE3BC1A2 FOREIGN KEY (price_row_id) REFERENCES price_rows (id) NOT DEFERRABLE INITIALLY IMMEDIATE)
+[debug] Executing statement: CREATE INDEX idx_price_corrections_event ON price_corrections (usage_event_id)
+[debug] Executing statement: CREATE INDEX IDX_D9CF2502CE3BC1A2 ON price_corrections (price_row_id)
+[debug] Executing statement: CREATE TABLE price_rows (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, valid_from DATETIME NOT NULL, currency VARCHAR(3) DEFAULT 'USD' NOT NULL, unit VARCHAR(32) NOT NULL, input_rate NUMERIC(20, 10) DEFAULT NULL, output_rate NUMERIC(20, 10) DEFAULT NULL, cache_read_rate NUMERIC(20, 10) DEFAULT NULL, cache_write_rate NUMERIC(20, 10) DEFAULT NULL, any_rate NUMERIC(20, 10) DEFAULT NULL, provider_id BIGINT DEFAULT NULL, model_id BIGINT DEFAULT NULL, CONSTRAINT FK_77D9061BA53A8AA FOREIGN KEY (provider_id) REFERENCES providers (id) NOT DEFERRABLE INITIALLY IMMEDIATE, CONSTRAINT FK_77D9061B7975B7E7 FOREIGN KEY (model_id) REFERENCES models (id) NOT DEFERRABLE INITIALLY IMMEDIATE)
+[debug] Executing statement: CREATE UNIQUE INDEX uniq_price_rows ON price_rows (provider_id, model_id, valid_from)
+[debug] Executing statement: CREATE INDEX IDX_77D9061BA53A8AA ON price_rows (provider_id)
+[debug] Executing statement: CREATE INDEX IDX_77D9061B7975B7E7 ON price_rows (model_id)
+[debug] Executing statement: CREATE TABLE providers (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, code VARCHAR(128) NOT NULL, name CLOB NOT NULL, off_peak_start_minutes INTEGER DEFAULT NULL --Оф-пик: начало окна, минуты от 00:00 UTC, включительно
+, off_peak_end_minutes INTEGER DEFAULT NULL --Оф-пик: конец окна, минуты от 00:00 UTC, исключительно
+, off_peak_multiplier VARCHAR(32) DEFAULT NULL --Оф-пик: множитель стоимости (десятичная строка)
+)
+[debug] Executing statement: CREATE UNIQUE INDEX uniq_providers_code ON providers (code)
+[debug] Executing statement: CREATE TABLE usage_events (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, provider_request_id VARCHAR(255) NOT NULL, user VARCHAR(255) NOT NULL, ts DATETIME NOT NULL, tokens_input BIGINT NOT NULL, tokens_output BIGINT NOT NULL, tokens_cache_read BIGINT NOT NULL, tokens_cache_write BIGINT NOT NULL, status VARCHAR(16) DEFAULT 'pending' NOT NULL, cost NUMERIC(20, 6) DEFAULT NULL, rated_at DATETIME DEFAULT NULL, created_at DATETIME NOT NULL, provider_id BIGINT DEFAULT NULL, model_id BIGINT DEFAULT NULL, price_row_id BIGINT DEFAULT NULL, CONSTRAINT FK_9084632A53A8AA FOREIGN KEY (provider_id) REFERENCES providers (id) NOT DEFERRABLE INITIALLY IMMEDIATE, CONSTRAINT FK_90846327975B7E7 FOREIGN KEY (model_id) REFERENCES models (id) NOT DEFERRABLE INITIALLY IMMEDIATE, CONSTRAINT FK_9084632CE3BC1A2 FOREIGN KEY (price_row_id) REFERENCES price_rows (id) NOT DEFERRABLE INITIALLY IMMEDIATE)
+[debug] Executing statement: CREATE INDEX idx_usage_events_ts ON usage_events (ts)
+[debug] Executing statement: CREATE INDEX idx_usage_events_lookup ON usage_events (provider_id, model_id, status)
+[debug] Executing statement: CREATE UNIQUE INDEX uniq_usage_events_provider_request ON usage_events (provider_id, provider_request_id)
+[debug] Executing statement: CREATE INDEX IDX_9084632A53A8AA ON usage_events (provider_id)
+[debug] Executing statement: CREATE INDEX IDX_90846327975B7E7 ON usage_events (model_id)
+[debug] Executing statement: CREATE INDEX IDX_9084632CE3BC1A2 ON usage_events (price_row_id)
+[debug] Beginning transaction
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_start_minutes AS off_peak_start_minutes_4, t0.off_peak_end_minutes AS off_peak_end_minutes_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_start_minutes AS off_peak_start_minutes_4, t0.off_peak_end_minutes AS off_peak_end_minutes_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider_id AS provider_id_3 FROM models t0 WHERE t0.provider_id = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider_id AS provider_id_3 FROM models t0 WHERE t0.provider_id = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider_id AS provider_id_3 FROM models t0 WHERE t0.provider_id = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.input_rate AS input_rate_5, t0.output_rate AS output_rate_6, t0.cache_read_rate AS cache_read_rate_7, t0.cache_write_rate AS cache_write_rate_8, t0.any_rate AS any_rate_9, t0.provider_id AS provider_id_10, t0.model_id AS model_id_11 FROM price_rows t0 WHERE t0.provider_id = ? AND t0.model_id = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.input_rate AS input_rate_5, t0.output_rate AS output_rate_6, t0.cache_read_rate AS cache_read_rate_7, t0.cache_write_rate AS cache_write_rate_8, t0.any_rate AS any_rate_9, t0.provider_id AS provider_id_10, t0.model_id AS model_id_11 FROM price_rows t0 WHERE t0.provider_id = ? AND t0.model_id = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.input_rate AS input_rate_5, t0.output_rate AS output_rate_6, t0.cache_read_rate AS cache_read_rate_7, t0.cache_write_rate AS cache_write_rate_8, t0.any_rate AS any_rate_9, t0.provider_id AS provider_id_10, t0.model_id AS model_id_11 FROM price_rows t0 WHERE t0.provider_id = ? AND t0.model_id = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.input_rate AS input_rate_5, t0.output_rate AS output_rate_6, t0.cache_read_rate AS cache_read_rate_7, t0.cache_write_rate AS cache_write_rate_8, t0.any_rate AS any_rate_9, t0.provider_id AS provider_id_10, t0.model_id AS model_id_11 FROM price_rows t0 WHERE t0.provider_id = ? AND t0.model_id = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SAVEPOINT DOCTRINE_2
+[debug] Executing statement: INSERT INTO providers (code, name, off_peak_start_minutes, off_peak_end_minutes, off_peak_multiplier) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO providers (code, name, off_peak_start_minutes, off_peak_end_minutes, off_peak_multiplier) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO models (code, provider_id) VALUES (?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO models (code, provider_id) VALUES (?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO models (code, provider_id) VALUES (?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO price_rows (valid_from, currency, unit, input_rate, output_rate, cache_read_rate, cache_write_rate, any_rate, provider_id, model_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO price_rows (valid_from, currency, unit, input_rate, output_rate, cache_read_rate, cache_write_rate, any_rate, provider_id, model_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO price_rows (valid_from, currency, unit, input_rate, output_rate, cache_read_rate, cache_write_rate, any_rate, provider_id, model_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO price_rows (valid_from, currency, unit, input_rate, output_rate, cache_read_rate, cache_write_rate, any_rate, provider_id, model_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: RELEASE SAVEPOINT DOCTRINE_2
+[debug] Committing transaction
+[debug] Executing query: SELECT id, code FROM providers
+[debug] Executing query: SELECT m.id AS id, p.code AS provider_code, m.code AS model_code
+                 FROM models m
+                 JOIN providers p ON p.id = m.provider_id
+[debug] Beginning transaction
+[debug] Executing statement: INSERT INTO usage_events (provider_id, provider_request_id, model_id, "user", ts, tokens_input, tokens_output, tokens_cache_read, tokens_cache_write, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (provider_id, provider_request_id) DO NOTHING (parameters: [array], types: [array])
+[debug] Committing transaction
+[debug] Beginning transaction
+[debug] Executing statement: SELECT u0_.id AS id_0, u0_.provider_request_id AS provider_request_id_1, u0_.user AS user_2, u0_.ts AS ts_3, u0_.tokens_input AS tokens_input_4, u0_.tokens_output AS tokens_output_5, u0_.tokens_cache_read AS tokens_cache_read_6, u0_.tokens_cache_write AS tokens_cache_write_7, u0_.status AS status_8, u0_.cost AS cost_9, u0_.rated_at AS rated_at_10, u0_.created_at AS created_at_11, u0_.provider_id AS provider_id_12, u0_.model_id AS model_id_13, u0_.price_row_id AS price_row_id_14 FROM usage_events u0_ WHERE u0_.status = ? OR u0_.status = ? ORDER BY u0_.id ASC (parameters: [array], types: [array])
+[debug] Executing statement: SELECT p0_.id AS id_0, p0_.valid_from AS valid_from_1, p0_.currency AS currency_2, p0_.unit AS unit_3, p0_.input_rate AS input_rate_4, p0_.output_rate AS output_rate_5, p0_.cache_read_rate AS cache_read_rate_6, p0_.cache_write_rate AS cache_write_rate_7, p0_.any_rate AS any_rate_8, p0_.provider_id AS provider_id_9, p0_.model_id AS model_id_10 FROM price_rows p0_ WHERE p0_.provider_id = ? AND p0_.model_id = ? (parameters: [array], types: [array])
+[debug] Executing statement: SELECT p0_.id AS id_0, p0_.valid_from AS valid_from_1, p0_.currency AS currency_2, p0_.unit AS unit_3, p0_.input_rate AS input_rate_4, p0_.output_rate AS output_rate_5, p0_.cache_read_rate AS cache_read_rate_6, p0_.cache_write_rate AS cache_write_rate_7, p0_.any_rate AS any_rate_8, p0_.provider_id AS provider_id_9, p0_.model_id AS model_id_10 FROM price_rows p0_ WHERE p0_.provider_id = ? AND p0_.model_id = ? (parameters: [array], types: [array])
+[debug] Executing statement: SAVEPOINT DOCTRINE_2
+[debug] Executing statement: UPDATE usage_events SET status = ?, cost = ?, rated_at = ?, price_row_id = ? WHERE id = ? (parameters: [array], types: [array])
+[debug] Executing statement: UPDATE usage_events SET status = ?, cost = ?, rated_at = ?, price_row_id = ? WHERE id = ? (parameters: [array], types: [array])
+[debug] Executing statement: UPDATE usage_events SET status = ?, cost = ?, rated_at = ?, price_row_id = ? WHERE id = ? (parameters: [array], types: [array])
+[debug] Executing statement: RELEASE SAVEPOINT DOCTRINE_2
+[debug] Committing transaction
+[debug] Executing statement: SELECT u0_.user AS user_0, p1_.code AS code_1, m2_.code AS code_2, SUM(u0_.tokens_input) AS sclr_3, SUM(u0_.tokens_output) AS sclr_4, SUM(u0_.tokens_cache_read) AS sclr_5, SUM(u0_.tokens_cache_write) AS sclr_6, SUM(u0_.cost) AS sclr_7 FROM usage_events u0_ INNER JOIN providers p1_ ON u0_.provider_id = p1_.id INNER JOIN models m2_ ON u0_.model_id = m2_.id WHERE u0_.status = ? AND u0_.ts < ? GROUP BY u0_.user, p1_.code, m2_.code (parameters: [array], types: [array])
+[debug] Executing statement: SELECT u0_.user AS user_0, p1_.code AS code_1, m2_.code AS code_2, SUM(u0_.tokens_input) AS sclr_3, SUM(u0_.tokens_output) AS sclr_4, SUM(u0_.tokens_cache_read) AS sclr_5, SUM(u0_.tokens_cache_write) AS sclr_6, SUM(u0_.cost) AS sclr_7 FROM usage_events u0_ INNER JOIN providers p1_ ON u0_.provider_id = p1_.id INNER JOIN models m2_ ON u0_.model_id = m2_.id WHERE u0_.status = ? AND u0_.ts >= ? GROUP BY u0_.user, p1_.code, m2_.code (parameters: [array], types: [array])
+[info] Disconnecting
+[info] Connecting with parameters [array]
+[debug] Executing statement: CREATE TABLE models (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, code VARCHAR(128) NOT NULL, provider_id BIGINT DEFAULT NULL, CONSTRAINT FK_E4D63009A53A8AA FOREIGN KEY (provider_id) REFERENCES providers (id) NOT DEFERRABLE INITIALLY IMMEDIATE)
+[debug] Executing statement: CREATE UNIQUE INDEX uniq_models_provider_code ON models (provider_id, code)
+[debug] Executing statement: CREATE INDEX IDX_E4D63009A53A8AA ON models (provider_id)
+[debug] Executing statement: CREATE TABLE price_corrections (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, old_cost NUMERIC(20, 6) NOT NULL, new_cost NUMERIC(20, 6) NOT NULL, created_at DATETIME NOT NULL, usage_event_id BIGINT DEFAULT NULL, price_row_id BIGINT DEFAULT NULL, CONSTRAINT FK_D9CF2502FCA16108 FOREIGN KEY (usage_event_id) REFERENCES usage_events (id) NOT DEFERRABLE INITIALLY IMMEDIATE, CONSTRAINT FK_D9CF2502CE3BC1A2 FOREIGN KEY (price_row_id) REFERENCES price_rows (id) NOT DEFERRABLE INITIALLY IMMEDIATE)
+[debug] Executing statement: CREATE INDEX idx_price_corrections_event ON price_corrections (usage_event_id)
+[debug] Executing statement: CREATE INDEX IDX_D9CF2502CE3BC1A2 ON price_corrections (price_row_id)
+[debug] Executing statement: CREATE TABLE price_rows (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, valid_from DATETIME NOT NULL, currency VARCHAR(3) DEFAULT 'USD' NOT NULL, unit VARCHAR(32) NOT NULL, input_rate NUMERIC(20, 10) DEFAULT NULL, output_rate NUMERIC(20, 10) DEFAULT NULL, cache_read_rate NUMERIC(20, 10) DEFAULT NULL, cache_write_rate NUMERIC(20, 10) DEFAULT NULL, any_rate NUMERIC(20, 10) DEFAULT NULL, provider_id BIGINT DEFAULT NULL, model_id BIGINT DEFAULT NULL, CONSTRAINT FK_77D9061BA53A8AA FOREIGN KEY (provider_id) REFERENCES providers (id) NOT DEFERRABLE INITIALLY IMMEDIATE, CONSTRAINT FK_77D9061B7975B7E7 FOREIGN KEY (model_id) REFERENCES models (id) NOT DEFERRABLE INITIALLY IMMEDIATE)
+[debug] Executing statement: CREATE UNIQUE INDEX uniq_price_rows ON price_rows (provider_id, model_id, valid_from)
+[debug] Executing statement: CREATE INDEX IDX_77D9061BA53A8AA ON price_rows (provider_id)
+[debug] Executing statement: CREATE INDEX IDX_77D9061B7975B7E7 ON price_rows (model_id)
+[debug] Executing statement: CREATE TABLE providers (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, code VARCHAR(128) NOT NULL, name CLOB NOT NULL, off_peak_start_minutes INTEGER DEFAULT NULL --Оф-пик: начало окна, минуты от 00:00 UTC, включительно
+, off_peak_end_minutes INTEGER DEFAULT NULL --Оф-пик: конец окна, минуты от 00:00 UTC, исключительно
+, off_peak_multiplier VARCHAR(32) DEFAULT NULL --Оф-пик: множитель стоимости (десятичная строка)
+)
+[debug] Executing statement: CREATE UNIQUE INDEX uniq_providers_code ON providers (code)
+[debug] Executing statement: CREATE TABLE usage_events (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, provider_request_id VARCHAR(255) NOT NULL, user VARCHAR(255) NOT NULL, ts DATETIME NOT NULL, tokens_input BIGINT NOT NULL, tokens_output BIGINT NOT NULL, tokens_cache_read BIGINT NOT NULL, tokens_cache_write BIGINT NOT NULL, status VARCHAR(16) DEFAULT 'pending' NOT NULL, cost NUMERIC(20, 6) DEFAULT NULL, rated_at DATETIME DEFAULT NULL, created_at DATETIME NOT NULL, provider_id BIGINT DEFAULT NULL, model_id BIGINT DEFAULT NULL, price_row_id BIGINT DEFAULT NULL, CONSTRAINT FK_9084632A53A8AA FOREIGN KEY (provider_id) REFERENCES providers (id) NOT DEFERRABLE INITIALLY IMMEDIATE, CONSTRAINT FK_90846327975B7E7 FOREIGN KEY (model_id) REFERENCES models (id) NOT DEFERRABLE INITIALLY IMMEDIATE, CONSTRAINT FK_9084632CE3BC1A2 FOREIGN KEY (price_row_id) REFERENCES price_rows (id) NOT DEFERRABLE INITIALLY IMMEDIATE)
+[debug] Executing statement: CREATE INDEX idx_usage_events_ts ON usage_events (ts)
+[debug] Executing statement: CREATE INDEX idx_usage_events_lookup ON usage_events (provider_id, model_id, status)
+[debug] Executing statement: CREATE UNIQUE INDEX uniq_usage_events_provider_request ON usage_events (provider_id, provider_request_id)
+[debug] Executing statement: CREATE INDEX IDX_9084632A53A8AA ON usage_events (provider_id)
+[debug] Executing statement: CREATE INDEX IDX_90846327975B7E7 ON usage_events (model_id)
+[debug] Executing statement: CREATE INDEX IDX_9084632CE3BC1A2 ON usage_events (price_row_id)
+[debug] Beginning transaction
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_start_minutes AS off_peak_start_minutes_4, t0.off_peak_end_minutes AS off_peak_end_minutes_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_start_minutes AS off_peak_start_minutes_4, t0.off_peak_end_minutes AS off_peak_end_minutes_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider_id AS provider_id_3 FROM models t0 WHERE t0.provider_id = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider_id AS provider_id_3 FROM models t0 WHERE t0.provider_id = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider_id AS provider_id_3 FROM models t0 WHERE t0.provider_id = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.input_rate AS input_rate_5, t0.output_rate AS output_rate_6, t0.cache_read_rate AS cache_read_rate_7, t0.cache_write_rate AS cache_write_rate_8, t0.any_rate AS any_rate_9, t0.provider_id AS provider_id_10, t0.model_id AS model_id_11 FROM price_rows t0 WHERE t0.provider_id = ? AND t0.model_id = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.input_rate AS input_rate_5, t0.output_rate AS output_rate_6, t0.cache_read_rate AS cache_read_rate_7, t0.cache_write_rate AS cache_write_rate_8, t0.any_rate AS any_rate_9, t0.provider_id AS provider_id_10, t0.model_id AS model_id_11 FROM price_rows t0 WHERE t0.provider_id = ? AND t0.model_id = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.input_rate AS input_rate_5, t0.output_rate AS output_rate_6, t0.cache_read_rate AS cache_read_rate_7, t0.cache_write_rate AS cache_write_rate_8, t0.any_rate AS any_rate_9, t0.provider_id AS provider_id_10, t0.model_id AS model_id_11 FROM price_rows t0 WHERE t0.provider_id = ? AND t0.model_id = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.input_rate AS input_rate_5, t0.output_rate AS output_rate_6, t0.cache_read_rate AS cache_read_rate_7, t0.cache_write_rate AS cache_write_rate_8, t0.any_rate AS any_rate_9, t0.provider_id AS provider_id_10, t0.model_id AS model_id_11 FROM price_rows t0 WHERE t0.provider_id = ? AND t0.model_id = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SAVEPOINT DOCTRINE_2
+[debug] Executing statement: INSERT INTO providers (code, name, off_peak_start_minutes, off_peak_end_minutes, off_peak_multiplier) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO providers (code, name, off_peak_start_minutes, off_peak_end_minutes, off_peak_multiplier) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO models (code, provider_id) VALUES (?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO models (code, provider_id) VALUES (?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO models (code, provider_id) VALUES (?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO price_rows (valid_from, currency, unit, input_rate, output_rate, cache_read_rate, cache_write_rate, any_rate, provider_id, model_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO price_rows (valid_from, currency, unit, input_rate, output_rate, cache_read_rate, cache_write_rate, any_rate, provider_id, model_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO price_rows (valid_from, currency, unit, input_rate, output_rate, cache_read_rate, cache_write_rate, any_rate, provider_id, model_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO price_rows (valid_from, currency, unit, input_rate, output_rate, cache_read_rate, cache_write_rate, any_rate, provider_id, model_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: RELEASE SAVEPOINT DOCTRINE_2
+[debug] Committing transaction
+[debug] Beginning transaction
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_start_minutes AS off_peak_start_minutes_4, t0.off_peak_end_minutes AS off_peak_end_minutes_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider_id AS provider_id_3 FROM models t0 WHERE t0.provider_id = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SAVEPOINT DOCTRINE_2
+[debug] Executing statement: INSERT INTO providers (code, name, off_peak_start_minutes, off_peak_end_minutes, off_peak_multiplier) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO models (code, provider_id) VALUES (?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: RELEASE SAVEPOINT DOCTRINE_2
+[debug] Committing transaction
+[debug] Executing query: SELECT id, code FROM providers
+[debug] Executing query: SELECT m.id AS id, p.code AS provider_code, m.code AS model_code
+                 FROM models m
+                 JOIN providers p ON p.id = m.provider_id
+[debug] Beginning transaction
+[debug] Executing statement: INSERT INTO usage_events (provider_id, provider_request_id, model_id, "user", ts, tokens_input, tokens_output, tokens_cache_read, tokens_cache_write, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (provider_id, provider_request_id) DO NOTHING (parameters: [array], types: [array])
+[debug] Committing transaction
+[debug] Beginning transaction
+[debug] Executing statement: SELECT u0_.id AS id_0, u0_.provider_request_id AS provider_request_id_1, u0_.user AS user_2, u0_.ts AS ts_3, u0_.tokens_input AS tokens_input_4, u0_.tokens_output AS tokens_output_5, u0_.tokens_cache_read AS tokens_cache_read_6, u0_.tokens_cache_write AS tokens_cache_write_7, u0_.status AS status_8, u0_.cost AS cost_9, u0_.rated_at AS rated_at_10, u0_.created_at AS created_at_11, u0_.provider_id AS provider_id_12, u0_.model_id AS model_id_13, u0_.price_row_id AS price_row_id_14 FROM usage_events u0_ WHERE u0_.status = ? OR u0_.status = ? ORDER BY u0_.id ASC (parameters: [array], types: [array])
+[debug] Executing statement: SELECT p0_.id AS id_0, p0_.valid_from AS valid_from_1, p0_.currency AS currency_2, p0_.unit AS unit_3, p0_.input_rate AS input_rate_4, p0_.output_rate AS output_rate_5, p0_.cache_read_rate AS cache_read_rate_6, p0_.cache_write_rate AS cache_write_rate_7, p0_.any_rate AS any_rate_8, p0_.provider_id AS provider_id_9, p0_.model_id AS model_id_10 FROM price_rows p0_ WHERE p0_.provider_id = ? AND p0_.model_id = ? (parameters: [array], types: [array])
+[debug] Executing statement: SAVEPOINT DOCTRINE_2
+[debug] Executing statement: UPDATE usage_events SET status = ? WHERE id = ? (parameters: [array], types: [array])
+[debug] Executing statement: RELEASE SAVEPOINT DOCTRINE_2
+[debug] Committing transaction
+[debug] Beginning transaction
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_start_minutes AS off_peak_start_minutes_4, t0.off_peak_end_minutes AS off_peak_end_minutes_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider_id AS provider_id_3 FROM models t0 WHERE t0.provider_id = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.input_rate AS input_rate_5, t0.output_rate AS output_rate_6, t0.cache_read_rate AS cache_read_rate_7, t0.cache_write_rate AS cache_write_rate_8, t0.any_rate AS any_rate_9, t0.provider_id AS provider_id_10, t0.model_id AS model_id_11 FROM price_rows t0 WHERE t0.provider_id = ? AND t0.model_id = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SAVEPOINT DOCTRINE_2
+[debug] Executing statement: INSERT INTO price_rows (valid_from, currency, unit, input_rate, output_rate, cache_read_rate, cache_write_rate, any_rate, provider_id, model_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: RELEASE SAVEPOINT DOCTRINE_2
+[debug] Committing transaction
+[debug] Beginning transaction
+[debug] Executing statement: SELECT u0_.id AS id_0, u0_.provider_request_id AS provider_request_id_1, u0_.user AS user_2, u0_.ts AS ts_3, u0_.tokens_input AS tokens_input_4, u0_.tokens_output AS tokens_output_5, u0_.tokens_cache_read AS tokens_cache_read_6, u0_.tokens_cache_write AS tokens_cache_write_7, u0_.status AS status_8, u0_.cost AS cost_9, u0_.rated_at AS rated_at_10, u0_.created_at AS created_at_11, u0_.provider_id AS provider_id_12, u0_.model_id AS model_id_13, u0_.price_row_id AS price_row_id_14 FROM usage_events u0_ WHERE u0_.status = ? OR u0_.status = ? ORDER BY u0_.id ASC (parameters: [array], types: [array])
+[debug] Executing statement: SELECT p0_.id AS id_0, p0_.valid_from AS valid_from_1, p0_.currency AS currency_2, p0_.unit AS unit_3, p0_.input_rate AS input_rate_4, p0_.output_rate AS output_rate_5, p0_.cache_read_rate AS cache_read_rate_6, p0_.cache_write_rate AS cache_write_rate_7, p0_.any_rate AS any_rate_8, p0_.provider_id AS provider_id_9, p0_.model_id AS model_id_10 FROM price_rows p0_ WHERE p0_.provider_id = ? AND p0_.model_id = ? (parameters: [array], types: [array])
+[debug] Executing statement: SAVEPOINT DOCTRINE_2
+[debug] Executing statement: UPDATE usage_events SET status = ?, cost = ?, rated_at = ?, price_row_id = ? WHERE id = ? (parameters: [array], types: [array])
+[debug] Executing statement: RELEASE SAVEPOINT DOCTRINE_2
+[debug] Committing transaction
+[debug] Executing statement: SELECT u0_.status AS status_0, u0_.cost AS cost_1 FROM usage_events u0_ WHERE u0_.provider_request_id = ? (parameters: [array], types: [array])
+[info] Disconnecting
+[info] Connecting with parameters [array]
+[debug] Executing statement: CREATE TABLE models (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, code VARCHAR(128) NOT NULL, provider_id BIGINT DEFAULT NULL, CONSTRAINT FK_E4D63009A53A8AA FOREIGN KEY (provider_id) REFERENCES providers (id) NOT DEFERRABLE INITIALLY IMMEDIATE)
+[debug] Executing statement: CREATE UNIQUE INDEX uniq_models_provider_code ON models (provider_id, code)
+[debug] Executing statement: CREATE INDEX IDX_E4D63009A53A8AA ON models (provider_id)
+[debug] Executing statement: CREATE TABLE price_corrections (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, old_cost NUMERIC(20, 6) NOT NULL, new_cost NUMERIC(20, 6) NOT NULL, created_at DATETIME NOT NULL, usage_event_id BIGINT DEFAULT NULL, price_row_id BIGINT DEFAULT NULL, CONSTRAINT FK_D9CF2502FCA16108 FOREIGN KEY (usage_event_id) REFERENCES usage_events (id) NOT DEFERRABLE INITIALLY IMMEDIATE, CONSTRAINT FK_D9CF2502CE3BC1A2 FOREIGN KEY (price_row_id) REFERENCES price_rows (id) NOT DEFERRABLE INITIALLY IMMEDIATE)
+[debug] Executing statement: CREATE INDEX idx_price_corrections_event ON price_corrections (usage_event_id)
+[debug] Executing statement: CREATE INDEX IDX_D9CF2502CE3BC1A2 ON price_corrections (price_row_id)
+[debug] Executing statement: CREATE TABLE price_rows (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, valid_from DATETIME NOT NULL, currency VARCHAR(3) DEFAULT 'USD' NOT NULL, unit VARCHAR(32) NOT NULL, input_rate NUMERIC(20, 10) DEFAULT NULL, output_rate NUMERIC(20, 10) DEFAULT NULL, cache_read_rate NUMERIC(20, 10) DEFAULT NULL, cache_write_rate NUMERIC(20, 10) DEFAULT NULL, any_rate NUMERIC(20, 10) DEFAULT NULL, provider_id BIGINT DEFAULT NULL, model_id BIGINT DEFAULT NULL, CONSTRAINT FK_77D9061BA53A8AA FOREIGN KEY (provider_id) REFERENCES providers (id) NOT DEFERRABLE INITIALLY IMMEDIATE, CONSTRAINT FK_77D9061B7975B7E7 FOREIGN KEY (model_id) REFERENCES models (id) NOT DEFERRABLE INITIALLY IMMEDIATE)
+[debug] Executing statement: CREATE UNIQUE INDEX uniq_price_rows ON price_rows (provider_id, model_id, valid_from)
+[debug] Executing statement: CREATE INDEX IDX_77D9061BA53A8AA ON price_rows (provider_id)
+[debug] Executing statement: CREATE INDEX IDX_77D9061B7975B7E7 ON price_rows (model_id)
+[debug] Executing statement: CREATE TABLE providers (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, code VARCHAR(128) NOT NULL, name CLOB NOT NULL, off_peak_start_minutes INTEGER DEFAULT NULL --Оф-пик: начало окна, минуты от 00:00 UTC, включительно
+, off_peak_end_minutes INTEGER DEFAULT NULL --Оф-пик: конец окна, минуты от 00:00 UTC, исключительно
+, off_peak_multiplier VARCHAR(32) DEFAULT NULL --Оф-пик: множитель стоимости (десятичная строка)
+)
+[debug] Executing statement: CREATE UNIQUE INDEX uniq_providers_code ON providers (code)
+[debug] Executing statement: CREATE TABLE usage_events (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, provider_request_id VARCHAR(255) NOT NULL, user VARCHAR(255) NOT NULL, ts DATETIME NOT NULL, tokens_input BIGINT NOT NULL, tokens_output BIGINT NOT NULL, tokens_cache_read BIGINT NOT NULL, tokens_cache_write BIGINT NOT NULL, status VARCHAR(16) DEFAULT 'pending' NOT NULL, cost NUMERIC(20, 6) DEFAULT NULL, rated_at DATETIME DEFAULT NULL, created_at DATETIME NOT NULL, provider_id BIGINT DEFAULT NULL, model_id BIGINT DEFAULT NULL, price_row_id BIGINT DEFAULT NULL, CONSTRAINT FK_9084632A53A8AA FOREIGN KEY (provider_id) REFERENCES providers (id) NOT DEFERRABLE INITIALLY IMMEDIATE, CONSTRAINT FK_90846327975B7E7 FOREIGN KEY (model_id) REFERENCES models (id) NOT DEFERRABLE INITIALLY IMMEDIATE, CONSTRAINT FK_9084632CE3BC1A2 FOREIGN KEY (price_row_id) REFERENCES price_rows (id) NOT DEFERRABLE INITIALLY IMMEDIATE)
+[debug] Executing statement: CREATE INDEX idx_usage_events_ts ON usage_events (ts)
+[debug] Executing statement: CREATE INDEX idx_usage_events_lookup ON usage_events (provider_id, model_id, status)
+[debug] Executing statement: CREATE UNIQUE INDEX uniq_usage_events_provider_request ON usage_events (provider_id, provider_request_id)
+[debug] Executing statement: CREATE INDEX IDX_9084632A53A8AA ON usage_events (provider_id)
+[debug] Executing statement: CREATE INDEX IDX_90846327975B7E7 ON usage_events (model_id)
+[debug] Executing statement: CREATE INDEX IDX_9084632CE3BC1A2 ON usage_events (price_row_id)
+[debug] Beginning transaction
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_start_minutes AS off_peak_start_minutes_4, t0.off_peak_end_minutes AS off_peak_end_minutes_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_start_minutes AS off_peak_start_minutes_4, t0.off_peak_end_minutes AS off_peak_end_minutes_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider_id AS provider_id_3 FROM models t0 WHERE t0.provider_id = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider_id AS provider_id_3 FROM models t0 WHERE t0.provider_id = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider_id AS provider_id_3 FROM models t0 WHERE t0.provider_id = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.input_rate AS input_rate_5, t0.output_rate AS output_rate_6, t0.cache_read_rate AS cache_read_rate_7, t0.cache_write_rate AS cache_write_rate_8, t0.any_rate AS any_rate_9, t0.provider_id AS provider_id_10, t0.model_id AS model_id_11 FROM price_rows t0 WHERE t0.provider_id = ? AND t0.model_id = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.input_rate AS input_rate_5, t0.output_rate AS output_rate_6, t0.cache_read_rate AS cache_read_rate_7, t0.cache_write_rate AS cache_write_rate_8, t0.any_rate AS any_rate_9, t0.provider_id AS provider_id_10, t0.model_id AS model_id_11 FROM price_rows t0 WHERE t0.provider_id = ? AND t0.model_id = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.input_rate AS input_rate_5, t0.output_rate AS output_rate_6, t0.cache_read_rate AS cache_read_rate_7, t0.cache_write_rate AS cache_write_rate_8, t0.any_rate AS any_rate_9, t0.provider_id AS provider_id_10, t0.model_id AS model_id_11 FROM price_rows t0 WHERE t0.provider_id = ? AND t0.model_id = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.input_rate AS input_rate_5, t0.output_rate AS output_rate_6, t0.cache_read_rate AS cache_read_rate_7, t0.cache_write_rate AS cache_write_rate_8, t0.any_rate AS any_rate_9, t0.provider_id AS provider_id_10, t0.model_id AS model_id_11 FROM price_rows t0 WHERE t0.provider_id = ? AND t0.model_id = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SAVEPOINT DOCTRINE_2
+[debug] Executing statement: INSERT INTO providers (code, name, off_peak_start_minutes, off_peak_end_minutes, off_peak_multiplier) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO providers (code, name, off_peak_start_minutes, off_peak_end_minutes, off_peak_multiplier) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO models (code, provider_id) VALUES (?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO models (code, provider_id) VALUES (?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO models (code, provider_id) VALUES (?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO price_rows (valid_from, currency, unit, input_rate, output_rate, cache_read_rate, cache_write_rate, any_rate, provider_id, model_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO price_rows (valid_from, currency, unit, input_rate, output_rate, cache_read_rate, cache_write_rate, any_rate, provider_id, model_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO price_rows (valid_from, currency, unit, input_rate, output_rate, cache_read_rate, cache_write_rate, any_rate, provider_id, model_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO price_rows (valid_from, currency, unit, input_rate, output_rate, cache_read_rate, cache_write_rate, any_rate, provider_id, model_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: RELEASE SAVEPOINT DOCTRINE_2
+[debug] Committing transaction
+[debug] Executing query: SELECT id, code FROM providers
+[debug] Executing query: SELECT m.id AS id, p.code AS provider_code, m.code AS model_code
+                 FROM models m
+                 JOIN providers p ON p.id = m.provider_id
+[debug] Beginning transaction
+[debug] Executing statement: INSERT INTO usage_events (provider_id, provider_request_id, model_id, "user", ts, tokens_input, tokens_output, tokens_cache_read, tokens_cache_write, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (provider_id, provider_request_id) DO NOTHING (parameters: [array], types: [array])
+[debug] Committing transaction
+[debug] Beginning transaction
+[debug] Executing statement: SELECT u0_.id AS id_0, u0_.provider_request_id AS provider_request_id_1, u0_.user AS user_2, u0_.ts AS ts_3, u0_.tokens_input AS tokens_input_4, u0_.tokens_output AS tokens_output_5, u0_.tokens_cache_read AS tokens_cache_read_6, u0_.tokens_cache_write AS tokens_cache_write_7, u0_.status AS status_8, u0_.cost AS cost_9, u0_.rated_at AS rated_at_10, u0_.created_at AS created_at_11, u0_.provider_id AS provider_id_12, u0_.model_id AS model_id_13, u0_.price_row_id AS price_row_id_14 FROM usage_events u0_ WHERE u0_.status = ? OR u0_.status = ? ORDER BY u0_.id ASC (parameters: [array], types: [array])
+[debug] Executing statement: SELECT p0_.id AS id_0, p0_.valid_from AS valid_from_1, p0_.currency AS currency_2, p0_.unit AS unit_3, p0_.input_rate AS input_rate_4, p0_.output_rate AS output_rate_5, p0_.cache_read_rate AS cache_read_rate_6, p0_.cache_write_rate AS cache_write_rate_7, p0_.any_rate AS any_rate_8, p0_.provider_id AS provider_id_9, p0_.model_id AS model_id_10 FROM price_rows p0_ WHERE p0_.provider_id = ? AND p0_.model_id = ? (parameters: [array], types: [array])
+[debug] Executing statement: SELECT p0_.id AS id_0, p0_.valid_from AS valid_from_1, p0_.currency AS currency_2, p0_.unit AS unit_3, p0_.input_rate AS input_rate_4, p0_.output_rate AS output_rate_5, p0_.cache_read_rate AS cache_read_rate_6, p0_.cache_write_rate AS cache_write_rate_7, p0_.any_rate AS any_rate_8, p0_.provider_id AS provider_id_9, p0_.model_id AS model_id_10 FROM price_rows p0_ WHERE p0_.provider_id = ? AND p0_.model_id = ? (parameters: [array], types: [array])
+[debug] Executing statement: SAVEPOINT DOCTRINE_2
+[debug] Executing statement: UPDATE usage_events SET status = ?, cost = ?, rated_at = ?, price_row_id = ? WHERE id = ? (parameters: [array], types: [array])
+[debug] Executing statement: UPDATE usage_events SET status = ?, cost = ?, rated_at = ?, price_row_id = ? WHERE id = ? (parameters: [array], types: [array])
+[debug] Executing statement: UPDATE usage_events SET status = ?, cost = ?, rated_at = ?, price_row_id = ? WHERE id = ? (parameters: [array], types: [array])
+[debug] Executing statement: RELEASE SAVEPOINT DOCTRINE_2
+[debug] Committing transaction
+[debug] Beginning transaction
+[debug] Executing statement: SAVEPOINT DOCTRINE_2
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_start_minutes AS off_peak_start_minutes_4, t0.off_peak_end_minutes AS off_peak_end_minutes_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_start_minutes AS off_peak_start_minutes_4, t0.off_peak_end_minutes AS off_peak_end_minutes_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider_id AS provider_id_3 FROM models t0 WHERE t0.provider_id = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.input_rate AS input_rate_5, t0.output_rate AS output_rate_6, t0.cache_read_rate AS cache_read_rate_7, t0.cache_write_rate AS cache_write_rate_8, t0.any_rate AS any_rate_9, t0.provider_id AS provider_id_10, t0.model_id AS model_id_11 FROM price_rows t0 WHERE t0.provider_id = ? AND t0.model_id = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SAVEPOINT DOCTRINE_3
+[debug] Executing statement: UPDATE price_rows SET input_rate = ?, output_rate = ?, cache_read_rate = ?, cache_write_rate = ? WHERE id = ? (parameters: [array], types: [array])
+[debug] Executing statement: RELEASE SAVEPOINT DOCTRINE_3
+[debug] Executing statement: RELEASE SAVEPOINT DOCTRINE_2
+[debug] Executing statement: SELECT id FROM usage_events WHERE status = ? AND price_row_id IN (?) ORDER BY id ASC (parameters: [array], types: [array])
+[debug] Executing statement: SAVEPOINT DOCTRINE_2
+[debug] Executing statement: INSERT INTO price_corrections (old_cost, new_cost, created_at, usage_event_id, price_row_id) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: UPDATE usage_events SET cost = ? WHERE id = ? (parameters: [array], types: [array])
+[debug] Executing statement: RELEASE SAVEPOINT DOCTRINE_2
+[debug] Committing transaction
+[debug] Executing query: SELECT COUNT(p0_.id) AS sclr_0 FROM price_corrections p0_
+[debug] Executing statement: SELECT u0_.cost AS cost_0 FROM usage_events u0_ WHERE u0_.provider_request_id = ? (parameters: [array], types: [array])
+[debug] Executing statement: SELECT u0_.cost AS cost_0 FROM usage_events u0_ WHERE u0_.provider_request_id = ? (parameters: [array], types: [array])
+[info] Disconnecting

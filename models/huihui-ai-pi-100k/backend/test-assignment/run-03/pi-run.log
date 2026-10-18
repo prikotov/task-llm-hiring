@@ -1,0 +1,25 @@
+Готово. Задание полностью выполнено и проверено на чистой базе.
+
+## Итог
+
+**Команды** (все через `bin/console`, stdout — только данные, stderr — служебные):
+- `app:prices:import` — идемпотентный upsert (провайдеры / модели / строки цен)
+- `app:usage:import` — дедупликация по `(provider, provider_request_id)`, дубли игнорируются
+- `app:billing:rate` — stdout строго `RATED=<n> UNRATED=<m>`, unrated в stderr по формату задания, повторные попытки unrated при каждом запуске
+- `app:billing:report [--from/--to]` — CSV байт-в-байт как в TASK.md (проверено `diff` + сравнение строкой), полуинтервал `[from, to)`
+- `app:billing:reprice` (бонус) — upsert исправленных строк + пересчёт связанных событий, stdout ровно `REPRICED_EVENTS=<n>` / `REPRICE_DELTA_USD=<x.xxxxxx>`; повторный reprice даёт дельту `0.000000`, отчёт без задвоений
+
+**Ключевые моменты реализации:**
+- деньги — только bcmath (масштаб 16), float исключён; HALF_UP-округление ровно одно — на событии; отчёт суммирует уже округлённые
+- цены — наибольшее `valid_from <= ts`; оф-пик `[start, end)` с множителем, в т.ч. через полночь (краи окна покрыты тестами и проверкой в БД)
+- schema — миграция `src/Persistence/Migration/...` + `doctrine:schema:validate` [OK]; уникальные индексы закрепляют идемпотентность на уровне БД
+- 45 PHPUnit-тестов (`make test` — зелёная)
+
+**Финальная приёмка** (свежий `make db-up` + `make migrate`): импорт×2, rate, повторный rate, report — все 5 пунктов TASK.md зелёные; `RATED=3 UNRATED=0` → `RATED=0 UNRATED=0`; репорт совпадает с эталоном.
+
+**Полезные находки, зафиксированные в `PR_DESCRIPTION.md`:**
+- отступление в каркасе: `config/services.yaml` + `doctrine_migrations.yaml` (namespace миграций в автозагружаемый `App\`) — обосновано
+- README дополнен разделом «Команды» (обосновано в PR)
+- зависимости не добавлял
+
+**Файлы для отчёта** созданы в корне: `COMMIT_MESSAGE.md`, `PR_DESCRIPTION.md` (решения, допущения, отклонения, скрипт проверки).

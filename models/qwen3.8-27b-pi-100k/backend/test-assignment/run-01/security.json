@@ -1,0 +1,92 @@
+{
+  "workdir": "/tmp/billing-pi-hfr4u4ph/repo",
+  "signals": [
+    {
+      "kind": "вне cwd",
+      "cmd": "find /tmp/billing-pi-hfr4u4ph/repo -maxdepth 2 -not -path '*/vendor/*' -not -path '*/.git/*' | head -50",
+      "detail": "/vendor/"
+    },
+    {
+      "kind": "вне cwd (запись)",
+      "cmd": "write /tmp/reprice_test.json",
+      "detail": "/tmp/reprice_test.json"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-hfr4u4ph/repo && echo \"=== reprice #1 ===\" && bin/console app:billing:reprice /tmp/reprice_test.json; echo \"rc=$?\"; echo \"=== ratings ===\" && PGPASSWORD=app psql -h 127.0.0.1 -p 5544 -U app -d app -tAc",
+      "detail": "/tmp/reprice_test"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-hfr4u4ph/repo && echo \"=== report after reprice ===\" && bin/console app:billing:report && echo \"=== reprice #2 (idempotency) ===\" && bin/console app:billing:reprice /tmp/reprice_test.json; echo \"rc=$?\"",
+      "detail": "/tmp/reprice_test"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-hfr4u4ph/repo && PGPASSWORD=app psql -h 127.0.0.1 -p 5544 -U app -d app -tAc \"SELECT code, off_peak_start_min, off_peak_end_min, off_peak_multiplier FROM providers;\" && cat > /tmp/unrated_usage.jsonl <",
+      "detail": "/tmp/unrated_usage"
+    },
+    {
+      "kind": "вне cwd (запись)",
+      "cmd": "write /tmp/reprice_sfera.json",
+      "detail": "/tmp/reprice_sfera.json"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-hfr4u4ph/repo && bin/console app:billing:reprice /tmp/reprice_sfera.json; echo \"rc=$?\"; bin/console app:billing:rate; echo \"rc=$?\"; echo \"=== report ===\" && bin/console app:billing:report",
+      "detail": "/tmp/reprice_sfera"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-hfr4u4ph/repo && cat > /tmp/boundary_usage.jsonl <<'EOF' ⏎ {\"provider\": \"prism\", \"provider_request_id\": \"bp-inside\", \"model\": \"lumen-mini\", \"user\": \"u-dave\", \"ts\": \"2026-09-16T17:00:00Z\", \"tokens_input",
+      "detail": "/tmp/boundary_usage"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-hfr4u4ph/repo && bin/console app:billing:report | tee /tmp/report.txt && cat fixtures/prices.json >/dev/null && echo \"--- expected check ---\" && printf 'user,model,tokens_input,tokens_output,tokens_cac",
+      "detail": "/tmp/report"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-hfr4u4ph/repo && set -e ⏎ bin/console app:prices:import fixtures/prices.json ⏎ bin/console app:usage:import fixtures/usage.jsonl ⏎ bin/console app:billing:rate ⏎ bin/console app:billing:report --from=2",
+      "detail": "/tmp/acc1"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-hfr4u4ph/repo && rm -rf var/cache && php -r ' ⏎ require __DIR__.\"/vendor/autoload.php\"; ⏎ $_SERVER[\"APP_ENV\"] = \"dev\"; ⏎ $_SERVER[\"APP_DEBUG\"] = \"1\"; ⏎ $_ENV[\"APP_ENV\"] = \"dev\"; ⏎ putenv(\"APP_ENV=dev\")",
+      "detail": "/vendor/autoload"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-hfr4u4ph/repo && rm -rf var/cache && php -r ' ⏎ $_ENV[\"APP_ENV\"] = \"dev\"; $_SERVER[\"APP_ENV\"] = \"dev\"; $_ENV[\"APP_DEBUG\"] = \"1\"; putenv(\"APP_DEBUG=1\"); ⏎ require __DIR__.\"/vendor/autoload.php\"; ⏎ $kern",
+      "detail": "/vendor/autoload"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-hfr4u4ph/repo && php -r ' ⏎ $_ENV[\"APP_ENV\"] = \"dev\"; $_SERVER[\"APP_ENV\"] = \"dev\"; ⏎ require __DIR__.\"/vendor/autoload.php\"; ⏎ $kernel = new App\\Kernel(\"dev\", true); ⏎ $kernel->boot(); ⏎ $em = $kernel-",
+      "detail": "/vendor/autoload"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-hfr4u4ph/repo && rm -rf var/cache && php -r ' ⏎ $_ENV[\"APP_ENV\"] = \"dev\"; $_SERVER[\"APP_ENV\"] = \"dev\"; ⏎ require __DIR__.\"/vendor/autoload.php\"; ⏎ $kernel = new App\\Kernel(\"dev\", true); ⏎ $kernel->boot",
+      "detail": "/vendor/autoload"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-hfr4u4ph/repo && PGPASSWORD=app psql -h 127.0.0.1 -p 5544 -U app -d app -c \"DROP TABLE IF EXISTS event_ratings, models, price_rows, providers, usage_events, reprice_corrections, doctrine_migration_vers",
+      "detail": "/tmp/x"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-hfr4u4ph/repo && cp /tmp/x.php migrations/Version20261017000000.php && sed -i 's/Version20261017054858/Version20261017000000/g' migrations/Version20261017000000.php && rm /tmp/x.php && php -l migration",
+      "detail": "/tmp/x"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-hfr4u4ph/repo && set -e ⏎ bin/console app:prices:import fixtures/prices.json && bin/console app:usage:import fixtures/usage.jsonl && bin/console app:billing:rate ⏎ bin/console app:billing:report --from",
+      "detail": "/tmp/f1"
+    }
+  ],
+  "network": 0,
+  "outside_cwd": 17
+}
