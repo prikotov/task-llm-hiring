@@ -351,6 +351,11 @@ tr.top td{background:#eef6ef}
 .provchip{display:inline-block;margin-top:2px;padding:0 5px;border-radius:7px;
           background:#eef0f4;color:#46536a;font-size:10.5px;font-weight:600;
           line-height:15px;cursor:help;white-space:nowrap}
+.dchip{display:inline-block;margin:1px 2px 1px 0;padding:0 5px;border-radius:7px;
+       background:#eef1f6;color:#315f9e;font-size:10.5px;font-weight:600;
+       line-height:15px;white-space:nowrap}
+.strun{white-space:nowrap;margin:1px 0}
+.strun .rno{display:inline-block;min-width:22px;color:var(--mut);font-size:11px;font-weight:600}
 .deadmark:hover::after,.okmark:hover::after{content:attr(data-tip);position:absolute;
            bottom:calc(100% + 7px);
            left:50%;transform:translateX(-50%);background:#2a3342;color:#fff;
@@ -1303,6 +1308,189 @@ def think_dumbbell(data: list[dict]):
                     ref_lines=((11, "обязательные 11"), (13, "полный зачёт 13")))
 
 
+def structure_scan(data: list[dict]) -> list[dict]:
+    """Слепки структуры src/ и tests/ по живым прогонам с решением.
+
+    Каркас даёт только src/Kernel.php и пустой tests/, а TASK.md структуру
+    не задаёт («Архитектура, разбиение на слои/модули, именование — на ваше
+    усмотрение»), значит каждый каталог решения — выбор модели. Прогоны
+    вне метрик, включая не написавшие решение, — вне анализа, как во всех
+    метриках разделов 1–6."""
+    out = []
+    for r in data:
+        if r["dead"]:
+            continue
+        sol = ROOT / "models" / r["folder"] / "backend" / "test-assignment" / r["run"] / "solution"
+        src, tests = sol / "src", sol / "tests"
+        if not src.is_dir():
+            continue
+        if sum(1 for _ in src.rglob("*.php")) <= 1:   # скелет нетронут: Kernel.php
+            continue
+        top = sorted((p.name for p in src.iterdir() if p.is_dir()), key=str.lower)
+        dirs = {p.relative_to(src).as_posix() for p in src.rglob("*") if p.is_dir()}
+        tdirs: set[str] = set()
+        ntf = 0
+        if tests.is_dir():
+            tdirs = {p.relative_to(tests).as_posix() for p in tests.rglob("*") if p.is_dir()}
+            ntf = sum(1 for _ in tests.rglob("*.php"))
+        out.append({**r, "top": top, "dirs": dirs, "tdirs": tdirs, "ntf": ntf})
+    return out
+
+
+def _jaccard(a, b) -> float:
+    """Пересечение наборов по объединению, 0–1."""
+    A, B = set(a), set(b)
+    return len(A & B) / len(A | B) if A | B else 1.0
+
+
+def structure_section(data: list[dict]) -> str:
+    """Анализ структуры хранения кода src/ и tests/: общий знаменатель
+    (частоты каталогов), слепки верхнего уровня по прогонам и постоянство
+    структуры внутри модели против типичности между моделями (аналог
+    постоянства ответов в отчёте интервью)."""
+    import statistics as st
+    from collections import Counter
+    from itertools import combinations
+
+    runs = structure_scan(data)
+    if not runs:
+        return ""
+    n = len(runs)
+    low = lambda names: [x.lower() for x in names]  # noqa: E731  (Ui/UI, Util/util)
+
+    by_f: dict[str, list[dict]] = {}
+    for r in runs:
+        by_f.setdefault(r["folder"], []).append(r)
+
+    def pair_jac(rs):
+        return [(_jaccard(low(a["top"]), low(b["top"])), _jaccard(a["dirs"], b["dirs"]))
+                for a, b in combinations(rs, 2)]
+
+    within = [pj for rs in by_f.values() for pj in pair_jac(rs)]
+    between = [( _jaccard(low(a["top"]), low(b["top"])), _jaccard(a["dirs"], b["dirs"]))
+               for a, b in combinations(runs, 2) if a["folder"] != b["folder"]]
+    w_top = st.mean(p[0] for p in within)
+    w_all = st.mean(p[1] for p in within)
+    b_top = st.mean(p[0] for p in between)
+    b_all = st.mean(p[1] for p in between)
+
+    # общий знаменатель: частоты каталогов верхнего уровня
+    freq = Counter(x for r in runs for x in low(r["top"]))
+    items = freq.most_common(10)
+    W, row_h, ML, MR = 640, 23, 150, 24
+    H = len(items) * row_h + 30
+    PW = W - ML - MR
+    vmax = items[0][1]
+    svg = []
+    for t in range(5, vmax + 1, 5):
+        x = ML + t / vmax * PW
+        svg.append(f'<line x1={x:.0f} y1=0 x2={x:.0f} y2={H - 24} stroke="#e4e7ec"/>'
+                   f'<text x={x:.0f} y={H - 8} text-anchor=middle font-size=11.5 fill=#66707f>{t}</text>')
+    for i, (name, cnt) in enumerate(items):
+        y = i * row_h + 3
+        bw = max(3, cnt / vmax * PW)
+        svg.append(f'<text x={ML - 10} y={y + 13} text-anchor=end font-size=12.5 fill=#1d2433>{name}</text>'
+                   f'<rect x={ML} y={y} width={bw:.0f} height=15 rx=4 fill="#315f9e" fill-opacity="0.75"/>'
+                   f'<text x={ML + bw + 7:.0f} y={y + 12} font-size=12 font-weight=600 fill=#1d2433>{cnt}</text>')
+    rest = freq.most_common()[10:]
+    rest2 = " · ".join(f"{k} {v}" for k, v in rest if v >= 2)
+    rest1 = " · ".join(k for k, v in rest if v == 1)
+
+    # строки таблицы: модели с 2+ прогонами — по убыванию постоянства,
+    # однопрогонные — после, в порядке групп раздела 7
+    def sort_key(item):
+        folder, rs = item
+        pj = pair_jac(rs)
+        jt = st.mean(p[0] for p in pj) if pj else -1.0
+        gi, pi = run_group_of(folder)
+        return (0 if len(rs) > 1 else 1, -jt, gi, pi)
+
+    trs = []
+    for folder, rs in sorted(by_f.items(), key=sort_key):
+        rs = sorted(rs, key=lambda r: r["run"])
+        n_r = len(rs)
+        pj = pair_jac(rs)
+        j_top = st.mean(p[0] for p in pj) if pj else None
+        j_all = st.mean(p[1] for p in pj) if pj else None
+        # одинаковые наборы каталогов схлопываем: 01+03 перед чипами
+        sigs: list[tuple[frozenset, list[dict]]] = []
+        for r in rs:
+            sig = frozenset(low(r["top"]))
+            if sigs and sigs[-1][0] == sig:
+                sigs[-1][1].append(r)
+            else:
+                sigs.append((sig, [r]))
+        runs_html = "".join(
+            f'<div class=strun><span class=rno>{"+".join(g["run"].removeprefix("run-") for g in grp)}</span>'
+            + "".join(f'<span class=dchip>{x}</span>' for x in grp[0]["top"]) + "</div>"
+            for _, grp in sigs)
+        if j_top is None:
+            const = '<span class=sub>один прогон</span>'
+        else:
+            hue = "#2f7d54" if j_top >= 0.7 else "#315f9e" if j_top >= 0.4 else "#b3543f"
+            const = (f'<span title="Средний Jaccard наборов каталогов верхнего уровня '
+                     f'между парами прогонов модели (0–1). По полным путям: {j_all:.2f}." '
+                     f'style="cursor:help"><div class="barwrap s">'
+                     f'<div class=bar style="width:{max(3, j_top * 100):.0f}%;background:{hue}"></div>'
+                     f'<span>{j_top:.2f}</span></div></span>')
+        with_tests = [r for r in rs if r["ntf"]]
+        if not with_tests:
+            tcell = '<span class=sub>нет</span>'
+        else:
+            mir = sum(1 for r in with_tests if r["tdirs"] & r["dirs"])
+            if mir == len(with_tests):
+                detail = "зеркалит src/"
+            elif mir:
+                detail = f"зеркало src/ в {mir} из {len(with_tests)}"
+            else:
+                tops = sorted({x.split("/")[0] for r in with_tests for x in r["tdirs"]},
+                              key=str.lower)
+                detail = " · ".join(t + "/" for t in tops) if tops else "в корне tests/"
+            tcell = (f"{len(with_tests)} из {n_r}"
+                     f'<div class=sub style="white-space:nowrap">{detail}</div>')
+        trs.append(f"<tr><td><b>{rs[0]['short']}</b></td><td>{runs_html}</td>"
+                   f'<td class=narrow>{const}</td><td class=narrow>{tcell}</td></tr>')
+
+    # полюса постоянства — по моделям с 2+ прогонами
+    rated = [(folder, st.mean(p[0] for p in pair_jac(rs)))
+             for folder, rs in by_f.items() if len(rs) > 1]
+    best = max(rated, key=lambda x: x[1])
+    worst = min(rated, key=lambda x: x[1])
+    sname = lambda f: next(r["short"] for r in runs if r["folder"] == f)  # noqa: E731
+    n_tests = sum(1 for r in runs if r["ntf"])
+    n_mir = sum(1 for r in runs if r["ntf"] and r["tdirs"] & r["dirs"])
+
+    return (f'<h3>Структура кода: src/ и tests/</h3>'
+            f'<p class=lead>Каркас не подсказывает устройство кода — скелет это src/Kernel.php '
+            f'и пустой tests/, а TASK.md отдаёт архитектуру кандидату: «на ваше усмотрение '
+            f'(это предмет оценки)». Раскладка src/ — чистый датчик врождённых предпочтений: '
+            f'{n} живых прогонов {len(by_f)} моделей, и каждый каталог в решении — выбор модели.</p>'
+            f'<p class=excap>Общий знаменатель — гибрид Symfony-конвенций и DDD: '
+            f'каталоги консольных команд, домена и сущностей есть у большинства, '
+            f'но полной единой раскладки нет ни у кого.</p>'
+            f'<svg width="{W}" height="{H}" viewBox="0 0 {W} {H}" style="max-width:100%">{"&#10;".join(svg)}</svg>'
+            f'<p class=sub>Каталоги верхнего уровня src/ — число прогонов из {n}, где каталог есть. '
+            + (f"Реже: {rest2}. " if rest2 else "")
+            + (f"По одному прогону: {rest1}." if rest1 else "")
+            + '</p>'
+            f'<p class=excap>Слепки по моделям и постоянство структуры</p>'
+            f'<div style="overflow-x:auto"><table><thead><tr><th>Модель</th>'
+            f'<th>Верхний уровень src/ по прогонам</th><th class=narrow>Постоян&shy;ство</th>'
+            f'<th class=narrow>tests/</th></tr></thead><tbody>{"".join(trs)}</tbody></table></div>'
+            f'<div class=note><b>Постоянство против типичности.</b> Мера — коэффициент Жаккара '
+            f'наборов каталогов (0 = не пересекаются, 1 = совпадают), усреднённый по парам '
+            f'прогонов. Внутри модели структура повторяется в среднем на {w_top:.2f} '
+            f'(по полным путям {w_all:.2f}), между разными моделями — только на {b_top:.2f} '
+            f'({b_all:.2f} по путям): постоянство вдвое выше типичности, структура кода — '
+            f'«почерк» модели. Полюса: {sname(best[0])} повторяет раскладку точнее всех '
+            f'({best[1]:.2f}), {sname(worst[0])} каждый прогон строит заново ({worst[1]:.2f}). '
+            f'Верхний уровень устойчивее глубины: по полным путям средние ниже — модели верны '
+            f'слою, но не деталям раскладки. tests/ пишут {n_tests} из {n} '
+            f'прогонов: {n_mir} зеркалят раскладку src/, остальные раскладывают '
+            f'по-своему (Unit/ и т.п.) или держат файлы в корне tests/. '
+            f'Прогоны вне метрик — вне анализа, как во всех метриках разделов 1–6.</div>')
+
+
 def quality_chart(data: list[dict]):
     """Нарушения phpcs/psalm/phpstan у полных зачётов."""
     src = [r for r in data
@@ -2126,6 +2314,7 @@ DeepSeek V4.1 Flash — через родной API; reasoning effort задаё
 
 <h2 id=results><span class=no>4.</span>Результаты моделей</h2>
 {results_table(DATA)}{quality_price_map(results_agg(DATA))}{quality_speed_map(results_agg(DATA))}{quality_triangle_map(results_agg(DATA))}
+{structure_section(DATA)}
 {_contam_note_results()}
 
 <h2 id=charts><span class=no>5.</span>Что показывают метрики</h2>
