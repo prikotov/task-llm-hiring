@@ -1,0 +1,165 @@
+<?php
+
+namespace App\Entity;
+
+use Doctrine\ORM\Mapping as ORM;
+
+#[ORM\Entity]
+#[ORM\Table(name: 'usage_events')]
+#[ORM\UniqueConstraint(name: 'unique_usage_event', columns: ['provider', 'provider_request_id'])]
+class UsageEvent
+{
+    #[ORM\Id]
+    #[ORM\GeneratedValue]
+    #[ORM\Column(type: 'integer')]
+    private ?int $id = null;
+
+    #[ORM\Column(type: 'string', length: 50)]
+    private string $provider;
+
+    #[ORM\Column(type: 'string', length: 100)]
+    private string $providerRequestId;
+
+    #[ORM\ManyToOne(targetEntity: Model::class)]
+    #[ORM\JoinColumn(nullable: false)]
+    private Model $model;
+
+    #[ORM\Column(type: 'string', length: 100)]
+    private string $user;
+
+    #[ORM\Column(type: 'datetime_immutable')]
+    private \DateTimeImmutable $ts;
+
+    #[ORM\Column(type: 'bigint')]
+    private int $tokensInput;
+
+    #[ORM\Column(type: 'bigint')]
+    private int $tokensOutput;
+
+    #[ORM\Column(type: 'bigint')]
+    private int $tokensCacheRead;
+
+    #[ORM\Column(type: 'bigint')]
+    private int $tokensCacheWrite;
+
+    #[ORM\Column(type: 'decimal', precision: 20, scale: 6, nullable: true)]
+    private ?string $costUsd = null;
+
+    #[ORM\Column(type: 'boolean')]
+    private bool $isRated = false;
+
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+
+    public function getProvider(): string
+    {
+        return $this->provider;
+    }
+
+    public function setProvider(string $provider): void
+    {
+        $this->provider = $provider;
+    }
+
+    public function getProviderRequestId(): string
+    {
+        return $this->providerRequestId;
+    }
+
+    public function setProviderRequestId(string $providerRequestId): void
+    {
+        $this->providerRequestId = $providerRequestId;
+    }
+
+    public function getModel(): Model
+    {
+        return $this->model;
+    }
+
+    public function setModel(Model $model): void
+    {
+        $this->model = $model;
+    }
+
+    public function getUser(): string
+    {
+        return $this->user;
+    }
+
+    public function setUser(string $user): void
+    {
+        $this->user = $user;
+    }
+
+    public function getTs(): \DateTimeImmutable
+    {
+        return $this->ts;
+    }
+
+    public function setTs(\DateTimeImmutable $ts): void
+    {
+        $this->ts = $ts;
+    }
+
+    public function getTokensInput(): int
+    {
+        return $this->tokensInput;
+    }
+
+    public function setTokensInput(int $tokensInput): void
+    {
+        $this->tokensInput = $tokensInput;
+    }
+
+    public function getTokensOutput(): int
+    {
+        return $this->tokensOutput;
+    }
+
+    public function setTokensOutput(int $tokensOutput): void
+    {
+        $this->tokensOutput = $tokensOutput;
+    }
+
+    public function getTokensCacheRead(): int
+    {
+        return $this->tokensCacheRead;
+    }
+
+    public function setTokensCacheRead(int $tokensCacheRead): void
+    {
+        $this->tokensCacheRead = $tokensCacheRead;
+    }
+
+    public function getTokensCacheWrite(): int
+    {
+        return $this->tokensCacheWrite;
+    }
+
+    public function setTokensCacheWrite(int $tokensCacheWrite): void
+    {
+        $this->tokensCacheWrite = $tokensCacheWrite;
+    }
+
+    public function getCostUsd(): ?string
+    {
+        return $this->costUsd;
+    }
+
+    public function setCostUsd(?string $costUsd): void
+    {
+        $this->costUsd = $costUsd;
+    }
+
+    public function isRated(): bool
+    {
+        return $this->isRated;
+    }
+
+    public function setIsRated(bool $isRated): void
+    {
+        $this->isRated = $isRated;
+    }
+}

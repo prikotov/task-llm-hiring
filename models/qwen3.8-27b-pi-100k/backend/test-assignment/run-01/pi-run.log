@@ -1,0 +1,25 @@
+Всё готово. Итоги финального раунда:
+
+## Найден и исправлен существенный баг
+В Doctrine ORM 3.7 уникальные ограничения, заявленные внутри `#[ORM\Table(uniqueConstraints: …)]`, **тихо игнорируются** (депрекейшн: «does not have any effect», см. `vendor/doctrine/orm/src/Mapping/Table.php`). Схема ранее создавалась **без единого уникального ограничения** — естественные клавиши не защищались на уровне БД.
+
+Исправление: перевёл все ограничения на поддерживаемый в ORM 3.7 синтаксис — класс-атрибуты `#[ORM\UniqueConstraint]` / `#[ORM\Index]` (4 сущности: `Model`, `PriceRow`, `UsageEvent`, `EventRating`), перегенерировал миграцию. Теперь в схеме реально есть:
+- `uq_models_provider_code (provider_code, code)`
+- `uq_price_rows_model_valid_from (model_id, valid_from)`
+- `uq_usage_events_provider_request (provider_code, provider_request_id)`
+- `uq_event_ratings_event (event_id)` + полезные индексы
+
+Проверил принуждение прямо в БД: дубликат `('a','b')` в `models` → `duplicate key value violates unique constraint "uq_models_provider_code"` ✓
+
+## Повторная полная приёмка (после исправления)
+- `make migrate` на чистой базе → `doctrine:schema:validate`: **[OK] in sync** (теперь и ограничения согласованы с метаданными)
+- `app:prices:import` → `app:usage:import` → `app:billing:rate` (`RATED=3 UNRATED=0`)
+- `app:billing:report --from=… --to=…` — **совпадает с примером из TASK.md байт-в-байт** (diff пуст)
+- повторный импорт + rate + report — результат не изменился (дублей 3, принято 0)
+- бонус `app:billing:reprice`: коррекция → `REPRICED_EVENTS=1 / REPRICE_DELTA_USD=0.240000`, 1 строка аудита, повторный прогон — дельта `0.000000`, дублей аудита нет
+- `make test`: **OK (34 tests, 72 assertions)**; все `.php` — `php -l` чисто
+
+## Финальное состояние
+- БД: 2 провайдера, 3 модели, 4 строки цен, 3 события, 3 расчёта, 0 коррекций — чистое состояние «после приёмки»
+- В корне созданы `COMMIT_MESSAGE.md` и `PR_DESCRIPTION.md` (на русском): состав PR, архитектура, ключевые решения (точные деньги/decimals через bcmath, UTC-only, HALF_UP до 6 знаков, unrated-политика, оф-пик), проверенные граничные случаи, шаги воспроизведения; единственное отступление — русские однострочные сводки импортов (вывод не задан ТЗ обязательным форматом; все предписанные форматы вывода выполнены точно)
+- Каркас (TASK.md/AGENTS.md/README.md, `composer.json|lock`, `docker-compose.yml`, `Makefile`, `config/`, `fixtures/`, `phpunit.xml.dist`, `bin/console`) — без изменений; новых зависимостей нет

@@ -1,0 +1,899 @@
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/migrations/Version20261020122132.php /tmp/billing-pi-z0l3borg/repo/migrations/Version20261020122132.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/migrations/Version20261020122132.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-z0l3borg/repo/migrations/Version20261020122132.php	2026-10-20 19:21:32.940852758 +0700
+@@ -0,0 +1,142 @@
++<?php
++
++declare(strict_types=1);
++
++namespace DoctrineMigrations;
++
++use Doctrine\DBAL\Schema\Schema;
++use Doctrine\Migrations\AbstractMigration;
++
++/**
++ * Auto-generated Migration: Please modify to your needs!
++ */
++final class Version20261020122132 extends AbstractMigration
++{
++    public function getDescription(): string
++    {
++        return '';
++    }
++
++    public function up(Schema $schema): void
++    {
++        // this up() migration is auto-generated, please modify it to your needs
++        $this->addSql('CREATE TABLE usage_records (provider_code VARCHAR(255) NOT NULL, provider_request_id VARCHAR(255) NOT NULL, status VARCHAR(255) NOT NULL, cost NUMERIC(20, 6) DEFAULT NULL, PRIMARY KEY (provider_code, provider_request_id))');
++        $this->addSql('CREATE INDEX rec_lookup ON usage_records (provider_code, provider_request_id)');
++        $this->addSql('ALTER TABLE models DROP CONSTRAINT fk_e4d63009a53a8aa');
++        $this->addSql('ALTER TABLE models DROP CONSTRAINT models_pkey');
++        $this->addSql('DROP INDEX uniq_model');
++        $this->addSql('DROP INDEX idx_e4d63009a53a8aa');
++        $this->addSql('ALTER TABLE models ADD provider_code VARCHAR(255) NOT NULL');
++        $this->addSql('ALTER TABLE models ADD name VARCHAR(255) NOT NULL');
++        $this->addSql('ALTER TABLE models DROP id');
++        $this->addSql('ALTER TABLE models DROP provider_id');
++        $this->addSql('CREATE INDEX model_uid ON models (provider_code, code)');
++        $this->addSql('ALTER TABLE models ADD PRIMARY KEY (provider_code, code)');
++        $this->addSql('ALTER TABLE price_rows DROP CONSTRAINT fk_77d9061ba53a8aa');
++        $this->addSql('ALTER TABLE price_rows DROP CONSTRAINT fk_77d9061b7975b7e7');
++        $this->addSql('DROP INDEX idx_77d9061ba53a8aa');
++        $this->addSql('ALTER TABLE price_rows DROP CONSTRAINT price_rows_pkey');
++        $this->addSql('DROP INDEX uniq_price_row');
++        $this->addSql('DROP INDEX idx_77d9061b7975b7e7');
++        $this->addSql('ALTER TABLE price_rows ADD provider_code VARCHAR(255) NOT NULL');
++        $this->addSql('ALTER TABLE price_rows ADD model_code VARCHAR(255) NOT NULL');
++        $this->addSql('ALTER TABLE price_rows ADD rates JSON NOT NULL');
++        $this->addSql('ALTER TABLE price_rows DROP id');
++        $this->addSql('ALTER TABLE price_rows DROP rate_input');
++        $this->addSql('ALTER TABLE price_rows DROP rate_output');
++        $this->addSql('ALTER TABLE price_rows DROP rate_cache_read');
++        $this->addSql('ALTER TABLE price_rows DROP rate_cache_write');
++        $this->addSql('ALTER TABLE price_rows DROP rate_any');
++        $this->addSql('ALTER TABLE price_rows DROP provider_id');
++        $this->addSql('ALTER TABLE price_rows DROP model_id');
++        $this->addSql('CREATE INDEX price_lookup ON price_rows (provider_code, model_code, valid_from)');
++        $this->addSql('ALTER TABLE price_rows ADD PRIMARY KEY (provider_code, model_code, valid_from)');
++        $this->addSql('ALTER TABLE providers DROP CONSTRAINT providers_pkey');
++        $this->addSql('DROP INDEX uniq_provider_code');
++        $this->addSql('ALTER TABLE providers ADD window_start VARCHAR(255) DEFAULT NULL');
++        $this->addSql('ALTER TABLE providers ADD window_end VARCHAR(255) DEFAULT NULL');
++        $this->addSql('ALTER TABLE providers DROP id');
++        $this->addSql('ALTER TABLE providers DROP off_peak_start');
++        $this->addSql('ALTER TABLE providers DROP off_peak_end');
++        $this->addSql('ALTER TABLE providers ALTER off_peak_multiplier TYPE NUMERIC(10, 6)');
++        $this->addSql('ALTER TABLE providers ADD PRIMARY KEY (code)');
++        $this->addSql('ALTER TABLE usage_events DROP CONSTRAINT usage_events_pkey');
++        $this->addSql('DROP INDEX uniq_usage_event');
++        $this->addSql('ALTER TABLE usage_events ADD provider_code VARCHAR(255) NOT NULL');
++        $this->addSql('ALTER TABLE usage_events ADD model_code VARCHAR(255) NOT NULL');
++        $this->addSql('ALTER TABLE usage_events DROP id');
++        $this->addSql('ALTER TABLE usage_events DROP provider_id');
++        $this->addSql('ALTER TABLE usage_events DROP model');
++        $this->addSql('ALTER TABLE usage_events DROP rated');
++        $this->addSql('ALTER TABLE usage_events DROP cost_usd');
++        $this->addSql('ALTER TABLE usage_events DROP price_row_id');
++        $this->addSql('ALTER TABLE usage_events ALTER tokens_input TYPE INT');
++        $this->addSql('ALTER TABLE usage_events ALTER tokens_output TYPE INT');
++        $this->addSql('ALTER TABLE usage_events ALTER tokens_cache_read TYPE INT');
++        $this->addSql('ALTER TABLE usage_events ALTER tokens_cache_write TYPE INT');
++        $this->addSql('ALTER TABLE usage_events RENAME COLUMN ts TO event_ts');
++        $this->addSql('CREATE INDEX ev_user_ts ON usage_events ("user", event_ts)');
++        $this->addSql('ALTER TABLE usage_events ADD PRIMARY KEY (provider_code, provider_request_id)');
++    }
++
++    public function down(Schema $schema): void
++    {
++        // this down() migration is auto-generated, please modify it to your needs
++        $this->addSql('DROP TABLE usage_records');
++        $this->addSql('ALTER TABLE models DROP CONSTRAINT models_pkey');
++        $this->addSql('DROP INDEX model_uid');
++        $this->addSql('ALTER TABLE models ADD id INT GENERATED BY DEFAULT AS IDENTITY NOT NULL');
++        $this->addSql('ALTER TABLE models ADD provider_id INT NOT NULL');
++        $this->addSql('ALTER TABLE models DROP provider_code');
++        $this->addSql('ALTER TABLE models DROP name');
++        $this->addSql('ALTER TABLE models ADD CONSTRAINT fk_e4d63009a53a8aa FOREIGN KEY (provider_id) REFERENCES providers (id) NOT DEFERRABLE INITIALLY IMMEDIATE');
++        $this->addSql('CREATE UNIQUE INDEX uniq_model ON models (provider_id, code)');
++        $this->addSql('CREATE INDEX idx_e4d63009a53a8aa ON models (provider_id)');
++        $this->addSql('ALTER TABLE models ADD PRIMARY KEY (id)');
++        $this->addSql('ALTER TABLE price_rows DROP CONSTRAINT price_rows_pkey');
++        $this->addSql('DROP INDEX price_lookup');
++        $this->addSql('ALTER TABLE price_rows ADD id INT GENERATED BY DEFAULT AS IDENTITY NOT NULL');
++        $this->addSql('ALTER TABLE price_rows ADD rate_input NUMERIC(20, 6) DEFAULT NULL');
++        $this->addSql('ALTER TABLE price_rows ADD rate_output NUMERIC(20, 6) DEFAULT NULL');
++        $this->addSql('ALTER TABLE price_rows ADD rate_cache_read NUMERIC(20, 6) DEFAULT NULL');
++        $this->addSql('ALTER TABLE price_rows ADD rate_cache_write NUMERIC(20, 6) DEFAULT NULL');
++        $this->addSql('ALTER TABLE price_rows ADD rate_any NUMERIC(20, 6) DEFAULT NULL');
++        $this->addSql('ALTER TABLE price_rows ADD provider_id INT NOT NULL');
++        $this->addSql('ALTER TABLE price_rows ADD model_id INT NOT NULL');
++        $this->addSql('ALTER TABLE price_rows DROP provider_code');
++        $this->addSql('ALTER TABLE price_rows DROP model_code');
++        $this->addSql('ALTER TABLE price_rows DROP rates');
++        $this->addSql('ALTER TABLE price_rows ADD CONSTRAINT fk_77d9061ba53a8aa FOREIGN KEY (provider_id) REFERENCES providers (id) NOT DEFERRABLE INITIALLY IMMEDIATE');
++        $this->addSql('ALTER TABLE price_rows ADD CONSTRAINT fk_77d9061b7975b7e7 FOREIGN KEY (model_id) REFERENCES models (id) NOT DEFERRABLE INITIALLY IMMEDIATE');
++        $this->addSql('CREATE INDEX idx_77d9061ba53a8aa ON price_rows (provider_id)');
++        $this->addSql('CREATE UNIQUE INDEX uniq_price_row ON price_rows (provider_id, model_id, valid_from)');
++        $this->addSql('CREATE INDEX idx_77d9061b7975b7e7 ON price_rows (model_id)');
++        $this->addSql('ALTER TABLE price_rows ADD PRIMARY KEY (id)');
++        $this->addSql('ALTER TABLE providers DROP CONSTRAINT providers_pkey');
++        $this->addSql('ALTER TABLE providers ADD id INT GENERATED BY DEFAULT AS IDENTITY NOT NULL');
++        $this->addSql('ALTER TABLE providers ADD off_peak_start VARCHAR(255) DEFAULT NULL');
++        $this->addSql('ALTER TABLE providers ADD off_peak_end VARCHAR(255) DEFAULT NULL');
++        $this->addSql('ALTER TABLE providers DROP window_start');
++        $this->addSql('ALTER TABLE providers DROP window_end');
++        $this->addSql('ALTER TABLE providers ALTER off_peak_multiplier TYPE NUMERIC(20, 6)');
++        $this->addSql('CREATE UNIQUE INDEX uniq_provider_code ON providers (code)');
++        $this->addSql('ALTER TABLE providers ADD PRIMARY KEY (id)');
++        $this->addSql('ALTER TABLE usage_events DROP CONSTRAINT usage_events_pkey');
++        $this->addSql('DROP INDEX ev_user_ts');
++        $this->addSql('ALTER TABLE usage_events ADD id INT GENERATED BY DEFAULT AS IDENTITY NOT NULL');
++        $this->addSql('ALTER TABLE usage_events ADD provider_id VARCHAR(255) NOT NULL');
++        $this->addSql('ALTER TABLE usage_events ADD model VARCHAR(255) NOT NULL');
++        $this->addSql('ALTER TABLE usage_events ADD rated BOOLEAN NOT NULL');
++        $this->addSql('ALTER TABLE usage_events ADD cost_usd NUMERIC(40, 6) DEFAULT NULL');
++        $this->addSql('ALTER TABLE usage_events ADD price_row_id INT DEFAULT NULL');
++        $this->addSql('ALTER TABLE usage_events DROP provider_code');
++        $this->addSql('ALTER TABLE usage_events DROP model_code');
++        $this->addSql('ALTER TABLE usage_events ALTER tokens_input TYPE BIGINT');
++        $this->addSql('ALTER TABLE usage_events ALTER tokens_output TYPE BIGINT');
++        $this->addSql('ALTER TABLE usage_events ALTER tokens_cache_read TYPE BIGINT');
++        $this->addSql('ALTER TABLE usage_events ALTER tokens_cache_write TYPE BIGINT');
++        $this->addSql('ALTER TABLE usage_events RENAME COLUMN event_ts TO ts');
++        $this->addSql('CREATE UNIQUE INDEX uniq_usage_event ON usage_events (provider_id, provider_request_id)');
++        $this->addSql('ALTER TABLE usage_events ADD PRIMARY KEY (id)');
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Model/ModelEntity.php /tmp/billing-pi-z0l3borg/repo/src/Domain/Model/ModelEntity.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Model/ModelEntity.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-z0l3borg/repo/src/Domain/Model/ModelEntity.php	2026-10-20 19:19:17.761907259 +0700
+@@ -0,0 +1,27 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Domain\Model;
++
++use Doctrine\ORM\Mapping as ORM;
++
++#[ORM\Entity]
++#[ORM\Table(name: 'models')]
++#[ORM\Index(name: 'model_uid', columns: ['provider_code', 'code'])]
++class ModelEntity
++{
++    public function __construct(
++        #[ORM\Id]
++        #[ORM\Column(type: 'string')]
++        public readonly string $providerCode,
++
++        #[ORM\Id]
++        #[ORM\Column(type: 'string')]
++        public readonly string $code,
++
++        #[ORM\Column(type: 'string')]
++        public readonly string $name,
++    ) {
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Model/PriceRow.php /tmp/billing-pi-z0l3borg/repo/src/Domain/Model/PriceRow.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Model/PriceRow.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-z0l3borg/repo/src/Domain/Model/PriceRow.php	2026-10-20 19:19:17.761907259 +0700
+@@ -0,0 +1,41 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Domain\Model;
++
++use Doctrine\ORM\Mapping as ORM;
++
++#[ORM\Entity]
++#[ORM\Table(name: 'price_rows')]
++#[ORM\Index(name: 'price_lookup', columns: ['provider_code', 'model_code', 'valid_from'])]
++class PriceRow
++{
++    public const UNIT_PER_M = 'per_1m_tokens';
++    public const UNIT_UNIFIED = 'per_1m_tokens_unified';
++
++    public function __construct(
++        #[ORM\Id]
++        #[ORM\Column(type: 'string')]
++        public readonly string $providerCode,
++
++        #[ORM\Id]
++        #[ORM\Column(type: 'string')]
++        public readonly string $modelCode,
++
++        #[ORM\Id]
++        #[ORM\Column(type: 'datetime_immutable')]
++        public readonly \DateTimeImmutable $validFrom,
++
++        #[ORM\Column(type: 'string')]
++        public readonly string $currency,
++
++        #[ORM\Column(type: 'string')]
++        public readonly string $unit,
++
++        // input / output / ... / any -> rate за 1 000 000 токенов
++        #[ORM\Column(type: 'json')]
++        public readonly array $rates,
++    ) {
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Model/Provider.php /tmp/billing-pi-z0l3borg/repo/src/Domain/Model/Provider.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Model/Provider.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-z0l3borg/repo/src/Domain/Model/Provider.php	2026-10-20 19:21:29.520272105 +0700
+@@ -0,0 +1,61 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Domain\Model;
++
++use Doctrine\ORM\Mapping as ORM;
++
++#[ORM\Entity]
++#[ORM\Table(name: 'providers')]
++class Provider
++{
++    public function __construct(
++        #[ORM\Id]
++        #[ORM\Column(type: 'string')]
++        public readonly string $code,
++
++        #[ORM\Column(type: 'string')]
++        public readonly string $name,
++
++        #[ORM\Column(type: 'string', nullable: true)]
++        public readonly ?string $windowStart,
++
++        #[ORM\Column(type: 'string', nullable: true)]
++        public readonly ?string $windowEnd,
++
++        #[ORM\Column(type: 'decimal', precision: 10, scale: 6, nullable: true)]
++        public readonly ?string $offPeakMultiplier,
++    ) {
++    }
++
++    /**
++     * Попало ли время суток (UTC) в оф-пиковое окно.
++     *
++     * Окно [windowStart, windowEnd), может переходить через полночь.
++     */
++    public function isOffPeak(int $hourUtc, int $minuteUtc): bool
++    {
++        if (null === $this->windowStart || null === $this->windowEnd) {
++            return false;
++        }
++
++        $start = $this->parseTime($this->windowStart);
++        $end = $this->parseTime($this->windowEnd);
++        $now = $hourUtc * 60 + $minuteUtc;
++
++        if ($start < $end) {
++            return $now >= $start && $now < $end;
++        }
++
++        // окно через полночь
++        return $now >= $start || $now < $end;
++    }
++
++    private function parseTime(string $h): int
++    {
++        [$hour, $minute] = explode(':', $h);
++
++        return (int) $hour * 60 + (int) $minute;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Model/UsageEvent.php /tmp/billing-pi-z0l3borg/repo/src/Domain/Model/UsageEvent.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Model/UsageEvent.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-z0l3borg/repo/src/Domain/Model/UsageEvent.php	2026-10-20 19:19:20.743671263 +0700
+@@ -0,0 +1,55 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Domain\Model;
++
++use Doctrine\ORM\Mapping as ORM;
++
++/**
++ * Импортированное событие использования.
++ *
++ * (provider, provider_request_id) — естественный уникальный ключ дедупликации.
++ */
++#[ORM\Entity]
++#[ORM\Table(name: 'usage_events')]
++#[ORM\Index(name: 'ev_user_ts', columns: ['user', 'event_ts'])]
++class UsageEvent
++{
++    public function __construct(
++        #[ORM\Id]
++        #[ORM\Column(type: 'string')]
++        public readonly string $providerCode,
++
++        #[ORM\Id]
++        #[ORM\Column(type: 'string')]
++        public readonly string $providerRequestId,
++
++        #[ORM\Column(type: 'string')]
++        public readonly string $modelCode,
++
++        #[ORM\Column(type: 'string')]
++        public readonly string $user,
++
++        #[ORM\Column(type: 'datetime_immutable')]
++        public readonly \DateTimeImmutable $eventTs,
++
++        #[ORM\Column(type: 'integer')]
++        public readonly int $tokensInput,
++
++        #[ORM\Column(type: 'integer')]
++        public readonly int $tokensOutput,
++
++        #[ORM\Column(type: 'integer')]
++        public readonly int $tokensCacheRead,
++
++        #[ORM\Column(type: 'integer')]
++        public readonly int $tokensCacheWrite,
++    ) {
++    }
++
++    public function getAnyTokens(): int
++    {
++        return $this->tokensInput + $this->tokensOutput + $this->tokensCacheRead + $this->tokensCacheWrite;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Model/UsageRecord.php /tmp/billing-pi-z0l3borg/repo/src/Domain/Model/UsageRecord.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Model/UsageRecord.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-z0l3borg/repo/src/Domain/Model/UsageRecord.php	2026-10-20 19:21:31.766230262 +0700
+@@ -0,0 +1,40 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Domain\Model;
++
++use Doctrine\ORM\Mapping as ORM;
++
++/**
++ * Результат тарификации одного события.
++ *
++ * status: 'rated' или 'unrated'. unrated-события присутствуют здесь для
++ * пересчёта при появлении цены (повторная попытка).
++ */
++#[ORM\Entity]
++#[ORM\Table(name: 'usage_records')]
++#[ORM\Index(name: 'rec_lookup', columns: ['provider_code', 'provider_request_id'])]
++class UsageRecord
++{
++    public const STATUS_RATED = 'rated';
++    public const STATUS_UNRATED = 'unrated';
++    public const STATUS_PENDING = 'pending';
++
++    public function __construct(
++        #[ORM\Id]
++        #[ORM\Column(type: 'string')]
++        public readonly string $providerCode,
++
++        #[ORM\Id]
++        #[ORM\Column(type: 'string')]
++        public readonly string $providerRequestId,
++
++        #[ORM\Column(type: 'string')]
++        public readonly string $status,
++
++        #[ORM\Column(type: 'decimal', precision: 20, scale: 6, nullable: true)]
++        public ?string $cost,
++    ) {
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Service/PriceBookImporter.php /tmp/billing-pi-z0l3borg/repo/src/Domain/Service/PriceBookImporter.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Service/PriceBookImporter.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-z0l3borg/repo/src/Domain/Service/PriceBookImporter.php	2026-10-20 19:21:21.657418593 +0700
+@@ -0,0 +1,142 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Domain\Service;
++
++use App\Domain\Model\PriceRow;
++use App\Domain\Model\ModelEntity;
++use App\Domain\Model\Provider;
++use Doctrine\ORM\EntityManagerInterface;
++
++/**
++ * Идемпотентный upsert справочника: провайдеры (по code), модели (по
++ * (provider, code)), строки цен (по (provider, model, valid_from)).
++ *
++ * Повторная загрузка тех же данных не изменяет их.
++ */
++final class PriceBookImporter
++{
++    public function __construct(private readonly EntityManagerInterface $em)
++    {
++    }
++
++    /**
++     * @param array $data распарсенный JSON истории цен
++     *
++     * @throws \InvalidArgumentException при некорректных данных
++     */
++    public function import(array $data): void
++    {
++        $em = $this->em;
++        $em->beginTransaction();
++        try {
++            $this->upsertProviders($data['providers'] ?? []);
++            $this->upsertModels($data['models'] ?? []);
++            $this->upsertPrices($data['prices'] ?? []);
++            $em->flush();
++            $em->commit();
++        } catch (\Throwable $e) {
++            $em->rollBack();
++            throw $e;
++        }
++    }
++
++    /** @param list<array> $rows */
++    private function upsertProviders(array $rows): void
++    {
++        /** @var Provider[] $repo */
++        $repo = $this->em->getRepository(Provider::class);
++        foreach ($rows as $row) {
++            if (empty($row['code']) || empty($row['name'])) {
++                throw new \InvalidArgumentException('Provider: code и name обязательны');
++            }
++            $existing = $repo->findBy(['code' => $row['code']]);
++            $p = $existing[0] ?? null;
++            if (null === $p) {
++                $p = new Provider($row['code'], (string) $row['name'], null, null, null);
++                $this->em->persist($p);
++            }
++            $this->applyOffPeak($p, (($row['off_peak'] ?? null) ?? []));
++        }
++    }
++
++    /** @param list<array> $rows */
++    private function upsertModels(array $rows): void
++    {
++        /** @var ModelEntity[] $repo */
++        $repo = $this->em->getRepository(ModelEntity::class);
++        foreach ($rows as $row) {
++            if (empty($row['provider']) || empty($row['code'])) {
++                throw new \InvalidArgumentException('Model: provider и code обязательны');
++            }
++            $existing = $repo->findBy(['providerCode' => $row['provider'], 'code' => $row['code']]);
++            $m = $existing[0] ?? null;
++            if (null === $m) {
++                $m = new ModelEntity($row['provider'], (string) $row['code'], (string) $row['code']);
++                $this->em->persist($m);
++            }
++        }
++    }
++
++    /** @param list<array> $rows */
++    private function upsertPrices(array $rows): void
++    {
++        foreach ($rows as $row) {
++            if (empty($row['provider']) || empty($row['model']) || empty($row['valid_from'])) {
++                throw new \InvalidArgumentException('PriceRow: provider, model, valid_from обязательны');
++            }
++            if (empty($row['unit'])) {
++                throw new \InvalidArgumentException('PriceRow: unit обязателен');
++            }
++            if (!is_array($row['rates'] ?? null) || [] === $row['rates']) {
++                throw new \InvalidArgumentException('PriceRow: rates — непустой объект');
++            }
++
++            $existing = $this->priceRowExists((string) $row['provider'], (string) $row['model'], (string) $row['valid_from']);
++            if ($existing) {
++                continue; // та же строка уже есть — не меняем
++            }
++
++            $this->em->persist(new PriceRow(
++                (string) $row['provider'],
++                (string) $row['model'],
++                new \DateTimeImmutable($row['valid_from']),
++                (string) ($row['currency'] ?? 'USD'),
++                (string) $row['unit'],
++                $row['rates'],
++            ));
++        }
++    }
++
++    private function priceRowExists(string $provider, string $model, string $validFrom): bool
++    {
++        $row = $this->em->createQueryBuilder()
++            ->select('p')
++            ->from(PriceRow::class, 'p')
++            ->where('p.providerCode = :p')
++            ->andWhere('p.modelCode = :m')
++            ->andWhere('p.validFrom = :v')
++            ->setParameter('p', $provider)
++            ->setParameter('m', $model)
++            ->setParameter('v', new \DateTimeImmutable($validFrom))
++            ->getSingleResultOrNull();
++
++        return null !== $row;
++    }
++
++    /** @param array $offPeak */
++    private function applyOffPeak(Provider $p, array $offPeak): void
++    {
++        if (empty($offPeak)) {
++            $p->windowStart = null;
++            $p->windowEnd = null;
++            $p->offPeakMultiplier = null;
++
++            return;
++        }
++        $p->windowStart = $offPeak['window_start'] ?? null;
++        $p->windowEnd = $offPeak['window_end'] ?? null;
++        $p->offPeakMultiplier = $offPeak['multiplier'] ?? null;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Service/PriceBook.php /tmp/billing-pi-z0l3borg/repo/src/Domain/Service/PriceBook.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Service/PriceBook.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-z0l3borg/repo/src/Domain/Service/PriceBook.php	2026-10-20 19:20:34.035305812 +0700
+@@ -0,0 +1,59 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Domain\Service;
++
++use App\Domain\Model\PriceRow;
++use App\Domain\Model\Provider;
++use Doctrine\ORM\EntityManagerInterface;
++use Doctrine\ORM\QueryBuilder;
++
++/**
++ * Справочник: провайдеры и строки цен.
++ */
++final class PriceBook
++{
++    /** @param object|class-string $entityClass */
++    public function __construct(private readonly EntityManagerInterface $em)
++    {
++    }
++
++    public function provider(string $code): ?Provider
++    {
++        /** @var Provider|null $p */
++        $p = $this->em->getRepository(Provider::class)->find($code);
++
++        return $p;
++    }
++
++    public function hasProvider(string $code): bool
++    {
++        return null !== $this->provider($code);
++    }
++
++    /**
++     * Строка цен с наибольшим valid_from, не превосходящим $at (содержит в
++     * себе).
++     *
++     * @return PriceRow|null
++     */
++    public function findPrice(string $provider, string $model, \DateTimeInterface $at): ?PriceRow
++    {
++        $qb = $this->em->createQueryBuilder();
++        $qb->select('p')
++            ->from(PriceRow::class, 'p')
++            ->where('p.providerCode = :provider')
++            ->andWhere('p.modelCode = :model')
++            ->andWhere('p.validFrom <= :at')
++            ->setParameter('provider', $provider)
++            ->setParameter('model', $model)
++            ->setParameter('at', $at)
++            ->orderBy('p.validFrom', 'DESC');
++
++        /** @var PriceRow|null $row */
++        $row = $qb->getSingleResultOrNull();
++
++        return $row;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Service/Rater.php /tmp/billing-pi-z0l3borg/repo/src/Domain/Service/Rater.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Service/Rater.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-z0l3borg/repo/src/Domain/Service/Rater.php	2026-10-20 19:20:31.641350412 +0700
+@@ -0,0 +1,91 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Domain\Service;
++
++use App\Domain\Model\PriceRow;
++use App\Domain\Model\Provider;
++use App\Domain\Model\UsageEvent;
++use App\Domain\ValueObject\Money;
++use Doctrine\ORM\EntityManagerInterface;
++
++/**
++ * Класс тарификации одного события (п. 1–5 требований).
++ */
++final class Rater
++{
++    public function __construct(
++        private readonly EntityManagerInterface $em,
++        private readonly PriceBook $priceBook,
++    ) {
++    }
++
++    /**
++     * Возвращает стоимость либо null (unrated). Стоимость уже округлёна до 6
++     * знаков по HALF_UP.
++     */
++    public function price(UsageEvent $event): ?string
++    {
++        $priceRow = $this->priceBook->findPrice($event->providerCode.'/'.$event->modelCode, $event->eventTs);
++        if (null === $priceRow) {
++            return null;
++        }
++
++        $base = $this->baseCost($priceRow, $event);
++
++        $offPeak = $this->offPeak($event);
++        if (null !== $offPeak) {
++            $base = Money::multiply($base, $offPeak);
++        }
++
++        return Money::round($base);
++    }
++
++    private function baseCost(PriceRow $priceRow, UsageEvent $event): string
++    {
++        if (PriceRow::UNIT_UNIFIED === $priceRow->unit) {
++            $total = $event->getAnyTokens();
++            if (0 === $total) {
++                return '0';
++            }
++
++            return Money::cost($total, $priceRow->getAnyRate());
++        }
++
++        // per_1m_tokens
++        $types = [
++            'input' => $event->tokensInput,
++            'output' => $event->tokensOutput,
++            'cache_read' => $event->tokensCacheRead,
++            'cache_write' => $event->tokensCacheWrite,
++        ];
++
++        $cost = '0';
++        foreach ($types as $kind => $tokens) {
++            if (0 === $tokens || !$priceRow->hasRate($kind)) {
++                continue;
++            }
++            $cost = Money::add($cost, Money::cost($tokens, $priceRow->getRate($kind)));
++        }
++
++        return $cost;
++    }
++
++    private function offPeak(UsageEvent $event): ?string
++    {
++        /** @var Provider|null $provider */
++        $provider = $this->priceBook->provider($event->providerCode);
++        if (null === $provider || null === $provider->windowStart || null === $provider->windowEnd) {
++            return null;
++        }
++
++        $hour = (int) $event->eventTs->format('G');
++        $minute = (int) $event->eventTs->format('i');
++        if (!$provider->isOffPeak($hour, $minute)) {
++            return null;
++        }
++
++        return $provider->offPeakMultiplier;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Service/UsageEventImporter.php /tmp/billing-pi-z0l3borg/repo/src/Domain/Service/UsageEventImporter.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Service/UsageEventImporter.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-z0l3borg/repo/src/Domain/Service/UsageEventImporter.php	2026-10-20 19:21:35.849154195 +0700
+@@ -0,0 +1,63 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Domain\Service;
++
++use App\Domain\Model\UsageEvent;
++use Doctrine\ORM\EntityManagerInterface;
++
++/**
++ * Загрузка событий использования по правилу п. 5（дедупликация по
++ * (provider, provider_request_id); повторная доставка игнорируется полностью）。
++ */
++final class UsageEventImporter
++{
++    public function __construct(private readonly EntityManagerInterface $em)
++    {
++    }
++
++    /**
++     * @param list<array> $rows распаршенные строки JSONL
++     *
++     * @throws \InvalidArgumentException при некорректной строке
++     *
++     * @return int количество вновь добавленных событий
++     */
++    public function import(array $rows): int
++    {
++        /** @var UsageEvent[] $repo */
++        $repo = $this->em->getRepository(UsageEvent::class);
++
++        $em = $this->em;
++        $em->beginTransaction();
++        try {
++            $added = 0;
++            foreach ($rows as $row) {
++                $existing = $repo->findBy(['providerCode' => $row['provider'], 'providerRequestId' => $row['provider_request_id']]);
++                if ($existing) {
++                    continue; // дубль — игнорируем
++                }
++                $repo->persist(new UsageEvent(
++                    (string) $row['provider'],
++                    (string) $row['provider_request_id'],
++                    (string) $row['model'],
++                    (string) $row['user'],
++                    new \DateTimeImmutable($row['ts']),
++                    (int) $row['tokens_input'],
++                    (int) $row['tokens_output'],
++                    (int) $row['tokens_cache_read'],
++                    (int) $row['tokens_cache_write'],
++                ));
++                ++$added;
++            }
++            $em->flush();
++            $em->commit();
++
++            return $added;
++        } catch (\Throwable $e) {
++            $em->rollBack();
++            throw $e;
++        }
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/ValueObject/Money.php /tmp/billing-pi-z0l3borg/repo/src/Domain/ValueObject/Money.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/ValueObject/Money.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-z0l3borg/repo/src/Domain/ValueObject/Money.php	2026-10-20 19:22:21.543302896 +0700
+@@ -0,0 +1,134 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Domain\ValueObject;
++
++/**
++ * Точная десятичная арифметика через bcmath. Float для денег запрещён.
++ *
++ * Промежуточные вычисления — с масштабом 16. Итоговое округление до 6 знаков
++ * по правилу HALF_UP (½ в сторону от нуля).
++ */
++final class Money
++{
++    public const SCALE = 16;
++    public const ROUND_SCALE = 6;
++
++    public static function add(string ...$values): string
++    {
++        $sum = '0';
++        foreach ($values as $v) {
++            if (null === $v || '' === $v) {
++                continue;
++            }
++            $sum = bcadd($sum, $v, self::SCALE);
++        }
++
++        return $sum;
++    }
++
++    /**
++     * cost = tokens × rate / 1_000_000, без округления.
++     */
++    public static function cost(int $tokens, string $rate): string
++    {
++        if (0 === $tokens) {
++            return '0';
++        }
++
++        $product = bcmul((string) $tokens, $rate, self::SCALE);
++
++        return bcdiv($product, '1000000', self::SCALE);
++    }
++
++    public static function multiply(string $value, string $multiplier): string
++    {
++        return bcmul($value, $multiplier, self::SCALE);
++    }
++
++    public static function diff(string $new, string $old): string
++    {
++        return bcsub($new, $old, self::SCALE);
++    }
++
++    /**
++     * Округление до ROUND_SCALE знаков по правилу HALF_UP (½ в сторону от
++     * нуля). Деньги неотрицательны, поэтому HALF_UP = обычное округление в
++     * сторону большего модуля. Возвращает строку с ровно ROUND_SCALE знаками
++     * после точки.
++     */
++    public static function round(string $value): string
++    {
++        [$int, $frac] = splitDecimal($value);
++
++        $keep = substr($frac, 0, self::ROUND_SCALE);
++        if (self::ROUND_SCALE < strlen($keep)) {
++            $keep = substr($keep, 0, self::ROUND_SCALE);
++        }
++        $keep = str_pad($keep, self::ROUND_SCALE, '0');
++
++        $marker = (int) ($frac[self::ROUND_SCALE] ?? '0');
++        if ($marker >= 5) {
++            $incr = increment($keep);
++            if (strlen($incr) > self::ROUND_SCALE) {
++                // перенос в целую часть (переполнение шестизначного kept)
++                $carry = substr($incr, 0, -self::ROUND_SCALE);
++                $keep = substr($incr, -self::ROUND_SCALE);
++                $int = (string) ((int) $int + (int) $carry);
++            } else {
++                $keep = $incr;
++            }
++        }
++
++        return $int . '.' . $keep;
++    }
++}
++
++/**
++ * Разложение числа на целую и дробную части (без float).
++ *
++ * @return array{0:string,1:string}
++ */
++function splitDecimal(string $value): array
++{
++    if ('' === $value) {
++        return ['0', ''];
++    }
++    $neg = str_starts_with($value, '-');
++    if ($neg) {
++        $value = substr($value, 1);
++    }
++    $dot = strpos($value, '.');
++    $int = $dot === false ? $value : substr($value, 0, $dot);
++    $frac = $dot === false ? '' : substr($value, $dot + 1);
++    $int = ltrim($int, '0') ?: '0';
++    if ($neg) {
++        // знаки не меняем (money >= 0), держим формальную поддержку
++        $int = '-' . $int;
++    }
++
++    return [$int, $frac];
++}
++
++/**
++ * Инкремент строки из десятичных цифр на единицу. Целая часть не участвует.
++ */
++function increment(string $digits): string
++{
++    $chars = str_split($digits);
++    $i = count($chars) - 1;
++    while ($i >= 0) {
++        if ('9' === $chars[$i]) {
++            $chars[$i] = '0';
++            --$i;
++        } else {
++            $chars[$i] = (string) ((int) $chars[$i] + 1);
++
++            return implode('', $chars);
++        }
++    }
++
++    // все девятки: перенос за пределы (например 999999 -> 1000000)
++    return '1' . implode('', $chars);
++}

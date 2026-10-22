@@ -1,0 +1,25 @@
+Готово. Реализовано консольное приложение для учёта расходов на LLM-токены.
+
+### Что добавлено
+- `src/Domain` — точная десятичная арифметика на bcmath (`Decimal`), тарифы, оф-пик, расчёт стоимости.
+- `src/Application` — импорт цен и событий, тарификация, отчёт, ретро-коррекция.
+- `src/Infrastructure` — JSON/JSONL-парсеры, Doctrine-сущности и репозитории.
+- `src/UI/Console/Command` — команды:
+  - `app:prices:import`
+  - `app:usage:import`
+  - `app:billing:rate`
+  - `app:billing:report`
+  - `app:billing:reprice` — бонусная ретро-коррекция с журналом изменений.
+- Миграция `migrations/Version20261018131213.php`.
+- Тесты в `tests/`.
+- `COMMIT_MESSAGE.md` и `PR_DESCRIPTION.md`.
+
+### Проверка
+- На чистой базе `make migrate` → импорт фикстур → `RATED=3 UNRATED=0`.
+- CSV байт-в-байт совпал с эталоном из `TASK.md`, итог: `33.662499`.
+- Повторный импорт: `RATED=0 UNRATED=0`, отчёт не меняется.
+- Ошибочный JSONL: код 1, транзакция откатывается.
+- Ретро-коррекция: пересчёт событий, корректная дельта, отчёт без задвоений.
+- `make test`: **25 тестов, 57 утверждений — OK**.
+- `doctrine:schema:validate`: схема соответствует маппингу.
+- `make db-up` и `make test` работают.

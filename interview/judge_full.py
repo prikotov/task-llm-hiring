@@ -6,7 +6,7 @@
 contradictions). Вывод: <run>/../judgments/decision-<judge>-<run>.csv
 
 Пример:
-    python3 judge_full.py --run ../ornith-1.5-9b/backend/run-01 --judge clef
+    python3 judge_full.py --run ../ornith-1.5-9b/backend/interview/run-01 --judge clef
 """
 
 import argparse

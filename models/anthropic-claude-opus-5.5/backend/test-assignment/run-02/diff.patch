@@ -1,0 +1,368 @@
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Shared/Application/InvalidInput.php /tmp/billing-pi-9o2laa00/repo/src/Shared/Application/InvalidInput.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Shared/Application/InvalidInput.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-9o2laa00/repo/src/Shared/Application/InvalidInput.php	2026-10-22 12:32:26.380115082 +0700
+@@ -0,0 +1,22 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Shared\Application;
++
++use RuntimeException;
++use Throwable;
++
++/** Ошибка во входных данных (файл, строка, опция). Команды превращают её в код выхода 1. */
++final class InvalidInput extends RuntimeException
++{
++    public static function because(string $message, ?Throwable $previous = null): self
++    {
++        return new self($message, 0, $previous);
++    }
++
++    public static function atLine(int $line, string $message, ?Throwable $previous = null): self
++    {
++        return new self(sprintf('строка %d: %s', $line, $message), 0, $previous);
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Shared/Application/TransactionRunner.php /tmp/billing-pi-9o2laa00/repo/src/Shared/Application/TransactionRunner.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Shared/Application/TransactionRunner.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-9o2laa00/repo/src/Shared/Application/TransactionRunner.php	2026-10-22 12:32:26.382115039 +0700
+@@ -0,0 +1,21 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Shared\Application;
++
++interface TransactionRunner
++{
++    /**
++     * Выполняет $operation в одной транзакции. Если задан $exclusiveLock —
++     * дополнительно берёт эксклюзивную блокировку с таким именем до конца
++     * транзакции (сериализация конкурентных запусков тарификации).
++     *
++     * @template T
++     *
++     * @param callable(): T $operation
++     *
++     * @return T
++     */
++    public function run(callable $operation, ?string $exclusiveLock = null): mixed;
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Shared/Domain/Clock.php /tmp/billing-pi-9o2laa00/repo/src/Shared/Domain/Clock.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Shared/Domain/Clock.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-9o2laa00/repo/src/Shared/Domain/Clock.php	2026-10-22 12:32:26.377115146 +0700
+@@ -0,0 +1,12 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Shared\Domain;
++
++use DateTimeImmutable;
++
++interface Clock
++{
++    public function now(): DateTimeImmutable;
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Shared/Domain/Decimal.php /tmp/billing-pi-9o2laa00/repo/src/Shared/Domain/Decimal.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Shared/Domain/Decimal.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-9o2laa00/repo/src/Shared/Domain/Decimal.php	2026-10-22 12:32:26.373115232 +0700
+@@ -0,0 +1,146 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Shared\Domain;
++
++use InvalidArgumentException;
++use RoundingMode;
++
++/**
++ * Точное десятичное число поверх bcmath.
++ *
++ * Все операции выполняются с запасом точности (SCALE знаков после точки),
++ * что для наших величин (целые токены × ставки ≤ 12 знаков × множитель)
++ * означает отсутствие потерь. Округление — только явное, через roundHalfUp().
++ * float не используется нигде.
++ */
++final readonly class Decimal
++{
++    private const int SCALE = 40;
++    private const string PATTERN = '/^[+-]?\d+(\.\d+)?$/';
++
++    private function __construct(private string $value)
++    {
++    }
++
++    public static function of(string $value): self
++    {
++        $value = trim($value);
++        if (preg_match(self::PATTERN, $value) !== 1) {
++            throw new InvalidArgumentException(sprintf('"%s" не является десятичным числом.', $value));
++        }
++
++        return new self(self::normalize($value));
++    }
++
++    public static function fromInt(int $value): self
++    {
++        return new self((string) $value);
++    }
++
++    public static function zero(): self
++    {
++        return new self('0');
++    }
++
++    /** Количество знаков после точки во входной строке (без нормализации). */
++    public static function fractionDigits(string $value): int
++    {
++        $dot = strpos($value, '.');
++
++        return $dot === false ? 0 : strlen($value) - $dot - 1;
++    }
++
++    public function add(self $other): self
++    {
++        return new self(self::normalize(bcadd($this->value, $other->value, self::SCALE)));
++    }
++
++    public function sub(self $other): self
++    {
++        return new self(self::normalize(bcsub($this->value, $other->value, self::SCALE)));
++    }
++
++    public function mul(self $other): self
++    {
++        return new self(self::normalize(bcmul($this->value, $other->value, self::SCALE)));
++    }
++
++    public function div(self $other): self
++    {
++        if ($other->isZero()) {
++            throw new InvalidArgumentException('Деление на ноль.');
++        }
++
++        return new self(self::normalize(bcdiv($this->value, $other->value, self::SCALE)));
++    }
++
++    /** Округление HALF_UP (половина — от нуля): 2.5 → 3, -2.5 → -3. */
++    public function roundHalfUp(int $scale): self
++    {
++        return new self(self::normalize(bcround($this->value, $scale, RoundingMode::HalfAwayFromZero)));
++    }
++
++    public function compare(self $other): int
++    {
++        return bccomp($this->value, $other->value, self::SCALE);
++    }
++
++    public function equals(self $other): bool
++    {
++        return $this->compare($other) === 0;
++    }
++
++    public function isZero(): bool
++    {
++        return $this->compare(self::zero()) === 0;
++    }
++
++    public function isNegative(): bool
++    {
++        return $this->compare(self::zero()) < 0;
++    }
++
++    /**
++     * Строка ровно с $scale знаками после точки.
++     *
++     * Если число содержит больше значащих знаков, чем $scale, — это ошибка
++     * вызывающего кода (молчаливого округления быть не должно).
++     */
++    public function toFixed(int $scale): string
++    {
++        if (!$this->roundHalfUp($scale)->equals($this)) {
++            throw new InvalidArgumentException(sprintf('Число %s не представимо с %d знаками без округления.', $this->value, $scale));
++        }
++
++        return bcadd($this->value, '0', $scale);
++    }
++
++    /** Каноническое представление: без лишних нулей, "-0" → "0". */
++    public function toString(): string
++    {
++        return $this->value;
++    }
++
++    public function __toString(): string
++    {
++        return $this->value;
++    }
++
++    private static function normalize(string $value): string
++    {
++        $negative = str_starts_with($value, '-');
++        $value = ltrim($value, '+-');
++
++        if (str_contains($value, '.')) {
++            $value = rtrim(rtrim($value, '0'), '.');
++        }
++        $value = ltrim($value, '0');
++        if ($value === '' || str_starts_with($value, '.')) {
++            $value = '0'.$value;
++        }
++
++        return ($negative && $value !== '0') ? '-'.$value : $value;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Shared/Domain/Iso8601.php /tmp/billing-pi-9o2laa00/repo/src/Shared/Domain/Iso8601.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Shared/Domain/Iso8601.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-9o2laa00/repo/src/Shared/Domain/Iso8601.php	2026-10-22 12:32:26.376115168 +0700
+@@ -0,0 +1,47 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Shared\Domain;
++
++use DateTimeImmutable;
++use DateTimeZone;
++use InvalidArgumentException;
++
++/**
++ * Разбор и форматирование моментов времени ISO-8601. Внутри системы все
++ * моменты — DateTimeImmutable в UTC с точностью до секунды.
++ */
++final class Iso8601
++{
++    private const string PATTERN = '/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})(\.\d+)?(Z|[+-]\d{2}:?\d{2})$/i';
++
++    /**
++     * @param bool $truncateFraction дробные секунды отбрасываются (true) или
++     *                               считаются ошибкой (false)
++     */
++    public static function parse(string $value, bool $truncateFraction = false): DateTimeImmutable
++    {
++        if (preg_match(self::PATTERN, $value, $m) !== 1) {
++            throw new InvalidArgumentException(sprintf('"%s" — не момент времени ISO-8601 с часовым поясом (ожидается, например, 2026-09-15T12:00:00Z).', $value));
++        }
++        if ($m[3] !== '' && !$truncateFraction) {
++            throw new InvalidArgumentException(sprintf('"%s": дробные секунды не поддерживаются.', $value));
++        }
++
++        $zone = strtoupper($m[4]) === 'Z' ? '+00:00' : $m[4];
++        $normalized = $m[1].'T'.$m[2].$zone;
++        $parsed = DateTimeImmutable::createFromFormat('!Y-m-d\TH:i:sP', $normalized);
++        // createFromFormat «исправляет» переполнения (25:00, 31.02) — отсекаем.
++        if ($parsed === false || $parsed->format('Y-m-d\TH:i:s') !== $m[1].'T'.$m[2]) {
++            throw new InvalidArgumentException(sprintf('"%s" — некорректная дата/время.', $value));
++        }
++
++        return $parsed->setTimezone(new DateTimeZone('UTC'));
++    }
++
++    public static function format(DateTimeImmutable $moment): string
++    {
++        return $moment->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d\TH:i:s\Z');
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Shared/Domain/TokenUsage.php /tmp/billing-pi-9o2laa00/repo/src/Shared/Domain/TokenUsage.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Shared/Domain/TokenUsage.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-9o2laa00/repo/src/Shared/Domain/TokenUsage.php	2026-10-22 12:32:26.374115210 +0700
+@@ -0,0 +1,42 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Shared\Domain;
++
++use Doctrine\ORM\Mapping as ORM;
++use InvalidArgumentException;
++
++/**
++ * Количество израсходованных токенов по видам. Общий язык контекстов
++ * Usage (что израсходовано) и Pricing (как это стоит).
++ */
++#[ORM\Embeddable]
++final readonly class TokenUsage
++{
++    public function __construct(
++        #[ORM\Column(name: 'input', type: 'bigint')]
++        public int $input,
++        #[ORM\Column(name: 'output', type: 'bigint')]
++        public int $output,
++        #[ORM\Column(name: 'cache_read', type: 'bigint')]
++        public int $cacheRead,
++        #[ORM\Column(name: 'cache_write', type: 'bigint')]
++        public int $cacheWrite,
++    ) {
++        foreach (['input' => $input, 'output' => $output, 'cache_read' => $cacheRead, 'cache_write' => $cacheWrite] as $kind => $count) {
++            if ($count < 0) {
++                throw new InvalidArgumentException(sprintf('Количество токенов "%s" не может быть отрицательным: %d.', $kind, $count));
++            }
++        }
++    }
++
++    /** Сумма всех видов токенов — точно, без риска переполнения int. */
++    public function total(): Decimal
++    {
++        return Decimal::fromInt($this->input)
++            ->add(Decimal::fromInt($this->output))
++            ->add(Decimal::fromInt($this->cacheRead))
++            ->add(Decimal::fromInt($this->cacheWrite));
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Shared/Infrastructure/DoctrineTransactionRunner.php /tmp/billing-pi-9o2laa00/repo/src/Shared/Infrastructure/DoctrineTransactionRunner.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Shared/Infrastructure/DoctrineTransactionRunner.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-9o2laa00/repo/src/Shared/Infrastructure/DoctrineTransactionRunner.php	2026-10-22 12:32:26.383115018 +0700
+@@ -0,0 +1,29 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Shared\Infrastructure;
++
++use App\Shared\Application\TransactionRunner;
++use Doctrine\ORM\EntityManagerInterface;
++
++final readonly class DoctrineTransactionRunner implements TransactionRunner
++{
++    public function __construct(private EntityManagerInterface $em)
++    {
++    }
++
++    public function run(callable $operation, ?string $exclusiveLock = null): mixed
++    {
++        return $this->em->wrapInTransaction(function () use ($operation, $exclusiveLock): mixed {
++            if ($exclusiveLock !== null) {
++                $this->em->getConnection()->executeStatement(
++                    'SELECT pg_advisory_xact_lock(hashtext(:name))',
++                    ['name' => $exclusiveLock],
++                );
++            }
++
++            return $operation();
++        });
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Shared/Infrastructure/SystemClock.php /tmp/billing-pi-9o2laa00/repo/src/Shared/Infrastructure/SystemClock.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Shared/Infrastructure/SystemClock.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-9o2laa00/repo/src/Shared/Infrastructure/SystemClock.php	2026-10-22 12:32:26.378115125 +0700
+@@ -0,0 +1,17 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Shared\Infrastructure;
++
++use App\Shared\Domain\Clock;
++use DateTimeImmutable;
++use DateTimeZone;
++
++final class SystemClock implements Clock
++{
++    public function now(): DateTimeImmutable
++    {
++        return new DateTimeImmutable('now', new DateTimeZone('UTC'));
++    }
++}

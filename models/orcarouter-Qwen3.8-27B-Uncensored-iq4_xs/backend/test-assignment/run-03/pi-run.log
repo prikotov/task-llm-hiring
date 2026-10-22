@@ -1,0 +1,34 @@
+Готово. Задание выполнено и проверено на чистой базе.
+
+## Что сделано
+
+**Доменная модель** (`src/Domain/`):
+- `Provider` — провайдер + оф-пиковое окно (включая переход через полночь, граница `end` исключается)
+- `Model` — модель, unique `(provider, code)`
+- `PriceLine` — строка цены (per-token / unified), unique `(provider, model, valid_from)`
+- `UsageEvent` — событие, естественный ключ `(provider, provider_request_id)`, статусы `unrated`/`rated`, стоимость, ссылка на строку цены
+
+**Учётная логика** (`src/Billing/`):
+- `Money` — только bcmath (float запрещён), промежуточные вычисления со scale 16, единственное округление — HALF_UP до 6 знаков
+- `BillingService` — выбор цены (макс. `valid_from ≤ ts`), расчёт по двум схемам, оф-пиковый множитель, дедупликация, отчёт, ретро-пересчёт
+
+**Команды** (`src/Command/`): `app:prices:import`, `app:usage:import`, `app:billing:rate`, `app:billing:report`, `app:billing:reprice` (бонус).
+
+## Акцептация (проверена на чистой БД)
+1. `make db-up` / `make migrate` — схема разворачивается ✓
+2. `import + rate` — `RATED=3 UNRATED=0` ✓
+3. report за сентябрь — **byte-identical** с примером ✓
+4. Повторный импорт + rate + report — RATED=0, результат не меняется ✓
+5. `vendor/bin/phpunit` — 27 тестов, 29 ассерции, OK ✓
+6. Ретро-пересчёт — корректная дельта без задвоений ✓
+
+Проверены и граничные случаи: bad-JSON → exit 1, оф-пик (границы 00:30/00:29, переход через полночь), дубль `request_id` у разных провайдеров, частичный `--from/--to` (in/exclusive).
+
+## Отступления (зафиксированы в `PR_DESCRIPTION.md`)
+- Migration: `CREATE SCHEMA public` → `IF NOT EXISTS` (на PostgreSQL `public` уже существует)
+- Колонка `user` (зарезервированное слово) → `user_code` на уровне БД
+- Каркасные файлы и зависимости не менялись
+
+Также созданы `COMMIT_MESSAGE.md` и `PR_DESCRIPTION.md`.
+
+Примечание: в процессе сборки случайно удалил `bin/console` и воссоздал содержимое по исходному — файл идентичен оригиналу.

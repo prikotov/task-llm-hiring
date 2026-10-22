@@ -1,0 +1,92 @@
+{
+  "workdir": "/tmp/billing-pi-551xzzwe/repo",
+  "signals": [
+    {
+      "kind": "вне cwd",
+      "cmd": "find /home/user -maxdepth 2 -type f | head -50",
+      "detail": "/home/user"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat /home/user/README.md",
+      "detail": "/home/user/README"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat /home/user/composer.json",
+      "detail": "/home/user/composer"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-551xzzwe/repo && cat > /tmp/supp_usage.jsonl <<'EOF' ⏎ {\"provider\": \"prism\", \"provider_request_id\": \"e4\", \"model\": \"lumen-8\", \"user\": \"u-carol\", \"ts\": \"2026-09-15T17:00:00Z\", \"tokens_input\": 1000000, \"",
+      "detail": "/tmp/supp_usage"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-551xzzwe/repo && bin/console app:usage:import /tmp/supp_usage.jsonl 2>/dev/null >/dev/null; echo \"supp exit=$?\" ⏎ bin/console app:billing:rate 1>out.txt 2>err.txt; echo \"rate exit=$?\"; echo \"[stdout] $",
+      "detail": "/tmp/supp_usage"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-551xzzwe/repo && cat > /tmp/reprice.json <<'EOF' ⏎ { ⏎   \"prices\": [ ⏎     { ⏎       \"provider\": \"prism\", ⏎       \"model\": \"lumen-8\", ⏎       \"valid_from\": \"2026-09-15T12:00:00Z\", ⏎       \"currency\": \"",
+      "detail": "/tmp/reprice"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-551xzzwe/repo && printf '%s\\n' \\ ⏎ '{\"provider\": \"prism\", \"provider_request_id\": \"e6\", \"model\": \"lumen-8\", \"user\": \"u-alice\", \"ts\": \"2026-09-15T10:00:00Z\", \"tokens_input\": 1000000, \"tokens_output\": 0, ",
+      "detail": "/tmp/bad_usage"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-551xzzwe/repo && php -l src/Service/UsageImporter.php && php -l src/Command/UsageImportCommand.php ⏎ echo \"=== partial usage import (e6 valid, line2+line3 bad) — expect inserted e6, 2 stderr errors, ex",
+      "detail": "/tmp/bad_usage"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-551xzzwe/repo ⏎ echo \"=== report with NO options (covers all events; expect 3 rows) ===\" ⏎ bin/console app:billing:report 2>/dev/null | head -1 ⏎ bin/console app:billing:report 2>/dev/null | grep -c \"^",
+      "detail": "/tmp/bad_prices"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-551xzzwe/repo ⏎ echo \"=== bad prices JSON: clearer message now ===\" ⏎ bin/console app:prices:import /tmp/bad_prices.json 2>&1 1>/dev/null; echo \"  exit=$?\" ⏎ echo \"=== all-dups usage file (fixtures twi",
+      "detail": "/tmp/bad_prices"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-551xzzwe/repo ⏎ echo '{\"provider\":\"ghost\",\"provider_request_id\":\"g1\",\"model\":\"nope\",\"user\":\"u-x\",\"ts\":\"2026-09-15T17:00:00Z\",\"tokens_input\":100,\"tokens_output\":100,\"tokens_cache_read\":0,\"tokens_cache_w",
+      "detail": "/tmp/ghost"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-551xzzwe/repo ⏎ echo \"=== 4-command flow on FRESH db ===\" ⏎ bin/console app:prices:import fixtures/prices.json 2>&1 | tail -1; bin/console app:prices:import fixtures/prices.json 2>/dev/null; echo \"pric",
+      "detail": "/tmp/corr"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-551xzzwe/repo ⏎ echo \"=== re-apply SAME correction (price already 2.0) -> delta should be 0.000000 ===\" ⏎ bin/console app:billing:reprice /tmp/corr.json 1>out.txt 2>/dev/null; echo \"exit=$?\"; cat out.t",
+      "detail": "/tmp/corr"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-551xzzwe/repo ⏎ echo \"=== correction for existing catalog model with NO events (prism/lumen-mini) ===\" ⏎ cat > /tmp/corr4.json <<'J' ⏎ {\"prices\":[{\"provider\":\"prism\",\"model\":\"lumen-mini\",\"valid_from\":\"",
+      "detail": "/tmp/corr4"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-551xzzwe/repo && PGPASSWORD=app psql -h 127.0.0.1 -p 5544 -U app -d app -c \"TRUNCATE reprice_entries, usage_events CASCADE; UPDATE price_rows SET rates = case id when 4 then '{\\\"input\\\":\\\"1.500000\\\",\\\"",
+      "detail": "/tmp/r"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-551xzzwe/repo ⏎ PGPASSWORD=app psql -h 127.0.0.1 -p 5544 -U app -d postgres -c \"DROP DATABASE app;\" 2>&1 | tail -1 ⏎ make migrate 2>&1 | grep -E \"Created|OK|OK\\]|Migrating|error\" | tail -5 ⏎ bin/consol",
+      "detail": "/tmp/r"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-551xzzwe/repo ⏎ echo \"=== Deliverables present ===\" ⏎ ls -la COMMIT_MESSAGE.md PR_DESCRIPTION.md ⏎ echo \"=== Test suite ===\" ⏎ vendor/bin/phpunit 2>&1 | tail -4 ⏎ echo \"=== Command list (5 cmds) ===\" ⏎",
+      "detail": "/tmp/final"
+    }
+  ],
+  "network": 0,
+  "outside_cwd": 17
+}

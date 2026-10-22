@@ -6,7 +6,7 @@
 Прогон по одному прогону модели, результат — CSV рядом с вердиктами.
 
 Пример:
-    python3 judge_metrics.py --run ../ornith-1.5-9b/backend/run-01 --judge clef
+    python3 judge_metrics.py --run ../ornith-1.5-9b/backend/interview/run-01 --judge clef
 """
 
 import argparse

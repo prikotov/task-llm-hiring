@@ -1,0 +1,23 @@
+parameters:
+    env(DATABASE_URL): 'postgresql://app:app@127.0.0.1:5544/app?serverVersion=17&charset=utf8'
+
+doctrine:
+    dbal:
+        url: '%env(resolve:DATABASE_URL)%'
+        server_version: '17'
+        types:
+            utc_instant: App\Infrastructure\Doctrine\UtcInstantType
+        mapping_types:
+            billing_utc_instant: utc_instant
+    orm:
+        auto_mapping: true
+        naming_strategy: doctrine.orm.naming_strategy.underscore_number_aware
+        controller_resolver:
+            auto_mapping: false
+        mappings:
+            App:
+                type: attribute
+                is_bundle: false
+                dir: '%kernel.project_dir%/src'
+                prefix: 'App'
+                alias: App

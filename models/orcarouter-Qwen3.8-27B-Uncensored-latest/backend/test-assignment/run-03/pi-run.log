@@ -1,0 +1,35 @@
+Готово. Читаю `TASK.md` и выполняю задание полностью — бэкенд-ядро учёта расходов на LLM-токены собрано и покрыто тестами.
+
+## Что сделано
+
+**Структура**
+- `src/Domain/` — чистый расчёт: `Money` (bcmath + `roundHalfUp`), `OffPeak` (окно со сдвигом через полночь), `IsoTime`, `BillingCalculator` (per-kind и unified тарифы, off-peak, **один** финальный round HALF_UP к 6 знакам).
+- `src/Entity/` + `src/Repository/` + `migrations/` — `Provider`, `LlmModel`, `Price` (тарифы как JSON-текст), `UsageEvent` (уникальность по `provider+provider_request_id`, статус `unrated`/`rated`); выбор тарифа по `valid_from <= ts`; пересчёт по применённой строке цен.
+- `src/Service/` — `PriceCatalogService` (идемпотентный апсерт), `UsageEventService` (импорт + дедупликация), `RatingService` (расчёт unrated), `RepriceService` (ретро-пересчёт + дельта), `ReportService` (агрегация по `user,model` и `TOTAL`).
+- `src/Command/` — `app:prices:import`, `app:usage:import`, `app:billing:rate`, `app:billing:report --from --to`, `app:billing:reprice`.
+- `tests/Domain/`, `tests/Console/` — юнит + сквозной сценарий по фикстурам.
+
+**Ключевые решения**
+- Все денежные числа — строками + `bc*`, `float` не участвует в расчётах.
+- Офф-пик оценивается по wall-clock времени события.
+- `user` → столбец `user_code` (PostgreSQL: `user` зарезервирован).
+
+## Проверки
+
+| Проверка | Результат |
+|---|---|
+| `vendor/bin/phpunit` | `OK (14 tests, 44 assertions)` |
+| `vendor/bin/psalm --no-cache` | `No errors found` (exit 0) |
+| `vendor/bin/phpcs --standard=PSR12 src tests` | 0 ошибок/предупреждений (exit 0) |
+
+Сквозной приёмочный прогон (чистая БД):
+- импорты: `new=3`, exit 0;
+- rate: `RATED=3 UNRATED=0`;
+- отчёт совпадает с ожидаемым (включая `TOTAL ,,6200000,2300000,2500000,83333,33.662499`);
+- повторный импорт: `duplicate=3`, отчёт **не меняется**;
+- reprice (input 3.0→2.0): `REPRICED_EVENTS=1`, `REPRICE_DELTA_USD=-1.200000`, строка `u-alice,prism/lumen-8,1200000,800000,2500000,83333,13.062499`;
+- ошибки (некорр. JSON / JSONL / нет файла) → сообщение в stderr, exit 1.
+
+## Артефакты
+- `COMMIT_MESSAGE.md` и `PR_DESCRIPTION.md` добавлены в корень (на русском);
+- `PR_DESCRIPTION.md` описывает отклонения (имя `user_code`, хранение тарифов как JSON-текст, выбор ключа дедупликации, две фазы unrated/rated) и новые зависимости — runtime-зависимостей нет, добавлен только конфиг `psalm.xml`.

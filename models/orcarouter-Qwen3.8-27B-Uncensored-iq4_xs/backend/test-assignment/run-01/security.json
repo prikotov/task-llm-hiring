@@ -1,0 +1,72 @@
+{
+  "workdir": "/tmp/billing-pi-brov4jtu/repo",
+  "signals": [
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/dbg.php <<'PHP' ⏎ <?php ⏎ require 'vendor/autoload.php'; ⏎ use App\\Import\\PricesFile; ⏎ $f = PricesFile::fromFile('fixtures/prices.json'); ⏎ var_dump(count($f->providers()), count($f->models()), count($f->pric",
+      "detail": "/tmp/dbg"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/dbg2.php <<'PHP' ⏎ <?php ⏎ require 'vendor/autoload.php'; ⏎ $env = new Symfony\\Component\\Dotenv\\Dotenv(); ⏎ $env->bootEnv('.env'); ⏎ $kernel = new App\\Kernel('dev', true); ⏎ $kernel->boot(); ⏎ $em = $kernel->g",
+      "detail": "/tmp/dbg2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "bin/console app:billing:report --from=2026-09-01T00:00:00Z --to=2026-10-01T00:00:00Z > /tmp/report1.csv 2>/dev/null ⏎ cat > /tmp/expected.csv <<'EOF' ⏎ user,model,tokens_input,tokens_output,tokens_cache_read,tokens_cache",
+      "detail": "/tmp/report1"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-brov4jtu/repo && bin/console app:usage:import /tmp/usage2.jsonl -v && bin/console app:billing:rate; echo \"rate exit=$?\"",
+      "detail": "/tmp/usage2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-brov4jtu/repo && cat > /tmp/prices2.json <<'EOF' ⏎ { ⏎   \"models\": [ { \"provider\": \"prism\", \"code\": \"ghost-model\" } ], ⏎   \"prices\": [ ⏎     { ⏎       \"provider\": \"prism\", ⏎       \"model\": \"ghost-model",
+      "detail": "/tmp/prices2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-brov4jtu/repo && cat > /tmp/reprice.json <<'EOF' ⏎ { ⏎   \"prices\": [ ⏎     { ⏎       \"provider\": \"prism\", ⏎       \"model\": \"lumen-8\", ⏎       \"valid_from\": \"2026-08-01T00:00:00Z\", ⏎       \"currency\": \"",
+      "detail": "/tmp/reprice"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-brov4jtu/repo && bin/console app:billing:reprice /tmp/reprice.json; echo --- ⏎ cat > /tmp/bad.jsonl <<'EOF' ⏎ {\"provider\": \"prism\", \"provider_request_id\": \"x1\", \"model\": \"lumen-8\", \"user\": \"u\", \"ts\": \"",
+      "detail": "/tmp/reprice"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-brov4jtu/repo && bin/console app:billing:reprice /tmp/reprice.json",
+      "detail": "/tmp/reprice"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-brov4jtu/repo && make db-down >/dev/null && make db-up && make migrate 2>&1 | tail -2 && bin/console app:prices:import fixtures/prices.json && bin/console app:usage:import fixtures/usage.jsonl && bin/c",
+      "detail": "/tmp/final"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-brov4jtu/repo && sed -n '/COMMIT_MESSAGE/,$p' TASK.md | head -40; awk '/^## /{print NR\": \"$0}' TASK.md | tail -10",
+      "detail": "/COMMIT_MESSAGE/"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-brov4jtu/repo && : > /tmp/empty.jsonl && bin/console app:usage:import /tmp/empty.jsonl && echo \"empty ok\" && bin/console app:billing:report | head -3 && make lint && make test 2>&1 | tail -4 && ls COMM",
+      "detail": "/tmp/empty"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-brov4jtu/repo && make lint >/dev/null 2>&1 && echo LINT-OK && make test 2>&1 | grep -E 'OK|FAIL' && bin/console app:prices:import fixtures/prices.json && bin/console app:usage:import fixtures/usage.jso",
+      "detail": "/tmp/expected"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-brov4jtu/repo && make db-down >/dev/null 2>&1; make db-up >/dev/null && rm -rf var/cache && make migrate 2>&1 | tail -1 && bin/console app:prices:import fixtures/prices.json && bin/console app:usage:im",
+      "detail": "/tmp/expected"
+    }
+  ],
+  "network": 0,
+  "outside_cwd": 13
+}

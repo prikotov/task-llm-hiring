@@ -79,8 +79,9 @@ API, DeepSeek через родный API.
 | `interview/judge*.py` | эксперименты сравнения decision-моделей; `judge_openrouter.py` deprecated (пробный путь, не развивается; провайдеры — в score.py) |
 | `interview/rubrics/backend/` | карточки эталонов судьи по вопросам |
 | `interview/build_report.py` | сборка итогового отчёта из сырых данных |
-| `<модель>/backend/run-XX/` | протоколы собесов: `session.json` (messages, thinking, тайминги) и `transcript.md` |
-| `<модель>/backend/judgments/` | вердикты судей (clef, GLM-5.3-Flash) и сводные CSV |
+| `<модель>/backend/interview/run-XX/` | протоколы собесов: `session.json` (messages, thinking, тайминги) и `transcript.md` |
+| `<модель>/backend/interview/judgments/` | вердикты судей (clef, GLM-5.3-Flash) и сводные CSV |
+| `<модель>/backend/test-assignment/run-XX/` | тестовое задание (этап 2): solution, pi-сессия, чекер, метрики, scorecard |
 | `reports/` | кросс-модельные агрегаты, итоговый отчёт `REPORT.html` |
 
 ## Быстрый старт
@@ -108,12 +109,12 @@ python3 interview/runner.py --questions interview/roles/backend/questions.json \
 
 # оценка ярусом 1: decision-модель clef по протоколу прогона,
 # одним запросом на ответ: балл, галлюцинации и эскалационные признаки
-python3 interview/score.py --run qwen3.8/backend/run-01 --judge clef
+python3 interview/score.py --run qwen3.8/backend/interview/run-01 --judge clef
 ```
 
 Судья яруса 2 (GLM-5.3-Flash) запускается скриптом `interview/judge_glm.py`
 через подписку Z.AI и проверку фактов кодом; он не воспроизводится без
-подписки, но все его вердикты лежат в `<модель>/backend/judgments/`.
+подписки, но все его вердикты лежат в `<модель>/backend/interview/judgments/`.
 
 ## Статус
 
