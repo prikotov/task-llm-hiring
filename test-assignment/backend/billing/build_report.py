@@ -348,6 +348,9 @@ tr.top td{background:#eef6ef}
 .dsym.cut{color:#b3543f}.dsym.time{color:#9a6b00}
 .dsym.hang{color:#6b5b9e}.dsym.blank{color:#66707f}
 .ptag{color:#66707f;font-size:10.5px;font-weight:600;cursor:help}
+.provchip{display:inline-block;margin-top:2px;padding:0 5px;border-radius:7px;
+          background:#eef0f4;color:#46536a;font-size:10.5px;font-weight:600;
+          line-height:15px;cursor:help;white-space:nowrap}
 .deadmark:hover::after,.okmark:hover::after{content:attr(data-tip);position:absolute;
            bottom:calc(100% + 7px);
            left:50%;transform:translateX(-50%);background:#2a3342;color:#fff;
@@ -1600,11 +1603,11 @@ def runs_inventory() -> str:
                 # int() вместо округления: 99.9% → «99%», честные 100% не бывают
                 toks += (f'<div class=sub style="line-height:1.3;white-space:nowrap">'
                          f'кэш {int(100 * u_cache / prompt)}%</div>')
-            # в строке — только цветной значок у имени (детали — сноской под
-            # таблицей группы); в смешанных группах — короткий тег провайдера
-            # (OR / orca), колонки не раздувая
-            provmark = (f'<sup class="ptag">'
-                        f'{PROV_TAG.get(run.get("provider"), "")}</sup>' if mixed else "")
+            # в строке — цветной значок у имени (детали — сноской под таблицей
+            # группы); в смешанных группах провайдер — чипом под именем прогона
+            provmark = (f'<br><span class="provchip" title="провайдер вызова: '
+                        f'{PROV_NAME.get(run.get("provider"), "ollama")}">'
+                        f'{PROV_TAG.get(run.get("provider"), "")}</span>' if mixed else "")
             rowmark = (f'<sup class="dsym {dkind}" title="{dwhy}">{dglyph}</sup>'
                        if dead else "")
             runs.append(
@@ -1677,8 +1680,9 @@ def runs_inventory() -> str:
             '<span class="dsym blank">∅</span> — решение не написано · '
             '<sup>*</sup> — чужая модель в ollama во время прогона · '
             '<sup>†</sup> — MTP-ретаг тех же весов · '
-            '<sup class=ptag>OR</sup> — OpenRouter, <sup class=ptag>orca</sup> — '
-            "OrcaRouter (в группах с несколькими провайдерами). "
+            '<span class=provchip>OR</span> — OpenRouter, '
+            '<span class=provchip>orca</span> — OrcaRouter '
+            "(чип провайдера — в группах с несколькими провайдерами). "
             "Наведение на значок — короткая причина, детали исключений — в сносках "
             "под таблицей группы.</p>"
             + "".join(groups)
