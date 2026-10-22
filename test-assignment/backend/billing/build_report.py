@@ -124,6 +124,24 @@ def local_cost(gen_minutes: float):
     return gen_minutes / 60 * LOCAL_RUB_H / RUB_USD
 
 
+def interrupt_cause(r: Path, run: dict) -> str | None:
+    """Причина незавершённости прогона: exit != 0 либо убит раннером (таймаут).
+    None — прогон завершился сам с кодом 0. Такие прогоны вне метрик:
+    частичное решение и его оценки искажают средние."""
+    ec = run.get("exit_code")
+    if ec in (0, None) and not run.get("killed"):
+        return None
+    if ec == 143 or run.get("killed"):
+        return "прерван по лимиту времени 90 мин (SIGTERM раннера)"
+    plog = r / "pi-run.log"
+    ptext = plog.read_text(errors="replace") if plog.is_file() else ""
+    if "requires more credits" in ptext:
+        return "прерван: исчерпан баланс OpenRouter (402 requires more credits)"
+    if "reached its spending limit" in ptext:
+        return "прерван: достигнут лимит ключа OrcaRouter (403 err_key_quota)"
+    return f"pi завершился с кодом {ec} (обрыв/сбой — детали в pi-run.log)"
+
+
 def scan_runs() -> list[dict]:
     """Все прогоны с диска: условия, чекер, метрики, ярусы 3/4, сессия."""
     rows = []
@@ -200,8 +218,19 @@ def scan_runs() -> list[dict]:
             frozen = ((run.get("duration_s") or 0) > 5000
                       and ((mj.get("scc") or {}).get("loc") or 999) <= 40)
             blank_run = not run.get("diff_lines")
+            int_cause = interrupt_cause(r, run)
+            dead = frozen or blank_run or bool(int_cause)
             deadwhy = ""
-            if frozen:
+            if int_cause:
+                # прерван (сбой/лимит/баланс): частичное решение и его оценки
+                # — не результат модели, в средних искажают соседние строки
+                deadwhy = int_cause + (
+                    "; решение не написано (дифф 0 строк)" if blank_run
+                    else f"; решение оборвано (дифф {run.get('diff_lines') or 0} строк), "
+                         "оценки обрывка в средних не участвуют")
+                if nsess > 1:
+                    deadwhy = f"попыток в каталоге: {nsess}; " + deadwhy
+            elif frozen:
                 deadwhy = ("агент застрял на bash-команде (таймаута на инструменты у pi нет), "
                            "сессия дожила до лимита 90 минут; скелет нетронут — вне метрик")
             elif blank_run:
@@ -214,6 +243,9 @@ def scan_runs() -> list[dict]:
                                "скелет, вне метрик")
                 if nsess > 1:
                     deadwhy = f"попыток в каталоге: {nsess}; " + deadwhy
+            # прогон вне метрик: прерван (сбой / лимит времени / баланс) с
+            # обрывком решения, зависшая сессия либо решение не написано
+            # (дифф 0 строк — чекер оценивал нетронутый скелет, мерить нечего)
             rows.append({
                 "folder": d.name, "short": SHORT.get(d.name, d.name),
                 "run": r.name, "tag": run.get("model", ""),
@@ -238,10 +270,9 @@ def scan_runs() -> list[dict]:
                 "tests": (mj.get("phpunit") or {}).get("tests"),
                 "cov": (mj.get("phpunit") or {}).get("coverage_lines_pct"),
                 "loc": (mj.get("scc") or {}).get("loc"),
-                # прогон вне метрик: зависшая сессия (агент застрял на bash-инструменте,
-                # pi держал её до лимита) либо решение не написано (дифф 0 строк —
-                # чекер оценивал нетронутый скелет, мерить нечего)
-                "dead": frozen or blank_run,
+                # прогон вне метрик: прерван (выше), зависшая сессия либо
+                # решение не написано — в средних разделов 1–6 не участвует
+                "dead": dead,
                 "deadwhy": deadwhy,
                 "blank_pct": blank_pct, "comm_pct": comm_pct,
                 "audit": aud.get("overall") or "",
@@ -361,7 +392,8 @@ def fmt_dur(v):
 
 def results_agg(data: list[dict]) -> list[dict]:
     """Свёртка прогонов в строки «модель в одном режиме»: средние —
-    только по живым прогонам, повисшие остаются в счётчике n_total."""
+    только по живым прогонам; прерванные (сбой/лимит/баланс), повисшие
+    и пустые остаются в счётчике n_dead."""
     order = {FULL: 0, PART: 1, FAIL: 2, NA: 3}
     groups: dict[tuple, list[dict]] = {}
     for r in data:
@@ -471,9 +503,10 @@ def results_table(data: list[dict]):
             f"<tr{trcls}><td><b>{r['short']}</b><br>{prov_badge}</td>"
             f'<td class="narrow">{r["note"]}</td>'
             f'<td class="narrow">{n}'
-            + (f'<br><span class="deadmark" data-tip="Прогон вне метрик: повисшая сессия '
-               f'либо решение не написано (дифф 0 строк). Причина каждого — по пометке '
-               f'‡ в разделе 7">❄{r["n_dead"]}</span>'
+            + (f'<br><span class="deadmark" data-tip="Прогон вне метрик: прерван '
+               f'(сбой / лимит времени / исчерпан баланс), повисшая сессия либо '
+               f'решение не написано. Причина каждого — по пометке ‡ в разделе 7">'
+               f'❄{r["n_dead"]}</span>'
                if r["n_dead"] else "") + '</td>'
             f'<td class="narrow">{bar}</td>'
             f'<td class="narrow">{cell(r["a1"])} / {cell(r["b1"])}</td>'
@@ -506,9 +539,11 @@ def results_table(data: list[dict]):
             "от лучших к худшим: средняя сумма сценариев чекера → балл ревью (ось A) → "
             "суммарные нарушения phpcs+psalm+phpstan → покрытие тестами. Детальные данные "
             "Красная плашка ❄N у числа прогонов — N прогонов вне метрик (число в колонке — "
-            "только живые): повисшая сессия (агент застревал на bash-команде, pi ждал её "
-            "до лимита 90 минут) либо решение не написано (дифф 0 строк — чекер оценивал "
-            "нетронутый скелет, мерить нечего). Такие прогоны не учитываются в общих "
+            "только живые): прерван (сбой, лимит времени 90 мин, исчерпанный баланс/ключ — "
+            "обрывок решения и его оценки средние искажают), повисшая сессия (агент "
+            "застревал на bash-команде, pi ждал её до лимита 90 минут) либо решение "
+            "не написано (дифф 0 строк — чекер оценивал нетронутый скелет, мерить "
+            "нечего). Такие прогоны не учитываются в общих "
             "результатах, каждая помечена ‡ в разделе 7, у ‡ — точная причина. "
             "Строки «orca · MTP» — прогоны тех же весов orca "
             "с включённым MTP draft (тег qwen3.8-unc — локальный ретаг тех же блобов, сверка "
@@ -1195,7 +1230,8 @@ def dumbbell(rows, vmax, ticks, xtitle, w=620, row_h=34, fmt="{:g}", ref_lines=(
 def judges_dumbbell(data: list[dict]):
     rows = [(f"{r['short']} · {r['run'].removeprefix('run-')}", r["a2"], r["a1"],
              "слепое ревью, ярус 4 (GLM-флеш)", "ревью, ярус 3 (GLM-флеш)")
-            for r in data if r["a1"] is not None and r["a2"] is not None]
+            for r in data
+            if not r["dead"] and r["a1"] is not None and r["a2"] is not None]
     if not rows:
         return ""
     return dumbbell(rows, 4, (0, 1, 2, 3, 4), "ось A: что сделано (0–4)", fmt="{:g}")
@@ -1442,9 +1478,17 @@ def runs_inventory() -> str:
             loc27 = (mj.get("scc") or {}).get("loc")
             frozen = (run.get("duration_s") or 0) > 5000 and loc27 == 27
             blank_run = not run.get("diff_lines")
-            dead = frozen or blank_run
+            int_cause = interrupt_cause(r, run)
+            dead = frozen or blank_run or bool(int_cause)
             dwhy = ""
-            if frozen:   # замерший стрим: скелет нетронут, это не результат модели
+            if int_cause:
+                dwhy = int_cause + (
+                    "; решение не написано (дифф 0 строк)" if blank_run
+                    else f"; решение оборвано (дифф {run.get('diff_lines') or 0} строк), "
+                         "оценки обрывка в средних не участвуют")
+                if nsess > 1:
+                    dwhy = f'попыток в каталоге: {nsess}; ' + dwhy
+            elif frozen:   # замерший стрим: скелет нетронут, это не результат модели
                 dwhy = ('агент застрял на bash-команде (команда не возвращалась, '
                         'таймаута на инструменты у pi нет): сессия дожила до лимита '
                         '90 минут, скелет нетронут; в средних не учитывается')
@@ -1487,17 +1531,9 @@ def runs_inventory() -> str:
                          f'кэш {int(100 * u_cache / prompt)}%</div>')
             ec = run.get("exit_code")
             ec_badge = ""
-            if ec not in (0, None):
-                plog = r / "pi-run.log"
-                ptext = plog.read_text(errors="replace") if plog.is_file() else ""
-                credits = "requires more credits" in ptext
-                keylimit = "reached its spending limit" in ptext
-                why = ("прерван по лимиту 90 мин" if ec == 143 else
-                       "прерван: исчерпан баланс OpenRouter (402)" if credits else
-                       "прерван: достигнут лимит ключа OrcaRouter "
-                       "(403 err_key_quota)" if keylimit else
-                       f"pi завершился с кодом {ec} (обрыв/сбой — pi-run.log)")
-                ec_badge = (f'<br><span class="deadmark" data-tip="{why}">код {ec}</span>')
+            if int_cause:
+                ptag = f"код {ec}" if ec not in (0, None) else "❄ вне метрик"
+                ec_badge = f'<br><span class="deadmark" data-tip="{int_cause}">{ptag}</span>'
             elif dead:   # решение не написано при чистом exit: без бейджа не отличить
                 ec_badge = (f'<br><span class="deadmark" data-tip="{dwhy}">❄ вне метрик</span>')
             runs.append(
@@ -1597,7 +1633,9 @@ _dates = sorted(r.get("started_at", "")[:10] for r in
 RANGE_DATES = (_dates[0] + " — " + _dates[-1]) if _dates else "—"
 
 # выжимки для нарратива
-_pairs = [r for r in DATA if r["a1"] is not None and r["a2"] is not None]
+# согласие судей — только по живым прогонам: вердикты обрывка решения
+# (прерванный прогон) согласием ярусов не являются
+_pairs = [r for r in DATA if not r["dead"] and r["a1"] is not None and r["a2"] is not None]
 N_AGREE = sum(1 for r in _pairs if abs(r["a1"] - r["a2"]) <= 1)
 N_PAIRS = len(_pairs)
 AUDIT_OK = sum(1 for r in DATA if r["audit"] == "чисто")
@@ -2037,10 +2075,12 @@ Sol — компактное решение (862 LOC) с умеренными з
 прогонов — в пределах ±1 балла оси A, систематического сдвига нет.</p>
 {judges_dumbbell(DATA)}
 <div class="quote bad"><div class=who>Слепое пятно судьи (ярус 4)</div>
-Судья видит только дифф и не знает результата чекера. Единственный выход за ±1 — qwen r3:
-обязательная часть развалилась (9/13), но код выглядит аккуратно — судья поставил 4.0 против 2.5
-у ревью. Вывод этапа: истина о работоспособности — только за чекером; судья — второй проход
-по коду и поиск дефектов, не итоговый балл нерабочих решений.</div>
+Судья видит только дифф и не знает результата чекера. Выходы за ±1 (по живым
+прогонам): ornith r3 — решение неработоспособно (3/11), но код выглядит опрятно,
+слепой дал 2.5 против 1.0 у ревью; qwen r3 — обязательная часть на грани (9/11),
+код аккуратный — 4.0 против 2.5 у ревью. Вывод этапа: истина о работоспособности —
+только за чекером; судья — второй проход по коду и поиск дефектов, не итоговый
+балл нерабочих решений.</div>
 
 {runs_inventory()}<h2 id=next><span class=no>8.</span>Стоимость конвейера и что дальше</h2>
 <div class=scalebox id=econ><b>Цены и курс.</b> Все цены отчёта — в рублях по фиксированному курсу <b>₽85.15/$</b> (задан владельцем 2026-10-09 и не пересчитывается). Облачные прогоны — токены по тарифам провайдеров (таблица реальных трат ниже). Локальные — <b>электричество и амортизация</b> железа: 550 Вт в момент генерации при ₽7.07/кВт·ч (тариф с 01.10.2026) плюс амортизация (₽600 000 минус остаточные 30% за 13 140 часов работы) = <b>₽35.85/ч чистой генерации</b>. Методика перенесена из §8 «Экономика собеса» отчёта интервью (interview/build_report.py).</div>
