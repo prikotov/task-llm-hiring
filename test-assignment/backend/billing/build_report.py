@@ -606,6 +606,31 @@ def _place_labels(pts, obstacles=()):
     return out
 
 
+MAP_SHORT = {"DeepSeek V4.1 Flash-1017": "DeepSeek"}
+
+
+def _map_names(rows: list[dict]) -> None:
+    """Подписи и ключи точек карт качества: у двух прогонов могут совпасть
+    и модель, и режим (opus max: run-02 через OpenRouter, run-04 через
+    OrcaRouter) — повторные подписи различаем провайдером вызова (OR/orca,
+    без тега — порядковым номером), ключ делаем уникальным, иначе раскладка
+    подписей схлопывает строки в одну. Пишет r["_name"] и r["_key"]."""
+    from collections import Counter
+    cnt = Counter(r["short"] for r in rows)
+    prov_tag = {"openrouter": "OR", "orcarouter": "orca"}
+    seen: dict[tuple, int] = {}
+    for r in rows:
+        k = (r["short"], r["note"])
+        seen[k] = seen.get(k, 0) + 1
+        name = MAP_SHORT.get(r["short"], r["short"])
+        if cnt[r["short"]] > 1:
+            name += f" ·{r['note']}"
+        if seen[k] > 1:
+            tag = prov_tag.get(r.get("prov"), "")
+            name += f"·{tag}" if tag else f"·{seen[k]}"
+        r["_name"], r["_key"] = name, (k[0], k[1], seen[k])
+
+
 def quality_price_map(agg: list[dict]) -> str:
     """Карта моделей: результат чекера (из 13) против цены прогона,
     лог-шкала — как «Карта моделей» в отчёте интервью."""
@@ -616,7 +641,8 @@ def quality_price_map(agg: list[dict]) -> str:
     W, H = 920, 540
     ML, MR, MT, MB = 64, 24, 28, 58
     PW, PH = W - ML - MR, H - MT - MB
-    XMIN, XMAX = 0.005, 1.5          # $ за прогон, лог-шкала; GigaChat ₽0 — левый край
+    XMIN, XMAX = 0.005, 10           # $ за прогон, лог-шкала; GigaChat ₽0 — левый край,
+                                     # правый — дорогие Anthropic-флагманы ($9.18 opus max)
     YMIN, YMAX = 0.0, 4.25           # балл ревью, ось A (код и архитектура)
     QX, QY = 0.15, 3.0               # пороги квадрантов: $0.15 и 3 балла ревью
     GROUPS = [("#315f9e", "облачные"), ("#5b9bd5", "российские облака"),
@@ -637,22 +663,16 @@ def quality_price_map(agg: list[dict]) -> str:
         return 4.5 if viol is None else 4.5 + min(viol / 250, 1) * 9
 
     # подписи на карте: краткие; режим (low/max) — только если у модели
-    # несколько строк в таблице (иначе «Sol 6.1 ·max» и «Sol 6.1 ·max» неотличимы)
-    from collections import Counter
-    rows_cnt = Counter(r["short"] for r in pts_src)
-    MAP_SHORT = {"DeepSeek V4.1 Flash-1017": "DeepSeek"}
-    def point_name(r):
-        base = MAP_SHORT.get(r["short"], r["short"])
-        return base + (f" ·{r['note']}" if rows_cnt[r["short"]] > 1 else "")
-
-    pts_src = [r for r in pts_src if r["a1"] is not None]   # без ревью — не на карте
+    # несколько строк в таблице (иначе «Sol 6.1 ·low» и «Sol 6.1 ·max» неотличимы);
+    # полные дубликаты (модель+режим) различаются провайдером — _map_names
+    _map_names(pts_src)
     pts = []
     from collections import Counter
     spot_cnt = Counter((round(px(r["cost"])), round(py(r["a1"]))) for r in pts_src)
     same_spot: dict[tuple, int] = {}
     forced = {}
     for r in pts_src:
-        lbl = point_name(r)
+        lbl = r["_name"]
         x = px(r["cost"])
         y = py(r["a1"])
         # совпавшие точки (обе гигачат-модели ₽0 прижаты к левому краю):
@@ -662,8 +682,8 @@ def quality_price_map(agg: list[dict]) -> str:
         same_spot[spot] = n + 1
         if spot_cnt[spot] > 1:
             # стек вверх: внизу может лежать капшен квадранта
-            forced[(r["short"], r["note"])] = (x + 10, "start", y - 16 - 14 * n)
-        pts.append({"key": (r["short"], r["note"]), "x": x, "y": y,
+            forced[r["_key"]] = (x + 10, "start", y - 16 - 14 * n)
+        pts.append({"key": r["_key"], "x": x, "y": y,
                     "r": rad_of(r["viol"]), "w": len(lbl) * 5.2 + 6,
                     "xmin": ML - 30, "xmax": ML + PW + 8,
                     "ymin": MT - 6, "ymax": MT + PH + 6})
@@ -682,15 +702,15 @@ def quality_price_map(agg: list[dict]) -> str:
     label_geo.update(forced)
     for r in pts_src:
         if r["a1"] == 0:   # точка на нижней кромке — подпись над точкой,
-            label_geo[(r["short"], r["note"])] = (px(r["cost"]) + 10, "start",
-                                                  py(r["a1"]) - 30)   # выше капшена
+            label_geo[r["_key"]] = (px(r["cost"]) + 10, "start",
+                                    py(r["a1"]) - 30)   # выше капшена
 
     svg = []
     for gv in (1, 2, 3, 4):
         y = py(gv)
         svg.append(f'<line x1={ML} y1={y:.0f} x2={ML+PW} y2={y:.0f} stroke="#e4e7ec"/>'
                    f'<text x={ML-10} y={y+4:.0f} text-anchor=end font-size=12 fill=#66707f>{gv}</text>')
-    for xv in (0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1):
+    for xv in (0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10):
         x = px(xv)
         svg.append(f'<line x1="{x:.0f}" y1="{MT}" x2="{x:.0f}" y2="{MT+PH}" stroke="#e4e7ec"/>'
                    f'<text x="{x:.0f}" y="{MT+PH+20}" text-anchor="middle" font-size="12" '
@@ -724,7 +744,7 @@ def quality_price_map(agg: list[dict]) -> str:
             fill = "#ffffff" if i == 0 else "#c8d4e4"
             tip.append(f'<text x="{tx + 8:.0f}" y="{y - 38 + i*15:.0f}" font-size="11.5" '
                        f'fill="{fill}"{bold} text-anchor="start">{t}</text>')
-        tx, anchor, ty = label_geo[(r["short"], r["note"])]
+        tx, anchor, ty = label_geo[r["_key"]]
         # линия-выноска: подпись не примыкает к точке — связываем визуально
         lx = tx + 3 if anchor == "end" else tx - 3
         leader = (f'<line x1="{x:.0f}" y1="{y:.0f}" x2="{lx:.0f}" y2="{ty - 3:.0f}" '
@@ -734,7 +754,7 @@ def quality_price_map(agg: list[dict]) -> str:
                    f'<circle class="dot" cx="{x:.0f}" cy="{y:.0f}" r="{rad:.1f}" fill="{hue}" '
                    f'fill-opacity="0.8" stroke="#fff" stroke-width="1.5"/>'
                    f'<text x="{tx:.0f}" y="{ty:.0f}" text-anchor="{anchor}" font-size="11" '
-                   f'fill="{hue}">{point_name(r)}</text>'
+                   f'fill="{hue}">{r["_name"]}</text>'
                    + leader
                    + f'<g class="tip">' + "".join(tip) + "</g></g>")
     svg.append(f'<text x="{ML+PW/2:.0f}" y="{H-16}" text-anchor="middle" font-size="12.5" fill="#66707f">'
@@ -760,13 +780,7 @@ def quality_speed_map(agg: list[dict]) -> str:
     pts_src = [r for r in agg if r["a1"] is not None]
     if not pts_src:
         return ""
-    from collections import Counter
-    rows_cnt = Counter(r["short"] for r in pts_src)
-    MAP_SHORT = {"DeepSeek V4.1 Flash-1017": "DeepSeek"}
-
-    def point_name(r):
-        base = MAP_SHORT.get(r["short"], r["short"])
-        return base + (f" ·{r['note']}" if rows_cnt[r["short"]] > 1 else "")
+    _map_names(pts_src)
 
     W, H = 920, 540
     ML, MR, MT, MB = 64, 24, 28, 58
@@ -793,15 +807,16 @@ def quality_speed_map(agg: list[dict]) -> str:
     pts_src = sorted(pts_src, key=lambda r: r["short"])
     pts = []
     for r in pts_src:
-        pts.append({"key": (r["short"], r["note"]), "x": px(r["dur"]), "y": py(r["a1"]),
-                    "r": rad_of(r["out"]), "w": len(point_name(r)) * 5.2 + 6,
+        pts.append({"key": r["_key"], "x": px(r["dur"]), "y": py(r["a1"]),
+                    "r": rad_of(r["out"]), "w": len(r["_name"]) * 5.2 + 6,
                     "xmin": ML - 30, "xmax": ML + PW + 8,
                     "ymin": MT - 6, "ymax": MT + PH + 6})
     label_geo = _place_labels(pts)
     # Sol 6.1 ·low: автораскладка наезжает на подпись Luna 6 ·max — уводим под точку
-    if ("Sol 6.1", "low") in label_geo:
-        rl = next(r for r in pts_src if (r["short"], r["note"]) == ("Sol 6.1", "low"))
-        label_geo[("Sol 6.1", "low")] = (px(rl["dur"]), "middle", py(rl["a1"]) + 22)
+    sols = [r for r in pts_src if r["short"] == "Sol 6.1" and r["note"] == "low"]
+    if sols:
+        rl = sols[0]
+        label_geo[rl["_key"]] = (px(rl["dur"]), "middle", py(rl["a1"]) + 22)
     for r in pts_src:
         if r["a1"] == 0:   # точка на нижней кромке — подпись над точкой,
             label_geo[(r["short"], r["note"])] = (px(r["dur"]) + 10, "start",
@@ -852,12 +867,12 @@ def quality_speed_map(agg: list[dict]) -> str:
             fill = "#ffffff" if i == 0 else "#c8d4e4"
             tip.append(f'<text x="{tx + 8:.0f}" y="{y - 38 + i*15:.0f}" font-size="11.5" '
                        f'fill="{fill}"{bold} text-anchor="start">{t}</text>')
-        tx, anchor, ty = label_geo[(r["short"], r["note"])]
+        tx, anchor, ty = label_geo[r["_key"]]
         svg.append(f'<g class="pt">'
                    f'<circle class="dot" cx="{x:.0f}" cy="{y:.0f}" r="{rad:.1f}" fill="{hue}" '
                    f'fill-opacity="0.8" stroke="#fff" stroke-width="1.5"/>'
                    f'<text x="{tx:.0f}" y="{ty:.0f}" text-anchor="{anchor}" font-size="11" '
-                   f'fill="{hue}">{point_name(r)}</text>'
+                   f'fill="{hue}">{r["_name"]}</text>'
                    f'<g class="tip">' + "".join(tip) + "</g></g>")
     svg.append(f'<text x="{ML+PW/2:.0f}" y="{H-16}" text-anchor="middle" font-size="12.5" fill="#66707f">'
                f'длительность прогона, минуты; диаметр точки — выходные токены сессии</text>')
@@ -882,19 +897,13 @@ def quality_triangle_map(agg: list[dict]) -> str:
     import json as _json
     from collections import Counter
     pts_src = [r for r in agg if r["a1"] is not None]
-    rows_cnt = Counter(r["short"] for r in pts_src)
-    MAP_SHORT = {"DeepSeek V4.1 Flash-1017": "DeepSeek"}
     HUES = {"gigachat": "#5b9bd5", "ollama": "#2f7d54"}
-
-    def point_name(r):
-        base = MAP_SHORT.get(r["short"], r["short"])
-        return base + (f" ·{r['note']}" if rows_cnt[r["short"]] > 1 else "")
-
+    _map_names(pts_src)
     data = []
     for r in pts_src:
         price = (f"${r['cost']:.3f}"
                  + (" · ₽0" if r["cost"] == 0 else f" · ≈₽{r['cost'] * RUB_USD:.0f}"))
-        data.append({"name": point_name(r), "score": r["a1"],
+        data.append({"name": r["_name"], "score": r["a1"],
                      "cost": round(max(r["cost"], 0.01), 4),
                      "dur": round(r["dur"], 1), "tok": int(r["out"] or 0),
                      "chk": (f"чекер {r['mand']:g}" + (f"★{r['bonus']:g}" if r["bonus"] else "")
