@@ -359,9 +359,9 @@ tr.top td{background:#eef6ef}
 .tree{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 18px;
       font:12.5px/1.62 ui-monospace,SFMono-Regular,Consolas,Menlo,monospace;
       overflow-x:auto;margin:14px 0}
-.tline{display:flex;white-space:pre}
-.tname{flex:none}
-.tpct{margin-left:auto;padding-left:18px;color:#8a93a0;font-size:11px;line-height:20px}
+.tline{white-space:pre}
+.tpfx{color:#cdd3da}
+.tpct{color:#8a93a0;font-size:11px}
 .troot{color:#46536a;font-weight:700}
 .tdots{color:#b6bdc6;font-style:italic}
 .deadmark:hover::after,.okmark:hover::after{content:attr(data-tip);position:absolute;
@@ -1394,18 +1394,21 @@ def structure_section(data: list[dict]) -> str:
     for r in runs:
         src_paths.update(r["dirs"])
         t_paths.update(r["tdirs"])
-    cmax = max(src_paths.values()) if src_paths else 1
 
     def _plural(n, one, few, many):
         m10, m100 = n % 10, n % 100
         return (one if m10 == 1 and m100 != 11 else
                 few if m10 in (2, 3, 4) and m100 not in (12, 13, 14) else many)
 
-    def _ink(cnt: int) -> str:
-        """Яркость имени: от бледного (1 прогон) к полному чернильному (максимум)."""
-        t = 0.18 + 0.82 * (cnt / cmax) ** 0.6
-        a, b = (0xAA, 0xB2, 0xBC), (0x1D, 0x24, 0x33)
-        return "#%02x%02x%02x" % tuple(round(x + (y - x) * t) for x, y in zip(a, b))
+    def _ink(pct: int) -> str:
+        """Яркость имени ступенями по проценту прогонов: чем реже, тем бледнее."""
+        if pct >= 50:
+            return "#10151f"
+        if pct >= 25:
+            return "#454e5d"
+        if pct >= 10:
+            return "#6e7683"
+        return "#98a1ac"
 
     def _tree(counter: Counter, root: str, root_pct: int) -> str:
         tree: dict = {}
@@ -1414,7 +1417,7 @@ def structure_section(data: list[dict]) -> str:
             for part in p.split("/"):
                 node = node.setdefault(part, {})
             node["#"] = c
-        lines = [f'<div class=tline><span class="tname troot">{root}</span>'
+        lines = [f'<div class=tline><span class="troot">{root}</span> '
                  f'<span class=tpct>{root_pct}%</span></div>']
 
         def walk(node, prefix):
@@ -1428,14 +1431,15 @@ def structure_section(data: list[dict]) -> str:
                 conn = "└── " if last else "├── "
                 if item is None:
                     w = _plural(len(rare), "ветку", "ветки", "веток")
-                    lines.append(f'<div class=tline><span class="tname tdots">'
-                                 f'{prefix}{conn}… ещё {len(rare)} {w} по 1 прогону</span></div>')
+                    lines.append(f'<div class=tline><span class=tpfx>{prefix}{conn}</span>'
+                                 f'<span class=tdots>… ещё {len(rare)} {w} по 1 прогону</span></div>')
                     continue
                 k, v = item
                 cnt = v.get("#", 0)
-                lines.append(f'<div class=tline><span class=tname style="color:{_ink(cnt)}">'
-                             f'{prefix}{conn}{k}/</span>'
-                             f'<span class=tpct>{round(100 * cnt / n)}%</span></div>')
+                pct = round(100 * cnt / n)
+                hue = _ink(pct)
+                lines.append(f'<div class=tline><span class=tpfx>{prefix}{conn}</span>'
+                             f'<span style="color:{hue}"><b>{k}/</b> {pct}%</span></div>')
                 walk(v, prefix + ("    " if last else "│   "))
 
         walk(tree, "")
@@ -1520,8 +1524,9 @@ def structure_section(data: list[dict]) -> str:
             f'но полной единой структуры нет ни у кого.</p>'
             f'<div class=tree>{tree_html}</div>'
             f'<p class=sub>Процент — доля прогонов из {n}, где каталог существует; '
-            f'яркость имени — та же доля, бледнее — реже. Ветки, встреченные ровно '
-            f'в одном прогоне, свёрнуты в «…». Каркасные src/ и tests/ — серые: '
+            f'яркость имени — ступени по тому же проценту: ≥50% — чернильный, '
+            f'25–49% — тёмно-серый, 10–24% — серый, реже — бледный. Ветки, встреченные '
+            f'ровно в одном прогоне, свёрнуты в «…». Каркасные src/ и tests/ — серые: '
             f'они даны скелетом, не выбором модели.</p>'
             f'<p class=excap>Слепки по моделям и постоянство структуры</p>'
             f'<div style="overflow-x:auto"><table><thead><tr><th>Модель</th>'
