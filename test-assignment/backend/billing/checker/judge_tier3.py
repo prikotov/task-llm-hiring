@@ -31,9 +31,10 @@ import tempfile
 import time
 from pathlib import Path
 
+from judge_common import run_judge, save_sidecar
+
 HERE = Path(__file__).resolve().parent
 BILLING = HERE.parent
-PI = "pi"
 MODEL = "zai/glm-5.3-flash"
 TIMEOUT_S = 1200
 RETRIES = 2
@@ -65,10 +66,11 @@ SYSTEM = """Ты — изолированный ревьюер (ярус 3) те
 def build_facts(run_dir: Path) -> list[str]:
     """Блок ФАКТОВ для промпта ревьюера: выжимка ярусов 1–2 по прогону.
 
-    Метрики подаются агрегатами (phpstan/phpmd/phpcs/LOC + AST-сводка);
-    сырые выводы инструментов ревьюеру не дают — только факты чекера
-    с деталями упавших сценариев. Используется и отчётом этапа
-    (build_pilot_report.py) как документация входа ревьюера.
+    Метрики подаются агрегатами (phpcs/psalm/phpstan/LOC + AST-сводка);
+    phpmd сознательно не сообщаем — наблюдение, в оценку не входит.
+    Сырые выводы инструментов ревьюеру не дают — только факты чекера
+    с деталями упавших сценариев. Используется и отчётами
+    как документация входа ревьюера.
     """
     facts = []
     check = run_dir / "check.json"
@@ -82,10 +84,10 @@ def build_facts(run_dir: Path) -> list[str]:
     metrics = run_dir / "metrics.json"
     if metrics.exists():
         mj = json.loads(metrics.read_text())
-        ps, pm, pc = mj.get("phpstan") or {}, mj.get("phpmd") or {}, mj.get("phpcs") or {}
+        pc, psl, ps = mj.get("phpcs") or {}, mj.get("psalm") or {}, mj.get("phpstan") or {}
         scc = mj.get("scc") or {}
-        facts.append(f"Метрики: phpstan {ps.get('errors')}, phpmd {pm.get('violations')}, "
-                     f"phpcs {pc.get('violations')}, loc {scc.get('loc')}")
+        facts.append(f"Метрики: phpcs {pc.get('violations')}, psalm {psl.get('issues')}, "
+                     f"phpstan {ps.get('errors')}, loc {scc.get('loc')}")
         ast = mj.get("ast_metrics") or {}
         if ast:
             facts.append(f"AST: cc_max {ast.get('method_cc_max')}, lcom4>1: {ast.get('lcom4_over_1')}, "
@@ -109,51 +111,51 @@ def judge_run(run_dir: Path, thinking: str) -> int:
               f"ФАКТЫ (детерминированные ярусы):\n" + "\n".join(facts) +
               "\n\nОцени оси A и B. Ответ — только JSON.")
 
-    with tempfile.TemporaryDirectory(prefix="tier3-") as td:
-        pf = Path(td) / "prompt.txt"
-        pf.write_text(prompt, encoding="utf-8")
-        cmd = [PI, "-p", "--no-session", "--model", MODEL, "--thinking", thinking,
-               "--tools", "bash", "--system-prompt", SYSTEM, "--mode", "text", f"@{pf}"]
-        last_err = None
-        for attempt in range(1, RETRIES + 1):
-            try:
-                out = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT_S)
-                reply = out.stdout.strip()
-                if out.returncode != 0 or not reply:
-                    raise RuntimeError(f"exit {out.returncode}: {out.stderr[:300]}")
-                m = re.search(r"\{.*\}", reply, re.S)
-                if not m:
-                    raise RuntimeError(f"нет JSON в ответе: {reply[:300]}")
-                verdict = json.loads(m.group(0))
-                a, b = float(verdict["axis_a"]), float(verdict["axis_b"])
-                assert 0 <= a <= 4 and 0 <= b <= 4
-                note = verdict.get("note", "")
-                md = [
-                    f"# Ревью яруса 3 — изолированная pi-сессия (glm-5.3)",
-                    "",
-                    f"- прогон: `{run_dir}`",
-                    f"- модель судьи: `{MODEL}`, thinking: `{thinking}`",
-                    f"- ось A «код и архитектура»: **{a:g}**",
-                    f"- ось B «процесс и коммуникация»: **{b:g}**",
-                    "",
-                    "## Обоснование",
-                    "",
-                    note,
-                    "",
-                    "<details><summary>Сырой ответ</summary>",
-                    "",
-                    "```", reply, "```",
-                    "</details>",
-                ]
-                (run_dir / "review-zcode.md").write_text("\n".join(md) + "\n", encoding="utf-8")
-                print(f"{run_dir}: A={a:g} B={b:g}")
-                return 0
-            except Exception as e:  # noqa: BLE001
-                last_err = e
-                print(f"  попытка {attempt} не удалась: {e}", file=sys.stderr)
-                time.sleep(5)
-        print(f"ОШИБКА {run_dir}: {last_err}", file=sys.stderr)
-        return 1
+    last_err = None
+    for attempt in range(1, RETRIES + 1):
+        try:
+            out, m = run_judge(MODEL, thinking, SYSTEM, prompt, TIMEOUT_S, tools="bash")
+            reply = out.stdout.strip()
+            if out.returncode != 0 or not reply:
+                raise RuntimeError(f"exit {out.returncode}: {out.stderr[:300]}")
+            mm = re.search(r"\{.*\}", reply, re.S)
+            if not mm:
+                raise RuntimeError(f"нет JSON в ответе: {reply[:300]}")
+            verdict = json.loads(mm.group(0))
+            a, b = float(verdict["axis_a"]), float(verdict["axis_b"])
+            assert 0 <= a <= 4 and 0 <= b <= 4
+            note = verdict.get("note", "")
+            md = [
+                f"# Ревью яруса 3 — изолированная pi-сессия ({MODEL})",
+                "",
+                f"- прогон: `{run_dir}`",
+                f"- модель судьи: `{MODEL}`, thinking: `{thinking}`",
+                f"- время/токены: {m['duration_s']} с · {m['tokens_in']:,}/{m['tokens_out']:,}"
+                f" вх/вых · всего {m['tokens_total']:,}",
+                f"- ось A «код и архитектура»: **{a:g}**",
+                f"- ось B «процесс и коммуникация»: **{b:g}**",
+                "",
+                "## Обоснование",
+                "",
+                note,
+                "",
+                "<details><summary>Сырой ответ</summary>",
+                "",
+                "```", reply, "```",
+                "</details>",
+            ]
+            (run_dir / "review-zcode.md").write_text("\n".join(md) + "\n", encoding="utf-8")
+            save_sidecar(run_dir, "tier3.json", {
+                "tier": 3, "model": MODEL, "thinking": thinking,
+                "axis_a": a, "axis_b": b, "attempt": attempt, **m})
+            print(f"{run_dir}: A={a:g} B={b:g} ({m['duration_s']}с, {m['tokens_total']:,} ток.)")
+            return 0
+        except Exception as e:  # noqa: BLE001
+            last_err = e
+            print(f"  попытка {attempt} не удалась: {e}", file=sys.stderr)
+            time.sleep(5)
+    print(f"ОШИБКА {run_dir}: {last_err}", file=sys.stderr)
+    return 1
 
 
 def main() -> int:

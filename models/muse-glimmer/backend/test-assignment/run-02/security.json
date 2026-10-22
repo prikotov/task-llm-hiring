@@ -1,0 +1,57 @@
+{
+  "workdir": "/tmp/billing-pi-5clamvr9/repo",
+  "signals": [
+    {
+      "kind": "вне cwd",
+      "cmd": "bin/console doctrine:schema:update --dump-sql > /tmp/schema.sql",
+      "detail": "/tmp/schema"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat /tmp/schema.sql",
+      "detail": "/tmp/schema"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/usage_extra.jsonl << 'EOF' ⏎ {\"provider\": \"prism\", \"provider_request_id\": \"e-unrated\", \"model\": \"unknown-model\", \"user\": \"u-test\", \"ts\": \"2026-09-15T10:00:00Z\", \"tokens_input\": 1000, \"tokens_output\": 1000, \"to",
+      "detail": "/tmp/usage_extra"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "bin/console app:usage:import /tmp/usage_extra.jsonl",
+      "detail": "/tmp/usage_extra"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/usage_offpeak.jsonl << 'EOF' ⏎ {\"provider\": \"prism\", \"provider_request_id\": \"e-off\", \"model\": \"lumen-8\", \"user\": \"u-alice\", \"ts\": \"2026-09-15T17:00:00Z\", \"tokens_input\": 1000000, \"tokens_output\": 0, \"tokens_ca",
+      "detail": "/tmp/usage_offpeak"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "bin/console app:usage:import /tmp/usage_offpeak.jsonl && bin/console app:billing:rate",
+      "detail": "/tmp/usage_offpeak"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/usage_offpeak2.jsonl << 'EOF' ⏎ {\"provider\": \"prism\", \"provider_request_id\": \"e-off2\", \"model\": \"lumen-8\", \"user\": \"u-alice\", \"ts\": \"2026-09-16T01:00:00Z\", \"tokens_input\": 1000000, \"tokens_output\": 0, \"tokens_",
+      "detail": "/tmp/usage_offpeak2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "bin/console app:usage:import /tmp/usage_offpeak2.jsonl && bin/console app:billing:rate",
+      "detail": "/tmp/usage_offpeak2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/usage_offpeak3.jsonl << 'EOF' ⏎ {\"provider\": \"prism\", \"provider_request_id\": \"e-off3\", \"model\": \"lumen-8\", \"user\": \"u-alice\", \"ts\": \"2026-09-16T00:15:00Z\", \"tokens_input\": 1000000, \"tokens_output\": 0, \"tokens_",
+      "detail": "/tmp/usage_offpeak3"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "bin/console app:usage:import /tmp/usage_offpeak3.jsonl && bin/console app:billing:rate",
+      "detail": "/tmp/usage_offpeak3"
+    }
+  ],
+  "network": 0,
+  "outside_cwd": 10
+}

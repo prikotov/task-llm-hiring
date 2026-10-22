@@ -1,0 +1,57 @@
+{
+  "workdir": "/tmp/billing-pi-dpn3e_wh/repo",
+  "signals": [
+    {
+      "kind": "вне cwd",
+      "cmd": "bin/console app:billing:rate; echo \"rc=$?\"; bin/console app:billing:report --from=2026-09-01T00:00:00Z --to=2026-10-01T00:00:00Z | tee /tmp/report.txt; echo \"rc=$?\"",
+      "detail": "/tmp/report"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "docker compose exec -T db psql -U app -d app -c \"update usage_event set status='pending', cost=null, price_line_id=null;\" >/dev/null && bin/console app:billing:rate && bin/console app:billing:report --from=2026-09-01T00:",
+      "detail": "/tmp/report"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "set -e ⏎ docker compose exec -T db psql -U app -d postgres -c 'DROP DATABASE app;' >/dev/null ⏎ docker compose exec -T db psql -U app -d postgres -c 'CREATE DATABASE app OWNER app;' >/dev/null ⏎ bin/console doctrine:migr",
+      "detail": "/tmp/r1"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-dpn3e_wh/repo && bin/console app:usage:import /tmp/t_usage.jsonl && bin/console app:billing:rate; echo \"rc=$?\"; bin/console app:billing:report --from=2026-09-01T00:00:00Z --to=2026-10-01T00:00:00Z",
+      "detail": "/tmp/t_usage"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "bin/console app:prices:import /tmp/t_prices2.json && bin/console app:billing:rate; echo rc=$?; bin/console app:billing:report --from=2026-07-01T00:00:00Z --to=2026-10-01T00:00:00Z | grep dave",
+      "detail": "/tmp/t_prices2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "bin/console app:prices:import /tmp/t_prices2.json && bin/console app:billing:rate; echo rc=$?; bin/console app:billing:report --from=2026-07-01T00:00:00Z --to=2026-10-01T00:00:00Z | grep -E 'dave|TOTAL'",
+      "detail": "/tmp/t_prices2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/t_reprice.json <<'EOF' ⏎ { ⏎   \"providers\": [], ⏎   \"models\": [], ⏎   \"prices\": [ ⏎     { ⏎       \"provider\": \"prism\", ⏎       \"model\": \"lumen-8\", ⏎       \"valid_from\": \"2026-08-01T00:00:00Z\", ⏎       \"currenc",
+      "detail": "/tmp/t_reprice"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "printf '%s\\n' '{\"provider\":\"prism\",\"provider_request_id\":\"bad1\",\"model\":\"lumen-8\",\"user\":\"u-x\",\"ts\":\"2026-09-15 09:00:00\",\"tokens_input\":1,\"tokens_output\":1,\"tokens_cache_read\":0,\"tokens_cache_write\":0}' > /tmp/bad_usage",
+      "detail": "/tmp/bad_usage"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "set -e ⏎ docker compose exec -T db psql -U app -d postgres -c 'DROP DATABASE app;' >/dev/null ⏎ docker compose exec -T db psql -U app -d postgres -c 'CREATE DATABASE app OWNER app;' >/dev/null ⏎ bin/console doctrine:data",
+      "detail": "/tmp/final1"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "set -e ⏎ make db-up ⏎ make migrate ⏎ bin/console app:prices:import fixtures/prices.json ⏎ bin/console app:usage:import fixtures/usage.jsonl ⏎ bin/console app:billing:rate ⏎ bin/console app:billing:report --from=2026-09-0",
+      "detail": "/tmp/a"
+    }
+  ],
+  "network": 0,
+  "outside_cwd": 10
+}

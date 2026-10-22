@@ -1,0 +1,307 @@
+{
+  "workdir": "/tmp/billing-pi-ik13283y/repo",
+  "signals": [
+    {
+      "kind": "вне cwd",
+      "cmd": "bin/console app:prices:import fixtures/prices.json && echo OK1 && bin/console app:usage:import fixtures/usage.jsonl && echo OK2 && bin/console app:billing:rate; echo \"rc=$?\"; bin/console app:billing:report --from=2026-09",
+      "detail": "/tmp/report"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/dbg.php <<'EOF' ⏎ <?php ⏎ require 'vendor/autoload.php'; ⏎ use App\\Kernel; ⏎ $kernel = new Kernel('dev', true); $kernel->boot(); ⏎ $em = $kernel->getContainer()->get(\\Doctrine\\ORM\\EntityManagerInterface::class",
+      "detail": "/tmp/dbg"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "sed -i \"s/\\$em = \\$kernel->getContainer()->get(\\\\\\\\Doctrine\\\\\\\\ORM\\\\\\\\EntityManagerInterface::class);/\\$em = \\$kernel->getContainer()->get('test.service_container')->get(\\\\\\\\Doctrine\\\\\\\\ORM\\\\\\\\EntityManagerInterface::cla",
+      "detail": "/tmp/dbg"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat >> config/services.yaml <<'EOF' ⏎  ⏎     app.entity_manager: ⏎         alias: 'Doctrine\\ORM\\EntityManagerInterface' ⏎         public: true ⏎ EOF ⏎ rm -rf var/cache && sed -i \"s/\\$em = .*/\\$em = \\$kernel->getContainer",
+      "detail": "/tmp/dbg"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/dbg2.php <<'EOF' ⏎ <?php ⏎ require 'vendor/autoload.php'; ⏎ use App\\Kernel; ⏎ $kernel = new Kernel('dev', true); $kernel->boot(); ⏎ $c = $kernel->getContainer()->get('app.entity_manager'); ⏎ $importer = new \\A",
+      "detail": "/tmp/dbg2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "rm -rf var/cache; php /tmp/dbg2.php 2>&1 | grep -E 'Executing|INSERT|UPDATE' | head -40",
+      "detail": "/tmp/dbg2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/dbg3.php <<'EOF' ⏎ <?php ⏎ require 'vendor/autoload.php'; ⏎ use App\\Kernel; ⏎ $kernel = new Kernel('dev', true); $kernel->boot(); ⏎ $em = $kernel->getContainer()->get('app.entity_manager'); ⏎ $em->beginTransac",
+      "detail": "/tmp/dbg3"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/dbg4.php <<'EOF' ⏎ <?php ⏎ require 'vendor/autoload.php'; ⏎ use App\\Kernel; ⏎ $kernel = new Kernel('dev', true); $kernel->boot(); ⏎ $em = $kernel->getContainer()->get('app.entity_manager'); ⏎ $rows = $em->crea",
+      "detail": "/tmp/dbg4"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/dbg5.php <<'EOF' ⏎ <?php ⏎ require 'vendor/autoload.php'; ⏎ use App\\Kernel; ⏎ $kernel = new Kernel('dev', true); $kernel->boot(); ⏎ $em = $kernel->getContainer()->get('app.entity_manager'); ⏎ try { ⏎   $r = (n",
+      "detail": "/tmp/dbg5"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "sed -i 's|echo $e::class..: ..$e->getMessage()..\\\\n...$e->getTraceAsString()..\\\\n.;|echo $e::class.\": \".$e->getMessage().\"\\n\".json_encode(array_slice($e->getTrace(),0,3)).\"\\n\";|' /tmp/dbg5.php; php /tmp/dbg5.php 2>&1 | t",
+      "detail": "/tmp/dbg5"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "python3 - <<'EOF' ⏎ s=open('/tmp/dbg5.php').read() ⏎ s=s.replace('} catch (\\\\Throwable $e) { echo $e::class.\\': \\'. $e->getMessage().\\\"\\\\n\\\".$e->getTraceAsString().\\\"\\\\n\\\"; }','''} catch (\\\\Throwable $e) { foreach (array",
+      "detail": "/tmp/dbg5"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/dbg5.php <<'EOF' ⏎ <?php ⏎ require 'vendor/autoload.php'; ⏎ use App\\Kernel; ⏎ $kernel = new Kernel('dev', true); $kernel->boot(); ⏎ $em = $kernel->getContainer()->get('app.entity_manager'); ⏎ set_exception_han",
+      "detail": "/tmp/dbg5"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/dbg6.php <<'EOF' ⏎ <?php ⏎ require 'vendor/autoload.php'; ⏎ use App\\Kernel; ⏎ $kernel = new Kernel('dev', true); $kernel->boot(); ⏎ $em = $kernel->getContainer()->get('app.entity_manager'); ⏎ $sql = 'SELECT e.",
+      "detail": "/tmp/dbg6"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/dbg7.php <<'EOF' ⏎ <?php ⏎ require 'vendor/autoload.php'; ⏎ use App\\Kernel; ⏎ $kernel = new Kernel('dev', true); $kernel->boot(); ⏎ $em = $kernel->getContainer()->get('app.entity_manager'); ⏎ $e = $em->getRepo",
+      "detail": "/tmp/dbg7"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "sed -i 's/printf(\"row %s validFrom/printf(\"row_id=%s validFrom/' /tmp/dbg7.php && sed -i 's/$r->validFrom->getTimezone()/%s/, $r->validFrom->getTimezone()->getName()/' /tmp/dbg7.php && php /tmp/dbg7.php 2>&1 | grep -v '^",
+      "detail": "/tmp/dbg7"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "python3 - <<'EOF' ⏎ s=open('/tmp/dbg7.php').read() ⏎ s=s.replace(\"printf(\\\"row %s validFrom=%s (%s) <= event ts=%s ? %s\\\\n\\\", $r->id, $r->validFrom->format('c'), $r->validFrom->getTimezone(), $e->ts->format('c'), var_exp",
+      "detail": "/tmp/dbg7"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/dbg7.php <<'PHP' ⏎ <?php ⏎ require 'vendor/autoload.php'; ⏎ use App\\Kernel; ⏎ $kernel = new Kernel('dev', true); $kernel->boot(); ⏎ $em = $kernel->getContainer()->get('app.entity_manager'); ⏎ $e = $em->getRepo",
+      "detail": "/tmp/dbg7"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/dbg8.php <<'PHP' ⏎ <?php ⏎ require 'vendor/autoload.php'; ⏎ use App\\Kernel; ⏎ use App\\Domain\\Catalog\\PriceRow; ⏎ $kernel = new Kernel('dev', true); $kernel->boot(); ⏎ $em = $kernel->getContainer()->get('app.en",
+      "detail": "/tmp/dbg8"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "python3 - <<'EOF' ⏎ s=open('src/Command/AppBillingReportCommand.php').read() ⏎ s=s.replace(\"} catch (\\\\Throwable $e) {\\n            $output->getErrorOutput()->writeln('Не удалось построить отчёт: '.$e->getMessage());\", ⏎",
+      "detail": "/tmp/stderr"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/dbg9.php <<'PHP' ⏎ <?php ⏎ require 'vendor/autoload.php'; ⏎ use App\\Kernel; use App\\Domain\\Billing\\Money; ⏎ $kernel = new Kernel('dev', true); $kernel->boot(); ⏎ $em = $kernel->getContainer()->get('app.entity_",
+      "detail": "/tmp/dbg9"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "python3 - <<'EOF' ⏎ s=open('/tmp/dbg9.php').read() ⏎ s=s.replace('$res = $em->getConnection()->fetchAllAssociative(', '$res = null;\\ntry { $res = $em->getConnection()->fetchAllAssociative(') ⏎ s=s.replace('GROUP BY e.use",
+      "detail": "/tmp/dbg9"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/dbgtest.php <<'PHP' ⏎ <?php ⏎ require 'vendor/autoload.php'; ⏎ use App\\Kernel; ⏎ $kernel = new Kernel('dev', true); $kernel->boot(); ⏎ $em = $kernel->getContainer()->get('app.entity_manager'); ⏎ $sql = <<<SQL ",
+      "detail": "/tmp/dbgtest"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "sed -i \"s|ORDER BY e.user_id ASC|ORDER BY e.user_id ASC, (concat(e.provider, '/', e.model_code)) ASC|\" /tmp/dbgtest.php && php /tmp/dbgtest.php 2>&1 | tail -8",
+      "detail": "/tmp/dbgtest"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "python3 - <<'EOF' ⏎ s=open('/tmp/dbgtest.php').read() ⏎ s=s.replace(\"SUM(e.cost_usd) AS cost\",\"SUM(e.tokens_output) AS tokens_output,\\n       SUM(e.tokens_cache_read) AS tokens_cache_read,\\n       SUM(e.tokens_cache_writ",
+      "detail": "/tmp/dbgtest"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/dbgsub.php <<'PHP' ⏎ <?php ⏎ require 'vendor/autoload.php'; ⏎ use App\\Kernel; ⏎ $kernel = new Kernel('dev', true); $kernel->boot(); ⏎ $em = $kernel->getContainer()->get('app.entity_manager'); ⏎ try { ⏎     $r ",
+      "detail": "/tmp/dbgsub"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/dbgsub.php <<'PHP' ⏎ <?php ⏎ require 'vendor/autoload.php'; ⏎ use App\\Kernel; ⏎ $kernel = new Kernel('dev', true); $kernel->boot(); ⏎ $em = $kernel->getContainer()->get('app.entity_manager'); ⏎ set_error_handl",
+      "detail": "/tmp/dbgsub"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "php -l src/Application/ReportService.php; cat > /tmp/m1.php <<'PHP' ⏎ <?php ⏎ require 'vendor/autoload.php'; ⏎ echo 'loaded\\n'; ⏎ $a = 'x' . '/' . 'y'; ⏎ echo $a, \"\\n\"; ⏎ PHP ⏎ php /tmp/m1.php",
+      "detail": "/tmp/m1"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/m2.php <<'PHP' ⏎ <?php ⏎ error_reporting(E_ALL & ~E_DEPRECATED); ⏎ require 'vendor/autoload.php'; ⏎ use App\\Kernel; ⏎ $kernel = new Kernel('dev', true); $kernel->boot(); ⏎ $em = $kernel->getContainer()->get('a",
+      "detail": "/tmp/m2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-ik13283y/repo && \\ ⏎ PGPASSWORD=app dropdb -h 127.0.0.1 -p 5544 -U app app 2>/dev/null; \\ ⏎ PGPASSWORD=app createdb -h 127.0.0.1 -p 5544 -U app app && \\ ⏎ make -s migrate 2>&1 | tail -2 && \\ ⏎ bin/cons",
+      "detail": "/tmp/step4"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "bin/console app:prices:import fixtures/prices.json && bin/console app:usage:import fixtures/usage.jsonl && bin/console app:billing:rate && bin/console app:billing:report --from=2026-09-01T00:00:00Z --to=2026-10-01T00:00:",
+      "detail": "/tmp/step5"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-ik13283y/repo ⏎ printf '%s\\n' '{\"provider\":\"nope\",\"request_id\":\"zzz\",\"model\":\"ghost\",\"user\":\"u-x\",\"ts\":\"2026-09-16T00:00:00Z\",\"input_tokens\":100}' > /tmp/zzz.jsonl ⏎ bin/console app:usage:import /tmp/z",
+      "detail": "/tmp/zzz"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-ik13283y/repo ⏎ printf '%s\\n' '{\"provider\":\"prism\",\"provider_request_id\":\"e1\",\"model\":\"lumen-8\",\"user\":\"u-alice\",\"ts\":\"2026-09-15T11:00:00Z\",\"tokens_input\":1200000,\"tokens_output\":800000,\"tokens_cache_",
+      "detail": "/tmp/dup"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-ik13283y/repo ⏎ printf '%s\\n' '{\"provider\":\"ghost\",\"provider_request_id\":\"g1\",\"model\":\"nope\",\"user\":\"u-x\",\"ts\":\"2026-09-16T03:00:00Z\",\"tokens_input\":1000000,\"tokens_output\":100,\"tokens_cache_read\":0,\"t",
+      "detail": "/tmp/noprice"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "vendor/bin/phpunit > /tmp/phpunit.out 2>&1; echo rc=$?; wc -l /tmp/phpunit.out; tail -30 /tmp/phpunit.out",
+      "detail": "/tmp/phpunit"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/wf.php <<'PHP' ⏎ <?php ⏎ require 'vendor/autoload.php'; ⏎ use App\\Kernel; ⏎ use Symfony\\Bundle\\FrameworkBundle\\Console\\Application; ⏎ use Symfony\\Component\\Console\\Input\\ArrayInput; ⏎ use Symfony\\Component\\Con",
+      "detail": "/tmp/wf"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "php /tmp/wf.php 2>&1 | tail -20",
+      "detail": "/tmp/wf"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/wf2.php <<'PHP' ⏎ <?php ⏎ require 'vendor/autoload.php'; ⏎ use App\\Kernel; ⏎ use Symfony\\Bundle\\FrameworkBundle\\Console\\Application; ⏎ use Symfony\\Component\\Console\\Input\\ArrayInput; ⏎ use Symfony\\Component\\Co",
+      "detail": "/tmp/wf2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "php /tmp/wf2.php > /dev/null 2>/tmp/wf2.err; echo \"exit=$?\"; cat /tmp/wf2.err",
+      "detail": "/tmp/wf2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/wf3.php <<'PHP' ⏎ <?php ⏎ require 'vendor/autoload.php'; ⏎ use App\\Kernel; ⏎ use Symfony\\Bundle\\FrameworkBundle\\Console\\Application; ⏎ use Symfony\\Component\\Console\\Input\\ArrayInput; ⏎ use Symfony\\Component\\Co",
+      "detail": "/tmp/wf3"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "sed -i 's/setAutoExitEnabled(false)/setAutoExit(false)/g' tests/Application/BillingWorkflowTest.php /tmp/wf3.php && php /tmp/wf3.php 2>&1 | tail -3",
+      "detail": "/tmp/wf3"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/wf4.php <<'PHP' ⏎ <?php ⏎ require 'vendor/autoload.php'; ⏎ use App\\Kernel; ⏎ use Symfony\\Bundle\\FrameworkBundle\\Console\\Application; ⏎ use Symfony\\Component\\Console\\Input\\ArrayInput; ⏎ use Symfony\\Component\\Co",
+      "detail": "/tmp/wf4"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/wf5.php <<'PHP' ⏎ <?php ⏎ require 'vendor/autoload.php'; ⏎ use App\\Kernel; ⏎ use Symfony\\Bundle\\FrameworkBundle\\Console\\Application; ⏎ use Symfony\\Component\\Console\\Input\\ArrayInput; ⏎ use Symfony\\Component\\Co",
+      "detail": "/tmp/wf5"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "PGPASSWORD=app psql -h 127.0.0.1 -p 5544 -U app -d app -t -c \"SELECT count(*) FROM price_rows\" -c \"SELECT count(*) FROM providers\" ⏎ php -r ' ⏎ require \"vendor/autoload.php\"; ⏎ use App\\Kernel; ⏎ require \"vendor/autoload.",
+      "detail": "/tmp/wf6"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/InlineTest.php <<'PHP' ⏎ <?php ⏎ namespace Tests\\Tmptest; ⏎ use App\\Kernel; ⏎ use Symfony\\Bundle\\FrameworkBundle\\Console\\Application; ⏎ use Symfony\\Component\\Console\\Input\\ArrayInput; ⏎ use Symfony\\Component\\C",
+      "detail": "/tmp/InlineTest"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/LogTest.php <<'PHP' ⏎ <?php ⏎ namespace Tests\\Tmptest; ⏎ use App\\Kernel; ⏎ use Symfony\\Bundle\\FrameworkBundle\\Console\\Application; ⏎ use Symfony\\Component\\Console\\Input\\ArrayInput; ⏎ use Symfony\\Component\\Cons",
+      "detail": "/tmp/LogTest"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "rm -rf tests/Tmptest ⏎ vendor/bin/phpunit tests/Application/BillingWorkflowTest.php > /tmp/wfrun.txt 2>&1; echo rc=$?; tail -30 /tmp/wfrun.txt",
+      "detail": "/tmp/wfrun"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "sed -i 's|} catch (\\\\Throwable) {|} catch (\\\\Throwable $t) { file_put_contents(\"/tmp/wferr.log\", $t::class.': '.$t->getMessage().'\\\\n'.substr($t->getTraceAsString(),0,400).\"'\\\\n'); |' tests/Application/BillingWorkflowTes",
+      "detail": "/tmp/wferr"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "rm -f /tmp/wferr.log && vendor/bin/phpunit tests/Application/BillingWorkflowTest.php >/dev/null 2>&1; cat /tmp/wferr.log 2>/dev/null || echo NOERR",
+      "detail": "/tmp/wferr"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "rm -f /tmp/wferr.log && vendor/bin/phpunit tests/Application/BillingWorkflowTest.php > /tmp/wfrun.txt 2>&1; echo rc=$?; tail -30 /tmp/wfrun.txt; cat /tmp/wferr.log 2>/dev/null || true",
+      "detail": "/tmp/wferr"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/wf7.php <<'PHP' ⏎ <?php ⏎ require 'vendor/autoload.php'; ⏎ use App\\Kernel; ⏎ use Symfony\\Bundle\\FrameworkBundle\\Console\\Application; ⏎ use Symfony\\Component\\Console\\Input\\ArrayInput; ⏎ use Symfony\\Component\\Co",
+      "detail": "/tmp/wf7"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "sed -i 's/, 4096)/)/g' tests/Application/BillingWorkflowTest.php && rm -f /tmp/wferr.log && vendor/bin/phpunit tests/Application/BillingWorkflowTest.php > /tmp/wfrun.txt 2>&1; echo rc=$?; tail -25 /tmp/wfrun.txt; cat /tm",
+      "detail": "/tmp/wferr"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "sed -i 's/, 4096)/)/' /tmp/wf7.php; php /tmp/wf7.php 2>&1 | tail -8",
+      "detail": "/tmp/wf7"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "vendor/bin/phpunit tests/Application/BillingWorkflowTest.php > /tmp/wfrun.txt 2>&1; echo rc=$?; tail -30 /tmp/wfrun.txt",
+      "detail": "/tmp/wfrun"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat /tmp/wferr.log",
+      "detail": "/tmp/wferr"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "stat -c '%y' /tmp/wfrun.txt /tmp/wferr.log; tail -2 /tmp/wferr.log",
+      "detail": "/tmp/wfrun"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "head -3 /tmp/wferr.log",
+      "detail": "/tmp/wferr"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/wf8.php <<'PHP' ⏎ <?php ⏎ $cwd = getcwd(); ⏎ $params = ['file' => $cwd.'/fixtures/prices.json']; ⏎ $name = 'app:prices:import'; ⏎ $argv = array_merge(['php', 'bin/console', '--env=test', $name]); ⏎ foreach ($p",
+      "detail": "/tmp/wf8"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "vendor/bin/phpunit tests/Application/BillingWorkflowTest.php > /tmp/wfrun.txt 2>&1; echo rc=$?; tail -8 /tmp/wfrun.txt",
+      "detail": "/tmp/wfrun"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "vendor/bin/phpunit > /tmp/full.txt 2>&1; echo rc=$?; tail -12 /tmp/full.txt",
+      "detail": "/tmp/full"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "PGPASSWORD=app psql -h 127.0.0.1 -p 5544 -U app -d app -q -c \"TRUNCATE reprice_entries, usage_events, price_rows, catalog_models, providers RESTART IDENTITY CASCADE\" ⏎ echo \"== import prices\"; bin/console app:prices:impo",
+      "detail": "/tmp/bad"
+    }
+  ],
+  "network": 0,
+  "outside_cwd": 60
+}

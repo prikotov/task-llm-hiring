@@ -1,0 +1,32 @@
+Готово. Задание выполнено и проверено.
+
+**Кратко что сделано**
+- Сущности `Provider, Model, Price, UsageEvent` + миграция `Version20250101000000`
+- Команды:
+  * `app:prices:import` – idempotent upsert
+  * `app:usage:import` – JSONL, дедупликация по `(provider,provider_request_id)`
+  * `app:billing:rate` – тарификация с выбором цены `valid_from ≤ ts`, схемы `per_1m_tokens` / `per_1m_tokens_unified`, off-peak окно, расчёт в BCMath, округление HALF_UP до 6 знаков. Вывод `RATED=… UNRATED=…`
+  * `app:billing:report` – CSV группировка по `user,model`, суммы токенов и стоимостей, строка `TOTAL`
+- `user` маппится в колонку `user_id` для обхода зарезервированного слова PostgreSQL
+
+**Приёмка**
+```bash
+make db-up
+make migrate
+bin/console app:prices:import fixtures/prices.json
+bin/console app:usage:import fixtures/usage.jsonl
+bin/console app:billing:rate
+bin/console app:billing:report --from=2026-09-01T00:00:00Z --to=2026-10-01T00:00:00Z
+```
+Вывод байт-в-байт совпадает с примером:
+```
+user,model,tokens_input,tokens_output,tokens_cache_read,tokens_cache_write,cost_usd
+u-alice,prism/lumen-8,1200000,800000,2500000,83333,14.262499
+u-alice,sfera/gyro-pro,3000000,500000,0,0,8.400000
+u-bob,prism/lumen-8,2000000,1000000,0,0,11.000000
+TOTAL,,6200000,2300000,2500000,83333,33.662499
+```
+Повторный импорт + rate не меняет результат.
+
+Файлы `COMMIT_MESSAGE.md` и `PR_DESCRIPTION.md` созданы в корне репозитория.
+

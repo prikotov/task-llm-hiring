@@ -40,6 +40,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -119,6 +120,41 @@ def ollama_base_url() -> str:
     return url.rstrip("/")
 
 
+def soft_ollama_base() -> str | None:
+    """Как ollama_base_url, но без sys.exit — для фоновой диагностики."""
+    url = os.environ.get("OLLAMA_BASE_URL")
+    if not url:
+        env_local = models_repo() / ".env.local"
+        if env_local.is_file():
+            for line in env_local.read_text().splitlines():
+                if line.startswith("OLLAMA_BASE_URL="):
+                    url = line.split("=", 1)[1].strip()
+                    break
+    return url.rstrip("/") if url else None
+
+
+def watch_ollama_foreign(stop: threading.Event, own_model: str, found: list) -> None:
+    """Фоновый поток: раз в 30 с опрашивает /api/ps и копит чужие модели,
+    живущие параллельно с прогоном (признак конкуренции за VRAM). Факт
+    фиксируется в run.json; такие прогоны исключаются из метрик отчёта."""
+    base = soft_ollama_base()
+    if not base:
+        return
+    import urllib.request
+
+    while True:
+        try:
+            with urllib.request.urlopen(f"{base}/api/ps", timeout=10) as r:
+                for m in json.loads(r.read()).get("models", []):
+                    name = m.get("name", "")
+                    if name and name != own_model and name not in found:
+                        found.append(name)
+        except Exception:
+            pass  # диагностика не должна ронять прогон
+        if stop.wait(30):
+            return
+
+
 def model_thinking_values(model: str) -> list:
     """/api/show: поддерживаемые значения thinking (пусто — thinking не управляется)."""
     import urllib.request
@@ -140,34 +176,133 @@ def model_thinking_values(model: str) -> list:
         return []
 
 
-def build_pi_home(tmp: Path, model: str, context: int, max_tokens: int, reasoning: bool) -> Path:
+def deepseek_key() -> str:
+    """Ключ DeepSeek: env DEEPSEEK_API_KEY или env-файл по пути MODELS_RU_ENV
+    (та же бухгалтерия, что у интервью-раннера runner_ru_cloud)."""
+    v = os.environ.get("DEEPSEEK_API_KEY")
+    if v:
+        return v.strip()
+    env_path = os.environ.get("MODELS_RU_ENV")
+    if not env_path:
+        for line in (models_repo() / ".env.local").read_text().splitlines():
+            if line.startswith("MODELS_RU_ENV="):
+                env_path = line.split("=", 1)[1].strip()
+                break
+    if not env_path:
+        sys.exit("задайте MODELS_RU_ENV — путь к env-файлу с ключами (см. README)")
+    for line in Path(env_path).expanduser().read_text().splitlines():
+        if line.startswith("DEEPSEEK_API_KEY="):
+            return line.split("=", 1)[1].strip()
+    sys.exit("DEEPSEEK_API_KEY не найден в env-файле")
+
+
+def secret_path(name: str) -> Path:
+    """Путь к файлу с секретом: env, затем .env.local (в git не живёт)."""
+    v = os.environ.get(name)
+    if not v:
+        for line in (models_repo() / ".env.local").read_text().splitlines():
+            if line.startswith(name + "="):
+                v = line.split("=", 1)[1].strip()
+                break
+    if not v:
+        sys.exit(f"задайте {name} — путь к файлу с секретом (см. README)")
+    return Path(v).expanduser()
+
+
+def openrouter_creds() -> tuple[str, str]:
+    """Ключ и прокси OpenRouter (значения env — пути к файлам с секретами)."""
+    return (secret_path("OPENROUTER_KEY_FILE").read_text().strip(),
+            secret_path("OPENROUTER_PROXY_FILE").read_text().strip())
+
+
+def orcarouter_key() -> str:
+    """Ключ OrcaRouter (orcarouter.ai) — путь к файлу в ORCAROUTER_KEY_FILE."""
+    return secret_path("ORCAROUTER_KEY_FILE").read_text().strip()
+
+
+def build_pi_home(tmp: Path, model: str, context: int, max_tokens: int, reasoning: bool,
+                  provider: str = "ollama", proxy_port: int = 0
+                  ) -> tuple[Path, str | None, dict[str, str]]:
+    """pi-home с models.json под одного провайдера.
+    Возвращает (pi-home, proxy, доп. env для pi)."""
     pi_home = tmp / "pi-home"
     pi_home.mkdir()
     entry: dict = {"id": model, "contextWindow": context, "maxTokens": max_tokens}
-    if reasoning:
-        values = model_thinking_values(model)
-        if values:
-            entry["reasoning"] = True
-            entry["thinkingLevelMap"] = thinking_map_for(values)[0]
-            print(f"thinking-шкала модели ({len(values)} знач.): {values}")
-        else:
-            # пустая шкала = thinking не поддерживается: reasoning-флаг ставить
-            # нельзя — ollama отвечает 400 «does not support thinking»
-            print("thinking-шкала модели пуста — гоняем без reasoning-флага")
+    proxy = None
+    extra_env: dict[str, str] = {}
+    if provider == "openrouter":
+        # нативный openrouter-провайдер pi: модель берётся из каталога pi
+        # (anthropic-messages к openrouter.ai/api, нативные contextWindow/
+        # maxTokens, шкала мышления с xhigh/max). Ключ — через env.
+        # Кастомная запись openai-completions (там reasoning и ответ делят
+        # один max_tokens) приводила к stop=length посреди размышлений —
+        # haiku 5.5 max 2026-10-22, обе попытки без единой строки кода.
+        key, proxy = openrouter_creds()
+        extra_env["OPENROUTER_API_KEY"] = key
+        return pi_home, proxy, extra_env
+    if provider == "orcarouter":
+        # OrcaRouter (orcarouter.ai): нативный Anthropic-протокол /v1/messages,
+        # ключ Bearer (authHeader), цена = прайс провайдера без наценки,
+        # из домашней сети ходит без прокси. Поля записи модели скопированы
+        # из каталога pi (нативный путь claude: adaptive thinking +
+        # output_config.effort; контекст 1M, бюджет выхода 128K — native,
+        # не переопределяем). Каталог моделей: GET /v1/models (публичный);
+        # claude-haiku-5.5 там нет (2026-10-22), opus-5.5 есть.
+        model_id = model if "/" in model else f"anthropic/{model}"
+        providers = {"orcarouter": {
+            "baseUrl": "https://api.orcarouter.ai",
+            "api": "anthropic-messages", "apiKey": orcarouter_key(),
+            "authHeader": True,
+            "models": [{
+                "id": model_id, "contextWindow": 1_048_576, "maxTokens": 128_000,
+                "reasoning": True,
+                # прайс Anthropic без наценки — pi сам считает стоимость сессии
+                # (иначе usage.cost везде 0; приём из гайда кастомных провайдеров)
+                "cost": {"input": 4, "output": 20, "cacheRead": 0.4, "cacheWrite": 0.5},
+                "thinkingLevelMap": {"off": "none", "minimal": None, "low": "low",
+                                     "medium": "medium", "high": "high",
+                                     "xhigh": "xhigh", "max": "max"},
+                # БЕЗ supportsMidConvoEffort/forceAdaptiveThinking: оба флага
+                # ведут на adaptive-мышление (output_config.effort), где effort —
+                # только намёк, и модель тратит reasoning без потолка (прогон
+                # low 2026-10-22: 70.8K reasoning, $4.38, один вызов 19.9K).
+                # Классический режим pi даёт жёсткие бюджеты на вызов:
+                # low 2048 / medium 8192 / high и max 16384 токена reasoning.
+                "compat": {"supportsTemperature": False},
+            }]}}
+    elif provider == "deepseek":
+        # родной API DeepSeek (OpenAI-совместимый), без прокси; reasoning_effort
+        # переключает размышления: минимум — low, максимум — high
+        entry["reasoning"] = True
+        entry["thinkingLevelMap"] = {"off": "none", "minimal": "low", "low": "low",
+                                     "medium": "medium", "high": "high",
+                                     "xhigh": "high", "max": "high"}
+        providers = {"deepseek": {"baseUrl": "https://api.deepseek.com",
+                                  "api": "openai-completions", "apiKey": deepseek_key(),
+                                  "models": [entry]}}
+    elif provider == "gigachat":
+        # pi -> локальный мост gigachat_proxy (tools<->functions, OAuth-рефреш)
+        # -> api.giga.chat; reasoning у GigaChat нет — флаг не ставим
+        providers = {"gigachat": {"baseUrl": f"http://127.0.0.1:{proxy_port}/v1",
+                                  "api": "openai-completions", "apiKey": "gigachat-freemium",
+                                  "models": [entry]}}
+    else:
+        if reasoning:
+            values = model_thinking_values(model)
+            if values:
+                entry["reasoning"] = True
+                entry["thinkingLevelMap"] = thinking_map_for(values)[0]
+                print(f"thinking-шкала модели ({len(values)} знач.): {values}")
+            else:
+                # пустая шкала = thinking не поддерживается: reasoning-флаг ставить
+                # нельзя — ollama отвечает 400 «does not support thinking»
+                print("thinking-шкала модели пуста — гоняем без reasoning-флага")
+        providers = {"ollama": {"baseUrl": f"{ollama_base_url()}/v1",
+                                "api": "openai-completions", "apiKey": "ollama",
+                                "models": [entry]}}
     (pi_home / "models.json").write_text(json.dumps(
-        {
-            "providers": {
-                "ollama": {
-                    "baseUrl": f"{ollama_base_url()}/v1",
-                    "api": "openai-completions",
-                    "apiKey": "ollama",
-                    "models": [entry],
-                }
-            }
-        },
-        ensure_ascii=False, indent=2,
-    ), encoding="utf-8")
-    return pi_home
+        {"providers": providers}, ensure_ascii=False, indent=2), encoding="utf-8")
+    return pi_home, proxy, extra_env
 
 
 class PiRun:
@@ -208,7 +343,13 @@ class PiRun:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--model", required=True, help="тег модели на сервере (ollama)")
+    parser.add_argument("--model", required=True,
+                        help="тег модели: ollama-тег, слаг OpenRouter (openai/gpt-6-luna) "
+                             "или id OrcaRouter (anthropic/claude-opus-5.5)")
+    parser.add_argument("--provider", default="ollama",
+                        choices=["ollama", "openrouter", "orcarouter", "deepseek", "gigachat"],
+                        help="ollama / openrouter (через прокси) / deepseek (родной API) / "
+                             "gigachat (родной API через мост gigachat_proxy)")
     parser.add_argument("--results", required=True, help="каталог результатов run-XX")
     parser.add_argument("--thinking", default=DEFAULT_THINKING,
                         choices=PI_CHOICES, help="уровень размышлений pi")
@@ -231,7 +372,7 @@ def main() -> int:
     started = time.time()
     meta: dict = {
         "model": args.model,
-        "provider": "ollama",
+        "provider": args.provider,
         "thinking": args.thinking,
         "context": args.context,
         "timeout_s": args.timeout,
@@ -242,16 +383,38 @@ def main() -> int:
         ).hexdigest()[:16],
     }
     run: PiRun | None = None
+    stop_watch = threading.Event()
+    foreign_models: list[str] = []
+    giga_server = None
     try:
-        if args.max_tokens == 8192 and model_thinking_values(args.model):
+        if args.provider == "ollama" and args.max_tokens == 8192 and model_thinking_values(args.model):
             _, eager = thinking_map_for(model_thinking_values(args.model))
             if eager:
                 args.max_tokens = 32768
                 print("энергичный максимум thinking: maxTokens поднят до 32768 "
                       "(при 8192 xhigh/max выжигают бюджет в пустой ответ)")
-        pi_home = build_pi_home(tmp, args.model, args.context, args.max_tokens, args.reasoning)
-        meta["max_tokens"] = args.max_tokens
-        meta["thinking_scale"] = model_thinking_values(args.model)
+        if args.provider == "deepseek" and args.max_tokens == 8192:
+            args.max_tokens = 16000  # API-дефолт 4096/8192 режет ответы в полуслове
+        if args.provider == "gigachat":
+            import gigachat_proxy  # мост GigaChat<->OpenAI, живёт в потоке прогона
+            giga_server, _ = gigachat_proxy.serve(args.model)
+            threading.Thread(target=giga_server.serve_forever, daemon=True).start()
+            giga_port = giga_server.server_address[1]
+            print(f"мост gigachat_proxy: http://127.0.0.1:{giga_port}/v1 -> api.giga.chat "
+                  "(tools->functions, OAuth-рефреш каждые 25 мин)")
+        pi_home, proxy, extra_env = build_pi_home(
+            tmp, args.model, args.context, args.max_tokens,
+            args.reasoning, args.provider,
+            proxy_port=giga_port if giga_server else 0)
+        if args.provider in ("openrouter", "orcarouter"):
+            # контекст и бюджет выхода — нативные значения (каталог pi /
+            # запись раннера), переопределения не применяются
+            meta["context"] = None
+            meta["max_tokens"] = None
+            meta["params"] = f"нативные параметры (провайдер {args.provider})"
+        else:
+            meta["max_tokens"] = args.max_tokens
+        meta["thinking_scale"] = model_thinking_values(args.model) if args.provider == "ollama" else []
 
         if args.smoke:
             repo.mkdir()
@@ -265,10 +428,15 @@ def main() -> int:
             )
             prompt = TASK_PROMPT
 
+        # id вида vendor/model есть у нескольких провайдеров (каталог pi,
+        # vercel-ai-gateway) — резолвим с явным префиксом провайдера
+        model_ref = (f"{args.provider}/{args.model}"
+                     if args.provider in ("openrouter", "orcarouter")
+                     else args.model)
         cmd = [
             "pi", "-p",
             "--session-dir", str(results / "pi-session"),
-            "--model", args.model,
+            "--model", model_ref,
             "--thinking", args.thinking,
             prompt,
         ]
@@ -276,8 +444,16 @@ def main() -> int:
             **dict(os.environ),
             "PI_CODING_AGENT_DIR": str(pi_home),
             "PI_OFFLINE": "1",
+            **extra_env,
         }
-        print(f"запуск: pi -p --model {args.model} --thinking {args.thinking} (ctx {args.context})")
+        if proxy:
+            # трафик pi к OpenRouter — только через прокси (WAF режет прямые
+            # запросы из домашней сети)
+            env["HTTPS_PROXY"] = env["https_proxy"] = proxy
+            env["HTTP_PROXY"] = env["http_proxy"] = proxy
+        ctx_note = ("нативные параметры" if args.provider in ("openrouter", "orcarouter")
+                    else f"ctx {args.context}")
+        print(f"запуск: pi -p --model {model_ref} --thinking {args.thinking} ({ctx_note})")
         print(f"  cwd={repo}\n  pi-home={pi_home} (изолирован)\n  лог (live): {results / 'pi-run.log'}")
 
         run_holder: dict[str, PiRun] = {}
@@ -288,6 +464,14 @@ def main() -> int:
 
         signal.signal(signal.SIGTERM, on_signal)
         signal.signal(signal.SIGINT, on_signal)
+
+        # наблюдатель параллельной нагрузки: чужие модели в /api/ps во время
+        # прогона = конкуренция за VRAM; факт фиксируется в run.json, такие
+        # прогоны исключаются из метрик сводного отчёта
+        if args.provider == "ollama":
+            threading.Thread(target=watch_ollama_foreign,
+                             args=(stop_watch, args.model, foreign_models),
+                             daemon=True).start()
 
         run = PiRun(cmd, repo, env, results / "pi-run.log")
         run_holder["run"] = run
@@ -300,11 +484,15 @@ def main() -> int:
         })
 
         if not args.smoke:
+            # errors="replace": модели иногда пишут файлы в не-UTF-8
+            # (ornith: git-объекты .git/ в диффе уронили decode);
+            # .git исключаем — дифф про код решения, не про VCS-внутренности
             diff = subprocess.run(
                 ["diff", "-ruN",
-                 "-x", "var", "-x", ".env", "-x", "__pycache__",
+                 "-x", "var", "-x", ".env", "-x", "__pycache__", "-x", ".git",
                  str(BILLING / "skeleton"), str(repo)],
                 capture_output=True, text=True,
+                encoding="utf-8", errors="replace",
             )
             (results / "diff.patch").write_text(diff.stdout, encoding="utf-8")
             meta["diff_lines"] = len(diff.stdout.splitlines())
@@ -313,18 +501,26 @@ def main() -> int:
             shutil.copytree(
                 repo, solution,
                 ignore=shutil.ignore_patterns("vendor", "var", ".env", "__pycache__",
-                                              ".phpunit.result.cache"),
+                                              ".phpunit.result.cache", ".git"),
                 dirs_exist_ok=True,
             )
             meta["solution_files"] = sum(1 for p in solution.rglob("*") if p.is_file())
             print(f"diff.patch: {meta['diff_lines']} строк; solution/: {meta['solution_files']} файлов")
 
         session_files = sorted((results / "pi-session").glob("*.jsonl")) if (results / "pi-session").is_dir() else []
-        meta["session_file"] = session_files[0].name if session_files else None
+        # перезапуск в тот же run-каталог копит файлы сессий: своя сессия — последняя
+        meta["session_file"] = session_files[-1].name if session_files else None
         print(f"сессия: {len(session_files)} файл(ов) JSONL"
-              + (f", первый: {session_files[0].name}" if session_files else " — НЕ СОЗДАНА, проверить!"))
+              + (f", последний: {session_files[-1].name}" if session_files else " — НЕ СОЗДАНА, проверить!"))
         return rc
     finally:
+        stop_watch.set()
+        if giga_server is not None:
+            giga_server.shutdown()
+            giga_server.server_close()
+        if foreign_models:
+            meta["ollama_contention"] = True
+            meta["ollama_foreign_models"] = sorted(foreign_models)
         meta["finished_at"] = datetime.now(timezone.utc).isoformat()
         meta["duration_s"] = round(time.time() - started, 1)
         if run is not None:

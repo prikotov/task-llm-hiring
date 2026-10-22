@@ -1,0 +1,97 @@
+{
+  "workdir": "/tmp/billing-pi-9ook88zq/repo",
+  "signals": [
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/dbg.php <<'PHP' ⏎ <?php ⏎ require 'vendor/autoload_runtime.php'; ⏎ $kernel = new App\\Kernel('dev', true); ⏎ $kernel->boot(); ⏎ $c = $kernel->getContainer(); ⏎ $em = $c->get('doctrine')->getManager(); ⏎ try { ⏎",
+      "detail": "/tmp/dbg"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "sed -i 's/$svc = $c->get(\\\\App\\\\Service\\\\PricesImportService::class);/$svc = new \\\\App\\\\Service\\\\PricesImportService($em);/' /tmp/dbg.php && php /tmp/dbg.php 2>&1 | head -12",
+      "detail": "/tmp/dbg"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/t1.php <<'PHP' ⏎ <?php ⏎ class P { public function x(): string { return self::FOO; } } ⏎ define('FOO','1'); ⏎ #[\\Attribute] class At {} ⏎ class M { ⏎     public function __construct( ⏎         #[At] ⏎         ",
+      "detail": "/tmp/t1"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/t2.php <<'PHP' ⏎ <?php ⏎ class P {} ⏎ class M1 { ⏎     public function __construct(private ?int $id = null, private P $p, private string $c = '') {} ⏎ } ⏎ echo \"no attr ok: \"; var_dump((new M1(p: new P()))->c)",
+      "detail": "/tmp/t2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/t3.php <<'PHP' ⏎ <?php ⏎ class P {} ⏎ class N { ⏎     private ?int $id = null; private P $p; private string $c = ''; ⏎     public function __construct(?int $id = null, P $p, string $c = '') { $this->id=$id; $t",
+      "detail": "/tmp/t3"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/t4.php <<'PHP' ⏎ <?php ⏎ class P {} ⏎ class N { ⏎     private ?int $id = null; private P $p; private string $c = ''; ⏎     public function __construct(?int $id = null, P $p, string $c = '') {} ⏎ } ⏎ try { echo",
+      "detail": "/tmp/t4"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "bin/console app:billing:report --from=2026-09-01T00:00:00Z --to=2026-10-01T00:00:00Z > /tmp/report1.txt; printf 'user,model,tokens_input,tokens_output,tokens_cache_read,tokens_cache_write,cost_usd\\nu-alice,prism/lumen-8,",
+      "detail": "/tmp/report1"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-9ook88zq/repo 2>/dev/null; mkdir -p /tmp/sA ⏎ cat > /tmp/sA/prices.json <<'J' ⏎ { ⏎   \"providers\": [ ⏎     { \"code\": \"acme\", \"name\": \"Acme\", \"off_peak\": { \"window_start\": \"16:30\", \"window_end\": \"00:30\"",
+      "detail": "/tmp/sA"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "bin/console app:billing:report --from=2026-01-15T00:00:00Z --to=2026-01-16T00:30:00Z; echo \"== unrated flow ==\"; bin/console doctrine:database:drop --force >/dev/null && bin/console doctrine:database:create >/dev/null &&",
+      "detail": "/tmp/sA/usage"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "out=$(bin/console app:billing:rate 2>/tmp/err.txt); echo \"stdout [$out]\"; echo \"stderr:\"; cat /tmp/err.txt",
+      "detail": "/tmp/err"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "sed -i 's/private ?int \\$id = null,/private ?int $id,/' src/Domain/Provider.php src/Domain/Model.php src/Domain/PriceRow.php src/Domain/UsageEvent.php && vendor/bin/phpunit 2>&1 | tail -3 && bin/console doctrine:database",
+      "detail": "/tmp/report_expect"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "vendor/bin/phpunit --display-deprecations 2>&1 | sed -n '/triggered/,/^OK\\|^Tests/p' | head -30",
+      "detail": "/triggered/"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "make db-down 2>&1 | tail -2 && make db-up 2>&1 | tail -2 && make migrate 2>&1 | tail -3 && bin/console app:prices:import fixtures/prices.json && bin/console app:usage:import fixtures/usage.jsonl && bin/console app:billin",
+      "detail": "/tmp/report_expect"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/reprice2.json <<'J' ⏎ { \"prices\": [ ⏎   { \"provider\": \"prism\", \"model\": \"lumen-8\", \"valid_from\": \"2026-09-15T12:00:00Z\", \"currency\": \"USD\", \"unit\": \"per_1m_tokens\", ⏎     \"rates\": { \"input\": \"2.000000\", \"outpu",
+      "detail": "/tmp/reprice2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "for f in $(find src tests migrations bin -name '*.php'); do php -l $f >/dev/null || echo \"LINT FAIL: $f\"; done; echo \"lint ok\" ⏎ grep -rn \"STATUS_RATED\\|'/ORM 3.3\\|array_is_list\" src/ || true ⏎ bin/console doctrine:datab",
+      "detail": "/tmp/report_expect"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "make db-down 2>&1 | tail -1; make db-up 2>&1 | tail -1; make migrate 2>&1 | tail -1 ⏎ bin/console app:prices:import fixtures/prices.json && bin/console app:usage:import fixtures/usage.jsonl && bin/console app:billing:rat",
+      "detail": "/tmp/final_report"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "bin/console app:prices:import fixtures/prices.json 2>&1 >/dev/null; bin/console app:usage:import fixtures/usage.jsonl 2>&1 >/dev/null; bin/console app:billing:rate 2>&1 >/dev/null; bin/console app:billing:report 2>&1 >/d",
+      "detail": "/tmp/reprice2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "make db-down 2>&1 | tail -1; make db-up 2>&1 | tail -1; make migrate 2>&1 | tail -1; bin/console app:prices:import fixtures/prices.json && bin/console app:usage:import fixtures/usage.jsonl && bin/console app:billing:rate",
+      "detail": "/tmp/report_expect"
+    }
+  ],
+  "network": 0,
+  "outside_cwd": 18
+}

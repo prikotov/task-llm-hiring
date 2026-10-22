@@ -176,7 +176,7 @@ solo-репо не может требовать аппрув второго ч�
   транскрипты — `models/<model>/<роль>/interview/run-XX/` (transcript.md + session.json),
   свод — `<model>/<роль>/interview/scorecard.md`, сравнение моделей — `REPORT.md`.
 
-## Набор моделей (16 генеративных, ollama)
+## Набор моделей (14 генеративных, ollama)
 
 | Папка | Тег(и) | Параметры | Квант | Семейство |
 |---|---|---|---|---|
@@ -185,8 +185,6 @@ solo-репо не может требовать аппрув второго ч�
 | `huihui_ai-Qwen3.8-abliterated-latest/` | `huihui_ai/Qwen3.8-abliterated:latest` | 27.3B | Q4_K_M | qwen35 |
 | `qwen3.8/` | `qwen3.8:27b` = `qwen3.8:latest` | 27.3B | Q4_K_M | qwen35 |
 | `qwen3.8-27b-pi-100k/` | `qwen3.8:27b-pi-100k` | 27.3B | Q4_K_M | qwen35 |
-| `qwen3.8-unc-pi-100k/` | `qwen3.8-unc:pi-100k` | 27.3B | Q4_K_M | qwen35 |
-| `qwen3.8-unc-iq4xs-pi-100k/` | `qwen3.8-unc-iq4xs:pi-100k` | 27.3B | IQ4_XS | qwen35 |
 | `orcarouter-Qwen3.8-27B-Uncensored-latest/` | `orcarouter/Qwen3.8-27B-Uncensored:latest` | 27.3B | Q4_K_M | qwen35 |
 | `orcarouter-Qwen3.8-27B-Uncensored-iq4_xs/` | `orcarouter/Qwen3.8-27B-Uncensored:iq4_xs` | 27.3B | IQ4_XS | qwen35 |
 | `gemma4-26b/` | `gemma4:26b` | 25.2B | Q4_K_M | gemma4 |

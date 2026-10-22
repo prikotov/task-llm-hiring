@@ -1,0 +1,20 @@
+I выполнил задание.
+
+**Что было сделано:**
+1.  **Проектирование БД:** Созданы сущности `Provider`, `Model`, `Price` и `UsageEvent`. Для `UsageEvent` имя колонки `user` было изменено на `username`, чтобы избежать конфликта с зарезервированным словом в PostgreSQL. Использованы типы `datetime_immutable` и `decimal` для точности.
+2.  **Импорт цен (`app:prices:import`):** Реализован идемпотентный импорт провайдеров, моделей и цен.
+3.  **Импорт событий (`app:usage:import`):** Реализован импорт событий из JSONL с дедупликацией по паре `(provider, provider_request_id)`.
+4.  **Расчёт стоимости (`app:billing:rate`):** 
+    *   Использована библиотека `bcmath` для точных вычислений.
+    *   Реализованы две схемы тарификации: `per_1m_tokens` и `per_1m_tokens_unified`.
+    *   Учтены оф-пиковые скидки провайдеров (окно может переходить через полночь).
+    *   Округление стоимости события до 6 знаков по правилу `HALF_UP`.
+5.  **Отчёт (`app:billing:report`):** Реализован генератор CSV-отчёта, который группирует данные по пользователю и модели, сортирует их и выводит итоговую строку `TOTAL`.
+
+**Проверка:**
+Запуск всей цепочки команд на чистой базе:
+`make db-down && make db-up && bin/console doctrine:migrations:migrate -n && bin/console app:prices:import fixtures/prices.json && bin/console app:usage:import fixtures/usage.jsonl && bin/console app:billing:rate && bin/console app:billing:report --from=2026-09-01T00:00:00Z --to=2026-10-01T00:00:00Z`
+
+Результат полностью совпадает с примером из `TASK.md`.
+
+В корне репозитория созданы файлы `COMMIT_MESSAGE.md` и `PR_DESCRIPTION.md`.

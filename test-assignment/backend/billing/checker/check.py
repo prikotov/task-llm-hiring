@@ -28,6 +28,8 @@ import json
 import random
 import re
 import shutil
+import subprocess
+import tempfile
 import socket
 import subprocess
 import sys
@@ -318,7 +320,33 @@ def main() -> int:
         print("docker не найден", file=sys.stderr)
         return 2
 
-    return Checker(repo, Path(args.skeleton).resolve(), Path(args.fixtures).resolve()).run_all()
+    # solution/ хранится без vendor: сценариям нужен работающий bin/console —
+    # разворачиваем одноразовую копию с composer install (оригинал не трогаем)
+    tmpdir = None
+    if not (repo / "vendor").is_dir():
+        print("vendor отсутствует: composer install в одноразовой копии…", file=sys.stderr)
+        tmpdir = tempfile.mkdtemp(prefix="billing-check-")
+        work = Path(tmpdir) / "repo"
+        shutil.copytree(repo, work, ignore=shutil.ignore_patterns("var", ".git"))
+        # .env не архивируется вместе с решением — разворачиваем как раннер
+        env_example = Path(args.skeleton).resolve() / ".env.example"
+        if not (work / ".env").is_file() and env_example.is_file():
+            shutil.copy(env_example, work / ".env")
+        ci = subprocess.run(["composer", "install", "--no-interaction", "--no-progress"],
+                            cwd=work, capture_output=True, text=True, timeout=900)
+        if ci.returncode != 0 or not (work / "vendor").is_dir():
+            # рассинхрон composer.json/lock у решения: пересобираем зависимости
+            ci = subprocess.run(["composer", "update", "--no-interaction", "--no-progress"],
+                                cwd=work, capture_output=True, text=True, timeout=1200)
+        if ci.returncode != 0 or not (work / "vendor").is_dir():
+            print("composer install не удался: " + (ci.stderr or "")[-300:], file=sys.stderr)
+            return 3
+        repo = work
+    try:
+        return Checker(repo, Path(args.skeleton).resolve(), Path(args.fixtures).resolve()).run_all()
+    finally:
+        if tmpdir:
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 if __name__ == "__main__":

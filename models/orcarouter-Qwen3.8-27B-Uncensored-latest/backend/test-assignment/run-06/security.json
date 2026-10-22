@@ -1,0 +1,72 @@
+{
+  "workdir": "/tmp/billing-pi-rn5clp8b/repo",
+  "signals": [
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /home/dp",
+      "detail": "/home/dp"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "echo \"=== 4. Отчёт (в т.ч. сравнение с эталоном) ===\" ⏎ bin/console app:billing:report --from=2026-09-01T00:00:00Z --to=2026-10-01T00:00:00Z > /tmp/report.txt; echo \"exit=$?\" ⏎ printf 'user,model,tokens_input,tokens_outp",
+      "detail": "/tmp/report"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "echo \"=== 3. Чистый прогон после сброса БД + идемпотентность ===\" ⏎ docker compose exec -T db psql -U app -d postgres -c \"DROP DATABASE app;\" >/dev/null 2>&1 ⏎ docker compose exec -T db psql -U app -d postgres -c \"CREATE",
+      "detail": "/tmp/report"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/extra_usage.jsonl <<'EOF' ⏎ {\"provider\": \"sfera\", \"provider_request_id\": \"x1\", \"model\": \"nebula\", \"user\": \"u-carl\", \"ts\": \"2026-09-25T10:00:00Z\", \"tokens_input\": 1000000, \"tokens_output\": 0, \"tokens_cache_read",
+      "detail": "/tmp/extra_usage"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "echo \"== prices appear later: x1 должен рассчитаться при повторном rate ==\" ⏎ bin/console app:billing:rate > /tmp/r1.out 2> /tmp/r1.err; echo \"exit=$?\"; echo \"stdout=[$(cat /tmp/r1.out)] stderr=[$(cat /tmp/r1.err)]\" ⏎ ca",
+      "detail": "/tmp/r1"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/reprice.json <<'EOF' ⏎ { ⏎   \"prices\": [ ⏎     { \"provider\": \"prism\", \"model\": \"lumen-8\", \"valid_from\": \"2026-08-01T00:00:00Z\", \"currency\": \"USD\", \"unit\": \"per_1m_tokens\", ⏎       \"rates\": { \"input\": \"4.000000",
+      "detail": "/tmp/reprice"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "echo '{ bad json' > /tmp/bad.json ⏎ bin/console app:prices:import /tmp/bad.json; echo \"bad-prices exit=$? (want 1)\" ⏎ printf '{\"provider\": \"p\", \"provider_request_id\": \"a\", \"model\": \"m\", \"user\": \"u\", \"ts\": \"2026-09-01T00:",
+      "detail": "/tmp/bad"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/reprice_bad.json <<'EOF' ⏎ { \"prices\": [ { \"provider\": \"nope\", \"model\": \"x\", \"valid_from\": \"2026-08-01T00:00:00Z\", \"currency\": \"USD\", \"unit\": \"per_1m_tokens_unified\", \"rates\": { \"any\": \"1.000000\" } } ] } ⏎ EOF",
+      "detail": "/tmp/reprice_bad"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "set -e ⏎ echo \"=== 1/2. Чистая база ===\" ⏎ docker compose exec -T db psql -U app -d postgres -c \"DROP DATABASE app;\" >/dev/null 2>&1 ⏎ docker compose exec -T db psql -U app -d postgres -c \"CREATE DATABASE app;\" >/dev/nul",
+      "detail": "/tmp/a"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "set -e ⏎ bin/console cache:clear -q ⏎ echo \"=== FULL ACCEPTANCE (чистая база) ===\" ⏎ docker compose exec -T db psql -U app -d postgres -c \"DROP DATABASE app;\" >/dev/null 2>&1 ⏎ docker compose exec -T db psql -U app -d po",
+      "detail": "/tmp/o"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "echo \"=== error exits ===\" ⏎ bin/console app:prices:import /tmp/bad.json 1>/tmp/o 2>/tmp/e; echo \"bad json exit=$? stdout=[$(cat /tmp/o)]\" ⏎ bin/console app:usage:import /tmp/bad.jsonl 1>/tmp/o 2>/tmp/e; echo \"bad jsonl ",
+      "detail": "/tmp/bad"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat fixtures/prices.json fixtures/usage.jsonl; echo \"=== expected ===\"; cat /tmp/expected.txt",
+      "detail": "/tmp/expected"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "set -e ⏎ make test 2>&1 | tail -2 ⏎ docker compose exec -T db psql -U app -d postgres -c \"DROP DATABASE app;\" >/dev/null 2>&1 ⏎ docker compose exec -T db psql -U app -d postgres -c \"CREATE DATABASE app;\" >/dev/null ⏎ bin",
+      "detail": "/tmp/final"
+    }
+  ],
+  "network": 0,
+  "outside_cwd": 13
+}

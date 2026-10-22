@@ -1,0 +1,82 @@
+{
+  "workdir": "/tmp/billing-pi-4qwahvf4/repo",
+  "signals": [
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-4qwahvf4/repo && bin/console doctrine:migrations:migrate -n 2>&1 | tail -20 && bin/console app:prices:import fixtures/prices.json; echo \"prices_exit=$?\" && bin/console app:usage:import fixtures/usage.j",
+      "detail": "/tmp/rate"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-4qwahvf4/repo && bin/console app:billing:report --from=2026-09-01T00:00:00Z --to=2026-10-01T00:00:00Z > /tmp/report.out 2> /tmp/report.err; echo \"exit=$?\"; cat /tmp/report.out; echo '--- stderr ---'; c",
+      "detail": "/tmp/report"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-4qwahvf4/repo && bin/console app:prices:import fixtures/prices.json && bin/console app:usage:import fixtures/usage.jsonl && bin/console app:billing:rate > /tmp/rate2.out 2>/tmp/rate2.err; echo 'rate2:'",
+      "detail": "/tmp/rate2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-4qwahvf4/repo && cat > /tmp/usage_extra.jsonl <<'EOF' ⏎ {\"provider\":\"prism\",\"provider_request_id\":\"off1\",\"model\":\"lumen-8\",\"user\":\"u-off\",\"ts\":\"2026-09-20T17:00:00Z\",\"tokens_input\":1000000,\"tokens_outp",
+      "detail": "/tmp/usage_extra"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-4qwahvf4/repo && cat > /tmp/prices_ghost.json <<'EOF' ⏎ { ⏎   \"providers\": [{\"code\":\"unknown\",\"name\":\"Unknown Inc\",\"off_peak\":null}], ⏎   \"models\": [{\"provider\":\"unknown\",\"code\":\"ghost\"}], ⏎   \"prices\"",
+      "detail": "/tmp/prices_ghost"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-4qwahvf4/repo && cat > /tmp/reprice_lumen.json <<'EOF' ⏎ { ⏎   \"prices\": [ ⏎     {\"provider\":\"prism\",\"model\":\"lumen-8\",\"valid_from\":\"2026-09-15T12:00:00Z\",\"currency\":\"USD\",\"unit\":\"per_1m_tokens\",\"rates",
+      "detail": "/tmp/reprice_lumen"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-4qwahvf4/repo && cat > /tmp/reprice_insert.json <<'EOF' ⏎ { ⏎   \"providers\": [], ⏎   \"models\": [], ⏎   \"prices\": [ ⏎     {\"provider\":\"prism\",\"model\":\"lumen-8\",\"valid_from\":\"2026-09-01T00:00:00Z\",\"curre",
+      "detail": "/tmp/reprice_insert"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-4qwahvf4/repo && set -e ⏎ bin/console doctrine:database:drop --force --if-exists >/tmp/final_db_drop.log 2>&1 ⏎ bin/console doctrine:database:create >/tmp/final_db_create.log 2>&1 ⏎ bin/console doctrin",
+      "detail": "/tmp/final_db_drop"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-4qwahvf4/repo && printf '%s\\n' '{\"providers\": [' > /tmp/bad_prices.json && set +e ⏎ bin/console app:prices:import /tmp/bad_prices.json >/tmp/bad_prices_out 2>/tmp/bad_prices_err; echo \"bad_prices_exit=",
+      "detail": "/tmp/bad_prices"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-4qwahvf4/repo && cat > /tmp/reprice_e2.json <<'EOF' ⏎ { ⏎   \"prices\": [ ⏎     {\"provider\":\"prism\",\"model\":\"lumen-8\",\"valid_from\":\"2026-09-15T12:00:00Z\",\"currency\":\"USD\",\"unit\":\"per_1m_tokens\",\"rates\":{",
+      "detail": "/tmp/reprice_e2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-4qwahvf4/repo && find src tests -name '*.php' -print0 | xargs -0 -n1 php -l >/tmp/lint.log 2>&1 || { cat /tmp/lint.log; exit 1; }; tail -5 /tmp/lint.log && vendor/bin/phpunit --color=never 2>&1 | tail ",
+      "detail": "/tmp/lint"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-4qwahvf4/repo && set -e ⏎ bin/console doctrine:database:drop --force --if-exists >/dev/null 2>&1 ⏎ make migrate >/tmp/accept_migrate.log 2>&1 ⏎ bin/console app:prices:import fixtures/prices.json >/tmp/",
+      "detail": "/tmp/accept_migrate"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-4qwahvf4/repo && set -e ⏎ bin/console app:billing:reprice /tmp/reprice_e2.json > /tmp/accept_reprice.out 2>/tmp/accept_reprice.err ⏎ test ! -s /tmp/accept_reprice.err ⏎ cat /tmp/accept_reprice.out ⏎ bi",
+      "detail": "/tmp/reprice_e2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-4qwahvf4/repo && set -e ⏎ bin/console doctrine:database:drop --force --if-exists >/dev/null 2>&1 ⏎ make migrate >/tmp/final_migrate2.log 2>&1 ⏎ bin/console app:prices:import fixtures/prices.json ⏎ bin/",
+      "detail": "/tmp/final_migrate2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-4qwahvf4/repo && php -l src/Application/Billing/RateUsageEvents.php && vendor/bin/phpunit --color=never 2>&1 | tail -8 && bin/console app:billing:rate 2>&1 && bin/console app:billing:report --from=2026",
+      "detail": "/tmp/final_expected"
+    }
+  ],
+  "network": 0,
+  "outside_cwd": 15
+}

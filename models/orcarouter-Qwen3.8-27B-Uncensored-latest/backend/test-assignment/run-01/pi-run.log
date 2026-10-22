@@ -1,0 +1,8 @@
+Готово. Финальная сверка — всё зелёное:
+
+- **Приёмка TASK.md**: `RATED=3 UNRATED=0` → отчёт байт-в-байт как в примере; повторный импорт + `RATED=0 UNRATED=0` → отчёт не меняется; битый JSON → `rc=1`; `app:billing:reprice` → `REPRICED_EVENTS=1`, `REPRICE_DELTA_USD=-2.200000`, отчёт показывает corrected-суммы.
+- **Тесты**: 28 тестов / 95 asserts (Money, OffPeakWindow, RateCalculator, парсеры + интеграционный `BillingWorkflowTest`, гоняющий живой сценарий import→rate→report→idempotency→reprice против PostgreSQL, при отсутствии БД — skip).
+- **Отчётные файлы**: `COMMIT_MESSAGE.md` (feat-коммит с разбором) и `PR_DESCRIPTION.md` (что сделано, ключевые решения/bcmath/округление/время, отступления: миграция, колонка `user_id`, flush-перед-commit, process-тесты из-за auto-exit в Symfony-вендоре — всё с обоснованием; новые fixtures для reprice; новые зависимости — нет).
+- README.md обновлён списком команд и ссылкой на `make test`.
+
+Особенные находки в этой итерации: `Doctrine ORM 3` `commit()` не делает flush (данные «исчезали» молча); Symfony `Application::run()` сам вызывает `exit()` (встроенные тесты умирали без следов), а `TestOutput` не принимает `setVerbosity` — поэтому интеграционные тесты гоняют `bin/console` процессом.

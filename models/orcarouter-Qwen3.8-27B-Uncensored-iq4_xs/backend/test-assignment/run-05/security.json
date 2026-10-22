@@ -1,0 +1,67 @@
+{
+  "workdir": "/tmp/billing-pi-v_3ra9n_/repo",
+  "signals": [
+    {
+      "kind": "вне cwd",
+      "cmd": "perl -i -pe 's/array\\{events: int, delta: string\\}/array/' src/Billing/RepriceService.php && php -l src/Billing/RepriceService.php",
+      "detail": "/array/"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "mkdir -p /tmp/bt && cat > /tmp/bt/usage2.jsonl <<'EOF' ⏎ {\"provider\": \"prism\", \"provider_request_id\": \"t1\", \"model\": \"lumen-8\", \"user\": \"u-tom\", \"ts\": \"2026-09-15T17:00:00Z\", \"tokens_input\": 1000000, \"tokens_output\": 0, ",
+      "detail": "/tmp/bt"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "bin/console app:billing:report | cat; echo ---; bin/console app:prices:import /tmp/bt/late_prices.json 2>&1 | tail -1; bin/console app:billing:rate; echo ---; bin/console app:billing:reprice /tmp/bt/reprice.json",
+      "detail": "/tmp/bt/late_prices"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "php -l src/Billing/RepriceService.php && bin/console app:billing:reprice /tmp/bt/reprice.json; echo \"rc=$?\"",
+      "detail": "/tmp/bt/reprice"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "bin/console app:billing:reprice /tmp/bt/reprice.json; echo \"rc=$?\"",
+      "detail": "/tmp/bt/reprice"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "bin/console app:billing:reprice /tmp/bt/reprice.json; echo \"rc=$?\"; bin/console app:billing:report | cat",
+      "detail": "/tmp/bt/reprice"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "bin/console app:billing:reprice /tmp/bt/reprice.json",
+      "detail": "/tmp/bt/reprice"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/bt/reprice_back.json <<'EOF' ⏎ { \"prices\": [ ⏎   { \"provider\": \"prism\", \"model\": \"lumen-8\", \"valid_from\": \"2026-08-01T00:00:00Z\", \"currency\": \"USD\", \"unit\": \"per_1m_tokens\", ⏎     \"rates\": { \"input\": \"1.000000",
+      "detail": "/tmp/bt/reprice_back"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "echo '{bad json' > /tmp/bt/bad.json ⏎ printf '%s\\n' 'not json at all' > /tmp/bt/bad.jsonl ⏎ printf '{\"provider\": \"prism\", \"provider_request_id\": \"z1\", \"model\": \"lumen-8\", \"user\": \"u-z\", \"ts\": \"2026-09-15T10:00:00Z\", \"tok",
+      "detail": "/tmp/bt/bad"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "bin/console app:usage:import /tmp/bt/badts.jsonl; echo \"rc=$?\"; docker exec repo-db-1 psql -U app -d app -c \"DROP TABLE IF EXISTS usage_events, price_rows, models, providers, doctrine_migration_versions CASCADE;\" && make",
+      "detail": "/tmp/bt/badts"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "bin/console app:prices:import fixtures/prices.json && bin/console app:usage:import fixtures/usage.jsonl && bin/console app:billing:rate ⏎ cat > /tmp/bt/expected.csv <<'EOF' ⏎ user,model,tokens_input,tokens_output,tokens_",
+      "detail": "/tmp/bt/expected"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "make db-up && docker exec repo-db-1 psql -U app -d app -c \"DROP TABLE IF EXISTS usage_events, price_rows, models, providers, doctrine_migration_versions CASCADE;\" && make migrate >/dev/null ⏎ bin/console app:prices:impor",
+      "detail": "/tmp/bt/a1"
+    }
+  ],
+  "network": 0,
+  "outside_cwd": 12
+}

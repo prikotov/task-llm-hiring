@@ -136,6 +136,101 @@ def phpcs(work: Path, phpcs_bin: list[str], raw_dir: Path | None = None) -> dict
                             full.stdout if full else c.stdout)}
 
 
+def psalm(work: Path, raw_dir: Path | None = None) -> dict:
+    """psalm из vendor кандидата (есть в require-dev скелета) — меряем той же
+    версией, что была доступна агенту. errorLevel=1 (сигнальные ошибки);
+    psalm.xml пишём свой: конфиг в скелете не даётся, чтобы не подсказывать
+    кандидату настройки. Kernel.php дан скелетом — исключён, как у phpstan."""
+    bin_path = work / "vendor" / "bin" / "psalm"
+    if not bin_path.is_file():
+        return {"status": "skip", "reason": "vendor/bin/psalm отсутствует"}
+    (work / "psalm.xml").write_text(
+        '<?xml version="1.0"?>\n'
+        '<psalm errorLevel="1" findUnusedCode="false" findUnusedBaselineEntry="false">\n'
+        "  <projectFiles>\n"
+        '    <directory name="src"/>\n'
+        "    <ignoreFiles>\n"
+        '      <file name="src/Kernel.php"/>\n'
+        "    </ignoreFiles>\n"
+        "  </projectFiles>\n"
+        "</psalm>\n", encoding="utf-8")
+    c = run([str(bin_path), "--no-progress", "--no-cache", "--output-format=json", "src"],
+            work, timeout=900)
+    try:  # psalm отдаёт голый список проблем (в старых версиях — {"issues": [...]})
+        data = json.loads(c.stdout or "[]")
+    except json.JSONDecodeError:
+        data = []
+    issues = data.get("issues") if isinstance(data, dict) else data
+    issues = issues or []
+    return {"status": "ok" if c.returncode <= 2 else "fail", "exit": c.returncode,
+            "issues": len(issues),
+            "raw": dump_raw(raw_dir, "psalm-raw.json", c.stdout)}
+
+
+def phpunit(work: Path, raw_dir: Path | None = None) -> dict:
+    """Тесты кандидата: vendor/bin/phpunit в копии решения. Считаем тесты,
+    ассерции, строки тестового кода и покрытие (нужен pcov/xdebug)."""
+    bin_path = work / "vendor" / "bin" / "phpunit"
+    if not bin_path.is_file():
+        return {"status": "skip", "reason": "vendor/bin/phpunit отсутствует"}
+    if not (work / ".env").is_file():  # kernel-тесты требуют окружение
+        ex = Path(__file__).resolve().parent.parent / "skeleton" / ".env.example"
+        if ex.is_file():
+            (work / ".env").write_text(ex.read_text(encoding="utf-8"), encoding="utf-8")
+    c = run([str(bin_path)], work, timeout=600)
+    out = c.stdout + "\n" + c.stderr
+    m = re.search(r"OK \((\d+) tests?, (\d+) assertions?\)", out)
+    if not m:
+        m = re.search(r"Tests: (\d+), Assertions: (\d+)", out)
+    tests = int(m.group(1)) if m else None
+    assertions = int(m.group(2)) if m else None
+    fails = sum(int(x) for x in re.findall(r"^(?:Failures|Errors): (\d+)", out, re.M))
+    # строки тестового кода: scc по tests/ (fallback — счёт строк *.php)
+    tloc = None
+    if (work / "tests").is_dir():
+        cs = run(["scc", "tests", "--format", "json"], work) if shutil.which("scc") else None
+        try:
+            tloc = sum(int(l.get("Code", 0)) for l in json.loads(cs.stdout)) if cs else None
+        except json.JSONDecodeError:
+            tloc = None
+        if tloc is None:
+            tloc = sum(len(p.read_text(encoding="utf-8", errors="ignore").splitlines())
+                       for p in (work / "tests").rglob("*.php"))
+    # покрытие: pcov подгружен, но выключен в php.ini — включаем на запуск;
+    # phpunit 11 требует явный <source>-фильтр: дист кандидата его не содержит,
+    # поэтому делаем копию конфига с добавленной секцией. Без тестов покрытия
+    # не считаем (0% без тестов — не информация).
+    cov = None
+    mods = run(["php", "-m"], work).stdout.lower()
+    if tests and ("pcov" in mods or "xdebug" in mods):
+        src_cfg = (work / "phpunit-coverage.xml")
+        base = (work / "phpunit.xml.dist")
+        if base.is_file():
+            txt = base.read_text(encoding="utf-8")
+            if "<source>" not in txt:
+                txt = txt.replace(
+                    "</phpunit>",
+                    "  <source>\n    <include>\n      <directory>src</directory>\n"
+                    "    </include>\n  </source>\n</phpunit>")
+            src_cfg.write_text(txt, encoding="utf-8")
+        else:
+            src_cfg.write_text(
+                '<?xml version="1.0"?>\n<phpunit bootstrap="vendor/autoload.php">\n'
+                "  <testsuites>\n    <testsuite name=\"tests\">\n"
+                "      <directory>tests</directory>\n    </testsuite>\n  </testsuites>\n"
+                "  <source>\n    <include>\n      <directory>src</directory>\n"
+                "    </include>\n  </source>\n</phpunit>\n", encoding="utf-8")
+        cc = run(["php", "-d", "pcov.enabled=1", str(bin_path), "-c", "phpunit-coverage.xml",
+                  "--coverage-text"], work, timeout=900)
+        mc = re.search(r"Lines:\s+([0-9.]+)%", cc.stdout)
+        if mc:
+            cov = float(mc.group(1))
+    return {"status": "ok", "exit": c.returncode, "tests": tests,
+            "assertions": assertions, "failures_errors": fails,
+            "test_loc": tloc, "coverage_lines_pct": cov,
+            "raw": dump_raw(raw_dir, "phpunit-out.txt", out)}
+
+
 def scc(work: Path, raw_dir: Path | None = None) -> dict:
     if shutil.which("scc") is None:
         return {"status": "skip", "reason": "scc не установлен"}
@@ -148,7 +243,8 @@ def scc(work: Path, raw_dir: Path | None = None) -> dict:
         return {"status": "skip", "reason": "scc отдал не-JSON"}
     files = sum(int(lang.get("Count", 0)) for lang in langs)
     lines = sum(int(lang.get("Code", 0)) for lang in langs)
-    return {"status": "ok", "files": files, "loc": lines,
+    comments = sum(int(lang.get("Comment", 0)) for lang in langs)
+    return {"status": "ok", "files": files, "loc": lines, "comment": comments,
             "raw": dump_raw(raw_dir, "scc.json", c.stdout)}
 
 
@@ -249,6 +345,9 @@ def main() -> int:
             print("vendor отсутствует: composer install в одноразовой копии…", file=sys.stderr)
             ci = run(["composer", "install", "--no-interaction", "--no-progress"], work)
             if ci.returncode != 0 or not (work / "vendor").is_dir():
+                # рассинхрон composer.json/lock у решения: пересобираем зависимости
+                ci = run(["composer", "update", "--no-interaction", "--no-progress"], work)
+            if ci.returncode != 0 or not (work / "vendor").is_dir():
                 print("composer install не удался — метрики по коду без зависимостей "
                       "некорректны: " + (ci.stderr or "")[-300:], file=sys.stderr)
                 return 3
@@ -276,6 +375,8 @@ def main() -> int:
             "phpstan": phpstan(work, phpstan_bin, raw_dir),
             "phpmd": phpmd(work, phpmd_bin, raw_dir),
             "phpcs": phpcs(work, phpcs_bin, raw_dir),
+            "psalm": psalm(work, raw_dir),
+            "phpunit": phpunit(work, raw_dir),
             "scc": scc(work, raw_dir),
             "ast_metrics": ast_metrics(work, raw_dir),
         }

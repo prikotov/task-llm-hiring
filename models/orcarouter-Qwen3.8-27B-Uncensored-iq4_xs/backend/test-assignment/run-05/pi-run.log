@@ -1,0 +1,19 @@
+Готово. Итог по assignment:
+
+**Реализовано** (`src/`, без изменений каркаса и зависимостей):
+- **Команды**: `app:prices:import`, `app:usage:import`, `app:billing:rate`, `app:billing:report`, `app:billing:reprice` (бонус)
+- **Domain**: `Money` (bcmath, scale 24, HALF_UP до 6 знаков через «+0.0000005 и отброс»), `OffPeak` (окно `[start,end)` в UTC, через полночь), `TokenUsage` (4 вида), `RateUnit` (two schemas), сущности Provider/Model/PriceRow/UsageEvent
+- **Billing**: выбор цены по `max(valid_from) ≤ ts`, формулы обеих схем, off-peak множитель, фиксация `applied_price_valid_from` для retro-коррекции
+- **Importers**: upsert справочника, JSONL-импорт с `ON CONFLICT DO NOTHING`, строгая валидация (плохой файл → stderr + exit 1)
+- **Миграция**: одна, 4 таблицы с ограничениями/индексами, `make migrate`
+- **Тесты**: 32 (Money, OffPeak-границы, выбор цены, CostCalculator по примерам e1/e2/e3)
+
+**Проверено**:
+- Отчёт на примере из TASK.md — **байт-в-байт** по `cmp`
+- Идемпотентность: повтор импорта + rate + report — состояние не меняется
+- Off-peak: 16:30 → скидка, 16:29:59/00:30 → пик, окно через полночь (00:15 → скидка)
+- unrated: событие раньше первой цены → `UNRATED=1` + строка в stderr; после пополнения справочника повторный rate рассчитал
+- Репрайс: `REPRICED_EVENTS=3` / дельта вручную посчитана (+9.1, −13.5), повторный запуск → дельта 0.000000
+- Все error-кейсы → exit 1 с читаемым сообщением в stderr
+
+**Документы**: `COMMIT_MESSAGE.md` — сообщение в git-совете; `PR_DESCRIPTION.md` — суть, решения (bcmath только строки, единое округление, дедупликация, механизм reprice), допущения (секции справочника опциональны, strict-разбор ts, `start==end` окно = без скидки, `REPRICED_EVENTS` включает неизменённые по стоимости), проверки и отступления от каркаса.

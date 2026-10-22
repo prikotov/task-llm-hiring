@@ -24,9 +24,10 @@ import tempfile
 import time
 from pathlib import Path
 
+from judge_common import run_judge, save_sidecar
+
 HERE = Path(__file__).resolve().parent
 BILLING = HERE.parent
-PI = "pi"
 MODEL = "zai/glm-5.3-flash"
 TIMEOUT_S = 900
 RETRIES = 2
@@ -59,34 +60,27 @@ def judge(run_dir: Path, thinking: str) -> dict:
               f"ДИФФ РЕШЕНИЯ (skeleton -> решение):\n```diff\n" + "\n".join(diff) + "\n```\n\n"
               f"Оцени решение по оси A (шкала выше). Отвечай только JSON.")
 
-    with tempfile.TemporaryDirectory(prefix="judge2-") as td:
-        pf = Path(td) / "prompt.txt"
-        pf.write_text(prompt, encoding="utf-8")
-        cmd = [PI, "-p", "--no-session", "--model", MODEL, "--thinking", thinking,
-               "--tools", "bash", "--system-prompt", SYSTEM, "--mode", "text", f"@{pf}"]
-        last_err = None
-        for attempt in range(1, RETRIES + 1):
-            try:
-                t0 = time.time()
-                out = subprocess.run(cmd, capture_output=True, text=True,
-                                     cwd=td, timeout=TIMEOUT_S)
-                reply = out.stdout.strip()
-                if out.returncode != 0 or not reply:
-                    raise RuntimeError(f"exit {out.returncode}: {out.stderr[:200]}")
-                m = re.search(r"\{.*\}", reply, re.S)
-                if not m:
-                    raise RuntimeError(f"нет JSON в ответе: {reply[:200]}")
-                import json
+    last_err = None
+    for attempt in range(1, RETRIES + 1):
+        try:
+            out, met = run_judge(MODEL, thinking, SYSTEM, prompt, TIMEOUT_S, tools="bash")
+            reply = out.stdout.strip()
+            if out.returncode != 0 or not reply:
+                raise RuntimeError(f"exit {out.returncode}: {out.stderr[:200]}")
+            mm = re.search(r"\{.*\}", reply, re.S)
+            if not mm:
+                raise RuntimeError(f"нет JSON в ответе: {reply[:200]}")
+            import json
 
-                verdict = json.loads(m.group(0))
-                verdict["_raw"] = reply
-                verdict["_seconds"] = round(time.time() - t0, 1)
-                verdict["_thinking"] = thinking
-                return verdict
-            except Exception as exc:  # noqa: BLE001
-                last_err = exc
-                time.sleep(5)
-        return {"error": str(last_err)}
+            verdict = json.loads(mm.group(0))
+            verdict["_raw"] = reply
+            verdict["_metrics"] = met
+            verdict["_thinking"] = thinking
+            return verdict
+        except Exception as exc:  # noqa: BLE001
+            last_err = exc
+            time.sleep(5)
+    return {"error": str(last_err)}
 
 
 def main() -> int:
@@ -99,9 +93,14 @@ def main() -> int:
 
     v = judge(run_dir, args.thinking)
     raw = v.pop("_raw", "")
+    met = v.pop("_metrics", {})
+    if met:
+        save_sidecar(run_dir, "tier4.json", {
+            "tier": 4, "model": MODEL, "thinking": v.get("_thinking", args.thinking),
+            "axis_a": v.get("axis_a"), **met})
     header = [
         f"# Ярус 4: GLM-5.3-Flash (pi, thinking={v.get('_thinking', args.thinking)}, "
-        f"{v.get('_seconds', '?')}с)",
+        f"{met.get('duration_s', '?')}с, {met.get('tokens_total', 0):,} ток.)",
         "",
         f"- **Ось A (судья яруса 4): {v.get('axis_a', '—')}**"
         if "axis_a" in v else f"- ошибка: {v.get('error', '—')}",

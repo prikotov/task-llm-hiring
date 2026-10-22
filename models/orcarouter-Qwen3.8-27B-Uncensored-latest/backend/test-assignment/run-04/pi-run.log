@@ -1,0 +1,26 @@
+Готово. Задание из `TASK.md` реализовано и проверено. Итог:
+
+## Что сделано
+
+**Команды** (все в `bin/console list`):
+- `app:prices:import <file>` — идемпотентная загрузка справочника (upsert, дублей нет)
+- `app:usage:import <file>` — JSONL с дедупликацией по `(provider, provider_request_id)` (`ON CONFLICT DO NOTHING`)
+- `app:billing:rate` — тарификация unrated-событий (повторный запуск ретраит нерасценённые)
+- `app:billing:report --from --to` — CSV по user+model с TOTAL, `--from` включительно, `--to` исключительно
+- `app:billing:reprice <file>` — **бонус**: rетро-коррекция цен, пересчёт только затронутых событий, ровно `REPRICED_EVENTS=n` / `REPRICE_DELTA_USD=x.xxxxxx`
+
+**Ключевые решения:**
+- Точная арифметика на **bcmath** (`Money`, scale 16), float нет нигде; единственное округление — `HALF_UP` до 6 знаков **после** off-peak (проверено: `1.0000025→1.000003`, `5e-7→0.000001`)
+- Off-peak в UTC, `[start; end)`, поддерживает переход через полночь (16:30–00:30); границы подтверждены тестами
+- Выбор строки цены: последняя с `valid_from ≤ ts`; без строки — событие `no_price`/`unrated`
+- Schema — миграция `Version20261021100000` (4 таблицы, unique-индексы для upsert, FK, CHECK)
+
+**Приёмка — все 5 пунктов пройдены:**
+1–2. чистая БД + `make migrate` ✓
+3. `prices: 2 providers, 3 models, 4 rows` → `3 imported` → `RATED=3 UNRATED=0` ✓
+4. отчёт совпадает с примером **байт в байт** (`cmp` против эталона) ✓
+5. повторный импорт: `0 imported, 3 duplicates`, rate `RATED=0`, отчёт не меняется ✓
+
+**Тесты:** 32 unit-теста (Money, OffPeak, EventRater, парсеры) — `OK (32 tests, 54 assertions)`.
+
+**Файлы отчёта** созданы в корне: `COMMIT_MESSAGE.md` и `PR_DESCRIPTION.md` (на русском; перечислены все добавленные файлы, отклонение от каркаса — только новый код в `src/`, `tests/`, `migrations/`; внешних зависимостей не добавлено).

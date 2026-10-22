@@ -1,0 +1,27 @@
+Готово — задача завершена. Итоговое состояние:
+
+## Выполнено
+
+**Все 5 команд** реализованы и проверены end-to-end:
+- `app:prices:import` — upsert справочника (идемпотентный), exit 0 / 1
+- `app:usage:import` — JSONL, дубли по `(provider, provider_request_id)` игнорируются
+- `app:billing:rate` — stdout `RATED=<n> UNRATED=<m>`, unrated-строки строго в stderr
+- `app:billing:report` — CSV строго в stdout (UTF-8, `,`, `\n`), groups по `(user, provider/code)`, TOTAL, unrated вне отчёта
+- `app:billing:reprice` — stdout ровно 2 строки, дельта со знаком (−2.400000 и +1.200000 проверены)
+
+**Ключевая механика:**
+- bcmath только, float не встречается; деньги — `BIGINT cost_micros` (10⁻⁶ USD), единственное округление HALF_UP в конце (`14.26249875 → 14.262499`)
+- Обе схемы цен (`per_1m_tokens` / `per_1m_tokens_unified`), выбор ставки по `valid_from ≤ ts` (граница включена)
+- Оф-пик провайдера с переходом через полночь, множитель до финального округления
+- Ретроактивный reprice через `applied_price_id` — пересчитываются только события, выведенные по исправленной строке
+
+**Проверено приёмкой (чистая БД):**
+- Отчёт за сентябрь — **байт-в-байт** с эталоном TASK.md ✅
+- Повторный импорт → отчёт не меняется, `RATED=0` ✅
+- Событие без цены → `UNRATED`, затем после импорта цены рассчитывается ✅
+- Оф-пик 17:10 UTC (okno 16:30–00:30) → ×0.5 ✅
+- Malformed JSON/JSONL, неизвестный provider в reprice → exit 1, stdout пуст ✅
+- `make test`: 13 тестов / 34 ассерции — OK ✅
+- All PHP files — syntax clean, `bin/console` sanity OK ✅
+
+**Доки:** `COMMIT_MESSAGE.md` и `PR_DESCRIPTION.md` написаны на русском с полным перечнем файлов, архитектурой и зафиксированными отклонениями (колонка `user_id` в SQL, off-peak как поле провайдера, `ConsoleWriter` для корректного тайпирования stderr).
