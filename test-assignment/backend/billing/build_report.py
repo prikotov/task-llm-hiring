@@ -124,22 +124,24 @@ def local_cost(gen_minutes: float):
     return gen_minutes / 60 * LOCAL_RUB_H / RUB_USD
 
 
-def interrupt_cause(r: Path, run: dict) -> str | None:
-    """Причина незавершённости прогона: exit != 0 либо убит раннером (таймаут).
-    None — прогон завершился сам с кодом 0. Такие прогоны вне метрик:
-    частичное решение и его оценки искажают средние."""
+def interrupt_cause(r: Path, run: dict) -> tuple[str, str] | None:
+    """(тип, причина) незавершённости прогона. time — остановлен раннером
+    по лимиту времени 90 мин (агент работал или висел до самого стопа);
+    cut — обрыв сбоем: исчерпан баланс/ключ, pi упал сам. None — прогон
+    завершился с кодом 0. Такие прогоны вне метрик: частичное решение
+    и его оценки искажают средние."""
     ec = run.get("exit_code")
     if ec in (0, None) and not run.get("killed"):
         return None
     if ec == 143 or run.get("killed"):
-        return "прерван по лимиту времени 90 мин (SIGTERM раннера)"
+        return ("time", "остановлен по лимиту времени 90 мин (SIGTERM раннера)")
     plog = r / "pi-run.log"
     ptext = plog.read_text(errors="replace") if plog.is_file() else ""
     if "requires more credits" in ptext:
-        return "прерван: исчерпан баланс OpenRouter (402 requires more credits)"
+        return ("cut", "прерван: исчерпан баланс OpenRouter (402 requires more credits)")
     if "reached its spending limit" in ptext:
-        return "прерван: достигнут лимит ключа OrcaRouter (403 err_key_quota)"
-    return f"pi завершился с кодом {ec} (обрыв/сбой — детали в pi-run.log)"
+        return ("cut", "прерван: достигнут лимит ключа OrcaRouter (403 err_key_quota)")
+    return ("cut", f"pi завершился с кодом {ec} (обрыв/сбой — детали в pi-run.log)")
 
 
 def scan_runs() -> list[dict]:
@@ -218,17 +220,18 @@ def scan_runs() -> list[dict]:
             frozen = ((run.get("duration_s") or 0) > 5000
                       and ((mj.get("scc") or {}).get("loc") or 999) <= 40)
             blank_run = not run.get("diff_lines")
-            int_cause = interrupt_cause(r, run)
-            dead = frozen or blank_run or bool(int_cause)
+            ic = interrupt_cause(r, run)
+            int_kind, int_cause = ic if ic else (None, None)
+            dead = frozen or blank_run or bool(ic)
             # тип «вне метрик» — для разных значков в таблице результатов:
-            # cut — прерван (сбой/лимит/баланс), hang — повисшая сессия,
-            # blank — решение не написано
-            deadkind = ("cut" if int_cause else
+            # cut — обрыв сбоем (баланс/ключ/краш), time — лимит времени 90 мин,
+            # hang — повисшая сессия, blank — решение не написано
+            deadkind = (int_kind if int_kind else
                         "hang" if frozen else
                         "blank" if blank_run else None)
             deadwhy = ""
             if int_cause:
-                # прерван (сбой/лимит/баланс): частичное решение и его оценки
+                # прерван (лимит времени / сбой): частичное решение и его оценки
                 # — не результат модели, в средних искажают соседние строки
                 deadwhy = int_cause + (
                     "; решение не написано (дифф 0 строк)" if blank_run
@@ -335,7 +338,8 @@ tr.top td{background:#eef6ef}
            border-radius:9px;font-size:12px;font-weight:700;
            line-height:18px;cursor:help;white-space:nowrap}
 .deadmark.cut{background:#fbeae6;color:#b3543f}
-.deadmark.hang{background:#fff4d6;color:#9a6b00}
+.deadmark.time{background:#fff4d6;color:#9a6b00}
+.deadmark.hang{background:#efe9f7;color:#6b5b9e}
 .deadmark.blank{background:#eef0f4;color:#66707f}
 .okmark{position:relative;display:inline-block;margin-left:-6px;padding:0 6px;
         border-radius:9px;background:#e9f1ec;color:#2f7d54;font-size:12px;font-weight:700;
@@ -424,7 +428,7 @@ def results_agg(data: list[dict]) -> list[dict]:
     for (folder, note, ctx, tuned, retag), allrs in groups.items():
         n_dead = sum(1 for x in allrs if x["dead"])
         # разбивка «вне метрик» по типам — для разных значков в таблице
-        deadkinds = {"cut": 0, "hang": 0, "blank": 0}
+        deadkinds = {"cut": 0, "time": 0, "hang": 0, "blank": 0}
         for x in allrs:
             if x["dead"]:
                 deadkinds[x["deadkind"]] += 1
@@ -478,12 +482,15 @@ def results_table(data: list[dict]):
         return (-r["total"], -(r["a1"] or 0), r["viol"], -(r["cov"] or 0))
 
     # значки колонки «Прогоны»: ✓ — живой (в метриках); вне метрик — по типу:
-    # ✂ прерван (сбой/лимит/баланс), ⏱ повисшая сессия, ∅ решение не написано
+    # ✂ обрыв сбоем, ⏱ лимит времени, 💤 повисшая сессия, ∅ решение не написано
     DEAD_ICON = {
-        "cut": ("✂", "прерван (сбой, лимит времени 90 мин, исчерпан баланс/ключ); "
-                      "обрывок решения в средних не участвует"),
-        "hang": ("⏱", "повисшая сессия: агент застрял на bash-команде, pi ждал её "
-                      "до лимита 90 минут; скелет нетронут"),
+        "cut": ("✂", "обрыв сбоем: исчерпан баланс OpenRouter (402), лимит ключа "
+                      "OrcaRouter (403) или падение pi; обрывок решения в средних "
+                      "не участвует"),
+        "time": ("⏱", "остановлен по лимиту времени 90 мин: агент работал (или висел) "
+                      "до самого стопа, решение не завершено"),
+        "hang": ("💤", "повисшая сессия: агент застрял в ожидании ответа bash-команды "
+                      "и ждал её до лимита 90 минут; скелет нетронут"),
         "blank": ("∅", "решение не написано (дифф 0 строк): чекер оценивал "
                        "нетронутый скелет, мерить нечего"),
     }
@@ -575,11 +582,10 @@ def results_table(data: list[dict]):
             "от лучших к худшим: средняя сумма сценариев чекера → балл ревью (ось A) → "
             "суммарные нарушения phpcs+psalm+phpstan → покрытие тестами. Детальные данные "
             "Значки колонки «Прогоны»: ✓ — живой прогон (посчитан в строке и метриках); "
-            "✂ — прерван (сбой, лимит времени 90 мин, исчерпанный баланс/ключ — "
-            "обрывок решения и его оценки средние искажают); ⏱ — повисшая сессия (агент "
-            "застревал на bash-команде, pi ждал её до лимита 90 минут); ∅ — решение "
-            "не написано (дифф 0 строк — чекер оценивал нетронутый скелет, мерить "
-            "нечего). Прогоны вне метрик не учитываются в общих "
+            "✂ — обрыв сбоем (исчерпанный баланс/ключ, падение pi); ⏱ — остановлен "
+            "по лимиту времени 90 мин; 💤 — повисшая сессия (застрял в ожидании ответа "
+            "инструмента); ∅ — решение не написано (дифф 0 строк — чекер оценивал "
+            "нетронутый скелет, мерить нечего). Прогоны вне метрик не учитываются в общих "
             "результатах, каждая помечена ‡ в разделе 7, у ‡ — точная причина. "
             "Строки «orca · MTP» — прогоны тех же весов orca "
             "с включённым MTP draft (тег qwen3.8-unc — локальный ретаг тех же блобов, сверка "
@@ -1518,8 +1524,9 @@ def runs_inventory() -> str:
             loc27 = (mj.get("scc") or {}).get("loc")
             frozen = (run.get("duration_s") or 0) > 5000 and loc27 == 27
             blank_run = not run.get("diff_lines")
-            int_cause = interrupt_cause(r, run)
-            dead = frozen or blank_run or bool(int_cause)
+            ic = interrupt_cause(r, run)
+            int_kind, int_cause = ic if ic else (None, None)
+            dead = frozen or blank_run or bool(ic)
             dwhy = ""
             if int_cause:
                 dwhy = int_cause + (
@@ -1572,13 +1579,14 @@ def runs_inventory() -> str:
             ec = run.get("exit_code")
             ec_badge = ""
             if int_cause:
+                glyph, dcls = ("⏱", "time") if int_kind == "time" else ("✂", "cut")
                 ptag = f"код {ec}" if ec not in (0, None) else ""
-                ec_badge = (f'<br><span class="deadmark cut" data-tip="{int_cause}">'
-                            f'{ptag or "✂ вне метрик"}</span>')
+                ec_badge = (f'<br><span class="deadmark {dcls}" data-tip="{int_cause}">'
+                            f'{ptag or glyph + " вне метрик"}</span>')
             elif dead:   # решение не написано при чистом exit: без бейджа не отличить
-                dkind = "hang" if frozen else "blank"
-                dglyph = "⏱" if frozen else "∅"
-                ec_badge = (f'<br><span class="deadmark {dkind}" data-tip="{dwhy}">'
+                dglyph = "💤" if frozen else "∅"
+                dcls = "hang" if frozen else "blank"
+                ec_badge = (f'<br><span class="deadmark {dcls}" data-tip="{dwhy}">'
                             f'{dglyph} вне метрик</span>')
             runs.append(
                 f"<tr><td class=narrow>{r.name}"
