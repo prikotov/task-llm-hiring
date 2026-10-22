@@ -1588,7 +1588,7 @@ def runs_inventory() -> str:
             rowmark = (f'<sup class="dsym {dkind}" title="{dwhy}">{dglyph}</sup>'
                        if dead else "")
             runs.append(
-                f"<tr><td class=narrow>{r.name}"
+                f"<tr{' class=neg' if dead else ''}><td class=narrow>{r.name}"
                 f"{'<sup>*</sup>' if foreign else ''}{'<sup>†</sup>' if retag else ''}"
                 f"{rowmark}</td>"
                 f'<td class="narrow">{cond}</td>'
