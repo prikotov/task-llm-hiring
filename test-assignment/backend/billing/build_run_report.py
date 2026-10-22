@@ -676,11 +676,15 @@ def ast_tables(collector: dict, run_dir: Path | None = None) -> str:
 def context_chart(events: list[dict], ctx_limit: int, test_events: list[dict] | None = None,
                   tool_colors: dict[str, str] | None = None,
                   provider: str = "ollama") -> str:
-    """Контекст модели по вызовам API: input+cacheRead, обрывы автокомпактов.
-    Ось X — время от начала сессии (минуты), если в событиях есть timestamp.
-    Под осью — метки запусков тестов (✓ прошёл / ✗ упал / ? не разобран).
-    tool_colors — вертикали tool-вызовов, цвет = инструмент (эксперимент)."""
+    """Контекст модели по вызовам API: полный промпт (input+cacheRead+cacheWrite),
+    обрывы автокомпактов. cacheWrite включён, чтобы кэш-промах (кэш истёк за
+    долгой генерацией) не выглядел сбросом контекста в ноль — ромбы ◆ метят
+    такие перезаливки. Ось X — время от начала сессии (минуты), если в
+    событиях есть timestamp. Под осью — метки запусков тестов (✓ прошёл /
+    ✗ упал / ? не разобран). tool_colors — вертикали tool-вызовов, цвет =
+    инструмент (эксперимент)."""
     pts = []  # (секунды от начала или None, контекст)
+    miss_idx: list[int] = []  # вызовы с полной перезаливкой кэша (метим ромбом)
     t0 = None
     for e in events:
         if e.get("type") != "message":
@@ -698,8 +702,14 @@ def context_chart(events: list[dict], ctx_limit: int, test_events: list[dict] | 
                     t = None
             if t is not None and t0 is None:
                 t0 = t
-            pts.append((None if t is None or t0 is None else t - t0,
-                        int(u.get("input") or 0) + int(u.get("cacheRead") or 0)))
+            prompt = (int(u.get("input") or 0) + int(u.get("cacheRead") or 0)
+                      + int(u.get("cacheWrite") or 0))
+            # первый вызов всегда пишет кэш целиком — это не промах;
+            # промах = основная часть промпта перезалита (cacheRead ≈ 0)
+            if pts and int(u.get("cacheWrite") or 0) > 0.5 * prompt > 0 \
+                    and int(u.get("cacheRead") or 0) < 0.2 * prompt:
+                miss_idx.append(len(pts))
+            pts.append((None if t is None or t0 is None else t - t0, prompt))
     if len(pts) < 2:
         return '<div class=note>Мало вызовов для графика контекста</div>'
     timed = all(t is not None for t, _ in pts)
@@ -761,6 +771,11 @@ def context_chart(events: list[dict], ctx_limit: int, test_events: list[dict] | 
                        f'fill="{hue}" fill-opacity="0.2"></rect>')
     path = " ".join(f"{x(t if timed else i):.0f},{y(v):.0f}" for i, (t, v) in enumerate(pts))
     svg.append(f'<polyline points="{path}" fill="none" stroke="#315f9e" stroke-width="1.8"/>')
+    for i in miss_idx:  # кэш-промах: контекст цел, но перезалит в кэш целиком
+        t, v = pts[i]
+        cx, cy = x(t if timed else i), y(v)
+        svg.append(f'<path d="M {cx:.0f} {cy-5:.0f} L {cx+5:.0f} {cy:.0f} L {cx:.0f} {cy+5:.0f} '
+                   f'L {cx-5:.0f} {cy:.0f} Z" fill="#d09a53" fill-opacity="0.9"></path>')
     lt, lv = pts[-1]
     svg.append(f'<circle cx={x(lt if timed else len(pts)-1):.0f} cy={y(lv):.0f} r=3 fill="#315f9e"></circle>')
     tmarks = 0
@@ -798,7 +813,10 @@ def context_chart(events: list[dict], ctx_limit: int, test_events: list[dict] | 
         cap = f"вызовы API ({len(pts)})"
     svg.append(f'<text x={ML+PW/2:.0f} y={H-8} text-anchor=middle font-size=12.5 fill=#66707f>{cap}</text>')
     svg.append(f'<text x=14 y={MT+PH/2:.0f} font-size=12.5 fill=#66707f transform="rotate(-90 14 {MT+PH/2:.0f})">контекст, токены</text>')
-    note = "Резкое падение контекста — автокомпакт или правка истории."
+    note = "Контекст — полный промпт вызова (вход + кэш-чтение + кэш-запись). " \
+           "Резкое падение линии — автокомпакт или правка истории. " \
+           '<span style="color:#d09a53">◆</span> — кэш-промах: контекст цел, ' \
+           "но перезалит в кэш целиком (TTL кэша истёк за долгой генерацией)."
     if provider == "gigachat":
         note += (" У GigaChat падения без компакций — артефакт учёта провайдера: usage отдаёт "
                  "только некэшированную часть промпта, кэшированный префикс не показывает.")
