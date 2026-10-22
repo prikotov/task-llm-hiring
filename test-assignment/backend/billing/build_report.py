@@ -1636,7 +1636,13 @@ def runs_inventory() -> str:
         first_run = json.loads((sorted(base.glob("run-*"))[0] / "run.json").read_text(encoding="utf-8"))
         tag = first_run.get("model", "")
         n = len(runs)
-        prov = " + ".join(PROV_NAME.get(p, "ollama") for p in gprovs)
+        if len(gprovs) > 1:   # шлюзы группы — теми же чипами, что у строк
+            prov = " + ".join(
+                f'<span class="provchip" title="провайдер вызова: '
+                f'{PROV_NAME.get(p, "ollama")}">{PROV_TAG.get(p, p)}</span>'
+                for p in gprovs)
+        else:
+            prov = PROV_NAME.get(gprovs[0], "ollama") if gprovs else "ollama"
         gi = run_group_of(d.name)[0]
         head = ""
         if gi != fam_i:
