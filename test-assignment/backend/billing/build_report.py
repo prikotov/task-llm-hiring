@@ -356,6 +356,14 @@ tr.top td{background:#eef6ef}
        line-height:15px;white-space:nowrap}
 .strun{white-space:nowrap;margin:1px 0}
 .strun .rno{display:inline-block;min-width:22px;color:var(--mut);font-size:11px;font-weight:600}
+.tree{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 18px;
+      font:12.5px/1.62 ui-monospace,SFMono-Regular,Consolas,Menlo,monospace;
+      overflow-x:auto;margin:14px 0}
+.tline{display:flex;white-space:pre}
+.tname{flex:none}
+.tpct{margin-left:auto;padding-left:18px;color:#8a93a0;font-size:11px;line-height:20px}
+.troot{color:#46536a;font-weight:700}
+.tdots{color:#b6bdc6;font-style:italic}
 .deadmark:hover::after,.okmark:hover::after{content:attr(data-tip);position:absolute;
            bottom:calc(100% + 7px);
            left:50%;transform:translateX(-50%);background:#2a3342;color:#fff;
@@ -1374,27 +1382,69 @@ def structure_section(data: list[dict]) -> str:
     b_top = st.mean(p[0] for p in between)
     b_all = st.mean(p[1] for p in between)
 
-    # общий знаменатель: частоты каталогов верхнего уровня
-    freq = Counter(x for r in runs for x in low(r["top"]))
-    items = freq.most_common(10)
-    W, row_h, ML, MR = 640, 23, 150, 24
-    H = len(items) * row_h + 30
-    PW = W - ML - MR
-    vmax = items[0][1]
-    svg = []
-    for t in range(5, vmax + 1, 5):
-        x = ML + t / vmax * PW
-        svg.append(f'<line x1={x:.0f} y1=0 x2={x:.0f} y2={H - 24} stroke="#e4e7ec"/>'
-                   f'<text x={x:.0f} y={H - 8} text-anchor=middle font-size=11.5 fill=#66707f>{t}</text>')
-    for i, (name, cnt) in enumerate(items):
-        y = i * row_h + 3
-        bw = max(3, cnt / vmax * PW)
-        svg.append(f'<text x={ML - 10} y={y + 13} text-anchor=end font-size=12.5 fill=#1d2433>{name}</text>'
-                   f'<rect x={ML} y={y} width={bw:.0f} height=15 rx=4 fill="#315f9e" fill-opacity="0.75"/>'
-                   f'<text x={ML + bw + 7:.0f} y={y + 12} font-size=12 font-weight=600 fill=#1d2433>{cnt}</text>')
-    rest = freq.most_common()[10:]
-    rest2 = " · ".join(f"{k} {v}" for k, v in rest if v >= 2)
-    rest1 = " · ".join(k for k, v in rest if v == 1)
+    # сводное дерево каталогов: все пути, встреченные в src/ и tests/ у живых
+    # прогонов, слитые в одну структуру. Процент — доля прогонов, где путь
+    # существует (знаменатель — все прогоны анализа); яркость имени — та же
+    # доля: реже — бледнее. Ветки, встреченные ровно в одном прогоне, свёрнуты
+    # в строку «…»: поддерево одиночки состоит из одиночек (предок существует
+    # в каждом прогоне потомка), так что ничего, кроме хвоста из 1 прогона,
+    # свёртка не прячет
+    src_paths: Counter = Counter()
+    t_paths: Counter = Counter()
+    for r in runs:
+        src_paths.update(r["dirs"])
+        t_paths.update(r["tdirs"])
+    cmax = max(src_paths.values()) if src_paths else 1
+
+    def _plural(n, one, few, many):
+        m10, m100 = n % 10, n % 100
+        return (one if m10 == 1 and m100 != 11 else
+                few if m10 in (2, 3, 4) and m100 not in (12, 13, 14) else many)
+
+    def _ink(cnt: int) -> str:
+        """Яркость имени: от бледного (1 прогон) к полному чернильному (максимум)."""
+        t = 0.18 + 0.82 * (cnt / cmax) ** 0.6
+        a, b = (0xAA, 0xB2, 0xBC), (0x1D, 0x24, 0x33)
+        return "#%02x%02x%02x" % tuple(round(x + (y - x) * t) for x, y in zip(a, b))
+
+    def _tree(counter: Counter, root: str, root_pct: int) -> str:
+        tree: dict = {}
+        for p, c in counter.items():
+            node = tree
+            for part in p.split("/"):
+                node = node.setdefault(part, {})
+            node["#"] = c
+        lines = [f'<div class=tline><span class="tname troot">{root}</span>'
+                 f'<span class=tpct>{root_pct}%</span></div>']
+
+        def walk(node, prefix):
+            kids = sorted(((k, v) for k, v in node.items() if k != "#"),
+                          key=lambda kv: (-kv[1].get("#", 0), kv[0].lower()))
+            kept = [(k, v) for k, v in kids if v.get("#", 0) > 1]
+            rare = [k for k, v in kids if v.get("#", 0) <= 1]
+            slots = len(kept) + (1 if rare else 0)
+            for i, item in enumerate(kept + ([None] if rare else [])):
+                last = i == slots - 1
+                conn = "└── " if last else "├── "
+                if item is None:
+                    w = _plural(len(rare), "ветку", "ветки", "веток")
+                    lines.append(f'<div class=tline><span class="tname tdots">'
+                                 f'{prefix}{conn}… ещё {len(rare)} {w} по 1 прогону</span></div>')
+                    continue
+                k, v = item
+                cnt = v.get("#", 0)
+                lines.append(f'<div class=tline><span class=tname style="color:{_ink(cnt)}">'
+                             f'{prefix}{conn}{k}/</span>'
+                             f'<span class=tpct>{round(100 * cnt / n)}%</span></div>')
+                walk(v, prefix + ("    " if last else "│   "))
+
+        walk(tree, "")
+        return "".join(lines)
+
+    n_tests = sum(1 for r in runs if r["ntf"])
+    tree_html = (_tree(src_paths, "src/", 100)
+                 + '<div class=tline style="height:7px"></div>'
+                 + (_tree(t_paths, "tests/", round(100 * n_tests / n)) if t_paths else ""))
 
     # строки таблицы: модели с 2+ прогонами — по убыванию постоянства,
     # однопрогонные — после, в порядке групп раздела 7
@@ -1457,7 +1507,6 @@ def structure_section(data: list[dict]) -> str:
     best = max(rated, key=lambda x: x[1])
     worst = min(rated, key=lambda x: x[1])
     sname = lambda f: next(r["short"] for r in runs if r["folder"] == f)  # noqa: E731
-    n_tests = sum(1 for r in runs if r["ntf"])
     n_mir = sum(1 for r in runs if r["ntf"] and r["tdirs"] & r["dirs"])
 
     return (f'<h3>Структура кода: src/ и tests/</h3>'
@@ -1465,14 +1514,15 @@ def structure_section(data: list[dict]) -> str:
             f'и пустой tests/, а TASK.md отдаёт архитектуру кандидату: «на ваше усмотрение '
             f'(это предмет оценки)». Раскладка src/ — чистый датчик врождённых предпочтений: '
             f'{n} живых прогонов {len(by_f)} моделей, и каждый каталог в решении — выбор модели.</p>'
-            f'<p class=excap>Общий знаменатель — гибрид Symfony-конвенций и DDD: '
-            f'каталоги консольных команд, домена и сущностей есть у большинства, '
-            f'но полной единой раскладки нет ни у кого.</p>'
-            f'<svg width="{W}" height="{H}" viewBox="0 0 {W} {H}" style="max-width:100%">{"&#10;".join(svg)}</svg>'
-            f'<p class=sub>Каталоги верхнего уровня src/ — число прогонов из {n}, где каталог есть. '
-            + (f"Реже: {rest2}. " if rest2 else "")
-            + (f"По одному прогону: {rest1}." if rest1 else "")
-            + '</p>'
+            f'<p class=excap>Сводная структура: все каталоги, которые модели создали '
+            f'в src/ и tests/, слитые в одно дерево. Типовая раскладка — гибрид '
+            f'Symfony-конвенций и DDD: команды, домен и сущности есть у большинства, '
+            f'но полной единой структуры нет ни у кого.</p>'
+            f'<div class=tree>{tree_html}</div>'
+            f'<p class=sub>Процент — доля прогонов из {n}, где каталог существует; '
+            f'яркость имени — та же доля, бледнее — реже. Ветки, встреченные ровно '
+            f'в одном прогоне, свёрнуты в «…». Каркасные src/ и tests/ — серые: '
+            f'они даны скелетом, не выбором модели.</p>'
             f'<p class=excap>Слепки по моделям и постоянство структуры</p>'
             f'<div style="overflow-x:auto"><table><thead><tr><th>Модель</th>'
             f'<th>Верхний уровень src/ по прогонам</th><th class=narrow>Постоян&shy;ство</th>'
