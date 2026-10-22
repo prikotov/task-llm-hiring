@@ -296,6 +296,7 @@ def scan_runs() -> list[dict]:
 
 KIND_HUE = {FULL: "#2f7d54", PART: "#315f9e", FAIL: "#b3543f", NA: "#98a4b3"}
 KIND_NAME = {FULL: "полный зачёт (12–13)", PART: "почти (9–11)", FAIL: "провал (<9)", NA: "n/a"}
+REVIEW_GOOD = 3.0   # порог квадрантов «хорошо…» на картах §4: ревью, ось A
 
 CSS = """
 :root{--ink:#1d2433;--mut:#66707f;--line:#e4e7ec;--bg:#fafbfc;--acc:#315f9e;--good:#2f7d54;--bad:#b3543f}
@@ -466,6 +467,8 @@ def results_agg(data: list[dict]) -> list[dict]:
         agg.append({
             "short": allrs[0]["short"] + (" ·tuned" if tuned else "")
                     + (" · MTP" if retag else ""),
+            # ключ группы — для обратной связи точек карт с прогонами
+            "folder": folder, "ctx": ctx, "tuned": tuned, "retag": retag,
             "n_total": n_total, "n_dead": n_dead, "deadkinds": deadkinds,
             "prov": allrs[0]["prov"],
             "note": note, "n": n, "kinds": kinds,
@@ -740,7 +743,7 @@ def quality_price_map(agg: list[dict]) -> str:
     XMIN, XMAX = 0.005, 10           # $ за прогон, лог-шкала; GigaChat ₽0 — левый край,
                                      # правый — дорогие Anthropic-флагманы ($9.18 opus max)
     YMIN, YMAX = 0.0, 4.25           # балл ревью, ось A (код и архитектура)
-    QX, QY = 0.15, 3.0               # пороги квадрантов: $0.15 и 3 балла ревью
+    QX, QY = 0.15, REVIEW_GOOD       # пороги квадрантов: $0.15 и ревью оси A
     GROUPS = [("#315f9e", "облачные"), ("#5b9bd5", "российские облака"),
               ("#2f7d54", "локальные")]
 
@@ -884,7 +887,7 @@ def quality_speed_map(agg: list[dict]) -> str:
     PW, PH = W - ML - MR, H - MT - MB
     XMIN, XMAX = 0, 45               # минуты прогона
     YMIN, YMAX = 0.0, 4.25           # балл ревью, ось A
-    QX, QY = 15, 3.0                 # пороги квадрантов: 15 минут и 3 балла
+    QX, QY = 15, REVIEW_GOOD         # пороги квадрантов: 15 минут и ревью оси A
     GROUPS = [("#315f9e", "облачные"), ("#5b9bd5", "российские облака"),
               ("#2f7d54", "локальные")]
 
@@ -1354,12 +1357,21 @@ def structure_section(data: list[dict]) -> str:
     """Анализ структуры хранения кода src/ и tests/: общий знаменатель
     (частоты каталогов), слепки верхнего уровня по прогонам и постоянство
     структуры внутри модели против типичности между моделями (аналог
-    постоянства ответов в отчёте интервью)."""
+    постоянства ответов в отчёте интервью). Популяция — успешные решения:
+    прогоны режимов из верхних квадрантов карт §4 (ревью оси A ≥ REVIEW_GOOD)."""
     import statistics as st
     from collections import Counter
     from itertools import combinations
 
-    runs = structure_scan(data)
+    agg_rows = results_agg(data)
+    gkeys = {(a["folder"], a["note"], a["ctx"], a["tuned"], a["retag"])
+             for a in agg_rows if a["n"] and (a["a1"] or 0) >= REVIEW_GOOD}
+    excluded = [a for a in agg_rows if a["n"] and (a["a1"] or 0) < REVIEW_GOOD]
+
+    def gkey(r):  # noqa: E731
+        return (r["folder"], r["note"], r["ctx"], "-tuned" in r["tag"], r["retag"])
+
+    runs = [r for r in structure_scan(data) if gkey(r) in gkeys]
     if not runs:
         return ""
     n = len(runs)
@@ -1376,10 +1388,21 @@ def structure_section(data: list[dict]) -> str:
     within = [pj for rs in by_f.values() for pj in pair_jac(rs)]
     between = [( _jaccard(low(a["top"]), low(b["top"])), _jaccard(a["dirs"], b["dirs"]))
                for a, b in combinations(runs, 2) if a["folder"] != b["folder"]]
-    w_top = st.mean(p[0] for p in within)
-    w_all = st.mean(p[1] for p in within)
-    b_top = st.mean(p[0] for p in between)
-    b_all = st.mean(p[1] for p in between)
+    w_top = st.mean(p[0] for p in within) if within else 0.0
+    w_all = st.mean(p[1] for p in within) if within else 0.0
+    b_top = st.mean(p[0] for p in between) if between else 0.0
+    b_all = st.mean(p[1] for p in between) if between else 0.0
+    # тот же расчёт по всем живым прогонам с решением — для сравнения
+    all_runs = structure_scan(data)
+    if len(all_runs) > len(runs):
+        by_fa: dict[str, list[dict]] = {}
+        for r in all_runs:
+            by_fa.setdefault(r["folder"], []).append(r)
+        wt_a = st.mean(p[0] for rs in by_fa.values() for p in pair_jac(rs))
+        bt_a = st.mean(_jaccard(low(a["top"]), low(b["top"]))
+                       for a, b in combinations(all_runs, 2) if a["folder"] != b["folder"])
+    else:
+        wt_a = bt_a = None
 
     # сводное дерево каталогов: все пути, встреченные в src/ и tests/ у живых
     # прогонов, слитые в одну структуру. Процент — доля прогонов, где путь
@@ -1436,14 +1459,13 @@ def structure_section(data: list[dict]) -> str:
                  + '<div class=tline style="height:7px"></div>'
                  + (_tree(t_paths, "tests/", round(100 * n_tests / n)) if t_paths else ""))
 
-    # строки таблицы: модели с 2+ прогонами — по убыванию постоянства,
-    # однопрогонные — после, в порядке групп раздела 7
+    # строки таблицы — в порядке качества, как основная таблица §4:
+    # сумма чекера → ревью оси A
     def sort_key(item):
         folder, rs = item
-        pj = pair_jac(rs)
-        jt = st.mean(p[0] for p in pj) if pj else -1.0
-        gi, pi = run_group_of(folder)
-        return (0 if len(rs) > 1 else 1, -jt, gi, pi)
+        total = st.mean([(r["mand"] or 0) + (r["bonus"] or 0) for r in rs])
+        a1 = st.mean([r["a1"] for r in rs if r["a1"] is not None] or [0.0])
+        return (-total, -a1)
 
     trs = []
     for folder, rs in sorted(by_f.items(), key=sort_key):
@@ -1498,12 +1520,16 @@ def structure_section(data: list[dict]) -> str:
     worst = min(rated, key=lambda x: x[1])
     sname = lambda f: next(r["short"] for r in runs if r["folder"] == f)  # noqa: E731
     n_mir = sum(1 for r in runs if r["ntf"] and r["tdirs"] & r["dirs"])
+    excl_txt = " · ".join(f"{a['short']} ·{a['note']}" for a in excluded)
 
     return (f'<h3>Структура кода: src/ и tests/</h3>'
             f'<p class=lead>Каркас не подсказывает устройство кода — скелет это src/Kernel.php '
             f'и пустой tests/, а TASK.md отдаёт архитектуру кандидату: «на ваше усмотрение '
-            f'(это предмет оценки)». Раскладка src/ — чистый датчик врождённых предпочтений: '
-            f'{n} живых прогонов {len(by_f)} моделей, и каждый каталог в решении — выбор модели.</p>'
+            f'(это предмет оценки)». Раскладка src/ — чистый датчик врождённых предпочтений. '
+            f'Популяция — успешные решения: {n} прогонов {len(by_f)} моделей, чьи режимы '
+            f'попали в верхние квадранты карт выше — «хорошо и дёшево», «хорошо и дорого», '
+            f'«хорошо и быстро», «хорошо и медленно» (среднее ревью оси A ≥ {REVIEW_GOOD:g}); '
+            f'проценты дерева — доли этих прогонов.</p>'
             f'<p class=excap>Сводная структура: все каталоги, которые модели создали '
             f'в src/ и tests/, слитые в одно дерево. Типовая раскладка — гибрид '
             f'Symfony-конвенций и DDD: команды, домен и сущности есть у большинства, '
@@ -1522,15 +1548,19 @@ def structure_section(data: list[dict]) -> str:
             f'<div class=note><b>Постоянство против типичности.</b> Мера — коэффициент Жаккара '
             f'наборов каталогов (0 = не пересекаются, 1 = совпадают), усреднённый по парам '
             f'прогонов. Внутри модели структура повторяется в среднем на {w_top:.2f} '
-            f'(по полным путям {w_all:.2f}), между разными моделями — только на {b_top:.2f} '
-            f'({b_all:.2f} по путям): постоянство вдвое выше типичности, структура кода — '
-            f'«почерк» модели. Полюса: {sname(best[0])} повторяет раскладку точнее всех '
+            f'(по полным путям {w_all:.2f}), между разными моделями — на {b_top:.2f} '
+            f'({b_all:.2f} по путям): раскладка успешных решений — «почерк» модели. '
+            + (f'Тот же расчёт по всем живым прогонам с решением ({len(all_runs)} шт.) '
+               f'даёт {wt_a:.2f} против {bt_a:.2f} — зазор шире: качество заставляет '
+               f'раскладки сближаться, но «почерк» остаётся. ' if wt_a is not None else "")
+            + f'Полюса: {sname(best[0])} повторяет раскладку точнее всех '
             f'({best[1]:.2f}), {sname(worst[0])} каждый прогон строит заново ({worst[1]:.2f}). '
             f'Верхний уровень устойчивее глубины: по полным путям средние ниже — модели верны '
             f'слою, но не деталям раскладки. tests/ пишут {n_tests} из {n} '
             f'прогонов: {n_mir} зеркалят раскладку src/, остальные раскладывают '
             f'по-своему (Unit/ и т.п.) или держат файлы в корне tests/. '
-            f'Прогоны вне метрик — вне анализа, как во всех метриках разделов 1–6.</div>')
+            f'Вне анализа — режимы ниже порога ревью 3 ({excl_txt}) '
+            f'и прогоны вне метрик, как во всех метриках разделов 1–6.</div>')
 
 
 def quality_chart(data: list[dict]):
