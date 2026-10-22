@@ -1430,9 +1430,13 @@ def structure_section(data: list[dict]) -> str:
                 last = i == slots - 1
                 conn = "└── " if last else "├── "
                 if item is None:
-                    w = _plural(len(rare), "ветку", "ветки", "веток")
+                    if len(rare) == 1:
+                        rare_txt = "… ещё 1 каталог — только в 1 прогоне"
+                    else:
+                        w = _plural(len(rare), "каталог", "каталога", "каталогов")
+                        rare_txt = f"… ещё {len(rare)} {w} — каждый только в 1 прогоне"
                     lines.append(f'<div class=tline><span class=tpfx>{prefix}{conn}</span>'
-                                 f'<span class=tdots>… ещё {len(rare)} {w} по 1 прогону</span></div>')
+                                 f'<span class=tdots>{rare_txt}</span></div>')
                     continue
                 k, v = item
                 cnt = v.get("#", 0)
@@ -1525,8 +1529,9 @@ def structure_section(data: list[dict]) -> str:
             f'<div class=tree>{tree_html}</div>'
             f'<p class=sub>Процент — доля прогонов из {n}, где каталог существует; '
             f'яркость имени — ступени по тому же проценту: ≥50% — чернильный, '
-            f'25–49% — тёмно-серый, 10–24% — серый, реже — бледный. Ветки, встреченные '
-            f'ровно в одном прогоне, свёрнуты в «…». Каркасные src/ и tests/ — серые: '
+            f'25–49% — тёмно-серый, 10–24% — серый, реже — бледный. Каталоги, '
+            f'встреченные ровно в одном прогоне (вместе с их поддеревьями), '
+            f'свёрнуты в «…». Каркасные src/ и tests/ — серые: '
             f'они даны скелетом, не выбором модели.</p>'
             f'<p class=excap>Слепки по моделям и постоянство структуры</p>'
             f'<div style="overflow-x:auto"><table><thead><tr><th>Модель</th>'
