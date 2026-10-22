@@ -344,6 +344,9 @@ tr.top td{background:#eef6ef}
 .okmark{position:relative;display:inline-block;margin-left:-6px;padding:0 6px;
         border-radius:9px;background:#e9f1ec;color:#2f7d54;font-size:12px;font-weight:700;
         line-height:18px;cursor:help;white-space:nowrap}
+.dsym{cursor:help;font-weight:700}
+.dsym.cut{color:#b3543f}.dsym.time{color:#9a6b00}
+.dsym.hang{color:#6b5b9e}.dsym.blank{color:#66707f}
 .deadmark:hover::after,.okmark:hover::after{content:attr(data-tip);position:absolute;
            bottom:calc(100% + 7px);
            left:50%;transform:translateX(-50%);background:#2a3342;color:#fff;
@@ -1549,8 +1552,11 @@ def runs_inventory() -> str:
                             'скелет; в средних не учитывается')
                 if nsess > 1:
                     dwhy = f'попыток в каталоге: {nsess}; ' + dwhy
+            dkind = dglyph = ""
             if dead:
-                foot.append(f'<sup>‡</sup> {r.name} — {dwhy}.')
+                dkind = int_kind or ("hang" if frozen else "blank")
+                dglyph = {"cut": "✂", "time": "⏱", "hang": "💤", "blank": "∅"}[dkind]
+                foot.append(f'<sup>{dglyph}</sup> {r.name} — {dwhy}.')
             # контекст у всех прогонов одинаковый (102K) — вынесен в префикс раздела
             cond = run.get("thinking_effective") or run.get("thinking") or "?"
             if run.get("provider") == "gigachat":
@@ -1576,23 +1582,16 @@ def runs_inventory() -> str:
                 # int() вместо округления: 99.9% → «99%», честные 100% не бывают
                 toks += (f'<div class=sub style="line-height:1.3;white-space:nowrap">'
                          f'кэш {int(100 * u_cache / prompt)}%</div>')
-            ec = run.get("exit_code")
-            ec_badge = ""
-            if int_cause:
-                glyph, dcls = ("⏱", "time") if int_kind == "time" else ("✂", "cut")
-                ptag = f"код {ec}" if ec not in (0, None) else ""
-                ec_badge = (f'<br><span class="deadmark {dcls}" data-tip="{int_cause}">'
-                            f'{ptag or glyph + " вне метрик"}</span>')
-            elif dead:   # решение не написано при чистом exit: без бейджа не отличить
-                dglyph = "💤" if frozen else "∅"
-                dcls = "hang" if frozen else "blank"
-                ec_badge = (f'<br><span class="deadmark {dcls}" data-tip="{dwhy}">'
-                            f'{dglyph} вне метрик</span>')
+            # в строке — только цветной значок у имени (детали — сноской под
+            # таблицей группы); второй строкой бейджи в ячейки не пишем:
+            # в таблице и так мало места
+            rowmark = (f'<sup class="dsym {dkind}" title="{dwhy}">{dglyph}</sup>'
+                       if dead else "")
             runs.append(
                 f"<tr><td class=narrow>{r.name}"
                 f"{'<sup>*</sup>' if foreign else ''}{'<sup>†</sup>' if retag else ''}"
-                f"{'<sup>‡</sup>' if dead else ''}</td>"
-                f'<td class="narrow">{cond}{ec_badge}</td>'
+                f"{rowmark}</td>"
+                f'<td class="narrow">{cond}</td>'
                 f'<td class="narrow">{chk}</td>'
                 f'<td class="narrow">{sc(t3.get("axis_a"))} / {sc(t3.get("axis_b"))}</td>'
                 f'<td class="narrow">{sc(t4.get("axis_a"))}</td>'
@@ -1653,6 +1652,16 @@ def runs_inventory() -> str:
             "параметрами каталога pi (см. раздел 2). "
             "Здесь — детальные показатели каждого прогона; "
             "свёрнутые средние по режимам работы — в разделе 4.</p>"
+            '<p class=sub>Пометки у имени прогона: '
+            '<span class="dsym" style="color:#2f7d54">✓</span> — в метриках · '
+            '<span class="dsym cut">✂</span> — обрыв сбоем (баланс/ключ, падение pi) · '
+            '<span class="dsym time">⏱</span> — остановлен по лимиту 90 мин · '
+            '<span class="dsym hang">💤</span> — повис в ожидании инструмента · '
+            '<span class="dsym blank">∅</span> — решение не написано · '
+            '<sup>*</sup> — чужая модель в ollama во время прогона · '
+            '<sup>†</sup> — MTP-ретаг тех же весов. '
+            "Наведение на значок — короткая причина, детали исключений — в сносках "
+            "под таблицей группы.</p>"
             + "".join(groups)
             + '<p class=sub>Артефакты: визуальный отчёт (дашборд показателей — сценарии чекера, метрики, '
             "сессия, вердикты), код решения целиком, scorecard, ревью яруса 3, вердикт судьи "
