@@ -1462,6 +1462,11 @@ def api_spend() -> str:
             "локальные прогоны — собственный ollama-сервер.</p>")
 
 
+PROV_NAME = {"openrouter": "OpenRouter", "orcarouter": "OrcaRouter",
+             "deepseek": "родной API DeepSeek",
+             "gigachat": "родной API Сбер · мост gigachat_proxy"}
+
+
 def runs_inventory() -> str:
     """Раздел «Прогоны и данные»: скан models/*/<роль>/test-assignment/run-XX.
 
@@ -1475,6 +1480,17 @@ def runs_inventory() -> str:
         base = d / "backend" / "test-assignment"
         if not base.is_dir():
             continue
+        # провайдеры группы до цикла строк: в смешанных группах (модель гонялась
+        # через разные шлюзы, как opus: OpenRouter + OrcaRouter) помечаем
+        # провайдер каждой строки
+        gprovs: list[str] = []
+        for rr in sorted(base.glob("run-*")):
+            rj = rr / "run.json"
+            if rj.is_file():
+                p = json.loads(rj.read_text(encoding="utf-8")).get("provider", "ollama")
+                if p not in gprovs:
+                    gprovs.append(p)
+        mixed = len(gprovs) > 1
         runs, foot = [], []
         retag_noted = False
         for r in sorted(base.glob("run-*")):
@@ -1561,6 +1577,8 @@ def runs_inventory() -> str:
             cond = run.get("thinking_effective") or run.get("thinking") or "?"
             if run.get("provider") == "gigachat":
                 cond = "нет"  # управления размышлениями у GigaChat нет
+            elif mixed:
+                cond += f' · {PROV_NAME.get(run.get("provider"), "ollama")}'
             if run.get("model", "").endswith("-tuned"):
                 cond += " · tuned"
             sc = lambda v: "—" if v is None else f"{v:g}"  # noqa: E731
@@ -1613,10 +1631,7 @@ def runs_inventory() -> str:
         first_run = json.loads((sorted(base.glob("run-*"))[0] / "run.json").read_text(encoding="utf-8"))
         tag = first_run.get("model", "")
         n = len(runs)
-        prov = {"openrouter": "OpenRouter", "orcarouter": "OrcaRouter",
-                "deepseek": "родной API DeepSeek",
-                "gigachat": "родной API Сбер · мост gigachat_proxy"}.get(
-            first_run.get("provider"), "ollama")
+        prov = " + ".join(PROV_NAME.get(p, "ollama") for p in gprovs)
         gi = run_group_of(d.name)[0]
         head = ""
         if gi != fam_i:
