@@ -1612,8 +1612,8 @@ def runs_inventory() -> str:
                        if dead else "")
             runs.append(
                 f"<tr{' class=neg' if dead else ''}><td class=narrow>{r.name}"
-                f"{provmark}{'<sup>*</sup>' if foreign else ''}{'<sup>†</sup>' if retag else ''}"
-                f"{rowmark}</td>"
+                f"{'<sup>*</sup>' if foreign else ''}{'<sup>†</sup>' if retag else ''}"
+                f"{rowmark}{provmark}</td>"
                 f'<td class="narrow">{cond}</td>'
                 f'<td class="narrow">{chk}</td>'
                 f'<td class="narrow">{sc(t3.get("axis_a"))} / {sc(t3.get("axis_b"))}</td>'
