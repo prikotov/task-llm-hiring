@@ -347,6 +347,7 @@ tr.top td{background:#eef6ef}
 .dsym{cursor:help;font-weight:700}
 .dsym.cut{color:#b3543f}.dsym.time{color:#9a6b00}
 .dsym.hang{color:#6b5b9e}.dsym.blank{color:#66707f}
+.ptag{color:#66707f;font-size:10.5px;font-weight:600;cursor:help}
 .deadmark:hover::after,.okmark:hover::after{content:attr(data-tip);position:absolute;
            bottom:calc(100% + 7px);
            left:50%;transform:translateX(-50%);background:#2a3342;color:#fff;
@@ -1465,6 +1466,7 @@ def api_spend() -> str:
 PROV_NAME = {"openrouter": "OpenRouter", "orcarouter": "OrcaRouter",
              "deepseek": "родной API DeepSeek",
              "gigachat": "родной API Сбер · мост gigachat_proxy"}
+PROV_TAG = {"openrouter": "OR", "orcarouter": "orca"}   # суперскрипт у имени прогона
 
 
 def runs_inventory() -> str:
@@ -1577,8 +1579,6 @@ def runs_inventory() -> str:
             cond = run.get("thinking_effective") or run.get("thinking") or "?"
             if run.get("provider") == "gigachat":
                 cond = "нет"  # управления размышлениями у GigaChat нет
-            elif mixed:
-                cond += f' · {PROV_NAME.get(run.get("provider"), "ollama")}'
             if run.get("model", "").endswith("-tuned"):
                 cond += " · tuned"
             sc = lambda v: "—" if v is None else f"{v:g}"  # noqa: E731
@@ -1601,13 +1601,15 @@ def runs_inventory() -> str:
                 toks += (f'<div class=sub style="line-height:1.3;white-space:nowrap">'
                          f'кэш {int(100 * u_cache / prompt)}%</div>')
             # в строке — только цветной значок у имени (детали — сноской под
-            # таблицей группы); второй строкой бейджи в ячейки не пишем:
-            # в таблице и так мало места
+            # таблицей группы); в смешанных группах — короткий тег провайдера
+            # (OR / orca), колонки не раздувая
+            provmark = (f'<sup class="ptag">'
+                        f'{PROV_TAG.get(run.get("provider"), "")}</sup>' if mixed else "")
             rowmark = (f'<sup class="dsym {dkind}" title="{dwhy}">{dglyph}</sup>'
                        if dead else "")
             runs.append(
                 f"<tr{' class=neg' if dead else ''}><td class=narrow>{r.name}"
-                f"{'<sup>*</sup>' if foreign else ''}{'<sup>†</sup>' if retag else ''}"
+                f"{provmark}{'<sup>*</sup>' if foreign else ''}{'<sup>†</sup>' if retag else ''}"
                 f"{rowmark}</td>"
                 f'<td class="narrow">{cond}</td>'
                 f'<td class="narrow">{chk}</td>'
@@ -1674,7 +1676,9 @@ def runs_inventory() -> str:
             '<span class="dsym hang">💤</span> — повис в ожидании инструмента · '
             '<span class="dsym blank">∅</span> — решение не написано · '
             '<sup>*</sup> — чужая модель в ollama во время прогона · '
-            '<sup>†</sup> — MTP-ретаг тех же весов. '
+            '<sup>†</sup> — MTP-ретаг тех же весов · '
+            '<sup class=ptag>OR</sup> — OpenRouter, <sup class=ptag>orca</sup> — '
+            "OrcaRouter (в группах с несколькими провайдерами). "
             "Наведение на значок — короткая причина, детали исключений — в сносках "
             "под таблицей группы.</p>"
             + "".join(groups)
