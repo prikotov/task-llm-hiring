@@ -363,7 +363,6 @@ tr.top td{background:#eef6ef}
 .tpfx{color:#cdd3da}
 .tpct{color:#8a93a0;font-size:11px}
 .troot{color:#46536a;font-weight:700}
-.tdots{color:#b6bdc6;font-style:italic}
 .deadmark:hover::after,.okmark:hover::after{content:attr(data-tip);position:absolute;
            bottom:calc(100% + 7px);
            left:50%;transform:translateX(-50%);background:#2a3342;color:#fff;
@@ -1395,11 +1394,6 @@ def structure_section(data: list[dict]) -> str:
         src_paths.update(r["dirs"])
         t_paths.update(r["tdirs"])
 
-    def _plural(n, one, few, many):
-        m10, m100 = n % 10, n % 100
-        return (one if m10 == 1 and m100 != 11 else
-                few if m10 in (2, 3, 4) and m100 not in (12, 13, 14) else many)
-
     def _ink(pct: int) -> str:
         """Яркость имени ступенями по проценту прогонов: чем реже, тем бледнее."""
         if pct >= 50:
@@ -1421,29 +1415,17 @@ def structure_section(data: list[dict]) -> str:
                  f'<span class=tpct>{root_pct}%</span></div>']
 
         def walk(node, prefix):
+            # все дети без свёртки: вариативность важнее компактности,
+            # редкость гасится яркостью (ступени _ink)
             kids = sorted(((k, v) for k, v in node.items() if k != "#"),
                           key=lambda kv: (-kv[1].get("#", 0), kv[0].lower()))
-            kept = [(k, v) for k, v in kids if v.get("#", 0) > 1]
-            rare = [k for k, v in kids if v.get("#", 0) <= 1]
-            slots = len(kept) + (1 if rare else 0)
-            for i, item in enumerate(kept + ([None] if rare else [])):
-                last = i == slots - 1
+            for i, (k, v) in enumerate(kids):
+                last = i == len(kids) - 1
                 conn = "└── " if last else "├── "
-                if item is None:
-                    if len(rare) == 1:
-                        rare_txt = "… ещё 1 каталог — только в 1 прогоне"
-                    else:
-                        w = _plural(len(rare), "каталог", "каталога", "каталогов")
-                        rare_txt = f"… ещё {len(rare)} {w} — каждый только в 1 прогоне"
-                    lines.append(f'<div class=tline><span class=tpfx>{prefix}{conn}</span>'
-                                 f'<span class=tdots>{rare_txt}</span></div>')
-                    continue
-                k, v = item
                 cnt = v.get("#", 0)
                 pct = round(100 * cnt / n)
-                hue = _ink(pct)
                 lines.append(f'<div class=tline><span class=tpfx>{prefix}{conn}</span>'
-                             f'<span style="color:{hue}"><b>{k}/</b> {pct}%</span></div>')
+                             f'<span style="color:{_ink(pct)}"><b>{k}/</b> {pct}%</span></div>')
                 walk(v, prefix + ("    " if last else "│   "))
 
         walk(tree, "")
@@ -1529,9 +1511,9 @@ def structure_section(data: list[dict]) -> str:
             f'<div class=tree>{tree_html}</div>'
             f'<p class=sub>Процент — доля прогонов из {n}, где каталог существует; '
             f'яркость имени — ступени по тому же проценту: ≥50% — чернильный, '
-            f'25–49% — тёмно-серый, 10–24% — серый, реже — бледный. Каталоги, '
-            f'встреченные ровно в одном прогоне (вместе с их поддеревьями), '
-            f'свёрнуты в «…». Каркасные src/ и tests/ — серые: '
+            f'25–49% — тёмно-серый, 10–24% — серый, 3% (один прогон) — бледный. '
+            f'Дерево показано целиком, без свёрток: бледный хвост — и есть '
+            f'вариативность моделей. Каркасные src/ и tests/ — серые: '
             f'они даны скелетом, не выбором модели.</p>'
             f'<p class=excap>Слепки по моделям и постоянство структуры</p>'
             f'<div style="overflow-x:auto"><table><thead><tr><th>Модель</th>'
