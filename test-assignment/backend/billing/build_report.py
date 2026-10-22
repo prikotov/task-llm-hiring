@@ -220,6 +220,12 @@ def scan_runs() -> list[dict]:
             blank_run = not run.get("diff_lines")
             int_cause = interrupt_cause(r, run)
             dead = frozen or blank_run or bool(int_cause)
+            # тип «вне метрик» — для разных значков в таблице результатов:
+            # cut — прерван (сбой/лимит/баланс), hang — повисшая сессия,
+            # blank — решение не написано
+            deadkind = ("cut" if int_cause else
+                        "hang" if frozen else
+                        "blank" if blank_run else None)
             deadwhy = ""
             if int_cause:
                 # прерван (сбой/лимит/баланс): частичное решение и его оценки
@@ -272,7 +278,7 @@ def scan_runs() -> list[dict]:
                 "loc": (mj.get("scc") or {}).get("loc"),
                 # прогон вне метрик: прерван (выше), зависшая сессия либо
                 # решение не написано — в средних разделов 1–6 не участвует
-                "dead": dead,
+                "dead": dead, "deadkind": deadkind,
                 "deadwhy": deadwhy,
                 "blank_pct": blank_pct, "comm_pct": comm_pct,
                 "audit": aud.get("overall") or "",
@@ -326,14 +332,22 @@ tr.top td{background:#eef6ef}
 .barwrap.s{min-width:56px;max-width:72px}
 .star{font-style:normal;color:#c08a00;margin-left:1px}
 .deadmark{position:relative;display:inline-block;margin-left:-6px;padding:0 6px;
-           border-radius:9px;background:#fbeae6;color:#b3543f;font-size:12px;font-weight:700;
+           border-radius:9px;font-size:12px;font-weight:700;
            line-height:18px;cursor:help;white-space:nowrap}
-.deadmark:hover::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 7px);
+.deadmark.cut{background:#fbeae6;color:#b3543f}
+.deadmark.hang{background:#fff4d6;color:#9a6b00}
+.deadmark.blank{background:#eef0f4;color:#66707f}
+.okmark{position:relative;display:inline-block;margin-left:-6px;padding:0 6px;
+        border-radius:9px;background:#e9f1ec;color:#2f7d54;font-size:12px;font-weight:700;
+        line-height:18px;cursor:help;white-space:nowrap}
+.deadmark:hover::after,.okmark:hover::after{content:attr(data-tip);position:absolute;
+           bottom:calc(100% + 7px);
            left:50%;transform:translateX(-50%);background:#2a3342;color:#fff;
            padding:8px 11px;border-radius:8px;font-size:12px;font-weight:400;line-height:1.5;
            white-space:normal;width:270px;z-index:60;text-align:left;
            box-shadow:0 5px 16px rgba(20,30,50,.28)}
-.deadmark:hover::before{content:"";position:absolute;bottom:calc(100% + 1px);left:50%;
+.deadmark:hover::before,.okmark:hover::before{content:"";position:absolute;
+           bottom:calc(100% + 1px);left:50%;
            transform:translateX(-50%);border:6px solid transparent;border-top-color:#2a3342;
            z-index:61}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(295px,1fr));gap:13px;margin:16px 0}
@@ -409,8 +423,13 @@ def results_agg(data: list[dict]) -> list[dict]:
     agg = []
     for (folder, note, ctx, tuned, retag), allrs in groups.items():
         n_dead = sum(1 for x in allrs if x["dead"])
+        # разбивка «вне метрик» по типам — для разных значков в таблице
+        deadkinds = {"cut": 0, "hang": 0, "blank": 0}
+        for x in allrs:
+            if x["dead"]:
+                deadkinds[x["deadkind"]] += 1
         n_total = len(allrs)
-        # средние — только по живым прогонам; зависшие/пустые (❄) — в счётчике
+        # средние — только по живым прогонам; вне метрик (✂/⏱/∅) — в счётчиках
         rs = [x for x in allrs if not x["dead"]]
         n = len(rs)
         kinds = [x["kind"] for x in rs]
@@ -424,7 +443,7 @@ def results_agg(data: list[dict]) -> list[dict]:
         agg.append({
             "short": allrs[0]["short"] + (" ·tuned" if tuned else "")
                     + (" · MTP" if retag else ""),
-            "n_total": n_total, "n_dead": n_dead,
+            "n_total": n_total, "n_dead": n_dead, "deadkinds": deadkinds,
             "prov": allrs[0]["prov"],
             "note": note, "n": n, "kinds": kinds,
             "worst": min(kinds, key=lambda k: order[k]) if kinds else NA,
@@ -457,6 +476,28 @@ def results_table(data: list[dict]):
     def sort_key(r):
         """Лучшие наверху: чекер → ревью (ось A) → нарушения → покрытие."""
         return (-r["total"], -(r["a1"] or 0), r["viol"], -(r["cov"] or 0))
+
+    # значки колонки «Прогоны»: ✓ — живой (в метриках); вне метрик — по типу:
+    # ✂ прерван (сбой/лимит/баланс), ⏱ повисшая сессия, ∅ решение не написано
+    DEAD_ICON = {
+        "cut": ("✂", "прерван (сбой, лимит времени 90 мин, исчерпан баланс/ключ); "
+                      "обрывок решения в средних не участвует"),
+        "hang": ("⏱", "повисшая сессия: агент застрял на bash-команде, pi ждал её "
+                      "до лимита 90 минут; скелет нетронут"),
+        "blank": ("∅", "решение не написано (дифф 0 строк): чекер оценивал "
+                       "нетронутый скелет, мерить нечего"),
+    }
+
+    def run_badges(r) -> str:
+        out = [f'<span class="okmark" data-tip="Живые прогоны: посчитаны в этой строке '
+               f'и во всех метриках раздела">✓{r["n"]}</span>'] if r["n"] else []
+        for kind, (glyph, tip) in DEAD_ICON.items():
+            k = r["deadkinds"].get(kind, 0)
+            if k:
+                out.append(f'<span class="deadmark {kind}" data-tip="Прогон вне метрик: '
+                           f'{tip}. Причина каждого — по пометке ‡ в разделе 7">'
+                           f'{glyph}{k}</span>')
+        return "<br>".join(out)
 
     trs = []
     for r in sorted(agg, key=sort_key):
@@ -502,12 +543,7 @@ def results_table(data: list[dict]):
         trs.append(
             f"<tr{trcls}><td><b>{r['short']}</b><br>{prov_badge}</td>"
             f'<td class="narrow">{r["note"]}</td>'
-            f'<td class="narrow">{n}'
-            + (f'<br><span class="deadmark" data-tip="Прогон вне метрик: прерван '
-               f'(сбой / лимит времени / исчерпан баланс), повисшая сессия либо '
-               f'решение не написано. Причина каждого — по пометке ‡ в разделе 7">'
-               f'❄{r["n_dead"]}</span>'
-               if r["n_dead"] else "") + '</td>'
+            f'<td class="narrow">{run_badges(r)}</td>'
             f'<td class="narrow">{bar}</td>'
             f'<td class="narrow">{cell(r["a1"])} / {cell(r["b1"])}</td>'
             f'<td class="narrow">{cell(r["a2"])}</td>'
@@ -538,12 +574,12 @@ def results_table(data: list[dict]):
             "числовые колонки такой строки — <b>среднее по прогонам</b>. Сортировка — "
             "от лучших к худшим: средняя сумма сценариев чекера → балл ревью (ось A) → "
             "суммарные нарушения phpcs+psalm+phpstan → покрытие тестами. Детальные данные "
-            "Красная плашка ❄N у числа прогонов — N прогонов вне метрик (число в колонке — "
-            "только живые): прерван (сбой, лимит времени 90 мин, исчерпанный баланс/ключ — "
-            "обрывок решения и его оценки средние искажают), повисшая сессия (агент "
-            "застревал на bash-команде, pi ждал её до лимита 90 минут) либо решение "
+            "Значки колонки «Прогоны»: ✓ — живой прогон (посчитан в строке и метриках); "
+            "✂ — прерван (сбой, лимит времени 90 мин, исчерпанный баланс/ключ — "
+            "обрывок решения и его оценки средние искажают); ⏱ — повисшая сессия (агент "
+            "застревал на bash-команде, pi ждал её до лимита 90 минут); ∅ — решение "
             "не написано (дифф 0 строк — чекер оценивал нетронутый скелет, мерить "
-            "нечего). Такие прогоны не учитываются в общих "
+            "нечего). Прогоны вне метрик не учитываются в общих "
             "результатах, каждая помечена ‡ в разделе 7, у ‡ — точная причина. "
             "Строки «orca · MTP» — прогоны тех же весов orca "
             "с включённым MTP draft (тег qwen3.8-unc — локальный ретаг тех же блобов, сверка "
@@ -762,7 +798,8 @@ def quality_price_map(agg: list[dict]) -> str:
         rad, hue = rad_of(r["viol"]), hue_of(r["prov"])
         fx = (x - ML) / PW
         chk = (f"чекер {r['mand']:g}" + (f"★{r['bonus']:g}" if r["bonus"] else "")
-               + f" из 13 · прогонов {r['n']}" + (f" +{r['n_dead']} ❄" if r["n_dead"] else ""))
+               + f" из 13 · прогонов {r['n']}"
+               + (f" (+{r['n_dead']} вне метрик)" if r["n_dead"] else ""))
         viol = (f"нарушения {r['viol']:.0f}" if r["viol"] is not None
                 else "нарушения —")
         cost_rub = "₽0" if r["cost"] == 0 else f"≈₽{r['cost'] * RUB_USD:.1f}"
@@ -887,7 +924,8 @@ def quality_speed_map(agg: list[dict]) -> str:
         x, y = px(r["dur"]), py(r["a1"])
         rad, hue = rad_of(r["out"]), hue_of(r["prov"])
         chk = (f"чекер {r['mand']:g}" + (f"★{r['bonus']:g}" if r["bonus"] else "")
-               + f" из 13 · прогонов {r['n']}" + (f" +{r['n_dead']} ❄" if r["n_dead"] else ""))
+               + f" из 13 · прогонов {r['n']}"
+               + (f" (+{r['n_dead']} вне метрик)" if r["n_dead"] else ""))
         tip_lines = [f'{r["short"]} ({r["note"]})',
                      f"ревью A {r['a1']:.1f} · {chk}",
                      f"{r['dur']:.0f} мин · выход {r['out'] / 1000:.0f} тыс. токенов",
@@ -1241,7 +1279,8 @@ def think_dumbbell(data: list[dict]):
     """Устойчивость: разброс суммы чекера по прогонам модели (худший → лучший)."""
     by_model: dict[str, list[int]] = {}
     for r in data:
-        if r["mand"] is not None:
+        # только живые прогоны: обрывок решения (✂) — не «худший прогон» модели
+        if not r["dead"] and r["mand"] is not None:
             by_model.setdefault(r["short"], []).append(r["mand"] + r["bonus"])
     rows = [(m, min(v), max(v), "худший прогон", "лучший прогон")
             for m, v in sorted(by_model.items())]
@@ -1253,7 +1292,8 @@ def think_dumbbell(data: list[dict]):
 
 def quality_chart(data: list[dict]):
     """Нарушения phpcs/psalm/phpstan у полных зачётов."""
-    src = [r for r in data if r["kind"] == FULL and r["phpcs"] is not None]
+    src = [r for r in data
+           if not r["dead"] and r["kind"] == FULL and r["phpcs"] is not None]
     src.sort(key=lambda r: (-(r["mand"] or 0) - (r["bonus"] or 0), -(r["a1"] or 0)))
     if not src:
         return ""
@@ -1532,10 +1572,14 @@ def runs_inventory() -> str:
             ec = run.get("exit_code")
             ec_badge = ""
             if int_cause:
-                ptag = f"код {ec}" if ec not in (0, None) else "❄ вне метрик"
-                ec_badge = f'<br><span class="deadmark" data-tip="{int_cause}">{ptag}</span>'
+                ptag = f"код {ec}" if ec not in (0, None) else ""
+                ec_badge = (f'<br><span class="deadmark cut" data-tip="{int_cause}">'
+                            f'{ptag or "✂ вне метрик"}</span>')
             elif dead:   # решение не написано при чистом exit: без бейджа не отличить
-                ec_badge = (f'<br><span class="deadmark" data-tip="{dwhy}">❄ вне метрик</span>')
+                dkind = "hang" if frozen else "blank"
+                dglyph = "⏱" if frozen else "∅"
+                ec_badge = (f'<br><span class="deadmark {dkind}" data-tip="{dwhy}">'
+                            f'{dglyph} вне метрик</span>')
             runs.append(
                 f"<tr><td class=narrow>{r.name}"
                 f"{'<sup>*</sup>' if foreign else ''}{'<sup>†</sup>' if retag else ''}"
