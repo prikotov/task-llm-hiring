@@ -358,7 +358,8 @@ tr.top td{background:#eef6ef}
        line-height:15px;white-space:nowrap}
 .strun{white-space:nowrap;margin:1px 0}
 .strun .rno{display:inline-block;min-width:22px;color:var(--mut);font-size:11px;font-weight:600}
-.cklist{display:flex;flex-wrap:wrap;gap:3px 12px;font-size:11.5px}
+.ckgrid{display:grid;grid-template-columns:repeat(3,max-content);gap:3px 18px;
+        font-size:11.5px}
 .ck{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;cursor:default}
 .ck input{margin:0;accent-color:#315f9e}
 .ck.st-all{color:#1d2433;font-weight:600}
@@ -1640,30 +1641,26 @@ def structure_section(data: list[dict]) -> str:
         return (-total, -a1)
 
     trs = []
-    # объединённый список каталогов верхнего уровня — общий для всех строк
-    # чеклиста; регистр схлопнут (Ui/UI), отображается самая частая форма,
-    # порядок — по убыванию встречаемости в выборке
-    union_forms: dict[str, Counter] = {}
-    for r in runs:
-        for t in r["top"]:
-            union_forms.setdefault(t.lower(), Counter())[t] += 1
-    union = sorted(union_forms, key=lambda k: (-sum(union_forms[k].values()), k))
-    union_name = {k: union_forms[k].most_common(1)[0][0] for k in union}
-
     for gk, rs in sorted(by_g.items(), key=sort_key):
         rs = sorted(rs, key=lambda r: r["run"])
         n_r = len(rs)
         pj = pair_jac(rs)
         j_top = st.mean(p[0] for p in pj) if pj else None
         j_all = st.mean(p[1] for p in pj) if pj else None
-        # чеклист каталогов: одно состояние на каталог режима — отмечен (во всех
-        # прогонах), частично отмечен (в части), пуст (нет); indeterminate
-        # выставляет скрипт страницы
+        # мини-таблица каталогов режима (строки и колонки, 3 в ряд): только
+        # каталоги, встреченные в прогонах этого режима; состояние на каталог —
+        # отмечен (во всех прогонах), частично отмечен (в части), пуст (нет);
+        # indeterminate выставляет скрипт страницы
+        gforms: dict[str, Counter] = {}
+        for r in rs:
+            for t in r["top"]:
+                gforms.setdefault(t.lower(), Counter())[t] += 1
+        gdirs = sorted(gforms, key=lambda k: (-sum(gforms[k].values()), k))
         per_run = [{t.lower() for t in r["top"]} for r in rs]
         ck = []
-        for k in union:
+        for k in gdirs:
             cnt = sum(1 for s in per_run if k in s)
-            name = union_name[k]
+            name = gforms[k].most_common(1)[0][0]
             tip = (f"во всех {n_r} прогонах режима" if cnt == n_r else
                    f"в {cnt} из {n_r} прогонов режима" if cnt else
                    "нет в этом режиме")
@@ -1672,7 +1669,7 @@ def structure_section(data: list[dict]) -> str:
             st_ = "st-all" if cnt == n_r else "st-some" if cnt else "st-no"
             ck.append(f'<label class="ck {st_}" title="{tip}">'
                       f'<input type=checkbox class=ckbox disabled {attrs}>{name}</label>')
-        runs_html = (f'<div class=cklist>{"".join(ck)}</div>'
+        runs_html = (f'<div class=ckgrid>{"".join(ck)}</div>'
                      f'<div class=sub>прогоны: {" · ".join(r["run"].removeprefix("run-") for r in rs)}</div>')
         if j_top is None:
             const = "—"   # один прогон: постоянства нет
@@ -1770,9 +1767,9 @@ def structure_section(data: list[dict]) -> str:
             f'<th class=narrow>Мышл.</th>'
             f'<th>Верхний уровень src/ по прогонам</th><th class=narrow>Постоян&shy;ство</th>'
             f'<th class=narrow>tests/</th></tr></thead><tbody>{"".join(trs)}</tbody></table></div>'
-            f'<div class=note><b>Постоянство против типичности.</b> В чеклисте слепков '
-            f'столбцы — все каталоги верхнего уровня, встреченные в выборке, у каждой '
-            f'строки один и тот же список: отмечен — каталог есть во всех прогонах '
+            f'<div class=note><b>Постоянство против типичности.</b> В слепках у каждого '
+            f'режима — мини-таблица его каталогов верхнего уровня (только те, что '
+            f'встретились в его прогонах): отмечен — каталог есть во всех прогонах '
             f'режима, частично отмечен — в части прогонов, пустой — отсутствует. '
             f'Мера — коэффициент Жаккара '
             f'наборов каталогов (0 = не пересекаются, 1 = совпадают), усреднённый по парам '
