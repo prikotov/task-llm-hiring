@@ -364,6 +364,17 @@ tr.top td{background:#eef6ef}
 .tpfx{color:#cdd3da}
 .tpct{color:#8a93a0;font-size:11px}
 .troot{color:#46536a;font-weight:700}
+/* переключатель в стиле проводника: [+]/[−] слева на строке каталога */
+.tbox{display:inline-block;width:12px;height:12px;margin-right:6px;
+      border:1px solid #9aa4b1;border-radius:3px;background:#fff;color:#46536a;
+      font-size:10px;font-weight:700;line-height:12px;text-align:center;
+      vertical-align:-1px;user-select:none}
+.tbox.none{border-color:transparent}
+.tree summary{list-style:none;cursor:pointer}
+.tree summary::-webkit-details-marker{display:none}
+.tree summary .tbox::before{content:"+";}
+.tree details[open]>summary .tbox::before{content:"−";}
+.tree summary.tline:hover{background:#f0f4f9}
 .deadmark:hover::after,.okmark:hover::after{content:attr(data-tip);position:absolute;
            bottom:calc(100% + 7px);
            left:50%;transform:translateX(-50%);background:#2a3342;color:#fff;
@@ -1434,25 +1445,43 @@ def structure_section(data: list[dict]) -> str:
             for part in p.split("/"):
                 node = node.setdefault(part, {})
             node["#"] = c
-        lines = [f'<div class=tline><span class="troot">{root}</span> '
-                 f'<span class=tpct>{root_pct}%</span></div>']
 
-        def walk(node, prefix):
-            # все дети без свёртки: вариативность важнее компактности,
-            # редкость гасится яркостью (ступени _ink)
-            kids = sorted(((k, v) for k, v in node.items() if k != "#"),
+        def kids_of(node):
+            return sorted(((k, v) for k, v in node.items() if k != "#"),
                           key=lambda kv: (-kv[1].get("#", 0), kv[0].lower()))
+
+        def line_html(prefix, conn, k, cnt, expandable):
+            pct = round(100 * cnt / n)
+            box = ('<span class=tbox></span>' if expandable
+                   else '<span class="tbox none"></span>')
+            return (f'<span class=tpfx>{prefix}{conn}</span>{box}'
+                    f'<span style="color:{_ink(pct)}"><b>{k}/</b> {pct}%</span>')
+
+        def walk(node, prefix, depth) -> str:
+            out = []
+            kids = kids_of(node)
             for i, (k, v) in enumerate(kids):
                 last = i == len(kids) - 1
                 conn = "└── " if last else "├── "
-                cnt = v.get("#", 0)
-                pct = round(100 * cnt / n)
-                lines.append(f'<div class=tline><span class=tpfx>{prefix}{conn}</span>'
-                             f'<span style="color:{_ink(pct)}"><b>{k}/</b> {pct}%</span></div>')
-                walk(v, prefix + ("    " if last else "│   "))
+                child_prefix = prefix + ("    " if last else "│   ")
+                has_kids = bool(kids_of(v))
+                html_line = line_html(prefix, conn, k, v.get("#", 0), has_kids)
+                if not has_kids:
+                    out.append(f'<div class=tline>{html_line}</div>')
+                elif depth == 0:
+                    # первый уровень раскрыт всегда и без переключателя
+                    out.append(f'<div class=tline>{html_line}</div>'
+                               + walk(v, child_prefix, depth + 1))
+                else:
+                    # со второго уровня: свёрнут по умолчанию, клик по [+]/[−]
+                    out.append(f'<details class=tnode><summary class=tline>{html_line}</summary>'
+                               + walk(v, child_prefix, depth + 1) + "</details>")
+            return "".join(out)
 
-        walk(tree, "")
-        return "".join(lines)
+        return (f'<div class=tline><span class="tbox none"></span>'
+                f'<span class="troot">{root}</span> '
+                f'<span class=tpct>{root_pct}%</span></div>'
+                + walk(tree, "", 0))
 
     n_tests = sum(1 for r in runs if r["ntf"])
     tree_html = (_tree(src_paths, "src/", 100)
@@ -1538,8 +1567,9 @@ def structure_section(data: list[dict]) -> str:
             f'<p class=sub>Процент — доля прогонов из {n}, где каталог существует; '
             f'яркость имени — ступени по тому же проценту: ≥50% — чернильный, '
             f'25–49% — тёмно-серый, 10–24% — серый, 3% (один прогон) — бледный. '
-            f'Дерево показано целиком, без свёрток: бледный хвост — и есть '
-            f'вариативность моделей. Каркасные src/ и tests/ — серые: '
+            f'Первый уровень раскрыт всегда; каталоги со второго уровня свёрнуты '
+            f'и раскрываются кликом по [+], сворачивают по [−] — бледные ветки '
+            f'внутри и есть вариативность моделей. Каркасные src/ и tests/ — серые: '
             f'они даны скелетом, не выбором модели.</p>'
             f'<p class=excap>Слепки по моделям и постоянство структуры</p>'
             f'<div style="overflow-x:auto"><table><thead><tr><th>Модель</th>'
