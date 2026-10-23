@@ -1668,7 +1668,7 @@ def structure_section(data: list[dict]) -> str:
     excl_txt = " · ".join(f"{a['short']} ·{a['note']}" for a in excluded)
 
     return (f'<h3>Структура кода: src/ и tests/</h3>'
-            f'<p class=lead>Каркас не подсказывает устройство кода — скелет это src/Kernel.php '
+            f'<p class=lead>Задание не подсказывает устройство кода — скелет это src/Kernel.php '
             f'и пустой tests/, а TASK.md отдаёт архитектуру кандидату: «на ваше усмотрение '
             f'(это предмет оценки)». Раскладка src/ — чистый датчик врождённых предпочтений. '
             f'Популяция — успешные решения: {n} прогонов {len(by_f)} моделей, чьи режимы '
