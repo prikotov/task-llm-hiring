@@ -1345,16 +1345,22 @@ def structure_scan(data: list[dict]) -> list[dict]:
         src, tests = sol / "src", sol / "tests"
         if not src.is_dir():
             continue
-        if sum(1 for _ in src.rglob("*.php")) <= 1:   # скелет нетронут: Kernel.php
+        flist = sorted(p.relative_to(src).as_posix() for p in src.rglob("*.php"))
+        if len(flist) <= 1:   # скелет нетронут: Kernel.php
             continue
         top = sorted((p.name for p in src.iterdir() if p.is_dir()), key=str.lower)
         dirs = {p.relative_to(src).as_posix() for p in src.rglob("*") if p.is_dir()}
+        # каркасный Kernel.php — не выбор модели, в дерево файлов не попадает
+        files = [f for f in flist if f != "Kernel.php"]
         tdirs: set[str] = set()
+        tfiles: list[str] = []
         ntf = 0
         if tests.is_dir():
             tdirs = {p.relative_to(tests).as_posix() for p in tests.rglob("*") if p.is_dir()}
-            ntf = sum(1 for _ in tests.rglob("*.php"))
-        out.append({**r, "top": top, "dirs": dirs, "tdirs": tdirs, "ntf": ntf})
+            tfiles = sorted(p.relative_to(tests).as_posix() for p in tests.rglob("*.php"))
+            ntf = len(tfiles)
+        out.append({**r, "top": top, "dirs": dirs, "files": files,
+                    "tdirs": tdirs, "tfiles": tfiles, "ntf": ntf})
     return out
 
 
@@ -1422,11 +1428,15 @@ def structure_section(data: list[dict]) -> str:
     # в строку «…»: поддерево одиночки состоит из одиночек (предок существует
     # в каждом прогоне потомка), так что ничего, кроме хвоста из 1 прогона,
     # свёртка не прячет
-    src_paths: Counter = Counter()
-    t_paths: Counter = Counter()
+    src_dirs: Counter = Counter()
+    src_files: Counter = Counter()
+    t_dirs: Counter = Counter()
+    t_files: Counter = Counter()
     for r in runs:
-        src_paths.update(r["dirs"])
-        t_paths.update(r["tdirs"])
+        src_dirs.update(r["dirs"])
+        src_files.update(r["files"])
+        t_dirs.update(r["tdirs"])
+        t_files.update(r["tfiles"])
 
     def _ink(pct: int) -> str:
         """Яркость имени ступенями по проценту прогонов: чем реже, тем бледнее."""
@@ -1438,54 +1448,70 @@ def structure_section(data: list[dict]) -> str:
             return "#6e7683"
         return "#98a1ac"
 
-    def _tree(counter: Counter, root: str, root_pct: int) -> str:
+    def _tree(dirs_c: Counter, files_c: Counter, root: str, root_pct: int) -> str:
         tree: dict = {}
-        for p, c in counter.items():
+        for p, c in dirs_c.items():
             node = tree
             for part in p.split("/"):
                 node = node.setdefault(part, {})
             node["#"] = c
+        for p, c in files_c.items():
+            node = tree
+            for part in p.split("/"):
+                node = node.setdefault(part, {})
+            node["$"] = node.get("$", 0) + c
 
         def kids_of(node):
-            return sorted(((k, v) for k, v in node.items() if k != "#"),
-                          key=lambda kv: (-kv[1].get("#", 0), kv[0].lower()))
+            # сначала подкаталоги, затем файлы; каждый список — по убыванию частоты
+            dirs = sorted(((k, v) for k, v in node.items()
+                           if k not in "#$" and "#" in v),
+                          key=lambda kv: (-kv[1]["#"], kv[0].lower()))
+            files = sorted(((k, v) for k, v in node.items()
+                            if k not in "#$" and "$" in v and "#" not in v),
+                           key=lambda kv: (-kv[1]["$"], kv[0].lower()))
+            return dirs, files
 
-        def line_html(prefix, conn, k, cnt, expandable):
+        def line_html(prefix, conn, name, cnt, is_dir, expandable):
             pct = round(100 * cnt / n)
             box = ('<span class=tbox></span>' if expandable
                    else '<span class="tbox none"></span>')
+            label = f'<b>{name}/</b>' if is_dir else name
             return (f'<span class=tpfx>{prefix}{conn}</span>{box}'
-                    f'<span style="color:{_ink(pct)}"><b>{k}/</b> {pct}%</span>')
+                    f'<span style="color:{_ink(pct)}">{label} {pct}%</span>')
 
-        def walk(node, prefix, depth) -> str:
+        def walk(node, prefix) -> str:
             out = []
-            kids = kids_of(node)
-            for i, (k, v) in enumerate(kids):
-                last = i == len(kids) - 1
+            dirs, files = kids_of(node)
+            items = [(k, v, True) for k, v in dirs] + [(k, v, False) for k, v in files]
+            for i, (k, v, is_dir) in enumerate(items):
+                last = i == len(items) - 1
                 conn = "└── " if last else "├── "
                 child_prefix = prefix + ("    " if last else "│   ")
-                has_kids = bool(kids_of(v))
-                html_line = line_html(prefix, conn, k, v.get("#", 0), has_kids)
-                if not has_kids:
-                    out.append(f'<div class=tline>{html_line}</div>')
+                if is_dir:
+                    sub_dirs, sub_files = kids_of(v)
+                    has_kids = bool(sub_dirs or sub_files)
+                    if has_kids:
+                        out.append(f'<details class=tnode><summary class=tline>'
+                                   f'{line_html(prefix, conn, k, v["#"], True, True)}</summary>'
+                                   + walk(v, child_prefix) + "</details>")
+                    else:
+                        out.append(f'<div class=tline>'
+                                   f'{line_html(prefix, conn, k, v["#"], True, False)}</div>')
                 else:
-                    # первый уровень раскрыт по умолчанию, глубже — свёрнут;
-                    # клик по [+]/[−] на строке переключает
-                    open_attr = " open" if depth == 0 else ""
-                    out.append(f'<details class=tnode{open_attr}>'
-                               f'<summary class=tline>{html_line}</summary>'
-                               + walk(v, child_prefix, depth + 1) + "</details>")
+                    out.append(f'<div class=tline>'
+                               f'{line_html(prefix, conn, k, v["$"], False, False)}</div>')
             return "".join(out)
 
         return (f'<div class=tline><span class="tbox none"></span>'
                 f'<span class="troot">{root}</span> '
                 f'<span class=tpct>{root_pct}%</span></div>'
-                + walk(tree, "", 0))
+                + walk(tree, ""))
 
     n_tests = sum(1 for r in runs if r["ntf"])
-    tree_html = (_tree(src_paths, "src/", 100)
+    tree_html = (_tree(src_dirs, src_files, "src/", 100)
                  + '<div class=tline style="height:7px"></div>'
-                 + (_tree(t_paths, "tests/", round(100 * n_tests / n)) if t_paths else ""))
+                 + (_tree(t_dirs, t_files, "tests/", round(100 * n_tests / n))
+                    if t_dirs or t_files else ""))
 
     # строки таблицы — в порядке качества, как основная таблица §4:
     # сумма чекера → ревью оси A
@@ -1558,18 +1584,19 @@ def structure_section(data: list[dict]) -> str:
             f'попали в верхние квадранты карт выше — «хорошо и дёшево», «хорошо и дорого», '
             f'«хорошо и быстро», «хорошо и медленно» (среднее ревью оси A ≥ {REVIEW_GOOD:g}); '
             f'проценты дерева — доли этих прогонов.</p>'
-            f'<p class=excap>Сводная структура: все каталоги, которые модели создали '
-            f'в src/ и tests/, слитые в одно дерево. Типовая раскладка — гибрид '
-            f'Symfony-конвенций и DDD: команды, домен и сущности есть у большинства, '
+            f'<p class=excap>Сводная структура: все каталоги и файлы классов, которые '
+            f'модели создали в src/ и tests/, слитые в одно дерево. Типовая раскладка — '
+            f'гибрид Symfony-конвенций и DDD: команды, домен и сущности есть у большинства, '
             f'но полной единой структуры нет ни у кого.</p>'
             f'<div class=tree>{tree_html}</div>'
-            f'<p class=sub>Процент — доля прогонов из {n}, где каталог существует; '
-            f'яркость имени — ступени по тому же проценту: ≥50% — чернильный, '
-            f'25–49% — тёмно-серый, 10–24% — серый, 3% (один прогон) — бледный. '
-            f'Каталоги первого уровня раскрыты по умолчанию, глубже — свёрнуты; '
-            f'клик по строке переключает [+]/[−] — бледные ветки '
-            f'внутри и есть вариативность моделей. Каркасные src/ и tests/ — серые: '
-            f'они даны скелетом, не выбором модели.</p>'
+            f'<p class=sub>Процент — доля прогонов из {n}, где каталог или файл '
+            f'существует; яркость имени — ступени по тому же проценту: ≥50% — чернильный, '
+            f'25–49% — тёмно-серый, 10–24% — серый, 4% (один прогон) — бледный. '
+            f'Все каталоги свёрнуты по умолчанию, клик по [+]/[−] раскрывает и '
+            f'сворачивает; внутри каталогов — файлы классов: PSR-4 ставит имя файла '
+            f'в соответствие имени класса, так что это срез того, как модели '
+            f'называют классы. Каркасный src/Kernel.php не показан; src/ и tests/ — '
+            f'серые корни каркаса.</p>'
             f'<p class=excap>Слепки по моделям и постоянство структуры</p>'
             f'<div style="overflow-x:auto"><table><thead><tr><th>Модель</th>'
             f'<th>Верхний уровень src/ по прогонам</th><th class=narrow>Постоян&shy;ство</th>'
