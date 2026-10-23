@@ -1595,6 +1595,7 @@ def structure_section(data: list[dict]) -> str:
 
     file_sizes = [len(r["files"]) for r in runs]
     loc_sizes = [r["loc"] for r in runs if r["loc"] is not None]
+    total_files = sum(file_sizes)
 
     def _size_svg() -> str:
         return _hist_svg(
@@ -1716,7 +1717,11 @@ def structure_section(data: list[dict]) -> str:
             f'<p class="excap sb">Размер решения: классы и строки</p>'
             f'{_size_svg()}'
             f'<p class=sub>По оси X — размер решения (диапазон файлов или строк), '
-            f'по оси Y — число успешных прогонов с размером из диапазона. '
+            f'по оси Y — число успешных прогонов с размером из диапазона. Это другой '
+            f'счёт, чем на гистограмме имён выше: там класс учтён один раз — как имя '
+            f'({len(cls_base)} разных имён), здесь — каждый файл каждого прогона '
+            f'({total_files} файлов src в сумме); классы переиспользуются между '
+            f'прогонами, поэтому экземпляров больше, чем имён. '
             f'Типовой объём успешного решения — {st.median(file_sizes):.0f} файлов и '
             f'{st.median(loc_sizes):.0f} строк (разброс {min(file_sizes)}–{max(file_sizes)} '
             f'файлов, {min(loc_sizes)}–{max(loc_sizes)} строк); в отличие от частоты имён, '
