@@ -1448,7 +1448,7 @@ def structure_section(data: list[dict]) -> str:
             return "#6e7683"
         return "#98a1ac"
 
-    def _tree(dirs_c: Counter, files_c: Counter, root: str, root_pct: int) -> str:
+    def _tree(dirs_c: Counter, files_c: Counter, root: str) -> str:
         tree: dict = {}
         for p, c in dirs_c.items():
             node = tree
@@ -1502,16 +1502,15 @@ def structure_section(data: list[dict]) -> str:
                                f'{line_html(prefix, conn, k, v["$"], False, False)}</div>')
             return "".join(out)
 
+        # корень — часть каркаса, процента не даём
         return (f'<div class=tline><span class="tbox none"></span>'
-                f'<span class="troot">{root}</span> '
-                f'<span class=tpct>{root_pct}%</span></div>'
+                f'<span class="troot">{root}</span></div>'
                 + walk(tree, ""))
 
     n_tests = sum(1 for r in runs if r["ntf"])
-    tree_html = (_tree(src_dirs, src_files, "src/", 100)
+    tree_html = (_tree(src_dirs, src_files, "src/")
                  + '<div class=tline style="height:7px"></div>'
-                 + (_tree(t_dirs, t_files, "tests/", round(100 * n_tests / n))
-                    if t_dirs or t_files else ""))
+                 + (_tree(t_dirs, t_files, "tests/") if t_dirs or t_files else ""))
 
     # распределение частоты имён: скольким прогонам встречается имя (путь
     # каталога или имя файла-класса). Форма отвечает на вопрос, где консенсус,
