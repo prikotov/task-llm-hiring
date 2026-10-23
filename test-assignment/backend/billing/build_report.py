@@ -1508,6 +1508,8 @@ def structure_section(data: list[dict]) -> str:
                 + walk(tree, ""))
 
     n_tests = sum(1 for r in runs if r["ntf"])
+    tests_txt = ("tests/ есть во всех прогонах" if n_tests == n
+                 else f"tests/ пишут в {n_tests} из {n} прогонов")
     tree_html = (_tree(src_dirs, src_files, "src/")
                  + '<div class=tline style="height:7px"></div>'
                  + (_tree(t_dirs, t_files, "tests/") if t_dirs or t_files else ""))
@@ -1599,7 +1601,9 @@ def structure_section(data: list[dict]) -> str:
     one_dirs = 100 * dir_freq.count(1) / len(dir_freq)
     one_cls = 100 * cls_freq.count(1) / len(cls_freq)
     one_fp = 100 * fp_freq.count(1) / len(fp_freq)
-    top_txt = ", ".join(f"{nm} — {cnt} из {n}" for nm, cnt in cls_base.most_common(3))
+    top_txt = ", ".join(
+        f"{nm} — {'во всех прогонах' if cnt == n else f'в {cnt}'}"
+        for nm, cnt in cls_base.most_common(3))
     rmin = min((r for r in runs if r["loc"]), key=lambda r: r["loc"])
     rmax = max((r for r in runs if r["loc"]), key=lambda r: r["loc"])
 
@@ -1682,7 +1686,7 @@ def structure_section(data: list[dict]) -> str:
             f'Entity (сущности) есть у большинства, но у моделей в целом нет общего '
             f'правила раскладки файлов классов (детали ниже).</p>'
             f'<div class=tree>{tree_html}</div>'
-            f'<p class=sub>Процент — доля прогонов из {n}, где каталог или файл '
+            f'<p class=sub>Процент — доля прогонов, где каталог или файл '
             f'существует; яркость имени — ступени по тому же проценту: ≥50% — чернильный, '
             f'25–49% — тёмно-серый, 10–24% — серый, 4% (один прогон) — бледный. '
             f'Все каталоги свёрнуты по умолчанию, клик по [+]/[−] раскрывает и '
@@ -1692,7 +1696,7 @@ def structure_section(data: list[dict]) -> str:
             f'серые корни каркаса.</p>'
             f'<p class=excap>Распределение имён: консенсус против хвоста</p>'
             f'{_dist_svg()}'
-            f'<p class=sub>Бины — скольким прогонам из {n} встречено имя (путь каталога '
+            f'<p class=sub>Бины — скольким прогонам встречено имя (путь каталога '
             f'или имя файла-класса), бар — число разных имён в бине; панель каталогов '
             f'включает src/ и tests/. Медиана у обеих панелей — один прогон: '
             f'{one_dirs:.0f}% путей каталогов и {one_cls:.0f}% имён классов существуют '
@@ -1726,8 +1730,8 @@ def structure_section(data: list[dict]) -> str:
             + f'Полюса: {sname(best[0])} повторяет раскладку точнее всех '
             f'({best[1]:.2f}), {sname(worst[0])} каждый прогон строит заново ({worst[1]:.2f}). '
             f'Верхний уровень устойчивее глубины: по полным путям средние ниже — модели верны '
-            f'слою, но не деталям раскладки. tests/ пишут {n_tests} из {n} '
-            f'прогонов: {n_mir} зеркалят раскладку src/, остальные раскладывают '
+            f'слою, но не деталям раскладки. {tests_txt}: {n_mir} зеркалят раскладку src/, '
+            f'остальные раскладывают '
             f'по-своему (Unit/ и т.п.) или держат файлы в корне tests/. '
             f'Вне анализа — режимы ниже порога ревью 3 ({excl_txt}) '
             f'и прогоны вне метрик, как во всех метриках разделов 1–6.</div>')
