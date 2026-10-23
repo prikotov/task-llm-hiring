@@ -1513,6 +1513,69 @@ def structure_section(data: list[dict]) -> str:
                  + (_tree(t_dirs, t_files, "tests/", round(100 * n_tests / n))
                     if t_dirs or t_files else ""))
 
+    # распределение частоты имён: скольким прогонам встречается имя (путь
+    # каталога или имя файла-класса). Форма отвечает на вопрос, где консенсус,
+    # а где длинный хвост вариативности, и отделяет имя класса от его
+    # расположения: путь файла переменчивее самого имени
+    def _basename_counter(path_counter: Counter) -> Counter:
+        b = Counter()
+        for path, cnt in path_counter.items():
+            b[path.rsplit("/", 1)[-1]] += cnt
+        return b
+
+    def _hist_bins(values):
+        edges = (("1", 1, 1), ("2", 2, 2), ("3–4", 3, 4), ("5–9", 5, 9),
+                 ("10–14", 10, 14), ("15–24", 15, 24), ("25", 25, 10 ** 9))
+        return [(label, sum(1 for v in values if lo <= v <= hi))
+                for label, lo, hi in edges]
+
+    dir_freq = list((src_dirs + t_dirs).values())
+    cls_base = _basename_counter(src_files + t_files)
+    cls_freq = list(cls_base.values())
+    fp_freq = list((src_files + t_files).values())
+
+    def _dist_svg() -> str:
+        panels = [(f"Каталоги — пути · {len(dir_freq)} имён",
+                   _hist_bins(dir_freq), "#315f9e"),
+                  (f"Файлы-классы — имена · {len(cls_freq)} имён",
+                   _hist_bins(cls_freq), "#2f7d54")]
+        W, H, MT, MB = 880, 280, 44, 44
+        svg = []
+        for pi, (title, bins, hue) in enumerate(panels):
+            x0 = pi * (W / 2)
+            vmax = max(c for _, c in bins)
+            step = 20 if vmax > 100 else 10 if vmax > 40 else 5
+            top = ((vmax + step - 1) // step) * step
+            plot_h = H - MT - MB
+            svg.append(f'<text x="{x0 + 10}" y="20" font-size="13" font-weight="600" '
+                       f'fill="#1d2433">{title}</text>')
+            for t in range(0, top + 1, step):
+                y = MT + (top - t) / top * plot_h
+                svg.append(f'<line x1="{x0 + 30}" y1="{y:.0f}" x2="{x0 + W / 2 - 16}" y2="{y:.0f}" '
+                           f'stroke="#e4e7ec"/>'
+                           f'<text x="{x0 + 24}" y="{y + 4:.0f}" text-anchor="end" '
+                           f'font-size="11" fill="#66707f">{t}</text>')
+            bw = (W / 2 - 56) / len(bins)
+            for bi, (label, c) in enumerate(bins):
+                bx = x0 + 34 + bi * bw
+                bh = plot_h * c / top
+                svg.append(f'<rect x="{bx:.0f}" y="{MT + plot_h - bh:.0f}" width="{bw * 0.58:.0f}" '
+                           f'height="{max(bh, 1):.0f}" rx="3" fill="{hue}" fill-opacity="0.82"/>'
+                           f'<text x="{bx + bw * 0.29:.0f}" y="{MT + plot_h - bh - 6:.0f}" '
+                           f'text-anchor="middle" font-size="11.5" font-weight="600" '
+                           f'fill="#1d2433">{c}</text>'
+                           f'<text x="{bx + bw * 0.29:.0f}" y="{H - 22}" text-anchor="middle" '
+                           f'font-size="11.5" fill="#66707f">{label}</text>')
+        svg.append(f'<text x="{W / 2}" y="{H - 3}" text-anchor="middle" font-size="12" '
+                   f'fill="#66707f">прогонов, в которых встречено имя</text>')
+        return (f'<svg width="{W}" height="{H}" viewBox="0 0 {W} {H}" '
+                f'style="max-width:100%">{"".join(svg)}</svg>')
+
+    one_dirs = 100 * dir_freq.count(1) / len(dir_freq)
+    one_cls = 100 * cls_freq.count(1) / len(cls_freq)
+    one_fp = 100 * fp_freq.count(1) / len(fp_freq)
+    top_txt = ", ".join(f"{nm} — {cnt} из {n}" for nm, cnt in cls_base.most_common(3))
+
     # строки таблицы — в порядке качества, как основная таблица §4:
     # сумма чекера → ревью оси A
     def sort_key(item):
@@ -1597,6 +1660,16 @@ def structure_section(data: list[dict]) -> str:
             f'в соответствие имени класса, так что это срез того, как модели '
             f'называют классы. Каркасный src/Kernel.php не показан; src/ и tests/ — '
             f'серые корни каркаса.</p>'
+            f'<p class=excap>Распределение имён: консенсус против хвоста</p>'
+            f'{_dist_svg()}'
+            f'<p class=sub>Бины — скольким прогонам из {n} встречено имя (путь каталога '
+            f'или имя файла-класса), бар — число разных имён в бине; панель каталогов '
+            f'включает src/ и tests/. Медиана у обеих панелей — один прогон: '
+            f'{one_dirs:.0f}% путей каталогов и {one_cls:.0f}% имён классов существуют '
+            f'в одном экземпляре. Но ядро консенсуса есть: {top_txt}. Полные пути '
+            f'файлов переменчивее самих имён: {one_fp:.0f}% путей — одиночные против '
+            f'{one_cls:.0f}% у имён — класс переиспользуется чаще, чем его расположение. '
+            f'Популяция — успешные прогоны, как и во всей подсекции.</p>'
             f'<p class=excap>Слепки по моделям и постоянство структуры</p>'
             f'<div style="overflow-x:auto"><table><thead><tr><th>Модель</th>'
             f'<th>Верхний уровень src/ по прогонам</th><th class=narrow>Постоян&shy;ство</th>'
