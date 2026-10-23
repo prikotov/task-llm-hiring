@@ -358,6 +358,12 @@ tr.top td{background:#eef6ef}
        line-height:15px;white-space:nowrap}
 .strun{white-space:nowrap;margin:1px 0}
 .strun .rno{display:inline-block;min-width:22px;color:var(--mut);font-size:11px;font-weight:600}
+.cklist{display:flex;flex-wrap:wrap;gap:3px 12px;font-size:11.5px}
+.ck{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;cursor:default}
+.ck input{margin:0;accent-color:#315f9e}
+.ck.st-all{color:#1d2433;font-weight:600}
+.ck.st-some{color:#454e5d}
+.ck.st-no{color:#98a1ac}
 .tree{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 18px;
       font:12.5px/1.62 ui-monospace,SFMono-Regular,Consolas,Menlo,monospace;
       overflow-x:auto;margin:14px 0}
@@ -1634,24 +1640,40 @@ def structure_section(data: list[dict]) -> str:
         return (-total, -a1)
 
     trs = []
+    # объединённый список каталогов верхнего уровня — общий для всех строк
+    # чеклиста; регистр схлопнут (Ui/UI), отображается самая частая форма,
+    # порядок — по убыванию встречаемости в выборке
+    union_forms: dict[str, Counter] = {}
+    for r in runs:
+        for t in r["top"]:
+            union_forms.setdefault(t.lower(), Counter())[t] += 1
+    union = sorted(union_forms, key=lambda k: (-sum(union_forms[k].values()), k))
+    union_name = {k: union_forms[k].most_common(1)[0][0] for k in union}
+
     for gk, rs in sorted(by_g.items(), key=sort_key):
         rs = sorted(rs, key=lambda r: r["run"])
         n_r = len(rs)
         pj = pair_jac(rs)
         j_top = st.mean(p[0] for p in pj) if pj else None
         j_all = st.mean(p[1] for p in pj) if pj else None
-        # одинаковые наборы каталогов схлопываем: 01+03 перед чипами
-        sigs: list[tuple[frozenset, list[dict]]] = []
-        for r in rs:
-            sig = frozenset(low(r["top"]))
-            if sigs and sigs[-1][0] == sig:
-                sigs[-1][1].append(r)
-            else:
-                sigs.append((sig, [r]))
-        runs_html = "".join(
-            f'<div class=strun><span class=rno>{"+".join(g["run"].removeprefix("run-") for g in grp)}</span>'
-            + "".join(f'<span class=dchip>{x}</span>' for x in grp[0]["top"]) + "</div>"
-            for _, grp in sigs)
+        # чеклист каталогов: одно состояние на каталог режима — отмечен (во всех
+        # прогонах), частично отмечен (в части), пуст (нет); indeterminate
+        # выставляет скрипт страницы
+        per_run = [{t.lower() for t in r["top"]} for r in rs]
+        ck = []
+        for k in union:
+            cnt = sum(1 for s in per_run if k in s)
+            name = union_name[k]
+            tip = (f"во всех {n_r} прогонах режима" if cnt == n_r else
+                   f"в {cnt} из {n_r} прогонов режима" if cnt else
+                   "нет в этом режиме")
+            attrs = ("checked" if cnt == n_r else
+                     "data-partial" if cnt else "")
+            st_ = "st-all" if cnt == n_r else "st-some" if cnt else "st-no"
+            ck.append(f'<label class="ck {st_}" title="{tip}">'
+                      f'<input type=checkbox class=ckbox disabled {attrs}>{name}</label>')
+        runs_html = (f'<div class=cklist>{"".join(ck)}</div>'
+                     f'<div class=sub>прогоны: {" · ".join(r["run"].removeprefix("run-") for r in rs)}</div>')
         if j_top is None:
             const = "—"   # один прогон: постоянства нет
         else:
@@ -1748,7 +1770,11 @@ def structure_section(data: list[dict]) -> str:
             f'<th class=narrow>Мышл.</th>'
             f'<th>Верхний уровень src/ по прогонам</th><th class=narrow>Постоян&shy;ство</th>'
             f'<th class=narrow>tests/</th></tr></thead><tbody>{"".join(trs)}</tbody></table></div>'
-            f'<div class=note><b>Постоянство против типичности.</b> Мера — коэффициент Жаккара '
+            f'<div class=note><b>Постоянство против типичности.</b> В чеклисте слепков '
+            f'столбцы — все каталоги верхнего уровня, встреченные в выборке, у каждой '
+            f'строки один и тот же список: отмечен — каталог есть во всех прогонах '
+            f'режима, частично отмечен — в части прогонов, пустой — отсутствует. '
+            f'Мера — коэффициент Жаккара '
             f'наборов каталогов (0 = не пересекаются, 1 = совпадают), усреднённый по парам '
             f'прогонов. Постоянство считается внутри одного режима (модель + уровень '
             f'размышлений; режимов с 2+ прогонами — {n_modes}): структура повторяется '
@@ -2174,6 +2200,9 @@ document.querySelectorAll('svg.scatter g.pt').forEach(function (pt) {
     tip.style.display = 'block';
   });
   dot.addEventListener('mouseleave', function () { tip.style.display = 'none'; });
+});
+document.querySelectorAll('input.ckbox[data-partial]').forEach(function (el) {
+  el.indeterminate = true;   // каталог есть лишь в части прогонов режима
 });
 """
 
