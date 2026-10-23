@@ -1534,18 +1534,15 @@ def structure_section(data: list[dict]) -> str:
     cls_freq = list(cls_base.values())
     fp_freq = list((src_files + t_files).values())
 
-    def _dist_svg() -> str:
-        panels = [(f"Каталоги — пути · {len(dir_freq)} имён",
-                   _hist_bins(dir_freq), "#315f9e"),
-                  (f"Файлы-классы — имена · {len(cls_freq)} имён",
-                   _hist_bins(cls_freq), "#2f7d54")]
+    def _hist_svg(panels: list[tuple[str, list[tuple[str, int]], str]], xlabel: str) -> str:
+        """Панельная гистограмма: (заголовок, [(подпись бина, значение)], цвет)."""
         W, H, MT, MB = 880, 280, 44, 44
         svg = []
         for pi, (title, bins, hue) in enumerate(panels):
             x0 = pi * (W / 2)
             vmax = max(c for _, c in bins)
             step = 20 if vmax > 100 else 10 if vmax > 40 else 5
-            top = ((vmax + step - 1) // step) * step
+            top = max(((vmax + step - 1) // step) * step, step)
             plot_h = H - MT - MB
             svg.append(f'<text x="{x0 + 10}" y="20" font-size="13" font-weight="600" '
                        f'fill="#1d2433">{title}</text>')
@@ -1567,14 +1564,45 @@ def structure_section(data: list[dict]) -> str:
                            f'<text x="{bx + bw * 0.29:.0f}" y="{H - 22}" text-anchor="middle" '
                            f'font-size="11.5" fill="#66707f">{label}</text>')
         svg.append(f'<text x="{W / 2}" y="{H - 3}" text-anchor="middle" font-size="12" '
-                   f'fill="#66707f">прогонов, в которых встречено имя</text>')
+                   f'fill="#66707f">{xlabel}</text>')
         return (f'<svg width="{W}" height="{H}" viewBox="0 0 {W} {H}" '
                 f'style="max-width:100%">{"".join(svg)}</svg>')
+
+    def _dist_svg() -> str:
+        return _hist_svg(
+            [(f"Каталоги — пути · {len(dir_freq)} имён",
+              _hist_bins(dir_freq), "#315f9e"),
+             (f"Файлы-классы — имена · {len(cls_freq)} имён",
+              _hist_bins(cls_freq), "#2f7d54")],
+            "прогонов, в которых встречено имя")
+
+    # размер решения: файлов и строк в прогоне — одновершинное распределение
+    # вокруг типового объёма (в отличие от L-формы частоты имён)
+    def _range_bins(values: list[int], width: int) -> list[tuple[str, int]]:
+        out, start = [], min(values) // width * width
+        while start <= max(values):
+            end = start + width - 1
+            out.append((f"{start}–{end}", sum(1 for v in values if start <= v <= end)))
+            start = end + 1
+        return out
+
+    file_sizes = [len(r["files"]) for r in runs]
+    loc_sizes = [r["loc"] for r in runs if r["loc"] is not None]
+
+    def _size_svg() -> str:
+        return _hist_svg(
+            [(f"Файлов (классов) в прогоне · медиана {st.median(file_sizes):.0f}",
+              _range_bins(file_sizes, 5), "#315f9e"),
+             (f"Строк (LOC src/) в прогоне · медиана {st.median(loc_sizes):.0f}",
+              _range_bins(loc_sizes, 300), "#2f7d54")],
+            "размер решения (диапазон); бар — число прогонов")
 
     one_dirs = 100 * dir_freq.count(1) / len(dir_freq)
     one_cls = 100 * cls_freq.count(1) / len(cls_freq)
     one_fp = 100 * fp_freq.count(1) / len(fp_freq)
     top_txt = ", ".join(f"{nm} — {cnt} из {n}" for nm, cnt in cls_base.most_common(3))
+    rmin = min((r for r in runs if r["loc"]), key=lambda r: r["loc"])
+    rmax = max((r for r in runs if r["loc"]), key=lambda r: r["loc"])
 
     # строки таблицы — в порядке качества, как основная таблица §4:
     # сумма чекера → ревью оси A
@@ -1670,6 +1698,17 @@ def structure_section(data: list[dict]) -> str:
             f'файлов переменчивее самих имён: {one_fp:.0f}% путей — одиночные против '
             f'{one_cls:.0f}% у имён — класс переиспользуется чаще, чем его расположение. '
             f'Популяция — успешные прогоны, как и во всей подсекции.</p>'
+            f'<p class=excap>Размер решения: классы и строки</p>'
+            f'{_size_svg()}'
+            f'<p class=sub>Бар — число успешных прогонов с размером из диапазона. '
+            f'Типовой объём успешного решения — {st.median(file_sizes):.0f} файлов и '
+            f'{st.median(loc_sizes):.0f} строк (разброс {min(file_sizes)}–{max(file_sizes)} '
+            f'файлов, {min(loc_sizes)}–{max(loc_sizes)} строк); в отличие от частоты имён, '
+            f'распределение одновершинное. Полюса: {rmin["short"]} ·{rmin["run"].removeprefix("run-")} '
+            f'уместил задание в {rmin["loc"]} строк при {len(rmin["files"])} файлах — почти вдвое '
+            f'компактнее следующего ({sorted(loc_sizes)[1]}), {rmax["short"]} '
+            f'·{rmax["run"].removeprefix("run-")} растянул до {rmax["loc"]} строк при '
+            f'{len(rmax["files"])} файлах — при одинаковом полном зачёте обоих.</p>'
             f'<p class=excap>Слепки по моделям и постоянство структуры</p>'
             f'<div style="overflow-x:auto"><table><thead><tr><th>Модель</th>'
             f'<th>Верхний уровень src/ по прогонам</th><th class=narrow>Постоян&shy;ство</th>'
