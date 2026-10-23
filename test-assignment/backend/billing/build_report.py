@@ -1468,13 +1468,12 @@ def structure_section(data: list[dict]) -> str:
                 html_line = line_html(prefix, conn, k, v.get("#", 0), has_kids)
                 if not has_kids:
                     out.append(f'<div class=tline>{html_line}</div>')
-                elif depth == 0:
-                    # первый уровень раскрыт всегда и без переключателя
-                    out.append(f'<div class=tline>{html_line}</div>'
-                               + walk(v, child_prefix, depth + 1))
                 else:
-                    # со второго уровня: свёрнут по умолчанию, клик по [+]/[−]
-                    out.append(f'<details class=tnode><summary class=tline>{html_line}</summary>'
+                    # первый уровень раскрыт по умолчанию, глубже — свёрнут;
+                    # клик по [+]/[−] на строке переключает
+                    open_attr = " open" if depth == 0 else ""
+                    out.append(f'<details class=tnode{open_attr}>'
+                               f'<summary class=tline>{html_line}</summary>'
                                + walk(v, child_prefix, depth + 1) + "</details>")
             return "".join(out)
 
@@ -1567,8 +1566,8 @@ def structure_section(data: list[dict]) -> str:
             f'<p class=sub>Процент — доля прогонов из {n}, где каталог существует; '
             f'яркость имени — ступени по тому же проценту: ≥50% — чернильный, '
             f'25–49% — тёмно-серый, 10–24% — серый, 3% (один прогон) — бледный. '
-            f'Первый уровень раскрыт всегда; каталоги со второго уровня свёрнуты '
-            f'и раскрываются кликом по [+], сворачивают по [−] — бледные ветки '
+            f'Каталоги первого уровня раскрыты по умолчанию, глубже — свёрнуты; '
+            f'клик по строке переключает [+]/[−] — бледные ветки '
             f'внутри и есть вариативность моделей. Каркасные src/ и tests/ — серые: '
             f'они даны скелетом, не выбором модели.</p>'
             f'<p class=excap>Слепки по моделям и постоянство структуры</p>'
