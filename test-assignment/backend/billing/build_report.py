@@ -1650,7 +1650,7 @@ def structure_section(data: list[dict]) -> str:
             + "".join(f'<span class=dchip>{x}</span>' for x in grp[0]["top"]) + "</div>"
             for _, grp in sigs)
         if j_top is None:
-            const = '<span class=sub>один прогон</span>'
+            const = "—"   # один прогон: постоянства нет
         else:
             hue = "#2f7d54" if j_top >= 0.7 else "#315f9e" if j_top >= 0.4 else "#b3543f"
             const = (f'<span title="Средний Jaccard наборов каталогов верхнего уровня '
