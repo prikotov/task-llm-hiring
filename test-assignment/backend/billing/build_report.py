@@ -1382,12 +1382,14 @@ def structure_section(data: list[dict]) -> str:
     from itertools import combinations
 
     agg_rows = results_agg(data)
-    gkeys = {(a["folder"], a["note"], a["ctx"], a["tuned"], a["retag"])
+    gkeys = {(a["folder"], a["note"], a["ctx"], a["tuned"])
              for a in agg_rows if a["n"] and (a["a1"] or 0) >= REVIEW_GOOD}
     excluded = [a for a in agg_rows if a["n"] and (a["a1"] or 0) < REVIEW_GOOD]
 
     def gkey(r):  # noqa: E731
-        return (r["folder"], r["note"], r["ctx"], "-tuned" in r["tag"], r["retag"])
+        # серия MTP слита с родной: те же веса, скорость генерации на структуру
+        # не влияет; -tuned — другие веса, остаётся отдельной группой
+        return (r["folder"], r["note"], r["ctx"], "-tuned" in r["tag"])
 
     runs = [r for r in structure_scan(data) if gkey(r) in gkeys]
     if not runs:
@@ -1397,7 +1399,8 @@ def structure_section(data: list[dict]) -> str:
 
     # группы — как в основной таблице §4: модель в одном режиме (уровень
     # размышлений + контекст + серия); уровень рассуждений может влиять на
-    # раскладку, поэтому постоянство смотрится внутри режима
+    # раскладку, поэтому постоянство смотрится внутри режима; MTP-серия
+    # слита с родной (те же веса)
     by_g: dict[tuple, list[dict]] = {}
     for r in runs:
         by_g.setdefault(gkey(r), []).append(r)
@@ -1673,9 +1676,7 @@ def structure_section(data: list[dict]) -> str:
                 detail = " · ".join(t + "/" for t in tops) if tops else "в корне tests/"
             tcell = (f"{len(with_tests)} из {n_r}"
                      f'<div class=sub style="white-space:nowrap">{detail}</div>')
-        label = (rs[0]["short"]
-                 + (" · MTP" if rs[0]["retag"] else "")
-                 + (" ·tuned" if "-tuned" in rs[0]["tag"] else ""))
+        label = rs[0]["short"] + (" ·tuned" if "-tuned" in rs[0]["tag"] else "")
         trs.append(f"<tr><td><b>{label}</b></td>"
                    f'<td class=narrow>{rs[0]["note"]}</td><td>{runs_html}</td>'
                    f'<td class=narrow>{const}</td><td class=narrow>{tcell}</td></tr>')
