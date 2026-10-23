@@ -1536,7 +1536,8 @@ def structure_section(data: list[dict]) -> str:
     cls_freq = list(cls_base.values())
     fp_freq = list((src_files + t_files).values())
 
-    def _hist_svg(panels: list[tuple[str, list[tuple[str, int]], str]], xlabel: str) -> str:
+    def _hist_svg(panels: list[tuple[str, list[tuple[str, int]], str]],
+                  xlabel: str, ylabel: str) -> str:
         """Панельная гистограмма: (заголовок, [(подпись бина, значение)], цвет)."""
         W, H, MT, MB = 880, 280, 44, 44
         svg = []
@@ -1546,17 +1547,21 @@ def structure_section(data: list[dict]) -> str:
             step = 20 if vmax > 100 else 10 if vmax > 40 else 5
             top = max(((vmax + step - 1) // step) * step, step)
             plot_h = H - MT - MB
-            svg.append(f'<text x="{x0 + 10}" y="20" font-size="13" font-weight="600" '
+            svg.append(f'<text x="{x0 + 22}" y="20" font-size="13" font-weight="600" '
                        f'fill="#1d2433">{title}</text>')
+            cy = MT + plot_h / 2
+            svg.append(f'<text x="{x0 + 8}" y="{cy:.0f}" text-anchor="middle" '
+                       f'transform="rotate(-90 {x0 + 8} {cy:.0f})" '
+                       f'font-size="11.5" fill="#66707f">{ylabel}</text>')
             for t in range(0, top + 1, step):
                 y = MT + (top - t) / top * plot_h
-                svg.append(f'<line x1="{x0 + 30}" y1="{y:.0f}" x2="{x0 + W / 2 - 16}" y2="{y:.0f}" '
+                svg.append(f'<line x1="{x0 + 40}" y1="{y:.0f}" x2="{x0 + W / 2 - 16}" y2="{y:.0f}" '
                            f'stroke="#e4e7ec"/>'
-                           f'<text x="{x0 + 24}" y="{y + 4:.0f}" text-anchor="end" '
+                           f'<text x="{x0 + 34}" y="{y + 4:.0f}" text-anchor="end" '
                            f'font-size="11" fill="#66707f">{t}</text>')
-            bw = (W / 2 - 56) / len(bins)
+            bw = (W / 2 - 66) / len(bins)
             for bi, (label, c) in enumerate(bins):
-                bx = x0 + 34 + bi * bw
+                bx = x0 + 44 + bi * bw
                 bh = plot_h * c / top
                 svg.append(f'<rect x="{bx:.0f}" y="{MT + plot_h - bh:.0f}" width="{bw * 0.58:.0f}" '
                            f'height="{max(bh, 1):.0f}" rx="3" fill="{hue}" fill-opacity="0.82"/>'
@@ -1576,7 +1581,7 @@ def structure_section(data: list[dict]) -> str:
               _hist_bins(dir_freq), "#315f9e"),
              (f"Файлы-классы — имена · {len(cls_freq)} имён",
               _hist_bins(cls_freq), "#2f7d54")],
-            "прогонов, в которых встречено имя")
+            "прогонов, в которых встречено имя", "число разных имён")
 
     # размер решения: файлов и строк в прогоне — одновершинное распределение
     # вокруг типового объёма (в отличие от L-формы частоты имён)
@@ -1597,7 +1602,7 @@ def structure_section(data: list[dict]) -> str:
               _range_bins(file_sizes, 5), "#315f9e"),
              (f"Строк (LOC src/) в прогоне · медиана {st.median(loc_sizes):.0f}",
               _range_bins(loc_sizes, 300), "#2f7d54")],
-            "размер решения (диапазон); бар — число прогонов")
+            "размер решения (диапазон)", "число прогонов")
 
     one_dirs = 100 * dir_freq.count(1) / len(dir_freq)
     one_cls = 100 * cls_freq.count(1) / len(cls_freq)
@@ -1697,8 +1702,8 @@ def structure_section(data: list[dict]) -> str:
             f'серые корни каркаса.</p>'
             f'<p class="excap sb">Распределение имён: общие и уникальные</p>'
             f'{_dist_svg()}'
-            f'<p class=sub>Бины — скольким прогонам встречено имя (путь каталога '
-            f'или имя файла-класса), бар — число разных имён в бине; панель каталогов '
+            f'<p class=sub>По оси X — скольким прогонам встречено имя (путь каталога '
+            f'или имя файла-класса), по оси Y — число таких имён; панель каталогов '
             f'включает src/ и tests/. Медиана у обеих панелей — один прогон: '
             f'{one_dirs:.0f}% путей каталогов и {one_cls:.0f}% имён классов существуют '
             f'в одном экземпляре — это уникальные имена. Но есть и общие: '
@@ -1708,7 +1713,8 @@ def structure_section(data: list[dict]) -> str:
             f'Выборка — успешные прогоны, как и во всей подсекции.</p>'
             f'<p class="excap sb">Размер решения: классы и строки</p>'
             f'{_size_svg()}'
-            f'<p class=sub>Бар — число успешных прогонов с размером из диапазона. '
+            f'<p class=sub>По оси X — размер решения (диапазон файлов или строк), '
+            f'по оси Y — число успешных прогонов с размером из диапазона. '
             f'Типовой объём успешного решения — {st.median(file_sizes):.0f} файлов и '
             f'{st.median(loc_sizes):.0f} строк (разброс {min(file_sizes)}–{max(file_sizes)} '
             f'файлов, {min(loc_sizes)}–{max(loc_sizes)} строк); в отличие от частоты имён, '
