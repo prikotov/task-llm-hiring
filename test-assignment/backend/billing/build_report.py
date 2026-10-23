@@ -1395,15 +1395,21 @@ def structure_section(data: list[dict]) -> str:
     n = len(runs)
     low = lambda names: [x.lower() for x in names]  # noqa: E731  (Ui/UI, Util/util)
 
-    by_f: dict[str, list[dict]] = {}
+    # группы — как в основной таблице §4: модель в одном режиме (уровень
+    # размышлений + контекст + серия); уровень рассуждений может влиять на
+    # раскладку, поэтому постоянство смотрится внутри режима
+    by_g: dict[tuple, list[dict]] = {}
     for r in runs:
-        by_f.setdefault(r["folder"], []).append(r)
+        by_g.setdefault(gkey(r), []).append(r)
 
     def pair_jac(rs):
         return [(_jaccard(low(a["top"]), low(b["top"])), _jaccard(a["dirs"], b["dirs"]))
                 for a, b in combinations(rs, 2)]
 
-    within = [pj for rs in by_f.values() for pj in pair_jac(rs)]
+    within = [pj for rs in by_g.values() for pj in pair_jac(rs)]
+    # типичность — между моделями (разные папки); пары одного файла в разных
+    # режимах не участвуют ни там, ни там: это не «чужая модель», но и не
+    # повтор режима
     between = [( _jaccard(low(a["top"]), low(b["top"])), _jaccard(a["dirs"], b["dirs"]))
                for a, b in combinations(runs, 2) if a["folder"] != b["folder"]]
     w_top = st.mean(p[0] for p in within) if within else 0.0
@@ -1413,10 +1419,10 @@ def structure_section(data: list[dict]) -> str:
     # тот же расчёт по всем живым прогонам с решением — для сравнения
     all_runs = structure_scan(data)
     if len(all_runs) > len(runs):
-        by_fa: dict[str, list[dict]] = {}
+        by_ga: dict[tuple, list[dict]] = {}
         for r in all_runs:
-            by_fa.setdefault(r["folder"], []).append(r)
-        wt_a = st.mean(p[0] for rs in by_fa.values() for p in pair_jac(rs))
+            by_ga.setdefault(gkey(r), []).append(r)
+        wt_a = st.mean(p[0] for rs in by_ga.values() for p in pair_jac(rs))
         bt_a = st.mean(_jaccard(low(a["top"]), low(b["top"]))
                        for a, b in combinations(all_runs, 2) if a["folder"] != b["folder"])
     else:
@@ -1509,6 +1515,7 @@ def structure_section(data: list[dict]) -> str:
                 + walk(tree, ""))
 
     n_tests = sum(1 for r in runs if r["ntf"])
+    n_models = len({r["folder"] for r in runs})
     tests_txt = ("tests/ есть во всех прогонах" if n_tests == n
                  else f"tests/ пишут в {n_tests} из {n} прогонов")
     tree_html = (_tree(src_dirs, src_files, "src/")
@@ -1618,13 +1625,13 @@ def structure_section(data: list[dict]) -> str:
     # строки таблицы — в порядке качества, как основная таблица §4:
     # сумма чекера → ревью оси A
     def sort_key(item):
-        folder, rs = item
+        _, rs = item
         total = st.mean([(r["mand"] or 0) + (r["bonus"] or 0) for r in rs])
         a1 = st.mean([r["a1"] for r in rs if r["a1"] is not None] or [0.0])
         return (-total, -a1)
 
     trs = []
-    for folder, rs in sorted(by_f.items(), key=sort_key):
+    for gk, rs in sorted(by_g.items(), key=sort_key):
         rs = sorted(rs, key=lambda r: r["run"])
         n_r = len(rs)
         pj = pair_jac(rs)
@@ -1647,7 +1654,7 @@ def structure_section(data: list[dict]) -> str:
         else:
             hue = "#2f7d54" if j_top >= 0.7 else "#315f9e" if j_top >= 0.4 else "#b3543f"
             const = (f'<span title="Средний Jaccard наборов каталогов верхнего уровня '
-                     f'между парами прогонов модели (0–1). По полным путям: {j_all:.2f}." '
+                     f'между парами прогонов режима (0–1). По полным путям: {j_all:.2f}." '
                      f'style="cursor:help"><div class="barwrap s">'
                      f'<div class=bar style="width:{max(3, j_top * 100):.0f}%;background:{hue}"></div>'
                      f'<span>{j_top:.2f}</span></div></span>')
@@ -1666,17 +1673,22 @@ def structure_section(data: list[dict]) -> str:
                 detail = " · ".join(t + "/" for t in tops) if tops else "в корне tests/"
             tcell = (f"{len(with_tests)} из {n_r}"
                      f'<div class=sub style="white-space:nowrap">{detail}</div>')
-        trs.append(f"<tr><td><b>{rs[0]['short']}</b></td><td>{runs_html}</td>"
+        label = (rs[0]["short"]
+                 + (" · MTP" if rs[0]["retag"] else "")
+                 + (" ·tuned" if "-tuned" in rs[0]["tag"] else ""))
+        trs.append(f"<tr><td><b>{label}</b></td>"
+                   f'<td class=narrow>{rs[0]["note"]}</td><td>{runs_html}</td>'
                    f'<td class=narrow>{const}</td><td class=narrow>{tcell}</td></tr>')
 
-    # полюса постоянства — по моделям с 2+ прогонами
-    rated = [(folder, st.mean(p[0] for p in pair_jac(rs)))
-             for folder, rs in by_f.items() if len(rs) > 1]
+    # полюса постоянства — по режимам с 2+ прогонами
+    rated = [(rs, st.mean(p[0] for p in pair_jac(rs)))
+             for rs in by_g.values() if len(rs) > 1]
     best = max(rated, key=lambda x: x[1])
     worst = min(rated, key=lambda x: x[1])
-    sname = lambda f: next(r["short"] for r in runs if r["folder"] == f)  # noqa: E731
+    gname = lambda rs: f"{rs[0]['short']} ·{rs[0]['note']}"  # noqa: E731
     n_mir = sum(1 for r in runs if r["ntf"] and r["tdirs"] & r["dirs"])
     excl_txt = " · ".join(f"{a['short']} ·{a['note']}" for a in excluded)
+    n_modes = sum(1 for rs in by_g.values() if len(rs) > 1)
 
     return (f'<h3>Структура кода: src/ и tests/</h3>'
             f'<p class=lead>Задание не подсказывает устройство кода: скелет — это '
@@ -1685,7 +1697,7 @@ def structure_section(data: list[dict]) -> str:
             f'усмотрение (это предмет оценки)». Раскладка классов в src/ — датчик '
             f'врождённых предпочтений модели и оценка постоянства этих предпочтений '
             f'между прогонами. '
-            f'Смотрим на успешные решения — {n} прогонов {len(by_f)} моделей, чьи '
+            f'Смотрим на успешные решения — {n} прогонов {n_models} моделей, чьи '
             f'режимы набрали в среднем не меньше {REVIEW_GOOD:g} баллов ревью по оси A '
             f'(верхние квадранты карт выше).</p>'
             f'<p class=excap>Сводная структура: все каталоги и файлы классов, которые '
@@ -1730,20 +1742,23 @@ def structure_section(data: list[dict]) -> str:
             f'компактнее следующего ({sorted(loc_sizes)[1]}), {rmax["short"]} '
             f'·{rmax["run"].removeprefix("run-")} растянул до {rmax["loc"]} строк при '
             f'{len(rmax["files"])} файлах — при одинаковом полном зачёте обоих.</p>'
-            f'<p class="excap sb">Слепки по моделям и постоянство структуры</p>'
+            f'<p class="excap sb">Слепки по режимам и постоянство структуры</p>'
             f'<div style="overflow-x:auto"><table><thead><tr><th>Модель</th>'
+            f'<th class=narrow>Мышл.</th>'
             f'<th>Верхний уровень src/ по прогонам</th><th class=narrow>Постоян&shy;ство</th>'
             f'<th class=narrow>tests/</th></tr></thead><tbody>{"".join(trs)}</tbody></table></div>'
             f'<div class=note><b>Постоянство против типичности.</b> Мера — коэффициент Жаккара '
             f'наборов каталогов (0 = не пересекаются, 1 = совпадают), усреднённый по парам '
-            f'прогонов. Внутри модели структура повторяется в среднем на {w_top:.2f} '
+            f'прогонов. Постоянство считается внутри одного режима (модель + уровень '
+            f'размышлений; режимов с 2+ прогонами — {n_modes}): структура повторяется '
+            f'в среднем на {w_top:.2f} '
             f'(по полным путям {w_all:.2f}), между разными моделями — на {b_top:.2f} '
             f'({b_all:.2f} по путям): раскладка успешных решений — «почерк» модели. '
             + (f'Тот же расчёт по всем живым прогонам с решением ({len(all_runs)} шт.) '
                f'даёт {wt_a:.2f} против {bt_a:.2f} — зазор шире: качество заставляет '
                f'раскладки сближаться, но «почерк» остаётся. ' if wt_a is not None else "")
-            + f'Полюса: {sname(best[0])} повторяет раскладку точнее всех '
-            f'({best[1]:.2f}), {sname(worst[0])} каждый прогон строит заново ({worst[1]:.2f}). '
+            + f'Полюса: {gname(best[0])} повторяет раскладку точнее всех '
+            f'({best[1]:.2f}), {gname(worst[0])} каждый прогон строит заново ({worst[1]:.2f}). '
             f'Верхний уровень устойчивее глубины: по полным путям средние ниже — модели верны '
             f'слою, но не деталям раскладки. {tests_txt}: {n_mir} зеркалят раскладку src/, '
             f'остальные раскладывают '
