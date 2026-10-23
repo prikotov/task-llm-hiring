@@ -320,6 +320,7 @@ h3{font-size:17.5px;margin:26px 0 2px}
 p{margin:10px 0}
 .sub{font-size:12.5px;color:var(--mut);margin-top:3px;line-height:1.5}
 .excap{font-size:15px;color:var(--ink);margin:12px 0 -4px;line-height:1.5}
+.excap.sb{font-weight:700;margin-top:26px}
 table{border-collapse:collapse;width:100%;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 2px rgba(20,30,50,.07);margin:14px 0}
 th{background:#eef1f6;text-align:left;font-size:12.5px;text-transform:uppercase;letter-spacing:.03em;color:#46536a;padding:10px 12px;border-bottom:2px solid var(--line)}
 th.narrow{padding-left:5px;padding-right:5px}
@@ -1694,7 +1695,7 @@ def structure_section(data: list[dict]) -> str:
             f'в соответствие имени класса, так что это срез того, как модели '
             f'называют классы. Каркасный src/Kernel.php не показан; src/ и tests/ — '
             f'серые корни каркаса.</p>'
-            f'<p class=excap>Распределение имён: консенсус против хвоста</p>'
+            f'<p class="excap sb">Распределение имён: консенсус против хвоста</p>'
             f'{_dist_svg()}'
             f'<p class=sub>Бины — скольким прогонам встречено имя (путь каталога '
             f'или имя файла-класса), бар — число разных имён в бине; панель каталогов '
@@ -1704,7 +1705,7 @@ def structure_section(data: list[dict]) -> str:
             f'файлов переменчивее самих имён: {one_fp:.0f}% путей — одиночные против '
             f'{one_cls:.0f}% у имён — класс переиспользуется чаще, чем его расположение. '
             f'Выборка — успешные прогоны, как и во всей подсекции.</p>'
-            f'<p class=excap>Размер решения: классы и строки</p>'
+            f'<p class="excap sb">Размер решения: классы и строки</p>'
             f'{_size_svg()}'
             f'<p class=sub>Бар — число успешных прогонов с размером из диапазона. '
             f'Типовой объём успешного решения — {st.median(file_sizes):.0f} файлов и '
@@ -1715,7 +1716,7 @@ def structure_section(data: list[dict]) -> str:
             f'компактнее следующего ({sorted(loc_sizes)[1]}), {rmax["short"]} '
             f'·{rmax["run"].removeprefix("run-")} растянул до {rmax["loc"]} строк при '
             f'{len(rmax["files"])} файлах — при одинаковом полном зачёте обоих.</p>'
-            f'<p class=excap>Слепки по моделям и постоянство структуры</p>'
+            f'<p class="excap sb">Слепки по моделям и постоянство структуры</p>'
             f'<div style="overflow-x:auto"><table><thead><tr><th>Модель</th>'
             f'<th>Верхний уровень src/ по прогонам</th><th class=narrow>Постоян&shy;ство</th>'
             f'<th class=narrow>tests/</th></tr></thead><tbody>{"".join(trs)}</tbody></table></div>'
