@@ -1455,12 +1455,58 @@ def _cmd_words(cmd: str) -> list[str]:
     return words
 
 
+TOOL_COL = {"bash": "#315f9e", "write": "#2f7d54", "edit": "#d09a53", "read": "#b3543f"}
+TOOL_ORDER = ["bash", "write", "edit", "read"]
+UTIL_HUES = ["#315f9e", "#2f7d54", "#d09a53", "#b3543f", "#6b5b9e",
+             "#3f8f9e", "#8a93a0", "#c08a00", "#5b9bd5"]
+
+
+def _donut(items, R, SW, colors, center1="", center2="", font=30) -> str:
+    """SVG-пончик: сегменты — доли items (имя, значение); тултипы сегментов —
+    нативные <title>, без JS. Тот же рисунок, что donut_card отчёта прогона."""
+    import math
+    total = sum(v for _, v in items)
+    CX = R + SW // 2 + 2
+    C = 2 * math.pi * R
+    segs, cum = [], 0.0
+    for name, v in items:
+        if not v:
+            continue
+        hue = colors.get(name, "#9aa3ad") if isinstance(colors, dict) else colors[i % len(colors)]
+        seg = v / total * C
+        pct = round(100 * v / total)
+        segs.append(f'<circle r={R} cx={CX} cy={CX} fill="none" stroke="{hue}" '
+                    f'stroke-width={SW} stroke-dasharray="{seg:.1f} {C - seg:.1f}" '
+                    f'stroke-dashoffset="{-cum:.1f}" transform="rotate(-90 {CX} {CX})">'
+                    f'<title>{name} — {v} ({pct}%)</title></circle>')
+        cum += seg
+    if center1:
+        segs.append(f'<text x={CX} y={CX - 2} text-anchor=middle font-size={font} '
+                    f'font-weight=bold fill="#1d2433">{center1}</text>'
+                    f'<text x={CX} y={CX + 18} text-anchor=middle font-size={max(11, font // 2)} '
+                    f'fill="#66707f">{center2}</text>')
+    D = 2 * CX
+    return f'<svg width="{D}" height="{D}" viewBox="0 0 {D} {D}">{"".join(segs)}</svg>'
+
+
+def _tvd_sim(va, vb) -> float:
+    """Схожесть долевых векторов счётчиков (0..1, 1 = идентичный микс):
+    единица минус расстояние общей вариации долей."""
+    ta = sum(va.values()) or 1
+    tb = sum(vb.values()) or 1
+    keys = set(va) | set(vb)
+    d = sum(abs(va.get(k, 0) / ta - vb.get(k, 0) / tb) for k in keys) / 2
+    return 1.0 - d
+
+
 def tools_section(data: list[dict]) -> str:
-    """Аналитика tool-вызовов и bash-утилит по успешным прогонам: чем модели
-    работают, как предпочитают править файлы (write/edit/heredoc) и звали ли
-    утилиты, которых в окружении нет."""
+    """Аналитика tool-вызовов и bash-утилит по успешным прогонам: агрегатные
+    пончики (как в отчёте прогона), микс инструментов каждой модели (мини-пироги),
+    матрица утилит с тепловой заливкой и постоянство микса внутри режима
+    против типичности между моделями (аналог постоянства структуры)."""
     import statistics as st
     from collections import Counter
+    from itertools import combinations
 
     good = _good_runs(data)
     if not good:
@@ -1505,20 +1551,77 @@ def tools_section(data: list[dict]) -> str:
         return tools, utils, hered, miss, errs
 
     scan = {(r["folder"], r["run"]): parse(r) for r in live}
-    good_scan = [scan[(r["folder"], r["run"])] for r in good]
+    sgood = [scan[(r["folder"], r["run"])] for r in good]
 
-    # инструменты: прогонов, вызовов, медиана на прогон, ошибок
-    tool_names = sorted({t for s, *_ in good_scan for t in s},
-                        key=lambda t: -sum(s[t] for s, *_ in good_scan))
+    def mode_of(r):
+        return (r["folder"], r["note"], r["ctx"], "-tuned" in r["tag"])
+
+    by_g: dict[tuple, list[dict]] = {}
+    for r in good:
+        by_g.setdefault(mode_of(r), []).append(r)
+
+    def mode_sort(item):
+        _, rs = item
+        total = st.mean([(r["mand"] or 0) + (r["bonus"] or 0) for r in rs])
+        a1 = st.mean([r["a1"] for r in rs if r["a1"] is not None] or [0.0])
+        return (-total, -a1)
+
+    modes = sorted(by_g.items(), key=mode_sort)
+    mode_label = lambda rs: rs[0]["short"] + (" ·tuned" if "-tuned" in rs[0]["tag"] else "")  # noqa: E731
+
+    # --- агрегат: пончики + таблица инструментов -----------------------------
+    agg_tools: Counter = Counter()
+    agg_utils: Counter = Counter()
+    for r in good:
+        t, u, *_ = scan[(r["folder"], r["run"])]
+        agg_tools.update(t)
+        agg_utils.update(u)
+    total_calls = sum(agg_tools.values())
+    tool_items = [(t, agg_tools[t]) for t in TOOL_ORDER if agg_tools.get(t)]
+
+    donut_tools = _donut(tool_items, 70, 32, TOOL_COL,
+                         str(total_calls), "tool-вызовов")
+    legend = "".join(
+        f'<div style="display:flex;align-items:center;gap:9px;margin:5px 0;font-size:13.5px">'
+        f'<span style="width:13px;height:13px;border-radius:4px;background:{TOOL_COL[t]};flex:none"></span>'
+        f'<span style="width:46px"><code>{t}</code></span><b>{v}</b>'
+        f'<span class=sub>{round(100 * v / total_calls)}%</span></div>'
+        for t, v in tool_items)
+    card_tools = (f'<div style="flex:1 1 340px;min-width:320px">'
+                  f'<h3>Tool-вызовы по инструментам</h3>'
+                  f'<div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap;margin:10px 0">'
+                  f'{donut_tools}<div>{legend}</div></div></div>')
+
+    top8 = [w for w, _ in agg_utils.most_common(8)]
+    rest = sum(v for w, v in agg_utils.items() if w not in top8)
+    items8 = [(w, agg_utils[w]) for w in top8] + ([("остальное", rest)] if rest else [])
+    util_colors = {w: UTIL_HUES[i % len(UTIL_HUES)] for i, w in enumerate(top8)}
+    util_colors["остальное"] = "#cdd3da"
+    donut_utils = _donut(items8, 70, 32, util_colors,
+                         str(sum(agg_utils.values())), "утилитных вызовов")
+    legend_u = "".join(
+        f'<div style="display:flex;align-items:center;gap:9px;margin:5px 0;font-size:13.5px">'
+        f'<span style="width:13px;height:13px;border-radius:4px;background:{util_colors[w]};flex:none"></span>'
+        f'<span style="width:96px"><code>{w}</code></span><b>{v}</b>'
+        f'<span class=sub>{round(100 * v / sum(agg_utils.values()))}%</span></div>'
+        for w, v in items8)
+    card_utils = (f'<div style="flex:1 1 340px;min-width:320px">'
+                  f'<h3>Утилиты в bash</h3>'
+                  f'<div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap;margin:10px 0">'
+                  f'{donut_utils}<div>{legend_u}</div></div></div>')
+    donuts = (f'<div style="display:flex;gap:36px;flex-wrap:wrap;align-items:flex-start">'
+              f'{card_tools}{card_utils}</div>')
+
     trs = []
-    for t in tool_names:
-        per = [s[t] for s, *_ in good_scan]
+    for t in TOOL_ORDER:
+        if not agg_tools.get(t):
+            continue
+        per = [s[0][t] for s in sgood]
         used = sum(1 for v in per if v)
-        calls = sum(per)
-        errs = sum(e[t] for *_, e in good_scan)
+        errs = sum(s[4][t] for s in sgood)
         trs.append(f"<tr><td><code>{t}</code></td>"
                    f'<td class=narrow>{used} из {n}</td>'
-                   f'<td class=narrow>{calls}</td>'
+                   f'<td class=narrow>{agg_tools[t]}</td>'
                    f'<td class=narrow>{st.median(per):.0f}</td>'
                    f'<td class=narrow>{errs}</td></tr>')
     tool_table = ('<table style="width:auto;max-width:640px"><thead>'
@@ -1527,58 +1630,92 @@ def tools_section(data: list[dict]) -> str:
                   '<th class=narrow>Ошибок</th></tr></thead>'
                   f'<tbody>{"".join(trs)}</tbody></table>')
 
-    # утилиты bash: топ по числу прогонов (при равенстве — по вызовам)
-    utils_all = Counter()
-    for _, utils, *_ in good_scan:
-        utils_all.update(utils)
-    utils_runs = Counter()
-    for _, utils, *_ in good_scan:
-        for w in utils:
-            utils_runs[w] += 1
-    rows = sorted(utils_runs.items(), key=lambda kv: (-kv[1], -utils_all[kv[0]]))[:12]
-    rows = [(w, utils_runs[w], utils_all[w]) for w, _ in rows]
-    W, row_h, ML, MR = 680, 24, 128, 56
-    H = len(rows) * row_h + 34
-    PW = W - ML - MR
-    vmax = max(r[1] for r in rows)
-    step = 5 if vmax <= 30 else 10
-    svg = []
-    t = step
-    while t <= vmax:
-        x = ML + t / vmax * PW
-        svg.append(f'<line x1="{x:.0f}" y1="0" x2="{x:.0f}" y2="{H - 26}" stroke="#e4e7ec"/>'
-                   f'<text x="{x:.0f}" y="{H - 10}" text-anchor="middle" font-size="11" '
-                   f'fill="#66707f">{t}</text>')
-        t += step
-    for i, (w, runs, calls) in enumerate(rows):
-        y = i * row_h + 2
-        bw = max(3, runs / vmax * PW)
-        svg.append(f'<text x="{ML - 10}" y="{y + 14}" text-anchor="end" font-size="12" '
-                   f'fill="#1d2433">{w}</text>'
-                   f'<rect x="{ML}" y="{y}" width="{bw:.0f}" height="15" rx="4" '
-                   f'fill="#315f9e" fill-opacity="0.78"/>'
-                   f'<text x="{ML + bw + 7:.0f}" y="{y + 13}" font-size="11.5" '
-                   f'font-weight="600" fill="#46536a">{runs}·{calls}</text>')
-    bars = (f'<svg width="{W}" height="{H}" viewBox="0 0 {W} {H}" style="max-width:100%">'
-            + "".join(svg) + "</svg>")
+    # --- микс инструментов по режимам: ряд мини-пирогов ----------------------
+    pies = []
+    for _, rs in modes:
+        mix: Counter = Counter()
+        for r in rs:
+            mix.update(scan[(r["folder"], r["run"])][0])
+        items = [(t, mix.get(t, 0)) for t in TOOL_ORDER]
+        calls = sum(mix.values())
+        pies.append(f'<div style="text-align:center">'
+                    f'{_donut(items, 34, 15, TOOL_COL, font=0)}'
+                    f'<div style="font-size:12px;font-weight:600;margin-top:4px;'
+                    f'white-space:nowrap">{mode_label(rs)}</div>'
+                    f'<div class=sub>{calls} вызовов</div></div>')
+    strip = (f'<div style="display:flex;flex-wrap:wrap;gap:14px 24px;'
+             f'justify-content:center;margin:14px 0">{"".join(pies)}</div>'
+             f'<p class=sub>Пончик режима — доли bash/write/edit/read в его '
+             f'вызовах (порядок и цвета — как на агрегате слева); наведение — '
+             f'числа. Сортировка режимов — по качеству, как в таблицах выше.</p>')
 
-    # write vs edit и heredoc-записи: стратегия правок
-    med_w = st.median([s.get("write", 0) for s, *_ in good_scan])
-    med_e = st.median([s.get("edit", 0) for s, *_ in good_scan])
-    hered_runs = sum(1 for _, _, h, _, _ in good_scan if h)
-    hered_all = sum(h for _, _, h, _, _ in good_scan)
+    # --- утилиты по режимам: матрица долей с тепловой заливкой ---------------
+    head = "".join(f'<th class=narrow><code>{w}</code></th>' for w in top8)
+    rows_m = []
+    for _, rs in modes:
+        mix: Counter = Counter()
+        for r in rs:
+            mix.update(scan[(r["folder"], r["run"])][1])
+        tot = sum(mix.values()) or 1
+        cells = []
+        for w in top8:
+            share = mix.get(w, 0) / tot
+            alpha = min(0.85, share * 1.7)
+            val = f"{round(100 * share)}%" if mix.get(w) else "—"
+            cells.append(f'<td class=narrow style="background:rgba(49,95,158,{alpha:.2f})">{val}</td>')
+        rows_m.append(f'<tr><td style="white-space:nowrap">{mode_label(rs)}</td>'
+                      f'{"".join(cells)}</tr>')
+    matrix = (f'<div style="overflow-x:auto"><table style="width:auto">'
+              f'<thead><tr><th>Модель</th>{head}</tr></thead>'
+              f'<tbody>{"".join(rows_m)}</tbody></table></div>'
+              f'<p class=sub>Доля утилиты в утилитных вызовах режима; заливка — '
+              f'та же доля. Колонки — топ-{len(top8)} утилит агрегата.</p>')
 
-    # несуществующие утилиты — по всем живым прогонам, выборка шире
-    miss_all = Counter()
-    for tools, utils, hered, miss, errs in scan.values():
+    # --- постоянство микса: внутри режима против между моделями --------------
+    def tvec(r):
+        return scan[(r["folder"], r["run"])][0]
+
+    def uvec(r):
+        c = scan[(r["folder"], r["run"])][1]
+        return Counter({w: c.get(w, 0) for w in top8})
+
+    within_t, within_u, between_t, between_u = [], [], [], []
+    for a, b in combinations(good, 2):
+        st_ = _tvd_sim(tvec(a), tvec(b))
+        su_ = _tvd_sim(uvec(a), uvec(b))
+        if mode_of(a) == mode_of(b):
+            within_t.append(st_)
+            within_u.append(su_)
+        else:
+            between_t.append(st_)
+            between_u.append(su_)
+    wt = st.mean(within_t) if within_t else 0.0
+    wu = st.mean(within_u) if within_u else 0.0
+    bt = st.mean(between_t) if between_t else 0.0
+    bu = st.mean(between_u) if between_u else 0.0
+    rated = []
+    for _, rs in modes:
+        if len(rs) < 2:
+            continue
+        rated.append((mode_label(rs),
+                      st.mean([_tvd_sim(tvec(a), tvec(b)) for a, b in combinations(rs, 2)]),
+                      st.mean([_tvd_sim(uvec(a), uvec(b)) for a, b in combinations(rs, 2)])))
+    best = max(rated, key=lambda x: x[1])
+    worst = min(rated, key=lambda x: x[1])
+
+    med_w = st.median([s[0].get("write", 0) for s in sgood])
+    med_e = st.median([s[0].get("edit", 0) for s in sgood])
+    hered_runs = sum(1 for s in sgood if s[2])
+    hered_all = sum(s[2] for s in sgood)
+
+    miss_all: Counter = Counter()
+    for *_, miss, _ in scan.values():
         miss_all.update(miss)
-
     miss_txt = (f"Попыток вызвать отсутствующие утилиты почти нет: на {n_live} живых "
-                f"прогонов — ни одного «command not found» "
-                f"(в обрывках сетки — 2 опечатки «grep.» с точкой). "
-                f"Стек каркаса (php, composer, docker, make, vendor/phpunit|psalm|phpcs) "
-                f"покрывает потребности моделей: фантазий про jq, tree, rg или phpmd "
-                f"не было."
+                f"прогонов — ни одного «command not found» (в обрывках сетки — 2 "
+                f"опечатки «grep.» с точкой). Стек каркаса (php, composer, docker, "
+                f"make, vendor/phpunit|psalm|phpcs) покрывает потребности моделей: "
+                f"фантазий про jq, tree, rg или phpmd не было."
                 if not miss_all else
                 "Пытались вызвать, но утилиты в окружении нет: "
                 + ", ".join(f"<code>{w}</code> ({c})" for w, c in miss_all.most_common(8)) + ".")
@@ -1586,14 +1723,22 @@ def tools_section(data: list[dict]) -> str:
     return (f'<p class="excap sb">Инструменты и утилиты в работе</p>'
             f'<p class=sub>След сессии pi: что модели вызывали сами. Популяция — {n} '
             f'успешных прогонов; поиск несуществующих утилит — по всем {n_live} живым.</p>'
+            f'{donuts}'
             f'{tool_table}'
-            f'<p class=excap>Утилиты bash: топ по прогонам</p>{bars}'
-            f'<p class=sub>Бар — прогонов из {n} (ось — прогоны), справа — прогоны·вызовы. '
-            f'Утилита = первый токен каждого сегмента цепочки (&amp;&amp;, ;, |); содержимое '
-            f'heredoc&apos;ов исключено; <code>php vendor/bin/…</code> даёт имя скрипта '
-            f'(phpunit, psalm…); <code>cd</code> не считается. <code>bin/console</code> — '
-            f'команды самого задания, <code>phpunit/psalm</code> — само­проверка каркаса.</p>'
+            f'<p class="excap sb">Микс инструментов по моделям</p>'
+            f'{strip}'
+            f'<p class="excap sb">Утилиты bash по моделям</p>'
+            f'{matrix}'
             f'<div class=note>'
+            f'<p><b>Постоянство микса.</b> Вектор долей инструментов и топ-{len(top8)} '
+            f'утилит каждого прогона; схожесть пары — 1 минус расстояние общей вариации '
+            f'долей (1 = одинаковый микс, 0 = не пересекаются). Внутри режима: '
+            f'{wt:.2f} по инструментам и {wu:.2f} по утилитам; между разными моделями — '
+            f'{bt:.2f} и {bu:.2f}. '
+            + (f'Полюса постоянства инструментов: {best[0]} ({best[1]:.2f}, утилиты '
+               f'{best[2]:.2f}) против {worst[0]} ({worst[1]:.2f}, утилиты {worst[2]:.2f}). '
+               if rated else "")
+            + f'</p>'
             f'<p><b>Стратегия правок.</b> Медианы на прогон: write {med_w:.0f} против '
             f'edit {med_e:.0f} — создание файлов целиком преобладает над точечными '
             f'правками. Файлы через bash-heredoc (<code>cat &lt;&lt; EOF</code>) пишут '
