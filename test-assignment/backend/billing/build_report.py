@@ -1706,10 +1706,15 @@ def tools_section(data: list[dict]) -> str:
         f'<span style="width:46px"><code>{t}</code></span><b>{v}</b>'
         f'<span class=sub>{round(100 * v / total_calls)}%</span></div>'
         for t, v in tool_items)
+    med_note = " · ".join(
+        f'<code>{t}</code> {st.median([s[0].get(t, 0) for s in sgood])}'
+        for t in TOOL_ORDER if agg_tools.get(t))
     card_tools = (f'<div style="flex:1 1 340px;min-width:320px">'
                   f'<p class="excap sb">4.2.1. Tool-вызовы по инструментам</p>'
                   f'<div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap;margin:10px 0">'
-                  f'{donut_tools}<div>{legend}</div></div></div>')
+                  f'{donut_tools}<div>{legend}</div></div>'
+                  f'<p class=sub style="margin:2px 0 0">Медиана вызовов на прогон: '
+                  f'{med_note}.</p></div>')
 
     top8 = [w for w, _ in agg_utils.most_common(8)]
     rest = sum(v for w, v in agg_utils.items() if w not in top8)
@@ -1736,52 +1741,40 @@ def tools_section(data: list[dict]) -> str:
     donuts = (f'<div style="display:flex;gap:36px;flex-wrap:wrap;align-items:flex-start">'
               f'{card_tools}{card_utils}</div>')
 
-    trs = []
+    # --- 4.2.3: ошибки по инструментам — одна таблица с расшифровкой ----------
+    kinds: dict = {}
+    for _t, _u, _h, _mi, _e, errtexts in sgood:
+        for tname, text in errtexts:
+            kinds.setdefault(tname, Counter())[_err_kind(tname, text)] += 1
+    erows = []
     for t in TOOL_ORDER:
-        if not agg_tools.get(t):
+        calls = agg_tools.get(t)
+        if not calls:
             continue
-        per = [s[0][t] for s in sgood]
-        used = sum(1 for v in per if v)
         errs = sum(s[4][t] for s in sgood)
-        pct = 100 * errs / agg_tools[t]
+        ks = " · ".join(f"{k} — {c}"
+                        for k, c in kinds.get(t, Counter()).most_common()) or "—"
+        erows.append((t, calls, errs, ks))
+    erows.sort(key=lambda r: -(r[2] / r[1]))
+    eshare_max = max((r[2] / r[1] for r in erows), default=1)
+    etrs = []
+    for t, calls, errs, ks in erows:
+        pct = 100 * errs / calls
         hue = ("#98a4b3" if not errs else
                "#315f9e" if pct <= 5 else
                "#d09a53" if pct <= 10 else "#b3543f")
-        barw = 4 + min(100.0, pct) / 100 * 110
-        trs.append(f"<tr><td><code>{t}</code></td>"
-                   f'<td class=narrow>{used} из {n}</td>'
-                   f'<td class=narrow>{agg_tools[t]}</td>'
-                   f'<td class=narrow>{st.median(per):.0f}</td>'
-                   f'<td class=narrow>{errs}</td>'
-                   f'<td class=narrow><span style="display:inline-block;width:{barw:.0f}px;'
-                   f'height:8px;border-radius:3px;background:{hue};vertical-align:middle;'
-                   f'margin-right:6px"></span>{pct:.0f}%</td></tr>')
-    tool_table = ('<table style="width:100%"><thead>'
-                  '<tr><th>Инструмент</th><th class=narrow>Прогонов</th>'
-                  '<th class=narrow>Вызовов</th><th class=narrow>Медиана<br>на прогон</th>'
-                  '<th class=narrow>Ошибок</th><th class=narrow>Доля<br>ошибок</th></tr></thead>'
-                  f'<tbody>{"".join(trs)}</tbody></table>')
-
-    # --- 4.2.3: ошибки по типам + полюса edit-долей по режимам ---------------
-    kinds: Counter = Counter()
-    for _t, _u, _h, _mi, _e, errtexts in sgood:
-        for tname, text in errtexts:
-            kinds[(tname, _err_kind(tname, text))] += 1
-    krows = sorted(kinds.items(), key=lambda kv: -kv[1])
-    kmax = max((c for _, c in krows), default=1)
-    ktrs = "".join(
-        f"<tr><td><code>{t}</code></td><td>{k}</td>"
-        f'<td class=narrow><span style="display:inline-block;width:{4 + c / kmax * 120:.0f}px;'
-        f'height:8px;border-radius:3px;background:{TOOL_COL.get(t, "#b3543f")};'
-        f'vertical-align:middle;margin-right:6px"></span>{c}</td></tr>'
-        for (t, k), c in krows)
-    kind_table = ('<table style="width:100%"><thead>'
-                  '<tr><th>Инструмент</th><th>Тип ошибки</th><th class=narrow>Штук</th>'
-                  '</tr></thead>'
-                  f'<tbody>{ktrs}</tbody></table>')
-    err_tables = (f'<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">'
-                  f'<div style="flex:1 1 520px;min-width:470px">{tool_table}</div>'
-                  f'<div style="flex:1 1 340px;min-width:330px">{kind_table}</div></div>')
+        barw = 4 + (errs / calls) / eshare_max * 110
+        etrs.append(f"<tr><td><code>{t}</code></td>"
+                    f'<td class=narrow>{errs} из {calls}</td>'
+                    f'<td class=narrow><span style="white-space:nowrap">'
+                    f'<span style="display:inline-block;width:{barw:.0f}px;'
+                    f'height:8px;border-radius:3px;background:{hue};vertical-align:middle;'
+                    f'margin-right:6px"></span>{pct:.0f}%</span></td>'
+                    f'<td class=sub>{ks}</td></tr>')
+    err_table = ('<table style="width:100%"><thead>'
+                 '<tr><th>Инструмент</th><th class=narrow>Ошибок из вызовов</th>'
+                 '<th class=narrow>Доля</th><th>Типы ошибок</th></tr></thead>'
+                 f'<tbody>{"".join(etrs)}</tbody></table>')
 
     # детализация bash: что именно в выводе ненулевых кодов
     bash_detail: Counter = Counter()
@@ -1922,11 +1915,12 @@ def tools_section(data: list[dict]) -> str:
             f'успешных прогонов; поиск несуществующих утилит — по всем {n_live} живым.</p>'
             f'{donuts}'
             f'<p class="excap sb">4.2.3. Ошибки tool-вызовов</p>'
-            f'{err_tables}'
-            f'<p class=sub style="margin-top:2px">Доля ошибок — ошибочные результаты '
-            f'(isError) против всех вызовов инструмента. Для bash все ошибки — '
-            f'«ненулевой код выхода»: рабочий исход (упавшие тесты, вывод линтера, '
-            f'пустой diff), не авария агента.</p>'
+            f'{err_table}'
+            f'<p class=sub style="margin-top:2px">Доля — вызовы, вернувшие ошибку '
+            f'(isError), от всех вызовов этого инструмента в 25 прогонах; типы — '
+            f'классификация по тексту результата. bash: единственный тип — '
+            f'«ненулевой код выхода», рабочий исход (упавшие тесты, вывод линтера, '
+            f'пустой diff), не авария агента — детализация ниже.</p>'
             f'<p class=excap style="margin-top:16px">bash: что именно в выводе '
             f'{bash_total} ошибочных вызовов</p>'
             f'{bash_bars}'
