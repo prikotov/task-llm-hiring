@@ -1646,7 +1646,7 @@ def tools_section(data: list[dict]) -> str:
     util_colors = {w: UTIL_HUES[i % len(UTIL_HUES)] for i, w in enumerate(top8)}
     util_colors["остальное"] = "#cdd3da"
     donut_utils = _donut(items8, 70, 32, util_colors,
-                         str(sum(agg_utils.values())), "вызовов утилит")
+                         str(sum(agg_utils.values())), "вызовов")
     legend_u = "".join(
         f'<div style="display:flex;align-items:center;gap:9px;margin:5px 0;font-size:13.5px">'
         f'<span style="width:13px;height:13px;border-radius:4px;background:{util_colors[w]};flex:none"></span>'
@@ -1660,7 +1660,8 @@ def tools_section(data: list[dict]) -> str:
     card_utils = (f'<div style="flex:1 1 340px;min-width:320px">'
                   f'<p class="excap sb">4.2.2. Утилиты в bash</p>'
                   f'<div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap;margin:10px 0">'
-                  f'{donut_utils}<div>{legend_u}{rest_note}</div></div></div>')
+                  f'{donut_utils}<div>{legend_u}</div></div>'
+                  f'{rest_note}</div>')
     donuts = (f'<div style="display:flex;gap:36px;flex-wrap:wrap;align-items:flex-start">'
               f'{card_tools}{card_utils}</div>')
 
