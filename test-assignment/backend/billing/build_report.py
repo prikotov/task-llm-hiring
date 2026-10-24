@@ -1503,6 +1503,42 @@ def _cmd_words(cmd: str) -> list[str]:
     return words
 
 
+def _bash_err_detail(text: str) -> str:
+    """Что именно в выводе bash-вызова с ненулевым кодом: маркеры известных
+    источников (PHPUnit, линтеры, Symfony, diff, фаталы PHP, psql, git,
+    свои сообщения кандидата, пустой вывод)."""
+    t = text[:1500]
+    low = t.lower()
+    if "phpunit" in low or "failures" in low or "ok, but incomplete" in low:
+        return "тесты phpunit"
+    if re.search(r"^(error|info):\s", t, re.M) or "psalm" in low \
+            or "phpcs" in low or "phpcbf" in low:
+        return "статанализ psalm/phpcs"
+    if re.search(r"(?m)^[<>] ", t) or re.search(r"^\d+(,\d+)?[acd]\d+", t) \
+            or "user,model," in low:
+        return "diff (сверка вывода)"
+    if "php fatal error" in low or "php parse error" in low or "uncaught" in low:
+        return "PHP Fatal/Parse error"
+    if "[critical]" in t or "symfony\\component" in low:
+        return "Symfony-консоль [critical]"
+    if "fatal:" in low and "git" in low:
+        return "git"
+    if "нет такого файла" in low or "no such file or directory" in low:
+        return "файл не найден (shell)"
+    if re.search(r"(?m)^\s*error:", t) or "psql" in low:
+        return "psql/SQL"
+    if "ошибка" in low or "[error]" in low or "ожидается" in low \
+            or "некорректн" in low:
+        return "свои проверки кандидата"
+    if "(no output)" in low:
+        return "пустой вывод"
+    if "make: ***" in t:
+        return "make"
+    if "composer" in low:
+        return "composer"
+    return "прочее с выводом"
+
+
 def _err_kind(tool: str, text: str) -> str:
     """Тип ошибки tool-вызова по тексту результата (для анализа 4.2.3)."""
     low = text[:400].lower()
@@ -1736,6 +1772,30 @@ def tools_section(data: list[dict]) -> str:
                   '<th class=narrow>Доля</th></tr></thead>'
                   f'<tbody>{ktrs}</tbody></table>')
 
+    # детализация bash: что именно в выводе ненулевых кодов
+    bash_detail: Counter = Counter()
+    bash_total = 0
+    for _t, _u, _h, _mi, _e, errtexts in sgood:
+        for tname, text in errtexts:
+            if tname != "bash":
+                continue
+            low = text[:400].lower()
+            if "command not found" in low or ": not found" in low \
+                    or "eacces" in low or "permission denied" in low:
+                continue   # уже классифицировано в таблице выше
+            bash_total += 1
+            bash_detail[_bash_err_detail(text)] += 1
+    btrs = "".join(
+        f"<tr><td>{k}</td><td class=narrow>{c}</td>"
+        f'<td class=narrow>{100 * c / bash_total:.0f}%</td></tr>'
+        for k, c in sorted(bash_detail.items(), key=lambda kv: -kv[1]))
+    bash_table = ('<table style="width:auto;max-width:560px"><thead>'
+                  '<tr><th>Что в выводе bash-ошибки</th><th class=narrow>Штук</th>'
+                  '<th class=narrow>Доля</th></tr></thead>'
+                  f'<tbody>{btrs}</tbody></table>'
+                  f'<p class=sub>Вывод ошибочного вызова — вывод всей цепочки: часть '
+                  f'строк может быть успешной, маркер — по источнику ошибки.</p>')
+
     edit_rate = []
     for _gk, rs in modes:
         calls = sum(scan[(r["folder"], r["run"])][0].get("edit", 0) for r in rs)
@@ -1845,6 +1905,9 @@ def tools_section(data: list[dict]) -> str:
             f'«ненулевой код выхода»: рабочий исход (упавшие тесты, вывод линтера, '
             f'пустой diff), не авария агента.</p>'
             f'{kind_table}'
+            f'<p class=excap style="margin-top:14px">bash: что именно в выводе '
+            f'{bash_total} ошибочных вызовов</p>'
+            f'{bash_table}'
             f'<p class=sub>edit — единственный инструмент с заметной долей отказов: '
             f'промахивается по «точному тексту» на переформатированных файлах. '
             + (f'Разброс по режимам: чаще всех промахивается {edit_rate[0][0]} '
