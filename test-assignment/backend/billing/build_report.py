@@ -10,6 +10,7 @@ metrics.json, session-profile.md) моделей/<модель>/test-assignment/
 Выход: reports/TEST-ASSIGNMENT-report.html
 """
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -1393,6 +1394,215 @@ def _jaccard(a, b) -> float:
     return len(A & B) / len(A | B) if A | B else 1.0
 
 
+def _good_runs(data: list[dict]) -> list[dict]:
+    """Популяция аналитических подразделов §4: живые прогоны с решением,
+    чьи режимы попали в верхние квадранты карт (ревью оси A ≥ REVIEW_GOOD)."""
+    agg_rows = results_agg(data)
+    gkeys = {(a["folder"], a["note"], a["ctx"], a["tuned"])
+             for a in agg_rows if a["n"] and (a["a1"] or 0) >= REVIEW_GOOD}
+
+    def gkey(r):  # noqa: E731
+        return (r["folder"], r["note"], r["ctx"], "-tuned" in r["tag"])
+
+    return [r for r in structure_scan(data) if gkey(r) in gkeys]
+
+
+_SHELL_NOISE = {"}", "{", "*", "**", "/**", "*/", "<?php", "EOF", "EOQ", "EOT",
+                "EOL", "use", "require", "return", "foreach", "endforeach",
+                "if", "else", "elseif", "endif", "fi", "then", "do", "done",
+                "public", "private", "protected", "function", "class",
+                "namespace", "declare", "const", "new", "try", "catch",
+                "throw", "for", "while", "switch", "case", "break", "continue",
+                "array", "static", "final", "abstract", "extends", "implements",
+                "readonly", "enum", "interface", "trait", "match", "fn", "in"}
+
+
+def _cmd_words(cmd: str) -> list[str]:
+    """Утилиты bash-вызова: первый токен каждого сегмента цепочки
+    (&&, ;, |, подстановки). Содержимое heredoc'ов (cat << EOF — запись
+    файлов через bash) исключается; php vendor/bin/… добавляет имя скрипта."""
+    words = []
+    heredoc = None
+    for line in cmd.splitlines():
+        if heredoc:
+            if line.strip().rstrip(";") == heredoc:
+                heredoc = None
+            continue
+        m = re.search(r'<<-?\s*(["\']?)(\w+)\1', line)
+        if m:
+            line = line[:m.start()]
+            heredoc = m.group(2)
+        for s in re.split(r'&&|\|\||[;|]|\$\(', line):
+            toks = s.strip().split()
+            while toks and re.match(r'^\w+=', toks[0]):
+                toks.pop(0)
+            if not toks or toks[0] == "cd":
+                continue
+            w = toks[0].strip().strip("'\"")
+            if w.startswith("./"):
+                w = w[2:]
+            if w.startswith("vendor/bin/"):
+                w = w.rsplit("/", 1)[-1]
+            if not w or w in _SHELL_NOISE or w.startswith("<"):
+                continue
+            words.append(w)
+            if w == "php" and len(toks) > 1:
+                t2 = toks[1].strip().strip("'\"")
+                if t2.startswith("./"):
+                    t2 = t2[2:]
+                if "/" in t2 and t2 != "bin/console":
+                    words.append(t2.rsplit("/", 1)[-1] if t2.startswith("vendor/bin/") else t2)
+    return words
+
+
+def tools_section(data: list[dict]) -> str:
+    """Аналитика tool-вызовов и bash-утилит по успешным прогонам: чем модели
+    работают, как предпочитают править файлы (write/edit/heredoc) и звали ли
+    утилиты, которых в окружении нет."""
+    import statistics as st
+    from collections import Counter
+
+    good = _good_runs(data)
+    if not good:
+        return ""
+    live = [r for r in data if not r["dead"]]
+    n = len(good)
+    n_live = len(live)
+
+    def parse(r):
+        ses = ROOT / "models" / r["folder"] / "backend" / "test-assignment" / r["run"] / "pi-session"
+        tools: Counter = Counter()
+        utils: Counter = Counter()
+        hered = 0
+        miss: Counter = Counter()
+        errs: Counter = Counter()
+        if not ses.is_dir():
+            return tools, utils, hered, miss, errs
+        for f in ses.glob("*.jsonl"):
+            for line in f.read_text(errors="replace").splitlines():
+                try:
+                    e = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                m = e.get("message") or {}
+                if m.get("role") == "assistant":
+                    for c in (m.get("content") or []):
+                        if not (isinstance(c, dict) and c.get("type") == "toolCall"):
+                            continue
+                        tools[c.get("name")] += 1
+                        if c.get("name") == "bash":
+                            cmd = (c.get("arguments") or {}).get("command", "")
+                            utils.update(_cmd_words(cmd))
+                            hered += len(re.findall(r'<<-?\s*(["\']?)(\w+)\1', cmd))
+                elif m.get("role") == "toolResult" and m.get("isError"):
+                    errs[m.get("toolName")] += 1
+                    if m.get("toolName") == "bash":
+                        text = " ".join(x.get("text", "") for x in (m.get("content") or [])
+                                        if isinstance(x, dict))
+                        for mm in re.finditer(r'(?:bash|sh)\S*: (\S+): (?:command )?not found',
+                                              text):
+                            miss[mm.group(1)] += 1
+        return tools, utils, hered, miss, errs
+
+    scan = {(r["folder"], r["run"]): parse(r) for r in live}
+    good_scan = [scan[(r["folder"], r["run"])] for r in good]
+
+    # инструменты: прогонов, вызовов, медиана на прогон, ошибок
+    tool_names = sorted({t for s, *_ in good_scan for t in s},
+                        key=lambda t: -sum(s[t] for s, *_ in good_scan))
+    trs = []
+    for t in tool_names:
+        per = [s[t] for s, *_ in good_scan]
+        used = sum(1 for v in per if v)
+        calls = sum(per)
+        errs = sum(e[t] for *_, e in good_scan)
+        trs.append(f"<tr><td><code>{t}</code></td>"
+                   f'<td class=narrow>{used} из {n}</td>'
+                   f'<td class=narrow>{calls}</td>'
+                   f'<td class=narrow>{st.median(per):.0f}</td>'
+                   f'<td class=narrow>{errs}</td></tr>')
+    tool_table = ('<table style="width:auto;max-width:640px"><thead>'
+                  '<tr><th>Инструмент</th><th class=narrow>Прогонов</th>'
+                  '<th class=narrow>Вызовов</th><th class=narrow>Медиана<br>на прогон</th>'
+                  '<th class=narrow>Ошибок</th></tr></thead>'
+                  f'<tbody>{"".join(trs)}</tbody></table>')
+
+    # утилиты bash: топ по числу прогонов (при равенстве — по вызовам)
+    utils_all = Counter()
+    for _, utils, *_ in good_scan:
+        utils_all.update(utils)
+    utils_runs = Counter()
+    for _, utils, *_ in good_scan:
+        for w in utils:
+            utils_runs[w] += 1
+    rows = sorted(utils_runs.items(), key=lambda kv: (-kv[1], -utils_all[kv[0]]))[:12]
+    rows = [(w, utils_runs[w], utils_all[w]) for w, _ in rows]
+    W, row_h, ML, MR = 680, 24, 128, 56
+    H = len(rows) * row_h + 34
+    PW = W - ML - MR
+    vmax = max(r[1] for r in rows)
+    step = 5 if vmax <= 30 else 10
+    svg = []
+    t = step
+    while t <= vmax:
+        x = ML + t / vmax * PW
+        svg.append(f'<line x1="{x:.0f}" y1="0" x2="{x:.0f}" y2="{H - 26}" stroke="#e4e7ec"/>'
+                   f'<text x="{x:.0f}" y="{H - 10}" text-anchor="middle" font-size="11" '
+                   f'fill="#66707f">{t}</text>')
+        t += step
+    for i, (w, runs, calls) in enumerate(rows):
+        y = i * row_h + 2
+        bw = max(3, runs / vmax * PW)
+        svg.append(f'<text x="{ML - 10}" y="{y + 14}" text-anchor="end" font-size="12" '
+                   f'fill="#1d2433">{w}</text>'
+                   f'<rect x="{ML}" y="{y}" width="{bw:.0f}" height="15" rx="4" '
+                   f'fill="#315f9e" fill-opacity="0.78"/>'
+                   f'<text x="{ML + bw + 7:.0f}" y="{y + 13}" font-size="11.5" '
+                   f'font-weight="600" fill="#46536a">{runs}·{calls}</text>')
+    bars = (f'<svg width="{W}" height="{H}" viewBox="0 0 {W} {H}" style="max-width:100%">'
+            + "".join(svg) + "</svg>")
+
+    # write vs edit и heredoc-записи: стратегия правок
+    med_w = st.median([s.get("write", 0) for s, *_ in good_scan])
+    med_e = st.median([s.get("edit", 0) for s, *_ in good_scan])
+    hered_runs = sum(1 for _, _, h, _, _ in good_scan if h)
+    hered_all = sum(h for _, _, h, _, _ in good_scan)
+
+    # несуществующие утилиты — по всем живым прогонам, выборка шире
+    miss_all = Counter()
+    for tools, utils, hered, miss, errs in scan.values():
+        miss_all.update(miss)
+
+    miss_txt = (f"Попыток вызвать отсутствующие утилиты почти нет: на {n_live} живых "
+                f"прогонов — ни одного «command not found» "
+                f"(в обрывках сетки — 2 опечатки «grep.» с точкой). "
+                f"Стек каркаса (php, composer, docker, make, vendor/phpunit|psalm|phpcs) "
+                f"покрывает потребности моделей: фантазий про jq, tree, rg или phpmd "
+                f"не было."
+                if not miss_all else
+                "Пытались вызвать, но утилиты в окружении нет: "
+                + ", ".join(f"<code>{w}</code> ({c})" for w, c in miss_all.most_common(8)) + ".")
+
+    return (f'<p class="excap sb">Инструменты и утилиты в работе</p>'
+            f'<p class=sub>След сессии pi: что модели вызывали сами. Популяция — {n} '
+            f'успешных прогонов; поиск несуществующих утилит — по всем {n_live} живым.</p>'
+            f'{tool_table}'
+            f'<p class=excap>Утилиты bash: топ по прогонам</p>{bars}'
+            f'<p class=sub>Бар — прогонов из {n} (ось — прогоны), справа — прогоны·вызовы. '
+            f'Утилита = первый токен каждого сегмента цепочки (&amp;&amp;, ;, |); содержимое '
+            f'heredoc&apos;ов исключено; <code>php vendor/bin/…</code> даёт имя скрипта '
+            f'(phpunit, psalm…); <code>cd</code> не считается. <code>bin/console</code> — '
+            f'команды самого задания, <code>phpunit/psalm</code> — само­проверка каркаса.</p>'
+            f'<div class=note>'
+            f'<p><b>Стратегия правок.</b> Медианы на прогон: write {med_w:.0f} против '
+            f'edit {med_e:.0f} — создание файлов целиком преобладает над точечными '
+            f'правками. Файлы через bash-heredoc (<code>cat &lt;&lt; EOF</code>) пишут '
+            f'{hered_runs} из {n} прогонов, всего {hered_all} записей — второй, '
+            f'конкурирующий с write путь записи.</p>'
+            f'<p><b>Чего не хватило.</b> {miss_txt}</p>'
+            f'</div>')
+
+
 def structure_section(data: list[dict]) -> str:
     """Анализ структуры хранения кода src/ и tests/: общий знаменатель
     (частоты каталогов), слепки верхнего уровня по прогонам и постоянство
@@ -2633,6 +2843,7 @@ DeepSeek V4.1 Flash — через родной API; reasoning effort задаё
 <h2 id=results><span class=no>4.</span>Результаты моделей</h2>
 {results_table(DATA)}{quality_price_map(results_agg(DATA))}{quality_speed_map(results_agg(DATA))}{quality_triangle_map(results_agg(DATA))}
 {structure_section(DATA)}
+{tools_section(DATA)}
 
 <h2 id=charts><span class=no>5.</span>Что показывают метрики</h2>
 <h3>Время и токены</h3>
