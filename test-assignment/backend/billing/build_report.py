@@ -1599,7 +1599,7 @@ def tools_section(data: list[dict]) -> str:
     util_colors = {w: UTIL_HUES[i % len(UTIL_HUES)] for i, w in enumerate(top8)}
     util_colors["остальное"] = "#cdd3da"
     donut_utils = _donut(items8, 70, 32, util_colors,
-                         str(sum(agg_utils.values())), "утилитных вызовов")
+                         str(sum(agg_utils.values())), "вызовов утилит")
     legend_u = "".join(
         f'<div style="display:flex;align-items:center;gap:9px;margin:5px 0;font-size:13.5px">'
         f'<span style="width:13px;height:13px;border-radius:4px;background:{util_colors[w]};flex:none"></span>'
