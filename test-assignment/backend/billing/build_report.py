@@ -365,6 +365,9 @@ tr.top td{background:#eef6ef}
 .ckmini th.rno{color:var(--mut)}
 .ckmini td{border-bottom:none;padding:1px 5px;text-align:center}
 .ckmini input{margin:0;accent-color:#315f9e;vertical-align:middle}
+.trees{display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));
+       gap:14px;align-items:start;margin:14px 0}
+.trees .tree{margin:0}
 .tree{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 18px;
       font:12.5px/1.62 ui-monospace,SFMono-Regular,Consolas,Menlo,monospace;
       overflow-x:auto;margin:14px 0}
@@ -1528,9 +1531,13 @@ def structure_section(data: list[dict]) -> str:
     n_models = len({r["folder"] for r in runs})
     tests_txt = ("tests/ есть во всех прогонах" if n_tests == n
                  else f"tests/ пишут в {n_tests} из {n} прогонов")
-    tree_html = (_tree(src_dirs, src_files, "src/")
-                 + '<div class=tline style="height:7px"></div>'
-                 + (_tree(t_dirs, t_files, "tests/") if t_dirs or t_files else ""))
+    # два дерева рядом: src/ и tests/ — самостоятельные блоки в сетке,
+    # на узких экранах стекаются
+    tree_html = (f'<div class=trees>'
+                 f'<div class=tree>{_tree(src_dirs, src_files, "src/")}</div>'
+                 + (f'<div class=tree>{_tree(t_dirs, t_files, "tests/")}</div>'
+                    if t_dirs or t_files else "")
+                 + '</div>')
 
     # распределение частоты имён: скольким прогонам встречается имя (путь
     # каталога или имя файла-класса). Форма отвечает на вопрос, где консенсус,
@@ -1728,7 +1735,7 @@ def structure_section(data: list[dict]) -> str:
             f'гибрид Symfony-конвенций и DDD: Command (команды), Domain (домен) и '
             f'Entity (сущности) есть у большинства, но у моделей в целом нет общего '
             f'правила раскладки файлов классов (детали ниже).</p>'
-            f'<div class=tree>{tree_html}</div>'
+            f'{tree_html}'
             f'<p class=sub>Процент — доля прогонов, где каталог или файл '
             f'существует; яркость имени — ступени по тому же проценту: ≥50% — чернильный, '
             f'25–49% — тёмно-серый, 10–24% — серый, 4% (один прогон) — бледный. '
