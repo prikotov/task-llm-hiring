@@ -1743,14 +1743,20 @@ def tools_section(data: list[dict]) -> str:
         per = [s[0][t] for s in sgood]
         used = sum(1 for v in per if v)
         errs = sum(s[4][t] for s in sgood)
-        share = f"{100 * errs / agg_tools[t]:.0f}%" if agg_tools[t] else "—"
+        pct = 100 * errs / agg_tools[t]
+        hue = ("#98a4b3" if not errs else
+               "#315f9e" if pct <= 5 else
+               "#d09a53" if pct <= 10 else "#b3543f")
+        barw = 4 + min(100.0, pct) / 100 * 110
         trs.append(f"<tr><td><code>{t}</code></td>"
                    f'<td class=narrow>{used} из {n}</td>'
                    f'<td class=narrow>{agg_tools[t]}</td>'
                    f'<td class=narrow>{st.median(per):.0f}</td>'
                    f'<td class=narrow>{errs}</td>'
-                   f'<td class=narrow>{share}</td></tr>')
-    tool_table = ('<table style="width:auto;max-width:720px"><thead>'
+                   f'<td class=narrow><span style="display:inline-block;width:{barw:.0f}px;'
+                   f'height:8px;border-radius:3px;background:{hue};vertical-align:middle;'
+                   f'margin-right:6px"></span>{pct:.0f}%</td></tr>')
+    tool_table = ('<table style="width:100%"><thead>'
                   '<tr><th>Инструмент</th><th class=narrow>Прогонов</th>'
                   '<th class=narrow>Вызовов</th><th class=narrow>Медиана<br>на прогон</th>'
                   '<th class=narrow>Ошибок</th><th class=narrow>Доля<br>ошибок</th></tr></thead>'
@@ -1762,15 +1768,20 @@ def tools_section(data: list[dict]) -> str:
         for tname, text in errtexts:
             kinds[(tname, _err_kind(tname, text))] += 1
     krows = sorted(kinds.items(), key=lambda kv: -kv[1])
+    kmax = max((c for _, c in krows), default=1)
     ktrs = "".join(
         f"<tr><td><code>{t}</code></td><td>{k}</td>"
-        f'<td class=narrow>{c}</td>'
-        f'<td class=narrow>{100 * c / sum(kinds.values()):.0f}%</td></tr>'
+        f'<td class=narrow><span style="display:inline-block;width:{4 + c / kmax * 120:.0f}px;'
+        f'height:8px;border-radius:3px;background:{TOOL_COL.get(t, "#b3543f")};'
+        f'vertical-align:middle;margin-right:6px"></span>{c}</td></tr>'
         for (t, k), c in krows)
-    kind_table = ('<table style="width:auto;max-width:640px"><thead>'
+    kind_table = ('<table style="width:100%"><thead>'
                   '<tr><th>Инструмент</th><th>Тип ошибки</th><th class=narrow>Штук</th>'
-                  '<th class=narrow>Доля</th></tr></thead>'
+                  '</tr></thead>'
                   f'<tbody>{ktrs}</tbody></table>')
+    err_tables = (f'<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">'
+                  f'<div style="flex:1 1 520px;min-width:470px">{tool_table}</div>'
+                  f'<div style="flex:1 1 340px;min-width:330px">{kind_table}</div></div>')
 
     # детализация bash: что именно в выводе ненулевых кодов
     bash_detail: Counter = Counter()
@@ -1785,16 +1796,28 @@ def tools_section(data: list[dict]) -> str:
                 continue   # уже классифицировано в таблице выше
             bash_total += 1
             bash_detail[_bash_err_detail(text)] += 1
-    btrs = "".join(
-        f"<tr><td>{k}</td><td class=narrow>{c}</td>"
-        f'<td class=narrow>{100 * c / bash_total:.0f}%</td></tr>'
-        for k, c in sorted(bash_detail.items(), key=lambda kv: -kv[1]))
-    bash_table = ('<table style="width:auto;max-width:560px"><thead>'
-                  '<tr><th>Что в выводе bash-ошибки</th><th class=narrow>Штук</th>'
-                  '<th class=narrow>Доля</th></tr></thead>'
-                  f'<tbody>{btrs}</tbody></table>'
-                  f'<p class=sub>Вывод ошибочного вызова — вывод всей цепочки: часть '
-                  f'строк может быть успешной, маркер — по источнику ошибки.</p>')
+    bmax = max(bash_detail.values()) if bash_detail else 1
+    BW, brow, BML, BMR = 990, 26, 235, 66
+    BH = len(bash_detail) * brow + 30
+    BPW = BW - BML - BMR
+    bsvg = []
+    for i, (k, c) in enumerate(sorted(bash_detail.items(), key=lambda kv: -kv[1])):
+        y = i * brow
+        bw = max(3, c / bmax * BPW)
+        bsvg.append(f'<text x="{BML - 10}" y="{y + 16}" text-anchor="end" font-size="12.5" '
+                    f'fill="#1d2433">{k}</text>'
+                    f'<rect x="{BML}" y="{y + 3}" width="{bw:.0f}" height="16" rx="4" '
+                    f'fill="#b3543f" fill-opacity="0.8"/>'
+                    f'<text x="{BML + bw + 8:.0f}" y="{y + 16}" font-size="11.5" '
+                    f'font-weight="600" fill="#46536a">{c} · {round(100 * c / bash_total)}%</text>')
+    bash_bars = (f'<svg width="{BW}" height="{BH}" viewBox="0 0 {BW} {BH}" '
+                 f'style="max-width:100%">'
+                 + "".join(bsvg)
+                 + f'<text x="{BML + BPW / 2:.0f}" y="{BH - 5}" text-anchor="middle" '
+                   f'font-size="11.5" fill="#66707f">штук · доля от {bash_total} '
+                   f'bash-ошибок</text></svg>'
+                 f'<p class=sub>Вывод ошибочного вызова — вывод всей цепочки: часть строк '
+                 f'может быть успешной, маркер — по источнику ошибки.</p>')
 
     edit_rate = []
     for _gk, rs in modes:
@@ -1899,15 +1922,14 @@ def tools_section(data: list[dict]) -> str:
             f'успешных прогонов; поиск несуществующих утилит — по всем {n_live} живым.</p>'
             f'{donuts}'
             f'<p class="excap sb">4.2.3. Ошибки tool-вызовов</p>'
-            f'{tool_table}'
+            f'{err_tables}'
             f'<p class=sub style="margin-top:2px">Доля ошибок — ошибочные результаты '
             f'(isError) против всех вызовов инструмента. Для bash все ошибки — '
             f'«ненулевой код выхода»: рабочий исход (упавшие тесты, вывод линтера, '
             f'пустой diff), не авария агента.</p>'
-            f'{kind_table}'
-            f'<p class=excap style="margin-top:14px">bash: что именно в выводе '
+            f'<p class=excap style="margin-top:16px">bash: что именно в выводе '
             f'{bash_total} ошибочных вызовов</p>'
-            f'{bash_table}'
+            f'{bash_bars}'
             f'<p class=sub>edit — единственный инструмент с заметной долей отказов: '
             f'промахивается по «точному тексту» на переформатированных файлах. '
             + (f'Разброс по режимам: чаще всех промахивается {edit_rate[0][0]} '
