@@ -1503,6 +1503,39 @@ def _cmd_words(cmd: str) -> list[str]:
     return words
 
 
+def _err_kind(tool: str, text: str) -> str:
+    """Тип ошибки tool-вызова по тексту результата (для анализа 4.2.3)."""
+    low = text[:400].lower()
+    if tool == "edit":
+        if "could not find" in low:
+            return "old_text не найден"
+        if "no changes made" in low:
+            return "замена без изменений"
+        if "validation failed" in low:
+            return "невалидные аргументы"
+        if "does not exist" in low or "no such file" in low:
+            return "файла нет"
+        if "permission" in low or "eacces" in low:
+            return "права"
+        return "прочее"
+    if tool == "bash":
+        if "command not found" in low or ": not found" in low:
+            return "команды нет"
+        if "eacces" in low or "permission denied" in low:
+            return "права"
+        # остальные bash-ошибки — ненулевой код выхода: pi оборачивает их то
+        # «Command exited with code N», то сырым выводом (упавшие тесты,
+        # вывод линтера, diff) — это рабочий исход, не авария агента
+        return "ненулевой код выхода"
+    if "does not exist" in low or "no such file" in low or "enotentdir" in low:
+        return "файла нет"
+    if "eacces" in low or "permission" in low:
+        return "права"
+    if "validation failed" in low:
+        return "невалидные аргументы"
+    return "прочее"
+
+
 TOOL_COL = {"bash": "#315f9e", "write": "#2f7d54", "edit": "#d09a53", "read": "#b3543f"}
 TOOL_ORDER = ["bash", "write", "edit", "read"]
 UTIL_HUES = ["#315f9e", "#2f7d54", "#d09a53", "#b3543f", "#6b5b9e",
@@ -1570,8 +1603,9 @@ def tools_section(data: list[dict]) -> str:
         hered = 0
         miss: Counter = Counter()
         errs: Counter = Counter()
+        errtexts: list[tuple[str, str]] = []
         if not ses.is_dir():
-            return tools, utils, hered, miss, errs
+            return tools, utils, hered, miss, errs, errtexts
         for f in ses.glob("*.jsonl"):
             for line in f.read_text(errors="replace").splitlines():
                 try:
@@ -1590,13 +1624,14 @@ def tools_section(data: list[dict]) -> str:
                             hered += len(re.findall(r'<<-?\s*(["\']?)(\w+)\1', cmd))
                 elif m.get("role") == "toolResult" and m.get("isError"):
                     errs[m.get("toolName")] += 1
+                    text = " ".join(x.get("text", "") for x in (m.get("content") or [])
+                                    if isinstance(x, dict))
+                    errtexts.append((m.get("toolName"), text))
                     if m.get("toolName") == "bash":
-                        text = " ".join(x.get("text", "") for x in (m.get("content") or [])
-                                        if isinstance(x, dict))
                         for mm in re.finditer(r'(?:bash|sh)\S*: (\S+): (?:command )?not found',
                                               text):
                             miss[mm.group(1)] += 1
-        return tools, utils, hered, miss, errs
+        return tools, utils, hered, miss, errs, errtexts
 
     scan = {(r["folder"], r["run"]): parse(r) for r in live}
     sgood = [scan[(r["folder"], r["run"])] for r in good]
@@ -1672,16 +1707,42 @@ def tools_section(data: list[dict]) -> str:
         per = [s[0][t] for s in sgood]
         used = sum(1 for v in per if v)
         errs = sum(s[4][t] for s in sgood)
+        share = f"{100 * errs / agg_tools[t]:.0f}%" if agg_tools[t] else "—"
         trs.append(f"<tr><td><code>{t}</code></td>"
                    f'<td class=narrow>{used} из {n}</td>'
                    f'<td class=narrow>{agg_tools[t]}</td>'
                    f'<td class=narrow>{st.median(per):.0f}</td>'
-                   f'<td class=narrow>{errs}</td></tr>')
-    tool_table = ('<table style="width:auto;max-width:640px"><thead>'
+                   f'<td class=narrow>{errs}</td>'
+                   f'<td class=narrow>{share}</td></tr>')
+    tool_table = ('<table style="width:auto;max-width:720px"><thead>'
                   '<tr><th>Инструмент</th><th class=narrow>Прогонов</th>'
                   '<th class=narrow>Вызовов</th><th class=narrow>Медиана<br>на прогон</th>'
-                  '<th class=narrow>Ошибок</th></tr></thead>'
+                  '<th class=narrow>Ошибок</th><th class=narrow>Доля<br>ошибок</th></tr></thead>'
                   f'<tbody>{"".join(trs)}</tbody></table>')
+
+    # --- 4.2.3: ошибки по типам + полюса edit-долей по режимам ---------------
+    kinds: Counter = Counter()
+    for _t, _u, _h, _mi, _e, errtexts in sgood:
+        for tname, text in errtexts:
+            kinds[(tname, _err_kind(tname, text))] += 1
+    krows = sorted(kinds.items(), key=lambda kv: -kv[1])
+    ktrs = "".join(
+        f"<tr><td><code>{t}</code></td><td>{k}</td>"
+        f'<td class=narrow>{c}</td>'
+        f'<td class=narrow>{100 * c / sum(kinds.values()):.0f}%</td></tr>'
+        for (t, k), c in krows)
+    kind_table = ('<table style="width:auto;max-width:640px"><thead>'
+                  '<tr><th>Инструмент</th><th>Тип ошибки</th><th class=narrow>Штук</th>'
+                  '<th class=narrow>Доля</th></tr></thead>'
+                  f'<tbody>{ktrs}</tbody></table>')
+
+    edit_rate = []
+    for _gk, rs in modes:
+        calls = sum(scan[(r["folder"], r["run"])][0].get("edit", 0) for r in rs)
+        errs = sum(scan[(r["folder"], r["run"])][4].get("edit", 0) for r in rs)
+        if calls:
+            edit_rate.append((mode_label(rs), errs / calls))
+    edit_rate.sort(key=lambda x: -x[1])
 
     # --- микс инструментов по режимам: ряд мини-пирогов ----------------------
     pies = []
@@ -1762,7 +1823,7 @@ def tools_section(data: list[dict]) -> str:
     hered_all = sum(s[2] for s in sgood)
 
     miss_all: Counter = Counter()
-    for *_, miss, _ in scan.values():
+    for _t, _u, _h, miss, _e, _et in scan.values():
         miss_all.update(miss)
     miss_txt = (f"Попыток вызвать отсутствующие утилиты почти нет: на {n_live} живых "
                 f"прогонов — ни одного «command not found» (в обрывках сетки — 2 "
@@ -1777,10 +1838,22 @@ def tools_section(data: list[dict]) -> str:
             f'<p class=sub>След сессии pi: что модели вызывали сами. Популяция — {n} '
             f'успешных прогонов; поиск несуществующих утилит — по всем {n_live} живым.</p>'
             f'{donuts}'
+            f'<p class="excap sb">4.2.3. Ошибки tool-вызовов</p>'
             f'{tool_table}'
-            f'<p class="excap sb">4.2.3. Микс инструментов по моделям</p>'
+            f'<p class=sub style="margin-top:2px">Доля ошибок — ошибочные результаты '
+            f'(isError) против всех вызовов инструмента. Для bash все ошибки — '
+            f'«ненулевой код выхода»: рабочий исход (упавшие тесты, вывод линтера, '
+            f'пустой diff), не авария агента.</p>'
+            f'{kind_table}'
+            f'<p class=sub>edit — единственный инструмент с заметной долей отказов: '
+            f'промахивается по «точному тексту» на переформатированных файлах. '
+            + (f'Разброс по режимам: чаще всех промахивается {edit_rate[0][0]} '
+               f'({100 * edit_rate[0][1]:.0f}% edit-вызовов), реже — {edit_rate[-1][0]} '
+               f'({100 * edit_rate[-1][1]:.0f}%). ' if edit_rate else "")
+            + f'write ошибок не даёт вовсе.</p>'
+            f'<p class="excap sb">4.2.4. Микс инструментов по моделям</p>'
             f'{strip}'
-            f'<p class="excap sb">4.2.4. Утилиты bash по моделям</p>'
+            f'<p class="excap sb">4.2.5. Утилиты bash по моделям</p>'
             f'{matrix}'
             f'<div class=note>'
             f'<p><b>Постоянство микса.</b> Вектор долей инструментов и топ-{len(top8)} '
