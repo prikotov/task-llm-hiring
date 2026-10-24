@@ -327,6 +327,7 @@ header p{margin:5px 0;opacity:.93;max-width:74ch}
 h2{font-size:24px;margin:44px 0 10px;letter-spacing:-.01em}
 h2 .no{color:var(--mut);font-weight:400;margin-right:8px}
 h3{font-size:17.5px;margin:26px 0 2px}
+h3 .no{color:var(--mut);font-weight:400;margin-right:8px}
 .lead{color:var(--mut);margin:8px 0 14px;font-size:15px}
 p{margin:10px 0}
 .sub{font-size:12.5px;color:var(--mut);margin-top:3px;line-height:1.5}
@@ -1588,7 +1589,7 @@ def tools_section(data: list[dict]) -> str:
         f'<span class=sub>{round(100 * v / total_calls)}%</span></div>'
         for t, v in tool_items)
     card_tools = (f'<div style="flex:1 1 340px;min-width:320px">'
-                  f'<h3>Tool-вызовы по инструментам</h3>'
+                  f'<p class="excap sb">4.2.1. Tool-вызовы по инструментам</p>'
                   f'<div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap;margin:10px 0">'
                   f'{donut_tools}<div>{legend}</div></div></div>')
 
@@ -1606,7 +1607,7 @@ def tools_section(data: list[dict]) -> str:
         f'<span class=sub>{round(100 * v / sum(agg_utils.values()))}%</span></div>'
         for w, v in items8)
     card_utils = (f'<div style="flex:1 1 340px;min-width:320px">'
-                  f'<h3>Утилиты в bash</h3>'
+                  f'<p class="excap sb">4.2.2. Утилиты в bash</p>'
                   f'<div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap;margin:10px 0">'
                   f'{donut_utils}<div>{legend_u}</div></div></div>')
     donuts = (f'<div style="display:flex;gap:36px;flex-wrap:wrap;align-items:flex-start">'
@@ -1720,14 +1721,14 @@ def tools_section(data: list[dict]) -> str:
                 "Пытались вызвать, но утилиты в окружении нет: "
                 + ", ".join(f"<code>{w}</code> ({c})" for w, c in miss_all.most_common(8)) + ".")
 
-    return (f'<p class="excap sb">Инструменты и утилиты в работе</p>'
+    return (f'<h3><span class=no>4.2</span>Инструменты и утилиты в работе</h3>'
             f'<p class=sub>След сессии pi: что модели вызывали сами. Популяция — {n} '
             f'успешных прогонов; поиск несуществующих утилит — по всем {n_live} живым.</p>'
             f'{donuts}'
             f'{tool_table}'
-            f'<p class="excap sb">Микс инструментов по моделям</p>'
+            f'<p class="excap sb">4.2.3. Микс инструментов по моделям</p>'
             f'{strip}'
-            f'<p class="excap sb">Утилиты bash по моделям</p>'
+            f'<p class="excap sb">4.2.4. Утилиты bash по моделям</p>'
             f'{matrix}'
             f'<div class=note>'
             f'<p><b>Постоянство микса.</b> Вектор долей инструментов и топ-{len(top8)} '
@@ -2087,7 +2088,7 @@ def structure_section(data: list[dict]) -> str:
     excl_txt = " · ".join(f"{a['short']} ·{a['note']}" for a in excluded)
     n_modes = sum(1 for rs in by_g.values() if len(rs) > 1)
 
-    return (f'<h3>Структура кода: src/ и tests/</h3>'
+    return (f'<h3><span class=no>4.1</span>Структура кода: src/ и tests/</h3>'
             f'<p class=lead>Задание не подсказывает устройство кода: скелет — это '
             f'src/Kernel.php и пустой tests/. Про архитектуру в TASK.md одна строка: '
             f'«Архитектура, разбиение на слои/модули, именование — на ваше '
@@ -2097,7 +2098,7 @@ def structure_section(data: list[dict]) -> str:
             f'Смотрим на успешные решения — {n} прогонов {n_models} моделей, чьи '
             f'режимы набрали в среднем не меньше {REVIEW_GOOD:g} баллов ревью по оси A '
             f'(верхние квадранты карт выше).</p>'
-            f'<p class=excap>Сводная структура: все каталоги и файлы классов, которые '
+            f'<p class="excap sb">4.1.1. Сводная структура: все каталоги и файлы классов, которые '
             f'модели создали в src/ и tests/, слитые в одно дерево. Типовая раскладка — '
             f'гибрид Symfony-конвенций и DDD: Command (команды), Domain (домен) и '
             f'Entity (сущности) есть у большинства, но у моделей в целом нет общего '
@@ -2111,7 +2112,7 @@ def structure_section(data: list[dict]) -> str:
             f'в соответствие имени класса, так что это срез того, как модели '
             f'называют классы. Каркасный src/Kernel.php не показан; src/ и tests/ — '
             f'серые корни каркаса.</p>'
-            f'<p class="excap sb">Распределение имён: общие и уникальные</p>'
+            f'<p class="excap sb">4.1.2. Распределение имён: общие и уникальные</p>'
             f'{_dist_svg()}'
             f'<p class=sub>По оси X — скольким прогонам встречено имя (путь каталога '
             f'или имя файла-класса), по оси Y — сколько таких имён; панель каталогов '
@@ -2123,7 +2124,7 @@ def structure_section(data: list[dict]) -> str:
             f'файлов переменчивее самих имён: {one_fp:.0f}% путей — одиночные против '
             f'{one_cls:.0f}% у имён — класс переиспользуется чаще, чем его расположение. '
             f'Выборка — успешные прогоны, как и во всей подсекции.</p>'
-            f'<p class="excap sb">Размер решения: классы и строки</p>'
+            f'<p class="excap sb">4.1.3. Размер решения: классы и строки</p>'
             f'{_size_svg()}'
             f'<p class=sub>По оси X — размер решения (диапазон файлов или строк), '
             f'по оси Y — число успешных прогонов с размером из диапазона. Это другой '
@@ -2139,7 +2140,7 @@ def structure_section(data: list[dict]) -> str:
             f'компактнее следующего ({sorted(loc_sizes)[1]}), {rmax["short"]} '
             f'·{rmax["run"].removeprefix("run-")} растянул до {rmax["loc"]} строк при '
             f'{len(rmax["files"])} файлах — при одинаковом полном зачёте обоих.</p>'
-            f'<p class="excap sb">Слепки по режимам и постоянство структуры</p>'
+            f'<p class="excap sb">4.1.4. Слепки по режимам и постоянство структуры</p>'
             f'<div style="overflow-x:auto"><table><thead>'
             f'<tr><th>Модель</th><th class=narrow>Мышл.</th>'
             f'<th>Каталоги верхнего уровня src/ по прогонам</th>'
