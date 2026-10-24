@@ -1669,7 +1669,7 @@ def tools_section(data: list[dict]) -> str:
     matrix = (f'<div style="overflow-x:auto"><table style="width:auto">'
               f'<thead><tr><th>Модель</th>{head}</tr></thead>'
               f'<tbody>{"".join(rows_m)}</tbody></table></div>'
-              f'<p class=sub>Доля утилиты в утилитных вызовах режима; заливка — '
+              f'<p class=sub>Доля утилиты в вызовах утилит режима; заливка — '
               f'та же доля. Колонки — топ-{len(top8)} утилит агрегата.</p>')
 
     # --- постоянство микса: внутри режима против между моделями --------------
