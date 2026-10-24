@@ -1647,25 +1647,33 @@ def structure_section(data: list[dict]) -> str:
         pj = pair_jac(rs)
         j_top = st.mean(p[0] for p in pj) if pj else None
         j_all = st.mean(p[1] for p in pj) if pj else None
-        # мини-таблица «прогоны × каталоги» внутри ячейки: строки — прогоны
-        # режима, колонки — только каталоги, встреченные в его прогонах
-        # (порядок по встречаемости); чекбокс — «каталог есть в этом прогоне»,
-        # полностью отмеченный столбец — каталог каждого прогона режима
+        # каталоги режима: при одном прогоне — простое перечисление; при
+        # нескольких — таблица «прогоны × каталоги», причём колонки только для
+        # каталогов, встреченных больше одного раза (повторяемость видна
+        # по столбцам), остальные — строкой «в одном прогоне»
         gforms: dict[str, Counter] = {}
         for r in rs:
             for t in r["top"]:
                 gforms.setdefault(t.lower(), Counter())[t] += 1
         gdirs = sorted(gforms, key=lambda k: (-sum(gforms[k].values()), k))
         gname = {k: gforms[k].most_common(1)[0][0] for k in gdirs}
-        mini = [f'<tr><th class=rno></th>'
-                + "".join(f'<th>{gname[k]}</th>' for k in gdirs) + "</tr>"]
-        for r in rs:
-            has = {t.lower() for t in r["top"]}
-            mini.append(f'<tr><th class=rno>{r["run"].removeprefix("run-")}</th>'
-                        + "".join(f'<td><input type=checkbox class=ckbox disabled '
-                                  f'{"checked" if k in has else ""}></td>' for k in gdirs)
-                        + "</tr>")
-        runs_html = f'<table class=ckmini>{"".join(mini)}</table>'
+        if n_r == 1:
+            runs_html = ", ".join(gname[k] for k in gdirs)
+        else:
+            multi = [k for k in gdirs if sum(gforms[k].values()) > 1]
+            once = [k for k in gdirs if sum(gforms[k].values()) == 1]
+            mini = [f'<tr><th class=rno></th>'
+                    + "".join(f'<th>{gname[k]}</th>' for k in multi) + "</tr>"]
+            for r in rs:
+                has = {t.lower() for t in r["top"]}
+                mini.append(f'<tr><th class=rno>{r["run"].removeprefix("run-")}</th>'
+                            + "".join(f'<td><input type=checkbox class=ckbox disabled '
+                                      f'{"checked" if k in has else ""}></td>' for k in multi)
+                            + "</tr>")
+            runs_html = f'<table class=ckmini>{"".join(mini)}</table>'
+            if once:
+                runs_html += (f'<div class=sub>в одном прогоне: '
+                              f'{", ".join(gname[k] for k in once)}</div>')
         if j_top is None:
             const = "—"   # один прогон: постоянства нет
         else:
@@ -1691,8 +1699,8 @@ def structure_section(data: list[dict]) -> str:
             tcell = (f"{len(with_tests)} из {n_r}"
                      f'<div class=sub style="white-space:nowrap">{detail}</div>')
         label = rs[0]["short"] + (" ·tuned" if "-tuned" in rs[0]["tag"] else "")
-        trs.append(f"<tr><td><b>{label}</b>{runs_html}</td>"
-                   f'<td class=narrow>{rs[0]["note"]}</td>'
+        trs.append(f"<tr><td><b>{label}</b></td>"
+                   f'<td class=narrow>{rs[0]["note"]}</td><td>{runs_html}</td>'
                    f'<td class=narrow>{const}</td><td class=narrow>{tcell}</td></tr>')
 
     # полюса постоянства — по режимам с 2+ прогонами
