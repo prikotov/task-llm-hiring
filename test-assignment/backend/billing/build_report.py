@@ -1415,15 +1415,48 @@ _SHELL_NOISE = {"}", "{", "*", "**", "/**", "*/", "<?php", "EOF", "EOQ", "EOT",
                 "namespace", "declare", "const", "new", "try", "catch",
                 "throw", "for", "while", "switch", "case", "break", "continue",
                 "array", "static", "final", "abstract", "extends", "implements",
-                "readonly", "enum", "interface", "trait", "match", "fn", "in"}
+                "readonly", "enum", "interface", "trait", "match", "fn", "in",
+                "true", "false", "and", "or", "select", "bcadd", "ok1"}
+
+
+def _quotes(text: str) -> str:
+    """Кавычечные строки: аргументы (grep 'паттерн', psql -c "SQL", php -r
+    'код') выбрасываются — это не команды; содержимое кавычек после
+    bash/sh/-c/-lc сохраняется — там завёрнутые реальные команды. Незакрытая
+    многострочная строка (php -r с переводами строк) обрезается до конца."""
+    out, i, n = [], 0, len(text)
+    while i < n:
+        ch = text[i]
+        if ch not in "'\"":
+            out.append(ch)
+            i += 1
+            continue
+        back = "".join(out)[-80:]
+        last = re.split(r'[;|&()\s]', back.strip())[-1].strip()
+        shellish = last in ("bash", "sh", "-c", "-lc") or last.endswith("-c") \
+            or back.rstrip().endswith(("-c", "-lc"))
+        close = text.find(ch, i + 1)
+        if shellish:
+            inner = text[i + 1:close] if close != -1 else text[i + 1:]
+            out.append(" " + inner + " ")
+            if close == -1:
+                break
+            i = close + 1
+        elif close != -1:
+            out.append(" ")
+            i = close + 1
+        else:
+            break   # незакрытая строка-аргумент (код) — остаток мимо
+    return "".join(out)
 
 
 def _cmd_words(cmd: str) -> list[str]:
     """Утилиты bash-вызова: первый токен каждого сегмента цепочки
-    (&&, ;, |, подстановки). Содержимое heredoc'ов (cat << EOF — запись
-    файлов через bash) исключается; php vendor/bin/… добавляет имя скрипта."""
-    words = []
-    heredoc = None
+    (&&, ;, |, подстановки). Тела heredoc'ов (cat << EOF — запись файлов
+    через bash) и кавычечные строки-аргументы исключаются; после bash/sh -c
+    содержимое кавычек разбирается как команды; php vendor/bin/… даёт имя
+    скрипта."""
+    clean, heredoc = [], None
     for line in cmd.splitlines():
         if heredoc:
             if line.strip().rstrip(";") == heredoc:
@@ -1431,34 +1464,41 @@ def _cmd_words(cmd: str) -> list[str]:
             continue
         m = re.search(r'<<-?\s*(["\']?)(\w+)\1', line)
         if m:
-            line = line[:m.start()]
+            clean.append(line[:m.start()])
             heredoc = m.group(2)
-        for s in re.split(r'&&|\|\||[;|]|\$\(', line):
-            toks = s.strip().split()
-            while toks and re.match(r'^\w+=', toks[0]):
-                toks.pop(0)
-            if not toks or toks[0] == "cd":
-                continue
-            w = toks[0].strip().strip("'\"")
-            if w.startswith("./"):
-                w = w[2:]
-            if w.startswith("vendor/bin/"):
-                w = w.rsplit("/", 1)[-1]
-            if not w or w in _SHELL_NOISE or w.startswith("<"):
-                continue
-            # утилита — только корректное имя команды: осколки кода вне
-            # heredoc'ов ($kernel->boot(), SQL CAPSOM, пути, пунктуация) мимо
-            if not re.fullmatch(r"[a-zA-Z][\w./+-]*", w) or (w.isupper() and len(w) > 1):
-                continue
-            words.append(w)
-            if w == "php" and len(toks) > 1:
-                t2 = toks[1].strip().strip("'\"")
-                if t2.startswith("./"):
-                    t2 = t2[2:]
-                if t2.startswith("vendor/bin/"):
-                    t2 = t2.rsplit("/", 1)[-1]
-                if ("/" in t2 and t2 != "bin/console"
-                        and re.fullmatch(r"[a-zA-Z][\w./+-]*", t2)):
+            continue
+        clean.append(line)
+    text = "\n".join(clean)
+    # продолжения строки (sed -i … \ с аргументом на следующей строке):
+    # склеиваем, иначе хвост аргумента выглядит как команда
+    text = re.sub(r"\\\r?\n", " ", text)
+    text = _quotes(text)
+    words = []
+    for s in re.split(r'&&|\|\||[;|]|\$\(|\n', text):
+        toks = s.strip().split()
+        while toks and re.match(r'^\w+=', toks[0]):
+            toks.pop(0)
+        if not toks or toks[0] == "cd":
+            continue
+        w = toks[0].strip().strip("'\"")
+        if w.startswith("./"):
+            w = w[2:]
+        if w.startswith("vendor/bin/"):
+            w = w.rsplit("/", 1)[-1]
+        if not w or w in _SHELL_NOISE or w.startswith("<"):
+            continue
+        # утилита — только корректное имя команды: осколки кода (SQL CAPSOM,
+        # пунктуация, пути-не-команды) мимо
+        if not re.fullmatch(r"[a-zA-Z][\w./+-]*", w) or (w.isupper() and len(w) > 1):
+            continue
+        words.append(w)
+        if w == "php" and len(toks) > 1:
+            # имя скрипта — только утилиты vendor/bin (phpunit, psalm…);
+            # пути вида tests/… и -r-код утилитами не считаются
+            t2 = toks[1].strip().strip("'\"")
+            if t2.startswith("vendor/bin/"):
+                t2 = t2.rsplit("/", 1)[-1]
+                if re.fullmatch(r"[a-zA-Z][\w.+-]*", t2):
                     words.append(t2)
     return words
 
