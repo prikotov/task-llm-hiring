@@ -1672,7 +1672,7 @@ def structure_section(data: list[dict]) -> str:
                             + "</tr>")
             runs_html = f'<table class=ckmini>{"".join(mini)}</table>'
             if once:
-                runs_html += (f'<div class=sub>в одном прогоне: '
+                runs_html += (f'<div>в одном прогоне: '
                               f'{", ".join(gname[k] for k in once)}</div>')
         if j_top is None:
             const = "—"   # один прогон: постоянства нет
