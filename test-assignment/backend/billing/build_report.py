@@ -1446,13 +1446,20 @@ def _cmd_words(cmd: str) -> list[str]:
                 w = w.rsplit("/", 1)[-1]
             if not w or w in _SHELL_NOISE or w.startswith("<"):
                 continue
+            # утилита — только корректное имя команды: осколки кода вне
+            # heredoc'ов ($kernel->boot(), SQL CAPSOM, пути, пунктуация) мимо
+            if not re.fullmatch(r"[a-zA-Z][\w./+-]*", w) or (w.isupper() and len(w) > 1):
+                continue
             words.append(w)
             if w == "php" and len(toks) > 1:
                 t2 = toks[1].strip().strip("'\"")
                 if t2.startswith("./"):
                     t2 = t2[2:]
-                if "/" in t2 and t2 != "bin/console":
-                    words.append(t2.rsplit("/", 1)[-1] if t2.startswith("vendor/bin/") else t2)
+                if t2.startswith("vendor/bin/"):
+                    t2 = t2.rsplit("/", 1)[-1]
+                if ("/" in t2 and t2 != "bin/console"
+                        and re.fullmatch(r"[a-zA-Z][\w./+-]*", t2)):
+                    words.append(t2)
     return words
 
 
@@ -1606,10 +1613,14 @@ def tools_section(data: list[dict]) -> str:
         f'<span style="width:96px"><code>{w}</code></span><b>{v}</b>'
         f'<span class=sub>{round(100 * v / sum(agg_utils.values()))}%</span></div>'
         for w, v in items8)
+    rest_names = [w for w, _ in agg_utils.most_common() if w not in top8]
+    rest_note = (f'<p class=sub style="max-width:300px;margin-top:8px">«Остальное» — '
+                 f'{", ".join(f"<code>{w}</code>" for w in rest_names)}.</p>'
+                 if rest_names else "")
     card_utils = (f'<div style="flex:1 1 340px;min-width:320px">'
                   f'<p class="excap sb">4.2.2. Утилиты в bash</p>'
                   f'<div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap;margin:10px 0">'
-                  f'{donut_utils}<div>{legend_u}</div></div></div>')
+                  f'{donut_utils}<div>{legend_u}{rest_note}</div></div></div>')
     donuts = (f'<div style="display:flex;gap:36px;flex-wrap:wrap;align-items:flex-start">'
               f'{card_tools}{card_utils}</div>')
 
