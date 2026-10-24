@@ -126,7 +126,8 @@ def local_cost(gen_minutes: float):
 
 def interrupt_cause(r: Path, run: dict) -> tuple[str, str] | None:
     """(тип, причина) незавершённости прогона. time — остановлен раннером
-    по лимиту времени 90 мин (агент работал или висел до самого стопа);
+    по лимиту времени 90 мин; сессии, убитые по лимиту с нетронутым скелетом
+    и оборванным ожиданием инструмента, скан затем переклассифицирует в hang.
     cut — обрыв сбоем: исчерпан баланс/ключ, pi упал сам. None — прогон
     завершился с кодом 0. Такие прогоны вне метрик: частичное решение
     и его оценки искажают средние."""
@@ -222,6 +223,15 @@ def scan_runs() -> list[dict]:
             blank_run = not run.get("diff_lines")
             ic = interrupt_cause(r, run)
             int_kind, int_cause = ic if ic else (None, None)
+            # повисшая сессия: убит по лимиту времени + скелет нетронут + финальный
+            # вызов модели — ожидание ответа инструмента: агент не работал, а ждал
+            # (таймаута на инструменты у pi нет); отличаем от честного ⏱,
+            # где агент работал до самого стопа (GigaChat-цикл, думание)
+            if int_kind == "time" and frozen and last_stop == "toolUse":
+                int_kind = "hang"
+                int_cause = ("повис в ожидании ответа bash-команды (таймаута на "
+                             "инструменты у pi нет): агент ждал до лимита 90 минут, "
+                             "скелет нетронут; остановлен раннером")
             dead = frozen or blank_run or bool(ic)
             # тип «вне метрик» — для разных значков в таблице результатов:
             # cut — обрыв сбоем (баланс/ключ/краш), time — лимит времени 90 мин,
@@ -533,8 +543,8 @@ def results_table(data: list[dict]):
         "cut": ("✂", "обрыв сбоем: исчерпан баланс OpenRouter (402), лимит ключа "
                       "OrcaRouter (403) или падение pi; обрывок решения в средних "
                       "не участвует"),
-        "time": ("⏱", "остановлен по лимиту времени 90 мин: агент работал (или висел) "
-                      "до самого стопа, решение не завершено"),
+        "time": ("⏱", "остановлен по лимиту времени 90 мин: агент работал до самого "
+                      "стопа, решение не завершено"),
         "hang": ("💤", "повисшая сессия: агент застрял в ожидании ответа bash-команды "
                       "и ждал её до лимита 90 минут; скелет нетронут"),
         "blank": ("∅", "решение не написано (дифф 0 строк): чекер оценивал "
@@ -2057,6 +2067,15 @@ def runs_inventory() -> str:
             blank_run = not run.get("diff_lines")
             ic = interrupt_cause(r, run)
             int_kind, int_cause = ic if ic else (None, None)
+            # повисшая сессия: убит по лимиту времени + скелет нетронут + финальный
+            # вызов модели — ожидание ответа инструмента: агент не работал, а ждал
+            # (таймаута на инструменты у pi нет); отличаем от честного ⏱,
+            # где агент работал до самого стопа (GigaChat-цикл, думание)
+            if int_kind == "time" and frozen and last_stop == "toolUse":
+                int_kind = "hang"
+                int_cause = ("повис в ожидании ответа bash-команды (таймаута на "
+                             "инструменты у pi нет): агент ждал до лимита 90 минут, "
+                             "скелет нетронут; остановлен раннером")
             dead = frozen or blank_run or bool(ic)
             dwhy = ""
             if int_cause:
@@ -2241,30 +2260,6 @@ _folders = {r["folder"]: r["prov"] for r in DATA}
 N_LOCAL = sum(1 for p in _folders.values() if p == "ollama")
 N_CLOUD = len(_folders) - N_LOCAL
 _contam = [r for r in DATA_ALL if r["contention"]]
-
-
-def _contam_note_global() -> str:
-    """Предупреждение под §1, если есть прогоны вне метрик."""
-    if not _contam:
-        return ""
-    lst = ", ".join(f"{r['short']} · {r['run'].removeprefix('run-')}" for r in _contam)
-    return (f'<div class=note><b>{pl_runs(len(_contam))} — вне метрик:</b> во время '
-            f'{"них" if len(_contam) > 1 else "него"} на сервере '
-            f'ollama была загружена чужая модель ({lst}). Факт зафиксирован наблюдателем раннера; '
-            f'в таблицы и графики разделов 1–6 такие прогоны не входят, детали — в разделе 7.</div>')
-
-
-def _contam_note_results() -> str:
-    """Сноска под таблицей §4 при наличии прогонов вне метрик."""
-    if not _contam:
-        return ""
-    lst = ", ".join(f"{r['short']} · {r['run'].removeprefix('run-')}" for r in _contam)
-    return (f'<p class=sub>Вне этой таблицы и графиков — {lst}: во время '
-            f'{"него" if len(_contam) == 1 else "них"} на сервере ollama параллельно '
-            f'работала чужая модель, условия неравные (факт и детали — в разделе 7). '
-            f'Остальные прогоны вне метрик — обрывы (✂), лимит времени (⏱), повисшие '
-            f'(💤) и пустые (∅) — видны в таблице по значкам колонки «Прогоны», '
-            f'в средние они тоже не входят.</p>')
 
 HTML = f"""<!DOCTYPE html>
 <html lang="ru"><head><meta charset="utf-8">
@@ -2638,7 +2633,6 @@ DeepSeek V4.1 Flash — через родной API; reasoning effort задаё
 <h2 id=results><span class=no>4.</span>Результаты моделей</h2>
 {results_table(DATA)}{quality_price_map(results_agg(DATA))}{quality_speed_map(results_agg(DATA))}{quality_triangle_map(results_agg(DATA))}
 {structure_section(DATA)}
-{_contam_note_results()}
 
 <h2 id=charts><span class=no>5.</span>Что показывают метрики</h2>
 <h3>Время и токены</h3>
