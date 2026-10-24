@@ -1479,13 +1479,13 @@ def structure_section(data: list[dict]) -> str:
             node["$"] = node.get("$", 0) + c
 
         def kids_of(node):
-            # сначала подкаталоги, затем файлы; каждый список — по убыванию частоты
+            # сначала подкаталоги, затем файлы; внутри — по алфавиту
             dirs = sorted(((k, v) for k, v in node.items()
                            if k not in "#$" and "#" in v),
-                          key=lambda kv: (-kv[1]["#"], kv[0].lower()))
+                          key=lambda kv: kv[0].lower())
             files = sorted(((k, v) for k, v in node.items()
                             if k not in "#$" and "$" in v and "#" not in v),
-                           key=lambda kv: (-kv[1]["$"], kv[0].lower()))
+                           key=lambda kv: kv[0].lower())
             return dirs, files
 
         def line_html(prefix, conn, name, cnt, is_dir, expandable):
