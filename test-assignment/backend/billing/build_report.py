@@ -1688,16 +1688,10 @@ def tools_section(data: list[dict]) -> str:
     modes = sorted(by_g.items(), key=mode_sort)
     mode_label = lambda rs: rs[0]["short"] + (" ·tuned" if "-tuned" in rs[0]["tag"] else "")  # noqa: E731
 
-    # порядок моделей — как в таблице раздела 3 «Модели» (оба кванта orca рядом);
-    # внутри модели сохраняется порядок по качеству (sorted стабилен)
-    M_ORDER = ("Sol 6.1", "Luna 6", "Haiku 5.5", "Opus 5.5",
-               "DeepSeek V4.1 Flash-1017", "huihui", "qwen3.8", "orca")
-
-    def m_rank(rs):
+    def mname(rs):
+        # orca и orca·IQ4_XS — одна модель (одни веса, два кванта)
         s = rs[0]["short"]
-        if s.startswith("orca"):
-            s = "orca"
-        return M_ORDER.index(s) if s in M_ORDER else len(M_ORDER)
+        return "orca" if s.startswith("orca") else s
 
     # --- агрегат: пончики + таблица инструментов -----------------------------
     agg_tools: Counter = Counter()
@@ -1874,25 +1868,37 @@ def tools_section(data: list[dict]) -> str:
                  f'дважды git вне репозитория и один падающий тест из 48; ни одного '
                  f'PHP-фатала или сломанного конвейера.')
 
-    # --- микс инструментов по режимам: ряд мини-пирогов ----------------------
-    pies = []
-    for _, rs in sorted(modes, key=lambda kv: m_rank(kv[1])):
-        mix: Counter = Counter()
-        for r in rs:
-            mix.update(scan[(r["folder"], r["run"])][0])
-        items = [(t, mix.get(t, 0)) for t in TOOL_ORDER]
-        calls = sum(mix.values())
-        pies.append(f'<div style="text-align:center">'
-                    f'{_donut(items, 34, 15, TOOL_COL, font=0)}'
-                    f'<div style="font-size:12px;font-weight:600;margin-top:4px;'
-                    f'white-space:nowrap">{mode_label(rs)} ·{rs[0]["note"]}</div>'
-                    f'<div class=sub>{calls} вызовов</div></div>')
-    strip = (f'<div style="display:flex;flex-wrap:wrap;gap:14px 24px;'
-             f'justify-content:center;margin:14px 0">{"".join(pies)}</div>'
+    # --- микс инструментов по режимам: ряды мини-пирогов по группам ----------
+    # группы — как в разделе 3: облачные SOTA, китайские открытые веса, локальные;
+    # внутри группы — порядок раздела 3, внутри модели — по качеству (stable)
+    GROUPS = (("Облачные SOTA", ("Sol 6.1", "Luna 6", "Haiku 5.5", "Opus 5.5")),
+              ("DeepSeek", ("DeepSeek V4.1 Flash-1017",)),
+              ("Локальные", ("huihui", "qwen3.8", "orca")))
+    group_rows = []
+    for gname, members in GROUPS:
+        pies = []
+        for _, rs in sorted((kv for kv in modes if mname(kv[1]) in members),
+                            key=lambda kv: members.index(mname(kv[1]))):
+            mix: Counter = Counter()
+            for r in rs:
+                mix.update(scan[(r["folder"], r["run"])][0])
+            items = [(t, mix.get(t, 0)) for t in TOOL_ORDER]
+            calls = sum(mix.values())
+            pies.append(f'<div style="text-align:center">'
+                        f'{_donut(items, 34, 15, TOOL_COL, font=0)}'
+                        f'<div style="font-size:12px;font-weight:600;margin-top:4px;'
+                        f'white-space:nowrap">{mode_label(rs)} ·{rs[0]["note"]}</div>'
+                        f'<div class=sub>{calls} вызовов</div></div>')
+        group_rows.append(f'<div style="margin:12px 0">'
+                          f'<div style="font-size:12.5px;font-weight:700;color:#46536a;'
+                          f'margin-bottom:4px">{gname}</div>'
+                          f'<div style="display:flex;flex-wrap:wrap;gap:14px 24px;'
+                          f'justify-content:center">{"".join(pies)}</div></div>')
+    strip = ('<div style="margin:6px 0">' + "".join(group_rows) + '</div>'
              f'<p class=sub>Пончик режима — доли bash/write/edit/read в его '
              f'вызовах (порядок и цвета — как на агрегате слева); наведение — '
-             f'числа. Пончики сгруппированы по моделям в порядке списка раздела 3, '
-             f'внутри модели — по качеству.</p>')
+             f'числа. Строки — группы моделей из раздела 3, внутри строки — '
+             f'порядок списка, внутри модели — по качеству.</p>')
 
     # --- утилиты по режимам: матрица долей с тепловой заливкой ---------------
     head = "".join(f'<th class=narrow><code>{w}</code></th>' for w in top8)
