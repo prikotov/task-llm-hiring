@@ -393,6 +393,11 @@ tr.top td{background:#eef6ef}
       font-size:10px;font-weight:700;line-height:12px;text-align:center;
       vertical-align:-1px;user-select:none}
 .tbox.none{border-color:transparent}
+.alist details{margin:8px 0;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}
+.alist summary{cursor:pointer;padding:10px 16px;font-size:14.5px}
+.alist details[open]>summary{border-bottom:1px solid var(--line)}
+.alist table{margin:0}
+.alist td code,.alist th code{font-size:12px}
 .tree summary{list-style:none;cursor:pointer}
 .tree summary::-webkit-details-marker{display:none}
 .tree summary .tbox::before{content:"+";}
@@ -2077,7 +2082,9 @@ def audit_section(data: list[dict]) -> str:
     """Сводный аудит безопасности по всем прогонам с сессией: обращения к сети,
     выходы за рабочий каталог и их классификация судьёй-аудитором
     (checker/judge_audit.py). Детерминированные сигналы — security.json,
-    вердикт и разбор каждого сигнала — audit.json прогона."""
+    вердикт и разбор каждого сигнала — audit.json прогона. 4.3.1 — сводка,
+    4.3.2 — полный перечень пограничных действий (человеческий контроль)."""
+    import html as _h
     from collections import Counter
 
     ORDER = ["openai-gpt-6.1-sol", "openai-gpt-6-luna", "anthropic-claude-haiku-5.5",
@@ -2161,6 +2168,58 @@ def audit_section(data: list[dict]) -> str:
                    f'<td>{parts(p["cls"], ("нарушение", "пограничное", "безобидное"))}</td>'
                    f'<td>{parts(p["verd"], ("нарушение", "пограничное", "чисто"), True)}</td></tr>')
 
+    # --- 4.3.2: перечень всех пограничных сигналов ----------------------------
+    # по моделям в порядке раздела 3, внутри модели — по прогонам и ходу сессии
+    listing: dict = {}
+    for r in sorted(data, key=lambda x: (x["folder"], x["run"])):
+        d = ROOT / "models" / r["folder"] / "backend" / "test-assignment" / r["run"]
+        sec = d / "security.json"
+        if not sec.is_file():
+            continue
+        sigs = json.loads(sec.read_text()).get("signals", [])
+        cls = {}
+        if (d / "audit.json").is_file():
+            cls = {s["i"]: (s.get("class"), s.get("reason", "")) for s in
+                   json.loads((d / "audit.json").read_text()).get("signals", [])}
+        for i, x in enumerate(sigs, 1):
+            c, reason = cls.get(i, ("", ""))
+            if c != "пограничное":
+                continue
+            listing.setdefault(r["folder"], []).append(
+                (r["run"].removeprefix("run-"), x["kind"],
+                 str(x.get("cmd") or ""), str(reason or "")))
+    def plural(n, one, few, many):
+        if n % 10 == 1 and n % 100 != 11:
+            return one
+        if n % 10 in (2, 3, 4) and n % 100 not in (12, 13, 14):
+            return few
+        return many
+
+    blocks = []
+    for f in [x for x in ORDER if listing.get(x)]:
+        rows = listing[f]
+        rn = len({lab for lab, *_ in rows})
+        trs2 = "".join(
+            f'<tr><td class=narrow>{lab}</td>'
+            f'<td class=narrow>{"запись" if k.endswith("запись") else "bash"}</td>'
+            f'<td><code>{_h.escape(cmd[:110] + ("…" if len(cmd) > 110 else ""))}</code></td>'
+            f'<td class=sub>{_h.escape(reason[:170] + ("…" if len(reason) > 170 else ""))}</td></tr>'
+            for lab, k, cmd, reason in rows)
+        blocks.append(
+            f'<details><summary><b>{SHORT.get(f, f)}</b> '
+            f'<span class=sub>— {len(rows)} {plural(len(rows), "сигнал", "сигнала", "сигналов")} '
+            f'в {rn} {"прогоне" if rn == 1 else "прогонах"}</span></summary>'
+            f'<table style="width:auto"><thead>'
+            f'<tr><th class=narrow>Прг.</th><th class=narrow>Тип</th>'
+            f'<th>Команда</th><th>Разбор судьи</th></tr></thead>'
+            f'<tbody>{trs2}</tbody></table></details>')
+    listing_html = (f'<p class="excap sb">4.3.2. Пограничные действия: полный перечень</p>'
+                    f'<p class=sub>Каждый пограничный сигнал — списком: по моделям '
+                    f'(порядок раздела 3), внутри модели — по прогонам и ходу сессии. '
+                    f'Команда обрезана до 110 символов, разбор судьи — до 170; '
+                    f'полностью — в <code>audit-verdict.md</code> прогона.</p>'
+                    f'<div class=alist>{"".join(blocks)}</div>')
+
     uncls_txt = (f' Не классифицировано судьёй: {uncls_total} (сигнал добавлен детектором '
                  f'уже после прогона аудитора).' if uncls_total else "")
     return (f'<h3><span class=no>4.3</span>Сводный аудит безопасности</h3>'
@@ -2169,6 +2228,7 @@ def audit_section(data: list[dict]) -> str:
             f'вердикт: каждый разбирает судья-аудитор (изолированная pi-сессия '
             f'glm-5.3-flash, <code>checker/judge_audit.py</code>). Сводка по '
             f'{runs_total} прогонам с сессией:</p>'
+            f'<p class="excap sb">4.3.1. Сводка по прогонам</p>'
             f'<ul>'
             f'<li><b>Сеть:</b> {net_total} обращений — ни один агент ни разу '
             f'не вышел в сеть за все {runs_total} прогонов.</li>'
@@ -2193,7 +2253,8 @@ def audit_section(data: list[dict]) -> str:
             f'bonsai-2 ·01 — решение не написано, аудит не прогонялся, '
             f'bonsai-2 ·02 — прогон вне метрик (чужая модель в vLLM). Разбор '
             f'каждого сигнала — в отчёте прогона: <code>security.json</code>, '
-            f'<code>audit-verdict.md</code>, <code>audit.json</code>.</p>')
+            f'<code>audit-verdict.md</code>, <code>audit.json</code>.</p>'
+            f'{listing_html}')
 
 
 def structure_section(data: list[dict]) -> str:
