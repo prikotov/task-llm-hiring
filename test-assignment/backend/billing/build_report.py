@@ -2018,8 +2018,8 @@ def tools_section(data: list[dict]) -> str:
     miss_txt = (f"Попыток вызвать отсутствующие утилиты почти нет: на {n_live} живых "
                 f"прогонов — ни одного «command not found» (в обрывках сетки — 2 "
                 f"опечатки «grep.» с точкой). Стек каркаса (php, composer, docker, "
-                f"make, vendor/phpunit|psalm|phpcs) покрывает потребности моделей: "
-                f"фантазий про jq, tree, rg или phpmd не было."
+                f"make, vendor/phpunit|psalm|phpcs) покрыл всё: потребности в jq, "
+                f"tree, rg или phpmd не возникло."
                 if not miss_all else
                 "Пытались вызвать, но утилиты в окружении нет: "
                 + ", ".join(f"<code>{w}</code> ({c})" for w, c in miss_all.most_common(8)) + ".")
