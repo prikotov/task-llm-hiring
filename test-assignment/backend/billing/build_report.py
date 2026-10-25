@@ -1938,7 +1938,8 @@ def tools_section(data: list[dict]) -> str:
              f'порядок списка, внутри модели — уровень мышления по возрастанию.</p>')
 
     # --- утилиты по режимам: матрица долей с тепловой заливкой ---------------
-    head = "".join(f'<th class=narrow><code>{w}</code></th>' for w in top8)
+    # колонки — топ-8 плюс обязательные утилиты приёмки (как в пончике 4.2.2)
+    head = "".join(f'<th class=narrow><code>{w}</code></th>' for w in shown)
     rows_m = []
     for _, rs in modes:
         mix: Counter = Counter()
@@ -1946,7 +1947,7 @@ def tools_section(data: list[dict]) -> str:
             mix.update(scan[(r["folder"], r["run"])][1])
         tot = sum(mix.values()) or 1
         cells = []
-        for w in top8:
+        for w in shown:
             share = mix.get(w, 0) / tot
             alpha = min(0.85, share * 1.7)
             val = f"{round(100 * share)}%" if mix.get(w) else "—"
@@ -1957,7 +1958,8 @@ def tools_section(data: list[dict]) -> str:
               f'<thead><tr><th>Модель</th><th class=narrow>Мышл.</th>{head}</tr></thead>'
               f'<tbody>{"".join(rows_m)}</tbody></table></div>'
               f'<p class=sub>Доля утилиты в вызовах утилит режима; заливка — '
-              f'та же доля. Колонки — топ-{len(top8)} утилит агрегата.</p>')
+              f'та же доля. Колонки — топ-{len(top8)} утилит агрегата плюс '
+              f'обязательные утилиты приёмки, как в пончике 4.2.2.</p>')
 
     # --- постоянство микса: внутри режима против между моделями --------------
     def tvec(r):
