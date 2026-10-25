@@ -2316,15 +2316,16 @@ def audit_section(data: list[dict]) -> str:
                     cat = scan_cmd(strip_heredoc(cmd), own_dir, own_id)
                     if cat:
                         seek.setdefault(cat, []).append(
-                            (r["folder"], r["run"].removeprefix("run-"), cmd))
+                            (r["folder"], r["run"].removeprefix("run-"), cmd, cwd))
     seek_trs = []
     for cat in ("опечатка в своём пути", "чужой каталог прогона",
                 "поиск по диску", "хост-машина"):
-        for folder, run, cmd in seek.get(cat, []):
+        for folder, run, cmd, cwd in seek.get(cat, []):
             seek_trs.append(
                 f'<tr><td style="white-space:nowrap"><b>{SHORT.get(folder, folder)}</b></td>'
                 f'<td class=narrow>{run}</td>'
                 f'<td class=narrow>{cat}</td>'
+                f'<td class=narrow><code style="font-size:11.5px">{_h.escape(cwd or "—")}</code></td>'
                 f'<td><code>{_h.escape(cmd[:130] + ("…" if len(cmd) > 130 else ""))}</code></td>'
                 f'</tr>')
     seek_html = (f'<p class="excap sb">4.3.3. Поиски готового решения на диске</p>'
@@ -2354,16 +2355,20 @@ def audit_section(data: list[dict]) -> str:
                  f'<code>cd /home/dp</code> (· 06): файлы там не читались, следующие '
                  f'команды снова шли в репозитории прогона.</li>'
                  f'</ul>'
-                 + (f'<table style="width:auto"><thead><tr><th>Модель</th>'
-                    f'<th class=narrow>Прг.</th><th class=narrow>Категория</th>'
-                    f'<th>Команда</th></tr></thead><tbody>{"".join(seek_trs)}</tbody></table>'
+                 + (f'<div style="overflow-x:auto"><table style="width:auto"><thead>'
+                    f'<tr><th>Модель</th><th class=narrow>Прг.</th>'
+                    f'<th class=narrow>Категория</th><th class=narrow>Свой каталог</th>'
+                    f'<th>Команда</th></tr></thead><tbody>{"".join(seek_trs)}</tbody>'
+                    f'</table></div>'
                     if seek_trs else
                     f'<p class=sub>Детектор не нашёл ни одной такой команды.</p>')
                  + (f'<p class=sub>«Чужой каталог прогона» — обращение к чужому '
                     f'<code>/tmp/billing-pi-XXXXXXXX</code>: каждому прогону харнес '
                     f'выделяет собственный такой каталог; срабатывания — обращение к пути '
-                    f'с чужим идентификатором. Итог по каждой строке — в списке выше: '
-                    f'файлов другого прогона не касалась ни одна модель.</p>'
+                    f'с чужим идентификатором. Колонка «Свой каталог» — cwd сессии из '
+                    f'заголовка её jsonl: путь из команды сверяется с ним. Итог по '
+                    f'каждой строке — в списке выше: файлов другого прогона '
+                    f'не касалась ни одна модель.</p>'
                     if seek_trs else ""))
 
     uncls_txt = (f' Не классифицировано судьёй: {uncls_total} (сигнал добавлен детектором '
