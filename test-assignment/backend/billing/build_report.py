@@ -2140,7 +2140,9 @@ def context_section(data: list[dict]) -> str:
 
     runs_total = sum(p["runs"] for p in per.values())
     one_total = sum(p["one"] for p in per.values())
-    tmax_all = max(max(p["turns"]) for p in per.values())
+    # общая шкала: min–max по всем прогонам всех режимов таблицы
+    all_turns = [v for p in per.values() for v in p["turns"]]
+    gmin, gmax = min(all_turns), max(all_turns)
     comp_runs = sum(1 for p in per.values() if p["comp"])
     comp_total = sum(p["comp"] for p in per.values())
     thr = int(st.median(comp_before) // 1000) if comp_before else 86
@@ -2152,27 +2154,33 @@ def context_section(data: list[dict]) -> str:
         tmed = st.median(p["turns"])
         comp_cell = (f'<b>{p["comp"]}</b><div class=sub>макс {p["cmax"]} на прогон</div>'
                      if p["comp"] else '<span class=sub>—</span>')
-        # свеча разброса ходов: вишка — мин–макс, засечки — прогоны, тело — медиана
-        W = 170
+        # ходы на общей шкале (min–max всех прогонов таблицы): светлая дорожка —
+        # общая шкала, синяя полоса — мин–макс режима, вертикаль — медиана
+        W, H = 170, 20
 
         def xx(v):
-            return round(v / tmax_all * (W - 10) + 5, 1)
+            return round((v - gmin) / (gmax - gmin) * (W - 8) + 4, 1)
 
         ticks = "".join(
-            f'<line x1="{xx(v)}" y1="7" x2="{xx(v)}" y2="15" stroke="#98a1ac" stroke-width="1"/>'
-            for v in sorted(set(p["turns"])))
+            f'<line x1="{xx(v):.1f}" y1="{H // 2 - 4}" x2="{xx(v):.1f}" y2="{H // 2 + 4}" '
+            f'stroke="#7d899c" stroke-width="1"/>'
+            for v in sorted(set(p["turns"])) if tmin != tmax or v != tmin)
         tip = (f'ходов: медиана {tmed:.0f}; прогоны '
                f'{", ".join(map(str, sorted(p["turns"])))}')
         rng = (f'<b>{tmed:.0f}</b>'
                + (f' <span class=sub>· {tmin}–{tmax}</span>' if tmin != tmax else ""))
         candle = (f'<div style="display:flex;align-items:center;gap:8px">'
-                  f'<svg width="{W}" height="22" style="flex:none">'
-                  f'<rect x="0" y="0" width="{W}" height="22" fill="transparent">'
+                  f'<svg width="{W}" height="{H}" style="flex:none">'
+                  f'<rect x="0" y="0" width="{W}" height="{H}" fill="transparent">'
                   f'<title>{tip}</title></rect>'
-                  f'<line x1="{xx(tmin)}" y1="11" x2="{xx(tmax)}" y2="11" '
-                  f'stroke="#aab3bf" stroke-width="1.5"/>{ticks}'
-                  f'<rect x="{max(2, xx(tmed) - 6):.1f}" y="4" width="12" height="14" '
-                  f'rx="3" fill="#315f9e"/></svg>'
+                  f'<rect x="2" y="{H // 2 - 3}" width="{W - 4}" height="6" rx="3" '
+                  f'fill="#eef0f4"/>'
+                  f'<rect x="{xx(tmin)}" y="{H // 2 - 3}" '
+                  f'width="{max(4, xx(tmax) - xx(tmin)):.1f}" height="6" rx="3" '
+                  f'fill="#315f9e" fill-opacity="0.35"/>'
+                  f'<line x1="{xx(tmed):.1f}" y1="{H // 2 - 8}" '
+                  f'x2="{xx(tmed):.1f}" y2="{H // 2 + 8}" stroke="#315f9e" '
+                  f'stroke-width="2"/>{ticks}</svg>'
                   f'<span style="font-size:13px;white-space:nowrap">{rng}</span></div>')
         peak = p["peak"] // 1000
         peak_cell = f'{peak}K'
@@ -2230,10 +2238,10 @@ def context_section(data: list[dict]) -> str:
             f'порог 102.4K, — Opus · 04<sup>*</sup>: pi взял нативное окно 1M '
             f'от провайдера и не компактил; зачёт полный.</p>'
             f'</div>'
-            f'<p class=sub>Свеча в колонке «Ходов» — разброс по прогонам режима: '
-            f'вишка — мин–макс, засечки — отдельные прогоны, синее тело — медиана '
-            f'(рядом числа: медиана · мин–макс); наведение — все прогоны. '
-            f'Шкала общая для всех строк. «Без компакта» — прогонов режима, '
+            f'<p class=sub>«Ходов» на общей шкале всех прогонов таблицы ({gmin}–{gmax}): '
+            f'серая дорожка — шкала, синяя полоса — мин–макс режима, вертикаль — '
+            f'медиана, засечки — отдельные прогоны; рядом числа (медиана · '
+            f'мин–макс), наведение — все прогоны. «Без компакта» — прогонов режима, '
             f'обошедшихся без единого '
             f'автокомпакта; их контекст не доходил до порога ~86K. '
             f'Режимы вне верхних квадрантов — вне таблицы (включая самый тяжёлый '
