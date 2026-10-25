@@ -1939,6 +1939,17 @@ def tools_section(data: list[dict]) -> str:
 
     # --- утилиты по режимам: матрица долей с тепловой заливкой ---------------
     # колонки — топ-8 плюс обязательные утилиты приёмки (как в пончике 4.2.2)
+    def mix_sims(rs):
+        """Постоянство микса режима: средняя похожесть долей по парам прогонов
+        (инструменты, утилиты топ-8). Для одного прогона не определено."""
+        if len(rs) < 2:
+            return None
+        vec = lambda i: [scan[(r["folder"], r["run"])][i] for r in rs]  # noqa: E731
+        tv, uv = vec(0), [Counter({w: c.get(w, 0) for w in top8})
+                          for c in vec(1)]
+        return (st.mean([_tvd_sim(a, b) for a, b in combinations(tv, 2)]),
+                st.mean([_tvd_sim(a, b) for a, b in combinations(uv, 2)]))
+
     head = "".join(f'<th class=narrow><code>{w}</code></th>' for w in shown)
     rows_m = []
     for _, rs in modes:
@@ -1952,10 +1963,22 @@ def tools_section(data: list[dict]) -> str:
             alpha = min(0.85, share * 1.7)
             val = f"{round(100 * share)}%" if mix.get(w) else "—"
             cells.append(f'<td class=narrow style="background:rgba(49,95,158,{alpha:.2f})">{val}</td>')
+        ms = mix_sims(rs)
+        if ms:
+            hue = "#2f7d54" if ms[0] >= 0.7 else "#315f9e" if ms[0] >= 0.4 else "#b3543f"
+            const = (f'<div class="barwrap s" title="Похожесть микса инструментов '
+                     f'между парами прогонов режима (0–1).">'
+                     f'<div class=bar style="width:{max(3, ms[0] * 100):.0f}%;'
+                     f'background:{hue}"></div><span>{ms[0]:.2f}</span></div>'
+                     f'<div class=sub>утилиты {ms[1]:.2f}</div>')
+        else:
+            const = '<span class=sub>—</span>'
         rows_m.append(f'<tr><td style="white-space:nowrap">{mode_label(rs)}</td>'
-                      f'<td class=narrow>{rs[0]["note"]}</td>{"".join(cells)}</tr>')
+                      f'<td class=narrow>{rs[0]["note"]}</td>'
+                      f'<td class=narrow>{const}</td>{"".join(cells)}</tr>')
     matrix = (f'<div style="overflow-x:auto"><table style="width:auto">'
-              f'<thead><tr><th>Модель</th><th class=narrow>Мышл.</th>{head}</tr></thead>'
+              f'<thead><tr><th>Модель</th><th class=narrow>Мышл.</th>'
+              f'<th class=narrow>Постоя&shy;нство</th>{head}</tr></thead>'
               f'<tbody>{"".join(rows_m)}</tbody></table></div>'
               f'<p class=sub>Доля утилиты в вызовах утилит режима; заливка — '
               f'та же доля. Колонки — топ-{len(top8)} утилит агрегата плюс '
@@ -1983,15 +2006,6 @@ def tools_section(data: list[dict]) -> str:
     wu = st.mean(within_u) if within_u else 0.0
     bt = st.mean(between_t) if between_t else 0.0
     bu = st.mean(between_u) if between_u else 0.0
-    rated = []
-    for _, rs in modes:
-        if len(rs) < 2:
-            continue
-        rated.append((mode_label(rs),
-                      st.mean([_tvd_sim(tvec(a), tvec(b)) for a, b in combinations(rs, 2)]),
-                      st.mean([_tvd_sim(uvec(a), uvec(b)) for a, b in combinations(rs, 2)])))
-    best = max(rated, key=lambda x: x[1])
-    worst = min(rated, key=lambda x: x[1])
 
     med_w = st.median([s[0].get("write", 0) for s in sgood])
     med_e = st.median([s[0].get("edit", 0) for s in sgood])
@@ -2019,15 +2033,14 @@ def tools_section(data: list[dict]) -> str:
             f'<p class="excap sb">4.2.4. Утилиты bash по моделям</p>'
             f'{matrix}'
             f'<div class=note>'
-            f'<p><b>Постоянство микса.</b> Вектор долей инструментов и топ-{len(top8)} '
-            f'утилит каждого прогона; схожесть пары — 1 минус расстояние общей вариации '
-            f'долей (1 = одинаковый микс, 0 = не пересекаются). Внутри режима: '
-            f'{wt:.2f} по инструментам и {wu:.2f} по утилитам; между разными моделями — '
-            f'{bt:.2f} и {bu:.2f}. '
-            + (f'Полюса постоянства инструментов: {best[0]} ({best[1]:.2f}, утилиты '
-               f'{best[2]:.2f}) против {worst[0]} ({worst[1]:.2f}, утилиты {worst[2]:.2f}). '
-               if rated else "")
-            + f'</p>'
+            f'<p><b>Постоянство микса.</b> Колонка «Постоянство» матрицы — как '
+            f'стабильно модель повторяет свой набор инструментов от прогона '
+            f'к прогону внутри режима: средняя похожесть долей по парам прогонов '
+            f'(1 — микс совпадает, 0 — не пересекаются), строка «утилиты» под '
+            f'баром — то же для набора утилит; «—» — режим с одним прогоном, '
+            f'мерить не на чем. В среднем внутри режима {wt:.2f} по инструментам '
+            f'и {wu:.2f} по утилитам, между разными моделями — {bt:.2f} и {bu:.2f}: '
+            f'набор вызовов — «почерк» модели.</p>'
             f'<p><b>Стратегия правок.</b> Медианы на прогон: write {med_w:.0f} против '
             f'edit {med_e:.0f} — создание файлов целиком преобладает над точечными '
             f'правками. Файлы через bash-heredoc (<code>cat &lt;&lt; EOF</code>) пишут '
