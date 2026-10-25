@@ -1585,23 +1585,43 @@ def _pct_s(pct: float) -> str:
 
 def _donut(items, R, SW, colors, center1="", center2="", font=30) -> str:
     """SVG-пончик: сегменты — доли items (имя, значение); тултипы сегментов —
-    нативные <title>, без JS. Тот же рисунок, что donut_card отчёта прогона."""
+    нативные <title>, без JS. Секторы рисуются путями, а не stroke-dasharray:
+    суб-пиксельные дуги (<1% доли) при малом масштабе растеризуются
+    нестабильно — клин-артефакт в соседнем сегменте. Тот же рисунок, что
+    donut_card отчёта прогона."""
     import math
     total = sum(v for _, v in items)
     CX = R + SW // 2 + 2
-    C = 2 * math.pi * R
-    segs, cum = [], 0.0
-    for name, v in items:
-        if not v:
-            continue
-        hue = colors.get(name, "#9aa3ad") if isinstance(colors, dict) else colors[i % len(colors)]
-        seg = v / total * C
-        pct_s = _pct_s(100 * v / total)
-        segs.append(f'<circle r={R} cx={CX} cy={CX} fill="none" stroke="{hue}" '
-                    f'stroke-width={SW} stroke-dasharray="{seg:.1f} {C - seg:.1f}" '
-                    f'stroke-dashoffset="{-cum:.1f}" transform="rotate(-90 {CX} {CX})">'
-                    f'<title>{name} — {v} ({pct_s})</title></circle>')
-        cum += seg
+    R_out, R_in = R + SW / 2, R - SW / 2
+
+    def pt(rr, a):
+        return f"{CX + rr * math.sin(a):.2f} {CX - rr * math.cos(a):.2f}"
+
+    painted = [(name, v) for name, v in items if v]
+    if len(painted) == 1:
+        # полный круг: сектор на 360° в SVG-дуге вырождается
+        name, v = painted[0]
+        hue = colors.get(name, "#9aa3ad") if isinstance(colors, dict) else colors[0]
+        segs = [f'<circle r={R} cx={CX} cy={CX} fill="none" stroke="{hue}" '
+                f'stroke-width={SW}><title>{name} — {v} '
+                f'({_pct_s(100 * v / total)})</title></circle>']
+    else:
+        segs, a0 = [], 0.0
+        for name, v in items:
+            if not v:
+                continue
+            hue = (colors.get(name, "#9aa3ad") if isinstance(colors, dict)
+                   else colors[len(segs) % len(colors)])
+            a1 = a0 + v / total * 2 * math.pi
+            large = 1 if a1 - a0 > math.pi else 0
+            # обводка цветом заливки закрывает волосяные швы на стыках секторов
+            segs.append(f'<path d="M {pt(R_out, a0)} '
+                        f'A {R_out} {R_out} 0 {large} 1 {pt(R_out, a1)} '
+                        f'L {pt(R_in, a1)} '
+                        f'A {R_in} {R_in} 0 {large} 0 {pt(R_in, a0)} Z" '
+                        f'fill="{hue}" stroke="{hue}" stroke-width="1">'
+                        f'<title>{name} — {v} ({_pct_s(100 * v / total)})</title></path>')
+            a0 = a1
     if center1:
         segs.append(f'<text x={CX} y={CX - 2} text-anchor=middle font-size={font} '
                     f'font-weight=bold fill="#1d2433">{center1}</text>'
