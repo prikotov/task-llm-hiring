@@ -2160,7 +2160,7 @@ def context_section(data: list[dict]) -> str:
         trs.append(f'<tr><td style="white-space:nowrap"><b>{label}</b></td>'
                    f'<td class=narrow>{note_cell}</td>'
                    f'<td class=narrow>{p["runs"]}</td>'
-                   f'<td class=narrow>{p["one"]} из {p["runs"]}</td>'
+                   f'<td class=narrow>{p["one"] or "0"}</td>'
                    f'<td class=narrow>{comp_cell}</td>'
                    f'<td class=narrow>{tmed:.0f} ({tmin}–{tmax})</td>'
                    f'<td class=narrow>{peak_cell}</td></tr>')
