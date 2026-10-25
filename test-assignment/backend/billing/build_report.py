@@ -1904,7 +1904,9 @@ def tools_section(data: list[dict]) -> str:
 
     # --- микс инструментов по режимам: ряды мини-пирогов по группам ----------
     # группы — как в разделе 3: облачные SOTA, китайские открытые веса, локальные;
-    # внутри группы — порядок раздела 3, внутри модели — по качеству (stable)
+    # внутри группы — порядок раздела 3, внутри модели — уровень мышления
+    # по возрастанию (low → max), единообразно для всех пар режимов
+    NOTE_ORDER = {"low": 0, "medium": 1, "high": 2, "xhigh": 3, "on": 4, "max": 5}
     GROUPS = (("Облачные SOTA", ("Sol 6.1", "Luna 6", "Haiku 5.5", "Opus 5.5")),
               ("DeepSeek", ("DeepSeek V4.1 Flash-1017",)),
               ("Локальные", ("huihui", "qwen3.8", "orca")))
@@ -1912,7 +1914,8 @@ def tools_section(data: list[dict]) -> str:
     for gname, members in GROUPS:
         pies = []
         for _, rs in sorted((kv for kv in modes if mname(kv[1]) in members),
-                            key=lambda kv: members.index(mname(kv[1]))):
+                            key=lambda kv: (members.index(mname(kv[1])),
+                                            NOTE_ORDER.get(kv[1][0]["note"], 9))):
             mix: Counter = Counter()
             for r in rs:
                 mix.update(scan[(r["folder"], r["run"])][0])
@@ -1932,7 +1935,7 @@ def tools_section(data: list[dict]) -> str:
              f'<p class=sub>Пончик режима — доли bash/write/edit/read в его '
              f'вызовах (порядок и цвета — как на агрегате слева); наведение — '
              f'числа. Строки — группы моделей из раздела 3, внутри строки — '
-             f'порядок списка, внутри модели — по качеству.</p>')
+             f'порядок списка, внутри модели — уровень мышления по возрастанию.</p>')
 
     # --- утилиты по режимам: матрица долей с тепловой заливкой ---------------
     head = "".join(f'<th class=narrow><code>{w}</code></th>' for w in top8)
