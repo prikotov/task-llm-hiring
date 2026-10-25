@@ -2898,6 +2898,30 @@ document.querySelectorAll('svg.scatter g.pt').forEach(function (pt) {
   });
   dot.addEventListener('mouseleave', function () { tip.style.display = 'none'; });
 });
+
+// Тултипы SVG-сегментов (пончики, карты): нативные <title> в части
+// вьюверов показываются нестабильно — рисуем подсказку сами.
+(function () {
+  var tip = document.createElement('div');
+  tip.style.cssText = 'position:fixed;z-index:99;pointer-events:none;display:none;'
+    + 'background:#1d2433;color:#fff;font:12.5px/1.45 system-ui,sans-serif;'
+    + 'padding:5px 10px;border-radius:7px;white-space:nowrap;'
+    + 'box-shadow:0 2px 10px rgba(20,30,50,.35)';
+  document.body.appendChild(tip);
+  var cur = null;
+  document.addEventListener('mousemove', function (e) {
+    var t = e.target;
+    var el = (t && t.namespaceURI === 'http://www.w3.org/2000/svg'
+              && t.querySelector && t.querySelector(':scope > title')) ? t : null;
+    if (el) {
+      if (cur !== el) { tip.textContent = el.querySelector('title').textContent; cur = el; }
+      tip.style.display = 'block';
+      var w = tip.offsetWidth, h = tip.offsetHeight;
+      tip.style.left = Math.min(e.clientX + 14, window.innerWidth - w - 6) + 'px';
+      tip.style.top = Math.min(e.clientY + 16, window.innerHeight - h - 6) + 'px';
+    } else if (cur) { tip.style.display = 'none'; cur = null; }
+  }, { passive: true });
+})();
 """
 
 DATA = scan_runs()
