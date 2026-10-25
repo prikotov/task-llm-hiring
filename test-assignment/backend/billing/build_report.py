@@ -2073,6 +2073,129 @@ def tools_section(data: list[dict]) -> str:
             f'колонке «Всего»: сверху — ошибающиеся реже.{clean_txt}</p>')
 
 
+def audit_section(data: list[dict]) -> str:
+    """Сводный аудит безопасности по всем прогонам с сессией: обращения к сети,
+    выходы за рабочий каталог и их классификация судьёй-аудитором
+    (checker/judge_audit.py). Детерминированные сигналы — security.json,
+    вердикт и разбор каждого сигнала — audit.json прогона."""
+    from collections import Counter
+
+    ORDER = ["openai-gpt-6.1-sol", "openai-gpt-6-luna", "anthropic-claude-haiku-5.5",
+             "anthropic-claude-opus-5.5", "deepseek-flash", "gigachat-3-ultra",
+             "gigachat", "huihui-ai-pi-100k", "qwen3.8-27b-pi-100k",
+             "orcarouter-Qwen3.8-27B-Uncensored-latest",
+             "orcarouter-Qwen3.8-27B-Uncensored-iq4_xs", "ornith-1.5-35b",
+             "muse-glimmer", "gemma4-31b-it-qat-pi-100k", "gemma4-26b-pi-100k",
+             "bonsai-2-27b"]
+    HUE = {"чисто": "#2f7d54", "пограничное": "#8a6d1a", "нарушение": "#b3543f"}
+
+    per: dict = {}
+    for r in data:
+        d = ROOT / "models" / r["folder"] / "backend" / "test-assignment" / r["run"]
+        sec = d / "security.json"
+        if not sec.is_file():
+            continue
+        p = per.setdefault(r["folder"], {"runs": 0, "net": 0, "net_runs": 0,
+                                         "out": 0, "out_write": 0, "out_runs": 0,
+                                         "non_tmp": 0, "uncls": 0,
+                                         "cls": Counter(), "verd": Counter()})
+        p["runs"] += 1
+        p["verd"][r.get("audit") or "—"] += 1
+        sigs = json.loads(sec.read_text()).get("signals", [])
+        cls = {}
+        if (d / "audit.json").is_file():
+            cls = {s["i"]: s.get("class") for s in
+                   json.loads((d / "audit.json").read_text()).get("signals", [])}
+        kinds = Counter(x["kind"] for x in sigs)
+        if sigs:
+            p["sig_runs"] = p.get("sig_runs", 0) + 1
+        if kinds.get("сеть"):
+            p["net_runs"] += 1
+        p["net"] += kinds.get("сеть", 0)
+        p["out"] += kinds.get("вне cwd", 0)
+        p["out_write"] += kinds.get("вне cwd (запись)", 0)
+        if kinds.get("вне cwd") or kinds.get("вне cwd (запись)"):
+            p["out_runs"] += 1
+        for i, x in enumerate(sigs, 1):
+            c = cls.get(i)
+            if c:
+                p["cls"][c] += 1
+            else:
+                p["uncls"] += 1
+            if not (x.get("detail") or "").startswith("/tmp"):
+                p["non_tmp"] += 1
+
+    def parts(cnt: Counter, order, colored=False):
+        out = []
+        for k in order:
+            if cnt.get(k):
+                val = f'<b style="color:{HUE.get(k, "#66707f")}">{cnt[k]}</b> {k}' \
+                    if colored else f'{cnt[k]} {k}'
+                out.append(val)
+        return " · ".join(out) or '<span class=sub>—</span>'
+
+    runs_total = sum(p["runs"] for p in per.values())
+    net_total = sum(p["net"] for p in per.values())
+    out_total = sum(p["out"] + p["out_write"] for p in per.values())
+    out_runs_total = sum(p["out_runs"] for p in per.values())
+    models_out = sum(1 for p in per.values() if p["out"] or p["out_write"])
+    cls_total, verd_total, uncls_total, non_tmp_total = Counter(), Counter(), 0, 0
+    for p in per.values():
+        cls_total.update(p["cls"])
+        verd_total.update(p["verd"])
+        uncls_total += p["uncls"]
+        non_tmp_total += p["non_tmp"]
+
+    trs = []
+    for f in sorted(per, key=lambda x: ORDER.index(x) if x in ORDER else 99):
+        p = per[f]
+        net_cell = (f'<b>{p["net"]}</b><div class=sub>в {p["net_runs"]} прг.</div>'
+                    if p["net"] else '<span class=sub>0</span>')
+        out_cell = (f'<b>{p["out"] + p["out_write"]}</b>'
+                    f'<div class=sub>в {p["out_runs"]} из {p["runs"]} прг.</div>'
+                    if p["out"] or p["out_write"] else '<span class=sub>0</span>')
+        trs.append(f'<tr><td style="white-space:nowrap"><b>{SHORT.get(f, f)}</b></td>'
+                   f'<td class=narrow>{p["runs"]}</td>'
+                   f'<td class=narrow>{net_cell}</td>'
+                   f'<td class=narrow>{out_cell}</td>'
+                   f'<td>{parts(p["cls"], ("нарушение", "пограничное", "безобидное"))}</td>'
+                   f'<td>{parts(p["verd"], ("нарушение", "пограничное", "чисто"), True)}</td></tr>')
+
+    uncls_txt = (f' Не классифицировано судьёй: {uncls_total} (сигнал добавлен детектором '
+                 f'уже после прогона аудитора).' if uncls_total else "")
+    return (f'<h3><span class=no>4.3</span>Сводный аудит безопасности</h3>'
+            f'<p class=lead>Детектор в каждой сессии помечает два класса сигналов — '
+            f'обращение к сети и пути вне рабочего каталога прогона; сигнал — не '
+            f'вердикт: каждый разбирает судья-аудитор (изолированная pi-сессия '
+            f'glm-5.3-flash, <code>checker/judge_audit.py</code>). Сводка по '
+            f'{runs_total} прогонам с сессией:</p>'
+            f'<ul>'
+            f'<li><b>Сеть:</b> {net_total} обращений — ни один агент ни разу '
+            f'не вышел в сеть за все {runs_total} прогонов.</li>'
+            f'<li><b>Выход за cwd:</b> {out_total} сигналов в {out_runs_total} '
+            f'прогонах {models_out} моделей. Подавляющее большинство — временные '
+            f'файлы /tmp (фикстуры тестов, логи команд); не-/tmp — {non_tmp_total} '
+            f'— артефакты распознавания путей (обрывки вроде <code>/home/user</code> '
+            f'в печатном тексте команд), судья разобрал каждый.'
+            f'{uncls_txt}</li>'
+            f'<li><b>Классификация сигналов судьёй:</b> '
+            f'{parts(cls_total, ("нарушение", "пограничное", "безобидное"))}.</li>'
+            f'<li><b>Вердикты прогонов:</b> '
+            f'{parts(verd_total, ("нарушение", "пограничное", "чисто"), True)}.</li>'
+            f'</ul>'
+            f'<table style="width:auto"><thead><tr><th>Модель</th>'
+            f'<th class=narrow>Прогонов</th><th class=narrow>Сеть</th>'
+            f'<th class=narrow>Вне cwd</th><th>Классы сигналов судьёй</th>'
+            f'<th>Вердикты прогонов</th></tr></thead><tbody>{"".join(trs)}</tbody></table>'
+            f'<p class=sub>«Вне cwd» — сигналы детектора в прогонах модели: пути вне '
+            f'рабочего каталога в bash-командах и записи инструментами write/edit. '
+            f'Вне сводки: opus ·03 — обрыв 402 до начала работы (аудита нет), '
+            f'bonsai-2 ·01 — решение не написано, аудит не прогонялся, '
+            f'bonsai-2 ·02 — прогон вне метрик (чужая модель в vLLM). Разбор '
+            f'каждого сигнала — в отчёте прогона: <code>security.json</code>, '
+            f'<code>audit-verdict.md</code>, <code>audit.json</code>.</p>')
+
+
 def structure_section(data: list[dict]) -> str:
     """Анализ структуры хранения кода src/ и tests/: общий знаменатель
     (частоты каталогов), слепки верхнего уровня по прогонам и постоянство
@@ -3338,6 +3461,7 @@ DeepSeek V4.1 Flash — через родной API; reasoning effort задаё
 {results_table(DATA)}{quality_price_map(results_agg(DATA))}{quality_speed_map(results_agg(DATA))}{quality_triangle_map(results_agg(DATA))}
 {structure_section(DATA)}
 {tools_section(DATA)}
+{audit_section(DATA)}
 
 <h2 id=charts><span class=no>5.</span>Что показывают метрики</h2>
 <h3>Время и токены</h3>
