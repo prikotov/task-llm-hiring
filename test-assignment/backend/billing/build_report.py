@@ -1842,12 +1842,15 @@ def tools_section(data: list[dict]) -> str:
         alpha = min(0.85, (te / tc) / EMAX_SHARE * 0.8) if tc else 0
         cells.append(f'<td class=narrow style="background:rgba(179,84,63,{alpha:.2f})" '
                      f'title="{te} ошибок из {tc} вызовов">{round(100 * te / tc)}%</td>')
-        erows_m.append(f'<tr><td style="white-space:nowrap">{mode_label(rs)}</td>'
-                       f'<td class=narrow>{rs[0]["note"]}</td>{"".join(cells)}</tr>')
+        # сортировка — по общей доле ошибок: сверху аккуратные, снизу сбоющие
+        erows_m.append(((te / tc if tc else 0), rs,
+                        f'<tr><td style="white-space:nowrap">{mode_label(rs)}</td>'
+                        f'<td class=narrow>{rs[0]["note"]}</td>{"".join(cells)}</tr>'))
+    erows_m.sort(key=lambda x: x[0])
     err_matrix = (f'<div style="overflow-x:auto"><table style="width:auto">'
                   f'<thead><tr><th>Модель</th><th class=narrow>Мышл.</th>{ehead}'
                   f'<th class=narrow>Всего</th></tr></thead>'
-                  f'<tbody>{"".join(erows_m)}</tbody></table></div>')
+                  f'<tbody>{"".join(h for _, _, h in erows_m)}</tbody></table></div>')
     clean_txt = (f' Совсем без ошибок — {", ".join(clean_modes)}.'
                  if clean_modes else
                  f' Ошибки есть у всех {len(modes)} режимов — «чистых» нет; вопрос только '
@@ -1963,11 +1966,12 @@ def tools_section(data: list[dict]) -> str:
                f'({100 * edit_rate[0][1]:.0f}% edit-вызовов), реже — {edit_rate[-1][0]} '
                f'({100 * edit_rate[-1][1]:.0f}%). ' if edit_rate else "")
             + f'write ошибок не даёт вовсе.</p>'
-            f'<p class="excap sb">Ошибки по режимам: все ли ошибаются</p>'
+            f'<p class="excap sb">Все ли модели ошибаются и где</p>'
             f'{err_matrix}'
             f'<p class=sub>Доля ошибок инструмента в вызовах режима; заливка — та же '
             f'доля, наведение — «ошибок из вызовов»; «—» — инструмент режимом '
-            f'не вызывался.{clean_txt}</p>'
+            f'не вызывался. Режимы отсортированы по колонке «Всего»: сверху — '
+            f'ошибающиеся реже.{clean_txt}</p>'
             f'<p class="excap sb">4.2.4. Микс инструментов по моделям</p>'
             f'{strip}'
             f'<p class="excap sb">4.2.5. Утилиты bash по моделям</p>'
