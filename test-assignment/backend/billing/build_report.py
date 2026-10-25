@@ -1885,7 +1885,7 @@ def tools_section(data: list[dict]) -> str:
         pies.append(f'<div style="text-align:center">'
                     f'{_donut(items, 34, 15, TOOL_COL, font=0)}'
                     f'<div style="font-size:12px;font-weight:600;margin-top:4px;'
-                    f'white-space:nowrap">{mode_label(rs)}</div>'
+                    f'white-space:nowrap">{mode_label(rs)} ·{rs[0]["note"]}</div>'
                     f'<div class=sub>{calls} вызовов</div></div>')
     strip = (f'<div style="display:flex;flex-wrap:wrap;gap:14px 24px;'
              f'justify-content:center;margin:14px 0">{"".join(pies)}</div>'
