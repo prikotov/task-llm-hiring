@@ -2084,17 +2084,28 @@ def context_section(data: list[dict]) -> str:
     input+cacheRead+cacheWrite по вызовам сессии (лог pi)."""
     import statistics as st
 
-    ORDER = ["openai-gpt-6.1-sol", "openai-gpt-6-luna", "anthropic-claude-haiku-5.5",
-             "anthropic-claude-opus-5.5", "deepseek-flash", "gigachat-3-ultra",
-             "gigachat", "huihui-ai-pi-100k", "qwen3.8-27b-pi-100k",
-             "orcarouter-Qwen3.8-27B-Uncensored-latest",
-             "orcarouter-Qwen3.8-27B-Uncensored-iq4_xs", "ornith-1.5-35b",
-             "muse-glimmer", "gemma4-31b-it-qat-pi-100k", "gemma4-26b-pi-100k",
-             "bonsai-2-27b"]
-
     per: dict = {}
     comp_before: list = []
-    for r in sorted(data, key=lambda x: (x["folder"], x["run"])):
+
+    def mkey(r):
+        # режим: модель + уровень размышлений + контекст + серия (как в 4.2)
+        return (r["folder"], r["note"], r["ctx"], "-tuned" in r["tag"])
+
+    F_ORDER = ["openai-gpt-6.1-sol", "openai-gpt-6-luna", "anthropic-claude-haiku-5.5",
+               "anthropic-claude-opus-5.5", "deepseek-flash", "gigachat-3-ultra",
+               "gigachat", "huihui-ai-pi-100k", "qwen3.8-27b-pi-100k",
+               "orcarouter-Qwen3.8-27B-Uncensored-latest",
+               "orcarouter-Qwen3.8-27B-Uncensored-iq4_xs", "ornith-1.5-35b",
+               "muse-glimmer", "gemma4-31b-it-qat-pi-100k", "gemma4-26b-pi-100k",
+               "bonsai-2-27b"]
+    NOTE_O = {"low": 0, "нет": 1, "medium": 2, "high": 3, "xhigh": 4, "on": 5, "max": 6}
+
+    def m_rank(r):
+        i = F_ORDER.index(r["folder"]) if r["folder"] in F_ORDER else len(F_ORDER)
+        # контекст сортируем по возрастанию (102400 раньше окна 1M)
+        return (i, NOTE_O.get(r["note"], 7), r["ctx"] if r["ctx"] else 10 ** 9)
+
+    for r in sorted(data, key=m_rank):
         d = ROOT / "models" / r["folder"] / "backend" / "test-assignment" / r["run"]
         if not (d / "pi-session").is_dir():
             continue
@@ -2116,8 +2127,9 @@ def context_section(data: list[dict]) -> str:
                         peak = max(peak, (u.get("input") or 0) + (u.get("cacheRead") or 0)
                                    + (u.get("cacheWrite") or 0))
                         n_turns += 1
-        p = per.setdefault(r["folder"], {"runs": 0, "one": 0, "comp": 0, "cmax": 0,
-                                         "turns": [], "peak": 0})
+        p = per.setdefault(mkey(r), {"short": r["short"], "note": r["note"],
+                                     "runs": 0, "one": 0, "comp": 0, "cmax": 0,
+                                     "turns": [], "peak": 0})
         p["runs"] += 1
         p["one"] += 1 if n_comp == 0 else 0
         p["comp"] += n_comp
@@ -2132,17 +2144,21 @@ def context_section(data: list[dict]) -> str:
     thr = int(st.median(comp_before) // 1000) if comp_before else 86
 
     trs = []
-    for f in sorted(per, key=lambda x: ORDER.index(x) if x in ORDER else 99):
-        p = per[f]
+    for k in sorted(per, key=lambda k: m_rank(next(r for r in data if mkey(r) == k))):
+        p = per[k]
         tmin, tmax = min(p["turns"]), max(p["turns"])
         tmed = st.median(p["turns"])
         comp_cell = (f'<b>{p["comp"]}</b><div class=sub>макс {p["cmax"]} на прогон</div>'
                      if p["comp"] else '<span class=sub>—</span>')
         peak = p["peak"] // 1000
         peak_cell = f'{peak}K'
-        if f == "anthropic-claude-opus-5.5" and peak > 100:
+        if p["short"] == "Opus 5.5" and peak > 100:
             peak_cell += '<sup>*</sup>'
-        trs.append(f'<tr><td style="white-space:nowrap"><b>{SHORT.get(f, f)}</b></td>'
+        label = p["short"] + (" · tuned" if k[3] else "")
+        # контекст, отличающийся от стандартных 102400 (Opus · 04: окно 1M)
+        note_cell = p["note"] + (" · 1M" if k[2] is None else "")
+        trs.append(f'<tr><td style="white-space:nowrap"><b>{label}</b></td>'
+                   f'<td class=narrow>{note_cell}</td>'
                    f'<td class=narrow>{p["runs"]}</td>'
                    f'<td class=narrow>{p["one"]} из {p["runs"]}</td>'
                    f'<td class=narrow>{comp_cell}</td>'
@@ -2167,7 +2183,7 @@ def context_section(data: list[dict]) -> str:
             f'только у Opus · 04 — {230}K<sup>*</sup>.</li>'
             f'</ul>'
             f'<div style="overflow-x:auto"><table style="width:auto"><thead>'
-            f'<tr><th>Модель</th><th class=narrow>Прг.</th>'
+            f'<tr><th>Модель</th><th class=narrow>Мышл.</th><th class=narrow>Прг.</th>'
             f'<th class=narrow>Один проход</th><th class=narrow>Компактов</th>'
             f'<th class=narrow>Ходов: медиана (мин–макс)</th>'
             f'<th class=narrow>Пик, K</th></tr></thead>'
