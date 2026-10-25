@@ -2046,7 +2046,7 @@ def tools_section(data: list[dict]) -> str:
             f'правками. Файлы через bash-heredoc (<code>cat &lt;&lt; EOF</code>) пишут '
             f'{hered_runs} из {n} прогонов, всего {hered_all} записей — второй, '
             f'конкурирующий с write путь записи.</p>'
-            f'<p><b>Чего не хватило.</b> {miss_txt}</p>'
+            f'<p><b>Каких утилит не хватило.</b> {miss_txt}</p>'
             f'</div>'
             f'<p class="excap sb">4.2.5. Ошибки tool-вызовов</p>'
             f'{err_table}'
