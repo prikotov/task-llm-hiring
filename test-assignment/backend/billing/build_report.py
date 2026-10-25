@@ -2078,12 +2078,131 @@ def tools_section(data: list[dict]) -> str:
             f'колонке «Всего»: сверху — ошибающиеся реже.{clean_txt}</p>')
 
 
+def context_section(data: list[dict]) -> str:
+    """Работа с контекстом: автокомпакты pi, пики заполнения, кто обошёлся
+    одним проходом и почему. Ход — вызов модели; пик контекста — максимум
+    input+cacheRead+cacheWrite по вызовам сессии (лог pi)."""
+    import statistics as st
+
+    ORDER = ["openai-gpt-6.1-sol", "openai-gpt-6-luna", "anthropic-claude-haiku-5.5",
+             "anthropic-claude-opus-5.5", "deepseek-flash", "gigachat-3-ultra",
+             "gigachat", "huihui-ai-pi-100k", "qwen3.8-27b-pi-100k",
+             "orcarouter-Qwen3.8-27B-Uncensored-latest",
+             "orcarouter-Qwen3.8-27B-Uncensored-iq4_xs", "ornith-1.5-35b",
+             "muse-glimmer", "gemma4-31b-it-qat-pi-100k", "gemma4-26b-pi-100k",
+             "bonsai-2-27b"]
+
+    per: dict = {}
+    comp_before: list = []
+    for r in sorted(data, key=lambda x: (x["folder"], x["run"])):
+        d = ROOT / "models" / r["folder"] / "backend" / "test-assignment" / r["run"]
+        if not (d / "pi-session").is_dir():
+            continue
+        n_comp = peak = n_turns = 0
+        for f in sorted((d / "pi-session").glob("*.jsonl")):
+            for line in f.read_text(errors="replace").splitlines():
+                try:
+                    e = json.loads(line)
+                except Exception:
+                    continue
+                if e.get("type") == "compaction":
+                    n_comp += 1
+                    if e.get("tokensBefore"):
+                        comp_before.append(e["tokensBefore"])
+                elif e.get("type") == "message":
+                    m = e.get("message") or {}
+                    if m.get("role") == "assistant":
+                        u = m.get("usage") or {}
+                        peak = max(peak, (u.get("input") or 0) + (u.get("cacheRead") or 0)
+                                   + (u.get("cacheWrite") or 0))
+                        n_turns += 1
+        p = per.setdefault(r["folder"], {"runs": 0, "one": 0, "comp": 0, "cmax": 0,
+                                         "turns": [], "peak": 0})
+        p["runs"] += 1
+        p["one"] += 1 if n_comp == 0 else 0
+        p["comp"] += n_comp
+        p["cmax"] = max(p["cmax"], n_comp)
+        p["turns"].append(n_turns)
+        p["peak"] = max(p["peak"], peak)
+
+    runs_total = sum(p["runs"] for p in per.values())
+    one_total = sum(p["one"] for p in per.values())
+    comp_runs = sum(1 for p in per.values() if p["comp"])
+    comp_total = sum(p["comp"] for p in per.values())
+    thr = int(st.median(comp_before) // 1000) if comp_before else 86
+
+    trs = []
+    for f in sorted(per, key=lambda x: ORDER.index(x) if x in ORDER else 99):
+        p = per[f]
+        tmin, tmax = min(p["turns"]), max(p["turns"])
+        tmed = st.median(p["turns"])
+        comp_cell = (f'<b>{p["comp"]}</b><div class=sub>макс {p["cmax"]} на прогон</div>'
+                     if p["comp"] else '<span class=sub>—</span>')
+        peak = p["peak"] // 1000
+        peak_cell = f'{peak}K'
+        if f == "anthropic-claude-opus-5.5" and peak > 100:
+            peak_cell += '<sup>*</sup>'
+        trs.append(f'<tr><td style="white-space:nowrap"><b>{SHORT.get(f, f)}</b></td>'
+                   f'<td class=narrow>{p["runs"]}</td>'
+                   f'<td class=narrow>{p["one"]} из {p["runs"]}</td>'
+                   f'<td class=narrow>{comp_cell}</td>'
+                   f'<td class=narrow>{tmed:.0f} ({tmin}–{tmax})</td>'
+                   f'<td class=narrow>{peak_cell}</td></tr>')
+
+    return (f'<h3><span class=no>4.3</span>Работа с контекстом</h3>'
+            f'<p class=lead>Харнес pi подаёт всем контекст 102.4K и сам сжимает '
+            f'историю (автокомпакт), когда заполнение доходит до порога ~{thr}K — '
+            f'медиана <code>tokensBefore</code> по {len(comp_before)} компактам '
+            f'сетки. Ход — вызов модели; пик контекста — максимум промпта '
+            f'(input + cacheRead + cacheWrite) за сессию. Популяция — {runs_total} '
+            f'прогонов с сессией:</p>'
+            f'<ul>'
+            f'<li><b>Одним проходом</b> — {one_total} из {runs_total} прогонов: '
+            f'ни одного компакта.</li>'
+            f'<li><b>С компактами</b> — {comp_runs} прогонов, {comp_total} '
+            f'компактов; все — qwen-семейство (huihui, qwen3.8, orca в двух '
+            f'квантованиях, ornith) плюс DeepSeek · 01.</li>'
+            f'<li><b>От нехватки контекста не пострадал никто:</b> автокомпакт '
+            f'срабатывает на ~{thr}K, раньше лимита 102.4K; пик выше порога '
+            f'только у Opus · 04 — {230}K<sup>*</sup>.</li>'
+            f'</ul>'
+            f'<div style="overflow-x:auto"><table style="width:auto"><thead>'
+            f'<tr><th>Модель</th><th class=narrow>Прг.</th>'
+            f'<th class=narrow>Один проход</th><th class=narrow>Компактов</th>'
+            f'<th class=narrow>Ходов: медиана (мин–макс)</th>'
+            f'<th class=narrow>Пик, K</th></tr></thead>'
+            f'<tbody>{"".join(trs)}</tbody></table></div>'
+            f'<div class=note>'
+            f'<p><b>Почему одним проходом.</b> Контекст растёт с числом ходов: '
+            f'облачные SOTA решают задачу за 15–90 ходов и не доходят до порога '
+            f'(пики 16–68K), локальные «быстрые» (muse, gemma4) укладываются '
+            f'в 19–87 ходов при пиках 17–55K. Короткие обрывы (bonsai-2, Haiku · 02, '
+            f'Luna · 01) — один проход по очевидной причине: работа не успела '
+            f'развернуться.</p>'
+            f'<p><b>Почему с компактами.</b> Все компактившие — марафонцы: '
+            f'медиана ходов 78–216 (у ornith · 03 — 758 ходов и 9 компактов), '
+            f'рассуждения проговариваются в основной текст и остаются в контексте, '
+            f'плюс повторные попытки. Порог ~{thr}K наступал, pi сжимал историю — '
+            f'и работа продолжалась; ни один компакт не привёл к потере задачи.</p>'
+            f'<p><b>Хватило ли всем.</b> Ни один прогон не пострадал от нехватки '
+            f'контекста: упёршиеся — в лимит времени или в собственные циклы, '
+            f'не в контекст (GigaChat 3 Ultra: 674 хода, пик лишь 61K — ходы '
+            f'в зацикленной серии были крошечными). Единственный, кто вышел за '
+            f'общий порог 102.4K, — Opus · 04<sup>*</sup>: pi взял для него '
+            f'нативное окно 1M от провайдера и не компактил; зачёт полный.</p>'
+            f'</div>'
+            f'<p class=sub><sup>*</sup> Opus · 04: пик 230K, ноль компактов — '
+            f'pi знает нативное окно модели 1M и порог 102.4K для неё не применял. '
+            f'Прогоны без сессии (opus · 03, обрыв 402) и bonsai-2 · 02 (чужая '
+            f'модель) — вне раздела.</p>')
+
+
 def audit_section(data: list[dict]) -> str:
     """Сводный аудит безопасности по всем прогонам с сессией: обращения к сети,
     выходы за рабочий каталог и их классификация судьёй-аудитором
     (checker/judge_audit.py). Детерминированные сигналы — security.json,
-    вердикт и разбор каждого сигнала — audit.json прогона. 4.3.1 — сводка,
-    4.3.2 — полный перечень пограничных действий (человеческий контроль)."""
+    вердикт и разбор каждого сигнала — audit.json прогона. 4.4.1 — сводка,
+    4.4.2 — полный перечень пограничных действий (человеческий контроль)."""
     import html as _h
     from collections import Counter
 
@@ -2213,7 +2332,7 @@ def audit_section(data: list[dict]) -> str:
             f'<tr><th class=narrow>Прг.</th><th class=narrow>Тип</th>'
             f'<th>Команда</th><th>Разбор судьи</th></tr></thead>'
             f'<tbody>{trs2}</tbody></table></details>')
-    listing_html = (f'<p class="excap sb">4.3.2. Пограничные действия: полный перечень</p>'
+    listing_html = (f'<p class="excap sb">4.4.2. Пограничные действия: полный перечень</p>'
                     f'<p class=sub>Каждый пограничный сигнал — списком: по моделям '
                     f'(порядок раздела 3), внутри модели — по прогонам и ходу сессии. '
                     f'Команда обрезана до 110 символов, разбор судьи — до 170; '
@@ -2328,7 +2447,7 @@ def audit_section(data: list[dict]) -> str:
                 f'<td class=narrow><code style="font-size:11.5px">{_h.escape(cwd or "—")}</code></td>'
                 f'<td><code>{_h.escape(cmd[:130] + ("…" if len(cmd) > 130 else ""))}</code></td>'
                 f'</tr>')
-    seek_html = (f'<p class="excap sb">4.3.3. Поиски готового решения на диске</p>'
+    seek_html = (f'<p class="excap sb">4.4.3. Поиски готового решения на диске</p>'
                  f'<p class=sub>Отдельный вопрос контроля: не пыталась ли модель найти '
                  f'решение вне своего каталога — в каталогах чужих прогонов, '
                  f'глобальным поиском по диску, на хост-машине. У каждой сессии свой '
@@ -2377,13 +2496,13 @@ def audit_section(data: list[dict]) -> str:
 
     uncls_txt = (f' Не классифицировано судьёй: {uncls_total} (сигнал добавлен детектором '
                  f'уже после прогона аудитора).' if uncls_total else "")
-    return (f'<h3><span class=no>4.3</span>Сводный аудит безопасности</h3>'
+    return (f'<h3><span class=no>4.4</span>Сводный аудит безопасности</h3>'
             f'<p class=lead>Детектор в каждой сессии помечает два класса сигналов — '
             f'обращение к сети и пути вне рабочего каталога прогона; сигнал — не '
             f'вердикт: каждый разбирает судья-аудитор (изолированная pi-сессия '
             f'glm-5.3-flash, <code>checker/judge_audit.py</code>). Сводка по '
             f'{runs_total} прогонам с сессией:</p>'
-            f'<p class="excap sb">4.3.1. Сводка по прогонам</p>'
+            f'<p class="excap sb">4.4.1. Сводка по прогонам</p>'
             f'<ul>'
             f'<li><b>Сеть:</b> {net_total} обращений — ни один агент ни разу '
             f'не вышел в сеть за все {runs_total} прогонов.</li>'
@@ -3667,8 +3786,9 @@ DeepSeek V4.1 Flash — через родной API; reasoning effort задаё
 <p><b>Контекст 102.4K у всех — искусственное ограничение харнеса, а не лимит
 модели.</b> pi получает contextWindow=102400 и ужимает историю (автокомпакты на
 графиках) по этому порогу; реальные окна облачных моделей больше, до них прогоны
-не доходят. Единый порог — условие равенства: все модели живут при одинаковом
-прессе контекста.</p>
+не доходят — с единственным исключением Opus · 04, для которого pi взял
+нативное окно 1M (разбор — в 4.3). Единый порог — условие равенства: все модели
+живут при одинаковом прессе контекста.</p>
 <table><thead><tr><th>Модель (папка)</th><th>Тег</th><th class=narrow>Провайдер</th>
 <th class=narrow>Параметры</th><th class=narrow>Квант</th><th>Thinking по прогонам</th>
 <th class=narrow>Прогонов</th></tr></thead><tbody>
@@ -3680,6 +3800,7 @@ DeepSeek V4.1 Flash — через родной API; reasoning effort задаё
 {results_table(DATA)}{quality_price_map(results_agg(DATA))}{quality_speed_map(results_agg(DATA))}{quality_triangle_map(results_agg(DATA))}
 {structure_section(DATA)}
 {tools_section(DATA)}
+{context_section(DATA)}
 {audit_section(DATA)}
 
 <h2 id=charts><span class=no>5.</span>Что показывают метрики</h2>
