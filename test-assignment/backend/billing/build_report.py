@@ -1578,6 +1578,11 @@ UTIL_HUES = ["#315f9e", "#2f7d54", "#d09a53", "#b3543f", "#6b5b9e",
              "#3f8f9e", "#8a93a0", "#c08a00", "#5b9bd5"]
 
 
+def _pct_s(pct: float) -> str:
+    """Проценты для легенд: ≥1% — целые, меньше — с десятыми (0.4%)."""
+    return f"{pct:.0f}%" if pct >= 1 else f"{pct:.1f}%"
+
+
 def _donut(items, R, SW, colors, center1="", center2="", font=30) -> str:
     """SVG-пончик: сегменты — доли items (имя, значение); тултипы сегментов —
     нативные <title>, без JS. Тот же рисунок, что donut_card отчёта прогона."""
@@ -1591,11 +1596,11 @@ def _donut(items, R, SW, colors, center1="", center2="", font=30) -> str:
             continue
         hue = colors.get(name, "#9aa3ad") if isinstance(colors, dict) else colors[i % len(colors)]
         seg = v / total * C
-        pct = round(100 * v / total)
+        pct_s = _pct_s(100 * v / total)
         segs.append(f'<circle r={R} cx={CX} cy={CX} fill="none" stroke="{hue}" '
                     f'stroke-width={SW} stroke-dasharray="{seg:.1f} {C - seg:.1f}" '
                     f'stroke-dashoffset="{-cum:.1f}" transform="rotate(-90 {CX} {CX})">'
-                    f'<title>{name} — {v} ({pct}%)</title></circle>')
+                    f'<title>{name} — {v} ({pct_s})</title></circle>')
         cum += seg
     if center1:
         segs.append(f'<text x={CX} y={CX - 2} text-anchor=middle font-size={font} '
@@ -1721,10 +1726,16 @@ def tools_section(data: list[dict]) -> str:
                   f'<p class=sub style="margin:2px 0 0">Медиана вызовов на прогон: '
                   f'{med_note}.</p></div>')
 
+    # обязательные утилиты приёмки — в пончике всегда, даже вне топ-8
+    MANDATORY = ("php", "psql", "phpunit", "make", "phpcs", "psalm", "phpcbf")
     top8 = [w for w, _ in agg_utils.most_common(8)]
-    rest = sum(v for w, v in agg_utils.items() if w not in top8)
-    items8 = [(w, agg_utils[w]) for w in top8] + ([("остальное", rest)] if rest else [])
-    util_colors = {w: UTIL_HUES[i % len(UTIL_HUES)] for i, w in enumerate(top8)}
+    mand = sorted((w for w in MANDATORY if w not in top8),
+                  key=lambda w: -agg_utils.get(w, 0))
+    shown = top8 + mand
+    rest = sum(v for w, v in agg_utils.items() if w not in shown)
+    items8 = [(w, agg_utils.get(w, 0)) for w in shown] \
+        + [(w, v) for w, v in [("остальное", rest)] if v]
+    util_colors = {w: UTIL_HUES[i % len(UTIL_HUES)] for i, w in enumerate(shown)}
     util_colors["остальное"] = "#cdd3da"
     donut_utils = _donut(items8, 70, 32, util_colors,
                          str(sum(agg_utils.values())), "вызовов")
@@ -1732,9 +1743,12 @@ def tools_section(data: list[dict]) -> str:
         f'<div style="display:flex;align-items:center;gap:9px;margin:5px 0;font-size:13.5px">'
         f'<span style="width:13px;height:13px;border-radius:4px;background:{util_colors[w]};flex:none"></span>'
         f'<span style="width:96px"><code>{w}</code></span><b>{v}</b>'
-        f'<span class=sub>{round(100 * v / sum(agg_utils.values()))}%</span></div>'
+        f'<span class=sub>{_pct_s(100 * v / sum(agg_utils.values()))}</span></div>'
         for w, v in items8)
-    rest_names = [w for w, _ in agg_utils.most_common() if w not in top8]
+    mand_note = (f'<p class=sub style="max-width:300px;margin-top:6px">Обязательный '
+                 f'контроль приёмки, показаны всегда, даже вне топ-8: '
+                 f'{", ".join(f"<code>{w}</code>" for w in MANDATORY)}.</p>')
+    rest_names = [w for w, _ in agg_utils.most_common() if w not in shown]
     rest_note = (f'<p class=sub style="max-width:300px;margin-top:8px">«Остальное» — '
                  f'{", ".join(f"<code>{w}</code>" for w in rest_names)}.</p>'
                  if rest_names else "")
@@ -1742,7 +1756,7 @@ def tools_section(data: list[dict]) -> str:
                   f'<p class="excap sb">4.2.2. Утилиты в bash</p>'
                   f'<div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap;margin:10px 0">'
                   f'{donut_utils}<div>{legend_u}</div></div>'
-                  f'{rest_note}</div>')
+                  f'{mand_note}{rest_note}</div>')
     donuts = (f'<div style="display:flex;gap:36px;flex-wrap:wrap;align-items:flex-start">'
               f'{card_tools}{card_utils}</div>')
 
