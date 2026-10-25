@@ -2139,6 +2139,7 @@ def context_section(data: list[dict]) -> str:
 
     runs_total = sum(p["runs"] for p in per.values())
     one_total = sum(p["one"] for p in per.values())
+    tmax_all = max(max(p["turns"]) for p in per.values())
     comp_runs = sum(1 for p in per.values() if p["comp"])
     comp_total = sum(p["comp"] for p in per.values())
     thr = int(st.median(comp_before) // 1000) if comp_before else 86
@@ -2150,6 +2151,26 @@ def context_section(data: list[dict]) -> str:
         tmed = st.median(p["turns"])
         comp_cell = (f'<b>{p["comp"]}</b><div class=sub>макс {p["cmax"]} на прогон</div>'
                      if p["comp"] else '<span class=sub>—</span>')
+        # свеча разброса ходов: вишка — мин–макс, засечки — прогоны, тело — медиана
+        W = 170
+
+        def xx(v):
+            return round(v / tmax_all * (W - 10) + 5, 1)
+
+        ticks = "".join(
+            f'<line x1="{xx(v)}" y1="7" x2="{xx(v)}" y2="15" stroke="#98a1ac" stroke-width="1"/>'
+            for v in sorted(set(p["turns"])))
+        tip = (f'ходов: медиана {tmed:.0f}; прогоны '
+               f'{", ".join(map(str, sorted(p["turns"])))}')
+        candle = (f'<svg width="{W + 40}" height="22" style="display:block">'
+                  f'<rect x="0" y="0" width="{W + 40}" height="22" fill="transparent">'
+                  f'<title>{tip}</title></rect>'
+                  f'<line x1="{xx(tmin)}" y1="11" x2="{xx(tmax)}" y2="11" '
+                  f'stroke="#aab3bf" stroke-width="1.5"/>{ticks}'
+                  f'<rect x="{max(2, xx(tmed) - 6):.1f}" y="4" width="12" height="14" '
+                  f'rx="3" fill="#315f9e"/>'
+                  f'<text x="{W + 10}" y="15.5" font-size="11.5" fill="#66707f">'
+                  f'{tmed:.0f}</text></svg>')
         peak = p["peak"] // 1000
         peak_cell = f'{peak}K'
         if p["short"] == "Opus 5.5" and peak > 100:
@@ -2162,7 +2183,7 @@ def context_section(data: list[dict]) -> str:
                    f'<td class=narrow>{p["runs"]}</td>'
                    f'<td class=narrow>{p["one"] or "0"}</td>'
                    f'<td class=narrow>{comp_cell}</td>'
-                   f'<td class=narrow>{tmed:.0f} ({tmin}–{tmax})</td>'
+                   f'<td>{candle}</td>'
                    f'<td class=narrow>{peak_cell}</td></tr>')
 
     return (f'<h3><span class=no>4.3</span>Работа с контекстом</h3>'
@@ -2185,7 +2206,7 @@ def context_section(data: list[dict]) -> str:
             f'<div style="overflow-x:auto"><table style="width:auto"><thead>'
             f'<tr><th>Модель</th><th class=narrow>Мышл.</th><th class=narrow>Прг.</th>'
             f'<th class=narrow>Без компакта</th><th class=narrow>Компактов</th>'
-            f'<th class=narrow>Ходов: медиана (мин–макс)</th>'
+            f'<th class=narrow>Ходов</th>'
             f'<th class=narrow>Пик, K</th></tr></thead>'
             f'<tbody>{"".join(trs)}</tbody></table></div>'
             f'<div class=note>'
@@ -2207,7 +2228,10 @@ def context_section(data: list[dict]) -> str:
             f'общий порог 102.4K, — Opus · 04<sup>*</sup>: pi взял для него '
             f'нативное окно 1M от провайдера и не компактил; зачёт полный.</p>'
             f'</div>'
-            f'<p class=sub>«Без компакта» — прогонов режима, обошедшихся без единого '
+            f'<p class=sub>Свеча в колонке «Ходов» — разброс по прогонам режима: '
+            f'вишка — мин–макс, засечки — отдельные прогоны, синее тело — медиана '
+            f'(число справа); наведение — точные значения. Шкала общая для всех '
+            f'строк. «Без компакта» — прогонов режима, обошедшихся без единого '
             f'автокомпакта; их контекст не доходил до порога ~86K. '
             f'<sup>*</sup> Opus · 04: пик 230K, ноль компактов — '
             f'pi знает нативное окно модели 1M и порог 102.4K для неё не применял. '
