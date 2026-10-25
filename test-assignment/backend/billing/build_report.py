@@ -1756,20 +1756,15 @@ def tools_section(data: list[dict]) -> str:
                         for k, c in kinds.get(t, Counter()).most_common()) or "—"
         erows.append((t, calls, errs, ks))
     erows.sort(key=lambda r: -(r[2] / r[1]))
-    eshare_max = max((r[2] / r[1] for r in erows), default=1)
     etrs = []
     for t, calls, errs, ks in erows:
         pct = 100 * errs / calls
         hue = ("#98a4b3" if not errs else
                "#315f9e" if pct <= 5 else
                "#d09a53" if pct <= 10 else "#b3543f")
-        barw = 4 + (errs / calls) / eshare_max * 110
         etrs.append(f"<tr><td><code>{t}</code></td>"
                     f'<td class=narrow>{errs} из {calls}</td>'
-                    f'<td class=narrow><span style="white-space:nowrap">'
-                    f'<span style="display:inline-block;width:{barw:.0f}px;'
-                    f'height:8px;border-radius:3px;background:{hue};vertical-align:middle;'
-                    f'margin-right:6px"></span>{pct:.0f}%</span></td>'
+                    f'<td class=narrow><b style="color:{hue}">{pct:.0f}%</b></td>'
                     f'<td class=sub>{ks}</td></tr>')
     err_table = ('<table style="width:100%"><thead>'
                  '<tr><th>Инструмент</th><th class=narrow>Ошибок из вызовов</th>'
@@ -1820,6 +1815,44 @@ def tools_section(data: list[dict]) -> str:
             edit_rate.append((mode_label(rs), errs / calls))
     edit_rate.sort(key=lambda x: -x[1])
 
+    # --- ошибки по режимам: матрица долей -------------------------------------
+    EMAX_SHARE = 0.26          # полюс шкалы заливки (edit у qwen3.8)
+    ehead = "".join(f'<th class=narrow><code>{t}</code></th>' for t in TOOL_ORDER)
+    erows_m = []
+    clean_modes = []
+    for _, rs in modes:
+        calls_m: Counter = Counter()
+        errs_m: Counter = Counter()
+        for r in rs:
+            sc = scan[(r["folder"], r["run"])]
+            calls_m.update(sc[0])
+            errs_m.update(sc[4])
+        cells = []
+        for t in TOOL_ORDER:
+            c, e = calls_m.get(t, 0), errs_m.get(t, 0)
+            if not c:
+                cells.append('<td class=narrow style="color:#98a1ac">—</td>')
+                continue
+            alpha = min(0.85, (e / c) / EMAX_SHARE * 0.8)
+            cells.append(f'<td class=narrow style="background:rgba(179,84,63,{alpha:.2f})" '
+                         f'title="{e} ошибок из {c} вызовов">{round(100 * e / c)}%</td>')
+        tc, te = sum(calls_m.values()), sum(errs_m.values())
+        if not te:
+            clean_modes.append(mode_label(rs))
+        alpha = min(0.85, (te / tc) / EMAX_SHARE * 0.8) if tc else 0
+        cells.append(f'<td class=narrow style="background:rgba(179,84,63,{alpha:.2f})" '
+                     f'title="{te} ошибок из {tc} вызовов">{round(100 * te / tc)}%</td>')
+        erows_m.append(f'<tr><td style="white-space:nowrap">{mode_label(rs)}</td>'
+                       f'<td class=narrow>{rs[0]["note"]}</td>{"".join(cells)}</tr>')
+    err_matrix = (f'<div style="overflow-x:auto"><table style="width:auto">'
+                  f'<thead><tr><th>Модель</th><th class=narrow>Мышл.</th>{ehead}'
+                  f'<th class=narrow>Всего</th></tr></thead>'
+                  f'<tbody>{"".join(erows_m)}</tbody></table></div>')
+    clean_txt = (f' Совсем без ошибок — {", ".join(clean_modes)}.'
+                 if clean_modes else
+                 f' Ошибки есть у всех {len(modes)} режимов — «чистых» нет; вопрос только '
+                 f'в доле и в том, какие инструменты сбоят.')
+
     # --- микс инструментов по режимам: ряд мини-пирогов ----------------------
     pies = []
     for _, rs in modes:
@@ -1854,9 +1887,9 @@ def tools_section(data: list[dict]) -> str:
             val = f"{round(100 * share)}%" if mix.get(w) else "—"
             cells.append(f'<td class=narrow style="background:rgba(49,95,158,{alpha:.2f})">{val}</td>')
         rows_m.append(f'<tr><td style="white-space:nowrap">{mode_label(rs)}</td>'
-                      f'{"".join(cells)}</tr>')
+                      f'<td class=narrow>{rs[0]["note"]}</td>{"".join(cells)}</tr>')
     matrix = (f'<div style="overflow-x:auto"><table style="width:auto">'
-              f'<thead><tr><th>Модель</th>{head}</tr></thead>'
+              f'<thead><tr><th>Модель</th><th class=narrow>Мышл.</th>{head}</tr></thead>'
               f'<tbody>{"".join(rows_m)}</tbody></table></div>'
               f'<p class=sub>Доля утилиты в вызовах утилит режима; заливка — '
               f'та же доля. Колонки — топ-{len(top8)} утилит агрегата.</p>')
@@ -1920,7 +1953,8 @@ def tools_section(data: list[dict]) -> str:
             f'(isError), от всех вызовов этого инструмента в 25 прогонах; типы — '
             f'классификация по тексту результата. bash: единственный тип — '
             f'«ненулевой код выхода», рабочий исход (упавшие тесты, вывод линтера, '
-            f'пустой diff), не авария агента — детализация ниже.</p>'
+            f'пустой diff), не авария агента — детализация ниже. Цвет доли: серый — '
+            f'ошибок нет, синий — до 5%, янтарный — до 10%, красный — выше.</p>'
             f'<p class=excap style="margin-top:16px">bash: что именно в выводе '
             f'{bash_total} ошибочных вызовов</p>'
             f'{bash_bars}'
@@ -1930,6 +1964,11 @@ def tools_section(data: list[dict]) -> str:
                f'({100 * edit_rate[0][1]:.0f}% edit-вызовов), реже — {edit_rate[-1][0]} '
                f'({100 * edit_rate[-1][1]:.0f}%). ' if edit_rate else "")
             + f'write ошибок не даёт вовсе.</p>'
+            f'<p class=excap style="margin-top:16px">Ошибки по режимам: все ли ошибаются</p>'
+            f'{err_matrix}'
+            f'<p class=sub>Доля ошибок инструмента в вызовах режима; заливка — та же '
+            f'доля, наведение — «ошибок из вызовов»; «—» — инструмент режимом '
+            f'не вызывался.{clean_txt}</p>'
             f'<p class="excap sb">4.2.4. Микс инструментов по моделям</p>'
             f'{strip}'
             f'<p class="excap sb">4.2.5. Утилиты bash по моделям</p>'
