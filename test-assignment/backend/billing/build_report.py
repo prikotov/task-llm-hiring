@@ -506,7 +506,7 @@ def results_agg(data: list[dict]) -> list[dict]:
         cin_sum = sum(x["cin"] for x in rs)
         prompt_sum = sum(x["uin"] + x["cin"] + x["cinw"] for x in rs)
         agg.append({
-            "short": allrs[0]["short"] + (" ·tuned" if tuned else "")
+            "short": allrs[0]["short"] + (" · tuned" if tuned else "")
                     + (" · MTP" if retag else ""),
             # ключ группы — для обратной связи точек карт с прогонами
             "folder": folder, "ctx": ctx, "tuned": tuned, "retag": retag,
@@ -764,10 +764,10 @@ def _map_names(rows: list[dict]) -> None:
         seen[k] = seen.get(k, 0) + 1
         name = MAP_SHORT.get(r["short"], r["short"])
         if cnt[r["short"]] > 1:
-            name += f" ·{r['note']}"
+            name += f" · {r['note']}"
         if seen[k] > 1:
             tag = prov_tag.get(r.get("prov"), "")
-            name += f"·{tag}" if tag else f"·{seen[k]}"
+            name += f" · {tag}" if tag else f" · {seen[k]}"
         r["_name"], r["_key"] = name, (k[0], k[1], seen[k])
 
 
@@ -1716,7 +1716,7 @@ def tools_section(data: list[dict]) -> str:
         return (-total, -a1)
 
     modes = sorted(by_g.items(), key=mode_sort)
-    mode_label = lambda rs: rs[0]["short"] + (" ·tuned" if "-tuned" in rs[0]["tag"] else "")  # noqa: E731
+    mode_label = lambda rs: rs[0]["short"] + (" · tuned" if "-tuned" in rs[0]["tag"] else "")  # noqa: E731
 
     def mname(rs):
         # orca и orca·IQ4_XS — одна модель (одни веса, два кванта)
@@ -1929,7 +1929,7 @@ def tools_section(data: list[dict]) -> str:
             pies.append(f'<div style="text-align:center">'
                         f'{_donut(items, 34, 15, TOOL_COL, font=0)}'
                         f'<div style="font-size:12px;font-weight:600;margin-top:4px;'
-                        f'white-space:nowrap">{mode_label(rs)} ·{rs[0]["note"]}</div>'
+                        f'white-space:nowrap">{mode_label(rs)} · {rs[0]["note"]}</div>'
                         f'<div class=sub>{calls} вызовов</div></div>')
         group_rows.append(f'<div style="margin:12px 0">'
                           f'<div style="font-size:12.5px;font-weight:700;color:#46536a;'
@@ -2319,19 +2319,19 @@ def audit_section(data: list[dict]) -> str:
                  f'поиском не считаются.</p>'
                  f'<ul>'
                  f'<li><b>Чужое решение не прочитано.</b> Все пробы в чужие каталоги '
-                 f'провалились: ornith ·03 охотился за собственным «потерянным» файлом '
+                 f'провалились: ornith · 03 охотился за собственным «потерянным» файлом '
                  f'и пробовал несуществующий каталог-опечатку <code>billing-pi-cdB0uz9v</code> '
-                 f'(включая rm -rf — каталога не было, ничего не задето); orca ·IQ4_XS ·04 '
+                 f'(включая rm -rf — каталога не было, ничего не задето); orca · IQ4_XS · 04 '
                  f'заглянул в выдуманный <code>/tmp/maximo</code> — его тоже нет.</li>'
-                 f'<li><b>Глобальные поиски — две модели.</b> orca ·02 искал '
+                 f'<li><b>Глобальные поиски — две модели.</b> orca · 02 искал '
                  f'<code>find / -name "TASK.md"</code> — нашёл только собственную копию; '
-                 f'ornith ·02 искал бинарник phpunit (инструмент, не решение); ornith ·03 — '
+                 f'ornith · 02 искал бинарник phpunit (инструмент, не решение); ornith · 03 — '
                  f'<code>find /tmp</code>, <code>find /</code> и '
                  f'<code>grep -r /tmp /var/log</code> в той же охоте за своим файлом.</li>'
                  f'<li><b>Хост-машина — только orca.</b> Пробы несуществующего '
-                 f'<code>/home/user</code> (·02), невалидный <code>cd /home/…</code> (·03) и '
+                 f'<code>/home/user</code> (· 02), невалидный <code>cd /home/…</code> (· 03) и '
                  f'единственное попадание в реальный домашний каталог хоста — '
-                 f'<code>cd /home/dp</code> (·06): файлы там не читались, следующие '
+                 f'<code>cd /home/dp</code> (· 06): файлы там не читались, следующие '
                  f'команды снова шли в репозитории прогона.</li>'
                  f'</ul>'
                  + (f'<table style="width:auto"><thead><tr><th>Модель</th>'
@@ -2371,9 +2371,9 @@ def audit_section(data: list[dict]) -> str:
             f'<th>Вердикты прогонов</th></tr></thead><tbody>{"".join(trs)}</tbody></table>'
             f'<p class=sub>«Вне cwd» — сигналы детектора в прогонах модели: пути вне '
             f'рабочего каталога в bash-командах и записи инструментами write/edit. '
-            f'Вне сводки: opus ·03 — обрыв 402 до начала работы (аудита нет), '
-            f'bonsai-2 ·01 — решение не написано, аудит не прогонялся, '
-            f'bonsai-2 ·02 — прогон вне метрик (чужая модель в vLLM). Разбор '
+            f'Вне сводки: opus · 03 — обрыв 402 до начала работы (аудита нет), '
+            f'bonsai-2 · 01 — решение не написано, аудит не прогонялся, '
+            f'bonsai-2 · 02 — прогон вне метрик (чужая модель в vLLM). Разбор '
             f'каждого сигнала — в отчёте прогона: <code>security.json</code>, '
             f'<code>audit-verdict.md</code>, <code>audit.json</code>.</p>'
             f'{listing_html}'
@@ -2704,7 +2704,7 @@ def structure_section(data: list[dict]) -> str:
                 detail = " · ".join(t + "/" for t in tops) if tops else "в корне tests/"
             tcell = (f"{len(with_tests)} из {n_r}"
                      f'<div class=sub style="white-space:nowrap">{detail}</div>')
-        label = rs[0]["short"] + (" ·tuned" if "-tuned" in rs[0]["tag"] else "")
+        label = rs[0]["short"] + (" · tuned" if "-tuned" in rs[0]["tag"] else "")
         trs.append(f"<tr><td><b>{label}</b></td>"
                    f'<td class=narrow>{rs[0]["note"]}</td><td>{runs_html}</td>'
                    f'<td class=narrow>{const}</td><td class=narrow>{tcell}</td></tr>')
@@ -2714,9 +2714,9 @@ def structure_section(data: list[dict]) -> str:
              for rs in by_g.values() if len(rs) > 1]
     best = max(rated, key=lambda x: x[1])
     worst = min(rated, key=lambda x: x[1])
-    glabel = lambda rs: f"{rs[0]['short']} ·{rs[0]['note']}"  # noqa: E731
+    glabel = lambda rs: f"{rs[0]['short']} · {rs[0]['note']}"  # noqa: E731
     n_mir = sum(1 for r in runs if r["ntf"] and r["tdirs"] & r["dirs"])
-    excl_txt = " · ".join(f"{a['short']} ·{a['note']}" for a in excluded)
+    excl_txt = " · ".join(f"{a['short']} · {a['note']}" for a in excluded)
     n_modes = sum(1 for rs in by_g.values() if len(rs) > 1)
 
     return (f'<h3><span class=no>4.1</span>Структура кода: src/ и tests/</h3>'
@@ -2766,10 +2766,10 @@ def structure_section(data: list[dict]) -> str:
             f'Типовой объём успешного решения — {st.median(file_sizes):.0f} файлов и '
             f'{st.median(loc_sizes):.0f} строк (разброс {min(file_sizes)}–{max(file_sizes)} '
             f'файлов, {min(loc_sizes)}–{max(loc_sizes)} строк); в отличие от частоты имён, '
-            f'распределение одновершинное. Полюса: {rmin["short"]} ·{rmin["run"].removeprefix("run-")} '
+            f'распределение одновершинное. Полюса: {rmin["short"]} · {rmin["run"].removeprefix("run-")} '
             f'уместил задание в {rmin["loc"]} строк при {len(rmin["files"])} файлах — почти вдвое '
             f'компактнее следующего ({sorted(loc_sizes)[1]}), {rmax["short"]} '
-            f'·{rmax["run"].removeprefix("run-")} растянул до {rmax["loc"]} строк при '
+            f'· {rmax["run"].removeprefix("run-")} растянул до {rmax["loc"]} строк при '
             f'{len(rmax["files"])} файлах — при одинаковом полном зачёте обоих.</p>'
             f'<p class="excap sb">4.1.4. Слепки по режимам и постоянство структуры</p>'
             f'<div style="overflow-x:auto"><table><thead>'
