@@ -1834,14 +1834,16 @@ def tools_section(data: list[dict]) -> str:
                 cells.append('<td class=narrow style="color:#98a1ac">—</td>')
                 continue
             alpha = min(0.85, (e / c) / EMAX_SHARE * 0.8)
-            cells.append(f'<td class=narrow style="background:rgba(179,84,63,{alpha:.2f})" '
-                         f'title="{e} isError из {c} вызовов">{round(100 * e / c)}%</td>')
+            cells.append(f'<td class=narrow style="white-space:nowrap;'
+                         f'background:rgba(179,84,63,{alpha:.2f})">'
+                         f'{round(100 * e / c)}% ({e} из {c})</td>')
         tc, te = sum(calls_m.values()), sum(errs_m.values())
         if not te:
             clean_modes.append(mode_label(rs))
         alpha = min(0.85, (te / tc) / EMAX_SHARE * 0.8) if tc else 0
-        cells.append(f'<td class=narrow style="background:rgba(179,84,63,{alpha:.2f})" '
-                     f'title="{te} isError из {tc} вызовов">{round(100 * te / tc)}%</td>')
+        cells.append(f'<td class=narrow style="white-space:nowrap;'
+                     f'background:rgba(179,84,63,{alpha:.2f})">'
+                     f'{round(100 * te / tc)}% ({te} из {tc})</td>')
         # сортировка — по общей доле ошибок: сверху аккуратные, снизу сбоющие
         erows_m.append(((te / tc if tc else 0), rs,
                         f'<tr><td style="white-space:nowrap">{mode_label(rs)}</td>'
@@ -1972,10 +1974,10 @@ def tools_section(data: list[dict]) -> str:
                f'({100 * edit_rate[0][1]:.0f}% edit-вызовов), реже — {edit_rate[-1][0]} '
                f'({100 * edit_rate[-1][1]:.0f}%). ' if edit_rate else "")
             + f'write ошибок не даёт вовсе.</p>'
-            f'<p class="excap sb">Все ли модели ошибаются и где</p>'
+            f'<p class="excap sb">Все ли модели ошибаются</p>'
             f'{err_matrix}'
             f'<p class=sub>Доля неуспешных вызовов (isError) инструмента в вызовах '
-            f'режима; заливка — та же доля, наведение — «isError из вызовов»; '
+            f'режима; в ячейке — «доля (isError из вызовов)», заливка — та же доля; '
             f'«—» — инструмент режимом не вызывался. Режимы отсортированы по '
             f'колонке «Всего»: сверху — ошибающиеся реже.{clean_txt}</p>'
             f'<p class="excap sb">4.2.4. Микс инструментов по моделям</p>'
