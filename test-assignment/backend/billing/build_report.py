@@ -1767,7 +1767,7 @@ def tools_section(data: list[dict]) -> str:
                     f'<td class=narrow><b style="color:{hue}">{pct:.0f}%</b></td>'
                     f'<td class=sub>{ks}</td></tr>')
     err_table = ('<table style="width:100%"><thead>'
-                 '<tr><th>Инструмент</th><th class=narrow>Ошибок из вызовов</th>'
+                 '<tr><th>Инструмент</th><th class=narrow>isError из вызовов</th>'
                  '<th class=narrow>Доля</th><th>Типы ошибок</th></tr></thead>'
                  f'<tbody>{"".join(etrs)}</tbody></table>')
 
@@ -1803,8 +1803,8 @@ def tools_section(data: list[dict]) -> str:
                  + "".join(bsvg)
                  + f'<text x="{BML + BPW / 2:.0f}" y="{BH - 5}" text-anchor="middle" '
                    f'font-size="11.5" fill="#66707f">штук · доля от {bash_total} '
-                   f'bash-ошибок</text></svg>'
-                 f'<p class=sub>Вывод ошибочного вызова — вывод всей цепочки: часть строк '
+                   f'неуспешных bash-вызовов</text></svg>'
+                 f'<p class=sub>Вывод неуспешного вызова — вывод всей цепочки: часть строк '
                  f'может быть успешной, маркер — по источнику ошибки.</p>')
 
     edit_rate = []
@@ -1835,13 +1835,13 @@ def tools_section(data: list[dict]) -> str:
                 continue
             alpha = min(0.85, (e / c) / EMAX_SHARE * 0.8)
             cells.append(f'<td class=narrow style="background:rgba(179,84,63,{alpha:.2f})" '
-                         f'title="{e} ошибок из {c} вызовов">{round(100 * e / c)}%</td>')
+                         f'title="{e} isError из {c} вызовов">{round(100 * e / c)}%</td>')
         tc, te = sum(calls_m.values()), sum(errs_m.values())
         if not te:
             clean_modes.append(mode_label(rs))
         alpha = min(0.85, (te / tc) / EMAX_SHARE * 0.8) if tc else 0
         cells.append(f'<td class=narrow style="background:rgba(179,84,63,{alpha:.2f})" '
-                     f'title="{te} ошибок из {tc} вызовов">{round(100 * te / tc)}%</td>')
+                     f'title="{te} isError из {tc} вызовов">{round(100 * te / tc)}%</td>')
         # сортировка — по общей доле ошибок: сверху аккуратные, снизу сбоющие
         erows_m.append(((te / tc if tc else 0), rs,
                         f'<tr><td style="white-space:nowrap">{mode_label(rs)}</td>'
@@ -1851,10 +1851,15 @@ def tools_section(data: list[dict]) -> str:
                   f'<thead><tr><th>Модель</th><th class=narrow>Мышл.</th>{ehead}'
                   f'<th class=narrow>Всего</th></tr></thead>'
                   f'<tbody>{"".join(h for _, _, h in erows_m)}</tbody></table></div>')
-    clean_txt = (f' Совсем без ошибок — {", ".join(clean_modes)}.'
+    clean_txt = (f' Совсем без isError — {", ".join(clean_modes)}.'
                  if clean_modes else
-                 f' Ошибки есть у всех {len(modes)} режимов — «чистых» нет; вопрос только '
-                 f'в доле и в том, какие инструменты сбоят.')
+                 f' Неуспешные вызовы есть у всех {len(modes)} режимов — «чистых» нет; '
+                 f'вопрос только в доле и в том, какие инструменты сбоят. Самые высокие '
+                 f'bash-доли (Sol 6.1) — эффект малого знаменателя: 8–13 bash-вызовов '
+                 f'за прогон, и почти все isError — линтер phpcbf, выходящий с кодом 2 '
+                 f'при любом найденном нарушении стиля (это его нормальная работа), '
+                 f'дважды git вне репозитория и один падающий тест из 48; ни одного '
+                 f'PHP-фатала или сломанного конвейера.')
 
     # --- микс инструментов по режимам: ряд мини-пирогов ----------------------
     pies = []
@@ -1952,13 +1957,14 @@ def tools_section(data: list[dict]) -> str:
             f'{donuts}'
             f'<p class="excap sb">4.2.3. Ошибки tool-вызовов</p>'
             f'{err_table}'
-            f'<p class=sub style="margin-top:2px">Доля — вызовы, вернувшие ошибку '
-            f'(isError), от всех вызовов этого инструмента в 25 прогонах; типы — '
-            f'классификация по тексту результата. bash: единственный тип — '
-            f'«ненулевой код выхода», рабочий исход (упавшие тесты, вывод линтера, '
-            f'пустой diff), не авария агента — детализация ниже. Цвет доли: серый — '
-            f'ошибок нет, синий — до 5%, янтарный — до 10%, красный — выше.</p>'
-            f'<p class="excap sb" style="margin-bottom:10px">bash: распределение ошибок</p>'
+            f'<p class=sub style="margin-top:2px">Доля — вызовы, завершившиеся '
+            f'isError, от всех вызовов этого инструмента в 25 прогонах; типы — '
+            f'классификация по тексту результата. isError не равно «авария»: '
+            f'для bash это ненулевой код выхода — часто рабочий исход (упавшие '
+            f'тесты, замечания линтера, пустой diff) — детализация ниже. Цвет '
+            f'доли: серый — isError нет, синий — до 5%, янтарный — до 10%, '
+            f'красный — выше.</p>'
+            f'<p class="excap sb" style="margin-bottom:10px">bash: неуспешные вызовы — что в выводе</p>'
             f'{bash_bars}'
             f'<p class=sub>edit — единственный инструмент с заметной долей отказов: '
             f'промахивается по «точному тексту» на переформатированных файлах. '
@@ -1968,10 +1974,10 @@ def tools_section(data: list[dict]) -> str:
             + f'write ошибок не даёт вовсе.</p>'
             f'<p class="excap sb">Все ли модели ошибаются и где</p>'
             f'{err_matrix}'
-            f'<p class=sub>Доля ошибок инструмента в вызовах режима; заливка — та же '
-            f'доля, наведение — «ошибок из вызовов»; «—» — инструмент режимом '
-            f'не вызывался. Режимы отсортированы по колонке «Всего»: сверху — '
-            f'ошибающиеся реже.{clean_txt}</p>'
+            f'<p class=sub>Доля неуспешных вызовов (isError) инструмента в вызовах '
+            f'режима; заливка — та же доля, наведение — «isError из вызовов»; '
+            f'«—» — инструмент режимом не вызывался. Режимы отсортированы по '
+            f'колонке «Всего»: сверху — ошибающиеся реже.{clean_txt}</p>'
             f'<p class="excap sb">4.2.4. Микс инструментов по моделям</p>'
             f'{strip}'
             f'<p class="excap sb">4.2.5. Утилиты bash по моделям</p>'
