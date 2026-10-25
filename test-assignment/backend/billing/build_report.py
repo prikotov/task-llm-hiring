@@ -2163,15 +2163,17 @@ def context_section(data: list[dict]) -> str:
             for v in sorted(set(p["turns"])))
         tip = (f'ходов: медиана {tmed:.0f}; прогоны '
                f'{", ".join(map(str, sorted(p["turns"])))}')
-        candle = (f'<svg width="{W + 40}" height="22" style="display:block">'
-                  f'<rect x="0" y="0" width="{W + 40}" height="22" fill="transparent">'
+        rng = (f'<b>{tmed:.0f}</b>'
+               + (f' <span class=sub>· {tmin}–{tmax}</span>' if tmin != tmax else ""))
+        candle = (f'<div style="display:flex;align-items:center;gap:8px">'
+                  f'<svg width="{W}" height="22" style="flex:none">'
+                  f'<rect x="0" y="0" width="{W}" height="22" fill="transparent">'
                   f'<title>{tip}</title></rect>'
                   f'<line x1="{xx(tmin)}" y1="11" x2="{xx(tmax)}" y2="11" '
                   f'stroke="#aab3bf" stroke-width="1.5"/>{ticks}'
                   f'<rect x="{max(2, xx(tmed) - 6):.1f}" y="4" width="12" height="14" '
-                  f'rx="3" fill="#315f9e"/>'
-                  f'<text x="{W + 10}" y="15.5" font-size="11.5" fill="#66707f">'
-                  f'{tmed:.0f}</text></svg>')
+                  f'rx="3" fill="#315f9e"/></svg>'
+                  f'<span style="font-size:13px;white-space:nowrap">{rng}</span></div>')
         peak = p["peak"] // 1000
         peak_cell = f'{peak}K'
         if p["short"] == "Opus 5.5" and peak > 100:
@@ -2230,8 +2232,9 @@ def context_section(data: list[dict]) -> str:
             f'</div>'
             f'<p class=sub>Свеча в колонке «Ходов» — разброс по прогонам режима: '
             f'вишка — мин–макс, засечки — отдельные прогоны, синее тело — медиана '
-            f'(число справа); наведение — точные значения. Шкала общая для всех '
-            f'строк. «Без компакта» — прогонов режима, обошедшихся без единого '
+            f'(рядом числа: медиана · мин–макс); наведение — все прогоны. '
+            f'Шкала общая для всех строк. «Без компакта» — прогонов режима, '
+            f'обошедшихся без единого '
             f'автокомпакта; их контекст не доходил до порога ~86K. '
             f'Режимы вне верхних квадрантов — вне таблицы (включая самый тяжёлый '
             f'марафон сетки: ornith · 03, 758 ходов и 9 компактов). '
