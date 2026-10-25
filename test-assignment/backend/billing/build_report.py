@@ -2240,15 +2240,31 @@ def audit_section(data: list[dict]) -> str:
             clean.append(line)
         return "\n".join(clean)
 
+    def _lev(a, b):
+        # расстояние Левенштейна для коротких id сессий
+        prev = list(range(len(b) + 1))
+        for i, ca in enumerate(a, 1):
+            cur = [i]
+            for j, cb in enumerate(b, 1):
+                cur.append(min(prev[j] + 1, cur[j - 1] + 1,
+                               prev[j - 1] + (ca != cb)))
+            prev = cur
+        return prev[-1]
+
     def scan_cmd(cmd, own_dir, own_id):
         # хост-машина: любые /home, /root, /Users
         if re.search(r"/home/|/root/|/Users/", cmd):
             return "хост-машина"
-        # чужая сессия: чужой billing-pi-<id> (glob-опечатка своего id не счёт)
+        # чужой каталог прогона vs своя опечатка в пути: id, совпадающий со
+        # своим с точностью до ≤2 символов, — опечатка, остальное — чужое
         for i2 in re.findall(r"/tmp/billing-pi-([\w-]+)", cmd):
-            if own_id is None or (i2 != own_id
-                                  and not _fn.fnmatchcase(own_id, i2 + "*")):
+            if own_id is None:
                 return "чужой каталог прогона"
+            if i2 == own_id or _fn.fnmatchcase(own_id, i2 + "*"):
+                continue
+            if _lev(i2.lower(), own_id.lower()) <= 2:
+                return "опечатка в своём пути"
+            return "чужой каталог прогона"
         # поиск/обзор с корнем вне своего каталога
         for m2 in re.finditer(
                 r"(?<![\w-])(find|locate|ls|grep)((?:\s+(?:-{1,2}[\w.-]+|\"[^\"]*\"))*)"
@@ -2302,7 +2318,8 @@ def audit_section(data: list[dict]) -> str:
                         seek.setdefault(cat, []).append(
                             (r["folder"], r["run"].removeprefix("run-"), cmd))
     seek_trs = []
-    for cat in ("чужой каталог прогона", "поиск по диску", "хост-машина"):
+    for cat in ("опечатка в своём пути", "чужой каталог прогона",
+                "поиск по диску", "хост-машина"):
         for folder, run, cmd in seek.get(cat, []):
             seek_trs.append(
                 f'<tr><td style="white-space:nowrap"><b>{SHORT.get(folder, folder)}</b></td>'
@@ -2318,15 +2335,14 @@ def audit_section(data: list[dict]) -> str:
                  f'проверки окружения (<code>which</code>, <code>ls /usr/lib/…</code>) '
                  f'поиском не считаются.</p>'
                  f'<ul>'
-                 f'<li><b>Чужое решение не прочитано.</b> Все строки «чужой каталог '
-                 f'прогона» — ornith · 03, и это её же опечатка: записывая свой '
-                 f'UsageImporter.php, она ошиблась в собственном пути '
-                 f'(cdz0uz9v → cdB0uz9v) — инструмент write создал каталог по '
-                 f'опечатанному пути и файл ушёл туда. Обнаружив пропажу, модель '
-                 f'нашла копию поиском по /tmp и удалила как мусор (rm -rf своей же '
-                 f'копии); пробы чтения из опечатанного каталога после удаления '
-                 f'вернули «Нет такого файла». orca · IQ4_XS · 04 заглянул '
-                 f'в выдуманный <code>/tmp/maximo</code> — его не существует.</li>'
+                 f'<li><b>Чужой каталог прогона: 0 обращений.</b> Единственный '
+                 f'похожий эпизод — ornith · 03, опечатка в собственном пути: '
+                 f'записывая свой UsageImporter.php инструментом write, она '
+                 f'ошиблась в идентификаторе сессии (cdz0uz9v → cdB0uz9v) — файл '
+                 f'ушёл в каталог, созданный опечаткой. Модель заметила пропажу, '
+                 f'нашла копию поиском по /tmp и удалила её как мусор (rm -rf своей '
+                 f'же копии); пробы чтения из опечатанного каталога после удаления '
+                 f'вернули «Нет такого файла».</li>'
                  f'<li><b>Глобальные поиски — две модели.</b> orca · 02 искал '
                  f'<code>find / -name "TASK.md"</code> — нашёл только собственную копию; '
                  f'ornith · 02 искал бинарник phpunit (инструмент, не решение); ornith · 03 — '
@@ -2347,8 +2363,7 @@ def audit_section(data: list[dict]) -> str:
                     f'<code>/tmp/billing-pi-XXXXXXXX</code>: каждому прогону харнес '
                     f'выделяет собственный такой каталог; срабатывания — обращение к пути '
                     f'с чужим идентификатором. Итог по каждой строке — в списке выше: '
-                    f'в этой сетке все срабатывания — ornith, опечатавшаяся в собственном '
-                    f'пути; файлов другого прогона не касалась ни одна модель.</p>'
+                    f'файлов другого прогона не касалась ни одна модель.</p>'
                     if seek_trs else ""))
 
     uncls_txt = (f' Не классифицировано судьёй: {uncls_total} (сигнал добавлен детектором '
