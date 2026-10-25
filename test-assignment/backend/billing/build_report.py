@@ -2161,10 +2161,7 @@ def context_section(data: list[dict]) -> str:
         def xx(v):
             return round((v - gmin) / (gmax - gmin) * (W - 8) + 4, 1)
 
-        ticks = "".join(
-            f'<line x1="{xx(v):.1f}" y1="{H // 2 - 4}" x2="{xx(v):.1f}" y2="{H // 2 + 4}" '
-            f'stroke="#7d899c" stroke-width="1"/>'
-            for v in sorted(set(p["turns"])) if tmin != tmax or v != tmin)
+        ticks = ""  # отдельные прогоны видны числами рядом и в наведении
         tip = (f'ходов: медиана {tmed:.0f}; прогоны '
                f'{", ".join(map(str, sorted(p["turns"])))}')
         rng = (f'<b>{tmed:.0f}</b>'
