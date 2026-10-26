@@ -2325,6 +2325,12 @@ def code_quality_section(data: list[dict]) -> str:
         for _src, tgt in internal:
             ca_per_class[tgt] += 1
         ca_med = st.median(ca_per_class.values()) if ca_per_class else 0
+        ce_per_class = defaultdict(int)
+        for _src, tgt in internal:
+            ce_per_class[_src] += 1
+        i_vals = [ce_per_class[c] / (ce_per_class[c] + ca_per_class[c])
+                  for c in set(ce_per_class) | set(ca_per_class)]
+        i_med = st.median(i_vals) if i_vals else 0
         rec = {
             "note": r["note"],
             "phpstan": mj["phpstan"]["errors"] / loc,
@@ -2333,6 +2339,7 @@ def code_quality_section(data: list[dict]) -> str:
             "classes": ncls,
             "ce": len(internal) / ncls,
             "ca": ca_med,
+            "i": i_med,
             "cyc": len(cyc),
             "lcom": am.get("lcom4_over_1") or 0,
             "cc": am.get("method_cc_max") or 0,
@@ -2400,7 +2407,7 @@ def code_quality_section(data: list[dict]) -> str:
     for k in sorted(per, key=m_rank):
         f, note = k
         row = {"classes": med(k, "classes"), "ce": med(k, "ce"),
-               "ca": med(k, "ca"),
+               "ca": med(k, "ca"), "i": med(k, "i"),
                "cyc": med(k, "cyc"), "lcom": med(k, "lcom"),
                "cc": med(k, "cc"), "m50": med(k, "m50")}
         for field in arch_max:
@@ -2449,6 +2456,7 @@ def code_quality_section(data: list[dict]) -> str:
             f'<td>{loc_chart(k)}</td>'
             f'<td class=narrow>{row["ce"]:.1f}</td>'
             f'<td class=narrow>{row["ca"]:.1f}</td>'
+            f'<td class=narrow><b>{row["i"]:.2f}</b></td>'
             f'<td class=narrow '
             f'style="color:{"#2f7d54" if row["cyc"] == 0 else "#b3543f"}">'
             f'{"нет" if row["cyc"] == 0 else f"{row["cyc"]:.0f}"}</td>'
@@ -2464,6 +2472,7 @@ def code_quality_section(data: list[dict]) -> str:
         f'<th class=narrow title="распределение размера классов: столбик — класс, от большего к меньшему">LOC классов<br><span class=sub style="font-size:10.5px;text-transform:none">макс · мед</span></th>'
         f'<th class=narrow title="внутренних зависимостей App→App на класс — связанность (efferent coupling)">C<sub>e</sub><br><span class=sub style="font-size:10.5px;text-transform:none">на класс</span></th>'
         f'<th class=narrow title="входящих зависимостей App→App на класс (классы с зависимостями) — afferent coupling">C<sub>a</sub><br><span class=sub style="font-size:10.5px;text-transform:none">мед. на класс</span></th>'
+        f'<th class=narrow title="нестабильность I = C_e / (C_e + C_a), медиана по классам с зависимостями">I<br><span class=sub style="font-size:10.5px;text-transform:none">мед.</span></th>'
         f'<th class=narrow title="циклических компонент в графе App→App">Циклы</th>'
         f'<th class=narrow title="классов с LCOM4 выше 1 — связность">LCOM4&gt;1<br><span class=sub>классов</span></th>'
         f'<th class=narrow title="максимальная цикломатическая сложность метода">Max CC<br><span class=sub>метода</span></th>'
@@ -2513,30 +2522,33 @@ def code_quality_section(data: list[dict]) -> str:
             f'в 13–40; крайности показывает колонка «LOC классов» — форма '
             f'распределения и максимум сразу отличают ровный ряд от одного '
             f'класса-гиганта.</p>'
-            f'<p><b>C<sub>e</sub> на класс (связанность).</b> Обозначение '
+            f'<p><b>C<sub>e</sub> — исходящая связанность.</b> Обозначение '
             f'C<sub>e</sub> — из связки метрик Роберта Мартина: C — coupling '
-            f'(связанность), нижний индекс e — efferent (исходящая), то есть '
-            f'efferent coupling — исходящая связанность; парная метрика про '
-            f'входящие связи — C<sub>a</sub>, afferent coupling (входящая '
-            f'связанность); в таблице — медиана входящих связей на класс. '
-            f'Смысл: среднее число '
-            f'зависимостей класса '
-            f'на другие классы проекта — только внутренние App→App, вызовы '
-            f'vendor и глобальных функций не считаются. Показывает, насколько '
-            f'плотно классы переплетены: чем ниже, тем легче менять '
-            f'и тестировать класс изолированно. Хорошо — единицы; тревога — '
-            f'когда у многих классов по десять и больше связей. '
-            f'Пример: RepriceService у DeepSeek (max) зависит от восьми '
-            f'внутренних классов (Money, PricingCalculator, UsageEvent…) — '
-            f'это верхний сервис-оркестратор, широкий кругозор для него '
-            f'нормален. Из пары C<sub>e</sub>/C<sub>a</sub> выводится метрика '
-            f'нестабильности I = C<sub>e</sub> / (C<sub>a</sub> + '
-            f'C<sub>e</sub>): 0 — максимально стабильный класс, 1 — максимально '
-            f'нестабильный. По нашей сетке картина textbook: медиана I по '
-            f'классам 0.50; полюса ровно как учит принцип стабильных '
-            f'зависимостей — I = 1 у console-команд (точки входа, обязаны '
-            f'меняться часто), I = 0 у примитивов домена (Decimal, Timestamp, '
-            f'enum-статусы — менять их больно, и они ни на кого не смотрят).</p>'
+            f'(связанность), нижний индекс e — efferent (исходящая). Смысл: '
+            f'среднее число зависимостей класса на другие классы проекта — '
+            f'только внутренние App→App, вызовы vendor и глобальных функций '
+            f'не считаются. Показывает, насколько плотно классы переплетены: '
+            f'чем ниже, тем легче менять и тестировать класс изолированно. '
+            f'Хорошо — единицы; тревога — когда у многих классов по десять '
+            f'и больше связей. Пример: RepriceService у DeepSeek (max) '
+            f'зависит от восьми внутренних классов (Money, '
+            f'PricingCalculator, UsageEvent…) — это верхний '
+            f'сервис-оркестратор, широкий кругозор для него нормален.</p>'
+            f'<p><b>C<sub>a</sub> — входящая связанность.</b> Afferent coupling: '
+            f'сколько классов проекта использует данный. В таблице — медиана '
+            f'входящих связей на класс (по классам, у которых связи есть). '
+            f'Высокое C<sub>a</sub> — «популярное» ядро: класс, на который '
+            f'смотрит много кода, менять его больно, зато он хорошо проверен '
+            f'употреблением.</p>'
+            f'<p><b>I — нестабильность.</b> Выводится из пары: '
+            f'I = C<sub>e</sub> / (C<sub>a</sub> + C<sub>e</sub>); 0 — '
+            f'максимально стабильный класс, 1 — максимально нестабильный. '
+            f'По нашей сетке картина textbook: медиана I по классам 0.50; '
+            f'полюса ровно как учит принцип стабильных зависимостей — I = 1 '
+            f'у console-команд (точки входа, обязаны меняться часто), I = 0 '
+            f'у примитивов домена (Decimal, Timestamp, enum-статусы — менять '
+            f'их больно, и они ни на кого не смотрят). В таблице — медиана I '
+            f'по классам с зависимостями.</p>'
             f'<p><b>Циклы.</b> Циклические компоненты в графе внутренних '
             f'зависимостей: класс A использует B, а B — A, напрямую или через '
             f'цепочку. Цикл означает, что классы нельзя вынуть и тестировать '
