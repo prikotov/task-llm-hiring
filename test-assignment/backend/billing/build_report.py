@@ -2168,8 +2168,6 @@ def context_section(data: list[dict]) -> str:
                + (f' <span class=sub>· {tmin}–{tmax}</span>' if tmin != tmax else ""))
         candle = (f'<div style="display:flex;align-items:center;gap:8px">'
                   f'<svg width="{W}" height="{H}" style="flex:none">'
-                  f'<rect x="0" y="0" width="{W}" height="{H}" fill="transparent">'
-                  f'<title>{tip}</title></rect>'
                   f'<rect x="2" y="{H // 2 - 3}" width="{W - 4}" height="6" rx="3" '
                   f'fill="#eef0f4"/>'
                   f'<rect x="{xx(tmin)}" y="{H // 2 - 3}" '
@@ -2177,7 +2175,10 @@ def context_section(data: list[dict]) -> str:
                   f'fill="#315f9e" fill-opacity="0.35"/>'
                   f'<line x1="{xx(tmed):.1f}" y1="{H // 2 - 8}" '
                   f'x2="{xx(tmed):.1f}" y2="{H // 2 + 8}" stroke="#315f9e" '
-                  f'stroke-width="2"/>{ticks}</svg>'
+                  f'stroke-width="2"/>{ticks}'
+                  # подложка с подсказкой — последним слоем, чтобы ловить наведение
+                  f'<rect x="0" y="0" width="{W}" height="{H}" fill="transparent">'
+                  f'<title>{tip}</title></rect></svg>'
                   f'<span style="font-size:13px;white-space:nowrap">{rng}</span></div>')
         peak = p["peak"] // 1000
         peak_cell = f'{peak}K'
@@ -3439,9 +3440,16 @@ document.querySelectorAll('svg.scatter g.pt').forEach(function (pt) {
   dot.addEventListener('mouseleave', function () { tip.style.display = 'none'; });
 });
 
-// Тултипы SVG-сегментов (пончики, карты): нативные <title> в части
-// вьюверов показываются нестабильно — рисуем подсказку сами.
+// Тултипы SVG-сегментов (пончики, свечи, карты): нативные <title> в части
+// вьюверов показываются нестабильно, а рядом с нашим тултипом — двоятся.
+// Поэтому при загрузке переносим <title> в data-tip и рисуем подсказку сами.
 (function () {
+  document.querySelectorAll('svg title').forEach(function (t) {
+    var host = t.parentNode;
+    if (!host) return;
+    host.setAttribute('data-tip', t.textContent);
+    t.remove();
+  });
   var tip = document.createElement('div');
   tip.style.cssText = 'position:fixed;z-index:99;pointer-events:none;display:none;'
     + 'background:#1d2433;color:#fff;font:12.5px/1.45 system-ui,sans-serif;'
@@ -3451,10 +3459,15 @@ document.querySelectorAll('svg.scatter g.pt').forEach(function (pt) {
   var cur = null;
   document.addEventListener('mousemove', function (e) {
     var t = e.target;
-    var el = (t && t.namespaceURI === 'http://www.w3.org/2000/svg'
-              && t.querySelector && t.querySelector(':scope > title')) ? t : null;
+    var el = null;
+    if (t && t.namespaceURI === 'http://www.w3.org/2000/svg') {
+      // подсказка может висеть на подложке под видимыми фигурами — ищем вверх
+      el = t;
+      while (el && el.getAttribute && !el.getAttribute('data-tip')) el = el.parentNode;
+      if (!el || !el.getAttribute || !el.getAttribute('data-tip')) el = null;
+    }
     if (el) {
-      if (cur !== el) { tip.textContent = el.querySelector('title').textContent; cur = el; }
+      if (cur !== el) { tip.textContent = el.getAttribute('data-tip'); cur = el; }
       tip.style.display = 'block';
       var w = tip.offsetWidth, h = tip.offsetHeight;
       tip.style.left = Math.min(e.clientX + 14, window.innerWidth - w - 6) + 'px';
