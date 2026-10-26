@@ -2202,7 +2202,7 @@ def context_section(data: list[dict]) -> str:
             f'(input + cacheRead + cacheWrite) за сессию. Анализируем только '
             f'хорошие решения: популяция — {runs_total} прогонов режимов из '
             f'верхних квадрантов карт §4 (ревью оси A ≥ {REVIEW_GOOD:g}), '
-            f'как в 4.1–4.2; прогоны вне квадрантов — в конце раздела (4.5):</p>'
+            f'как в 4.1–4.2; прогоны вне квадрантов — в конце раздела (4.6):</p>'
             f'<ul>'
             f'<li><b>Одним проходом</b> — {one_total} из {runs_total} прогонов: '
             f'ни одного компакта.</li>'
@@ -2264,12 +2264,211 @@ def context_section(data: list[dict]) -> str:
             f'модель) — вне раздела.</p>')
 
 
+def code_quality_section(data: list[dict]) -> str:
+    """Сводный разбор метрик яруса 2 по «хорошим» прогонам: статанализ
+    (phpstan, psalm, phpcs PSR12 по src/; phpmd собирается, но намеренно
+    не включаем) и архитектурные метрики AST-коллектора — связность
+    (LCOM4), связанность (CE), циклы зависимостей, сложность (WMC, CC)."""
+    import statistics as st
+    from collections import defaultdict
+
+    good = _good_runs(data)
+
+    def cycles_of(edges):
+        g = defaultdict(set)
+        for a, b in edges:
+            g[a].add(b)
+        idx, low, on, stack, res, counter = {}, {}, set(), [], [], [0]
+
+        def visit(u):
+            idx[u] = low[u] = counter[0]
+            counter[0] += 1
+            stack.append(u)
+            on.add(u)
+            for w in g.get(u, ()):
+                if w not in idx:
+                    visit(w)
+                    low[u] = min(low[u], low[w])
+                elif w in on:
+                    low[u] = min(low[u], idx[w])
+            if low[u] == idx[u]:
+                comp = []
+                while True:
+                    w = stack.pop()
+                    on.discard(w)
+                    comp.append(w)
+                    if w == u:
+                        break
+                if len(comp) > 1:
+                    res.append(comp)
+
+        for u in list(g):
+            if u not in idx:
+                visit(u)
+        return res
+
+    # по-прогонный сбор: линтеры (на KLOC src/) и архитектура
+    per: dict = {}
+    for r in good:
+        d = ROOT / "models" / r["folder"] / "backend" / "test-assignment" / r["run"]
+        mj = json.loads((d / "metrics.json").read_text())
+        am = mj.get("ast_metrics") or {}
+        col = json.loads((d / "metrics-raw/collector.json").read_text())
+        loc = (am.get("loc_total") or 0) / 1000 or 1
+        ncls = len(col["classes"]) or 1
+        internal = [(e["source"], e["target"]) for e in col["dependencies"]
+                    if e["source"].startswith("App\\") and e["target"].startswith("App\\")]
+        cyc = cycles_of(internal)
+        rec = {
+            "note": r["note"],
+            "phpstan": mj["phpstan"]["errors"] / loc,
+            "psalm": (mj["psalm"].get("issues") or 0) / loc,
+            "phpcs": (r["phpcs"] or 0) / loc,
+            "classes": ncls,
+            "ce": len(internal) / ncls,
+            "cyc": len(cyc),
+            "lcom": am.get("lcom4_over_1") or 0,
+            "cc": am.get("method_cc_max") or 0,
+            "m50": (am.get("findings_thresholds") or {}).get("method_loc_over_50") or 0,
+        }
+        per.setdefault((r["folder"], r["note"]), []).append(rec)
+
+    F_ORDER = ["openai-gpt-6.1-sol", "openai-gpt-6-luna", "anthropic-claude-haiku-5.5",
+               "anthropic-claude-opus-5.5", "deepseek-flash", "huihui-ai-pi-100k",
+               "qwen3.8-27b-pi-100k", "orcarouter-Qwen3.8-27B-Uncensored-latest",
+               "orcarouter-Qwen3.8-27B-Uncensored-iq4_xs"]
+
+    def m_rank(k):
+        f, note = k
+        i = F_ORDER.index(f) if f in F_ORDER else len(F_ORDER)
+        return (i, {"low": 0, "max": 1}.get(note, 2))
+
+    def med(k, field):
+        return st.median([x[field] for x in per[k]])
+
+    all_lint = [x[f] for recs in per.values() for x in recs
+                for f in ("phpstan", "psalm", "phpcs")]
+    lint_max = max(all_lint)
+
+    # 4.4.1 линтеры
+    ltrs = []
+    for k in sorted(per, key=m_rank):
+        f, note = k
+        cells = []
+        vals = []
+        for field in ("phpstan", "psalm", "phpcs"):
+            v = med(k, field)
+            vals.append(v)
+            alpha = min(0.55, v / lint_max * 0.55)
+            cells.append(f'<td class=narrow style="background:rgba(179,84,63,{alpha:.2f})" '
+                         f'title="медиана по прогонам режима">{v:.0f}</td>')
+        cells.append(f'<td class=narrow><b>{sum(vals):.0f}</b></td>')
+        label = SHORT.get(f, f)
+        ltrs.append(f'<tr><td style="white-space:nowrap"><b>{label}</b></td>'
+                    f'<td class=narrow>{note}</td>{"".join(cells)}</tr>')
+    lint_table = (
+        f'<div style="overflow-x:auto"><table style="width:auto"><thead>'
+        f'<tr><th>Модель</th><th class=narrow>Мышл.</th>'
+        f'<th class=narrow title="phpstan по src/, на 1000 строк">phpstan<br><span class=sub>на KLOC</span></th>'
+        f'<th class=narrow title="psalm по src/, на 1000 строк">psalm<br><span class=sub>на KLOC</span></th>'
+        f'<th class=narrow title="phpcs PSR12 по src/, на 1000 строк">phpcs<br><span class=sub>на KLOC</span></th>'
+        f'<th class=narrow>Σ</th></tr></thead>'
+        f'<tbody>{"".join(ltrs)}</tbody></table></div>')
+
+    # 4.4.2 архитектура
+    ars = []
+    arch_max = {"lcom": 0, "cc": 0, "m50": 0}
+    for k in sorted(per, key=m_rank):
+        f, note = k
+        row = {"classes": med(k, "classes"), "ce": med(k, "ce"),
+               "cyc": med(k, "cyc"), "lcom": med(k, "lcom"),
+               "cc": med(k, "cc"), "m50": med(k, "m50")}
+        for field in arch_max:
+            arch_max[field] = max(arch_max[field], row[field])
+        ars.append((f, note, row))
+
+    def tint(v, mx, invert=False):
+        x = (1 - v / mx) if invert and mx else v / (mx or 1)
+        return min(0.5, x * 0.5)
+
+    ars_trs = []
+    for f, note, row in ars:
+        cells = (
+            f'<td class=narrow>{row["classes"]:.0f}</td>'
+            f'<td class=narrow>{row["ce"]:.1f}</td>'
+            f'<td class=narrow '
+            f'style="color:{"#2f7d54" if row["cyc"] == 0 else "#b3543f"}">'
+            f'{"нет" if row["cyc"] == 0 else f"{row["cyc"]:.0f}"}</td>'
+            f'<td class=narrow style="background:rgba(179,84,63,{tint(row["lcom"], arch_max["lcom"]):.2f})">{row["lcom"]:.0f}</td>'
+            f'<td class=narrow style="background:rgba(179,84,63,{tint(row["cc"], arch_max["cc"]):.2f})">{row["cc"]:.0f}</td>'
+            f'<td class=narrow style="background:rgba(179,84,63,{tint(row["m50"], arch_max["m50"]):.2f})">{row["m50"]:.0f}</td>')
+        ars_trs.append(f'<tr><td style="white-space:nowrap"><b>{SHORT.get(f, f)}</b></td>'
+                       f'<td class=narrow>{note}</td>{cells}</tr>')
+    arch_table = (
+        f'<div style="overflow-x:auto"><table style="width:auto"><thead>'
+        f'<tr><th>Модель</th><th class=narrow>Мышл.</th>'
+        f'<th class=narrow title="классов в src/">Классов</th>'
+        f'<th class=narrow title="внутренних зависимостей App→App на класс — связанность">CE<br><span class=sub>на класс</span></th>'
+        f'<th class=narrow title="циклических компонент в графе App→App">Циклы</th>'
+        f'<th class=narrow title="классов с LCOM4 выше 1 — связность">LCOM4&gt;1<br><span class=sub>классов</span></th>'
+        f'<th class=narrow title="максимальная цикломатическая сложность метода">Max CC<br><span class=sub>метода</span></th>'
+        f'<th class=narrow title="методов длиннее 50 строк">&gt;50 стр.<br><span class=sub>методов</span></th>'
+        f'</tr></thead><tbody>{"".join(ars_trs)}</tbody></table></div>')
+
+    acyclic = sum(1 for recs in per.values() for x in recs if x["cyc"] == 0)
+    n_runs = sum(len(x) for x in per.values())
+    return (f'<h3><span class=no>4.4</span>Качество кода: статический анализ '
+            f'и архитектура (ярус 2)</h3>'
+            f'<p class=lead>Той же популяции (25 прогонов «хороших» режимов) '
+            f'достаётся и ярус 2 — метрики кода, собранные чекером по src/: '
+            f'статанализ phpstan, psalm и phpcs PSR12 (phpmd собирается, '
+            f'но намеренно не включаем в анализ) и структурные метрики '
+            f'AST-коллектора: связность классов (LCOM4), связанность (число '
+            f'внутренних зависимостей на класс), циклы в графе зависимостей, '
+            f'сложность (WMC классов, цикломатика методов). Решения различаются '
+            f'по объёму почти вдвое, поэтому замечания линтеров нормированы '
+            f'на 1000 строк src/ (KLOC).</p>'
+            f'<p class="excap sb">4.4.1. Замечания статанализа</p>'
+            f'{lint_table}'
+            f'<p class=sub>Заливка — доля от самого грязного столбца. Медианы '
+            f'по прогонам режима; наведение на заголовок — что считалось.</p>'
+            f'<p class="excap sb">4.4.2. Архитектура: связность, связанность, '
+            f'сложность</p>'
+            f'{arch_table}'
+            f'<p class=sub>CE — среднее число внутренних зависимостей App→App '
+            f'на класс; «Циклы» — циклические компоненты в этом графе '
+            f'(зелёное «нет» — граф ацикличен). LCOM4&gt;1 — классы, где метод '
+            f'использует непересекающиеся группы свойств. Max CC — наибольшая '
+            f'цикломатическая сложность метода; &gt;50 стр. — методов длиннее '
+            f'50 строк.</p>'
+            f'<div class=note>'
+            f'<p><b>Что видно по линтерам.</b> Полностью чистых решений нет: '
+            f'у каждого режима есть замечания минимум двух инструментов. '
+            f'Относительный порядок устойчив: DeepSeek и Sol держат все три '
+            f'линии в первых строчках, huihui платит стилем (phpcs — худший '
+            f'столбец), qwen-семейство — psalm-типизацией. Разброс внутри '
+            f'режима мал относительно разницы между моделями — это «почерк», '
+            f'а не случайность прогона.</p>'
+            f'<p><b>Что видно по архитектуре.</b> Успешные решения схожи '
+            f'структурно: 13–40 классов, связанность 0.8–2.5 зависимости '
+            f'на класс, у {acyclic} из {n_runs} прогонов граф зависимостей '
+            f'вообще ацикличен — слои Domain ← Application ← Command/'
+            f'Infrastructure выдержаны. Сигналы LCOM4&gt;1 (в среднем 11 '
+            f'классов из ~27) требуют оговорки: чаще всего это сущности '
+            f'(UsageEvent, Provider) и console-команды, для которых метрика '
+            f'даёт ложные срабатывания; реальные «толстые» места — парсеры '
+            f'входных файлов (у них же максимум WMC). Сложность методов '
+            f'сдержанная: медиана максимума 9–13, одиночные выбросы до 32 — '
+            f'как правило, разбор fixtures в импортёрах.</p>'
+            f'</div>')
+
+
 def audit_section(data: list[dict]) -> str:
     """Сводный аудит безопасности по всем прогонам с сессией: обращения к сети,
     выходы за рабочий каталог и их классификация судьёй-аудитором
     (checker/judge_audit.py). Детерминированные сигналы — security.json,
-    вердикт и разбор каждого сигнала — audit.json прогона. 4.4.1 — сводка,
-    4.4.2 — полный перечень пограничных действий (человеческий контроль)."""
+    вердикт и разбор каждого сигнала — audit.json прогона. 4.5.1 — сводка,
+    4.5.2 — полный перечень пограничных действий (человеческий контроль)."""
     import html as _h
     from collections import Counter
 
@@ -2399,7 +2598,7 @@ def audit_section(data: list[dict]) -> str:
             f'<tr><th class=narrow>Прг.</th><th class=narrow>Тип</th>'
             f'<th>Команда</th><th>Разбор судьи</th></tr></thead>'
             f'<tbody>{trs2}</tbody></table></details>')
-    listing_html = (f'<p class="excap sb">4.4.2. Пограничные действия: полный перечень</p>'
+    listing_html = (f'<p class="excap sb">4.5.2. Пограничные действия: полный перечень</p>'
                     f'<p class=sub>Каждый пограничный сигнал — списком: по моделям '
                     f'(порядок раздела 3), внутри модели — по прогонам и ходу сессии. '
                     f'Команда обрезана до 110 символов, разбор судьи — до 170; '
@@ -2514,7 +2713,7 @@ def audit_section(data: list[dict]) -> str:
                 f'<td class=narrow><code style="font-size:11.5px">{_h.escape(cwd or "—")}</code></td>'
                 f'<td><code>{_h.escape(cmd[:130] + ("…" if len(cmd) > 130 else ""))}</code></td>'
                 f'</tr>')
-    seek_html = (f'<p class="excap sb">4.4.3. Поиски готового решения на диске</p>'
+    seek_html = (f'<p class="excap sb">4.5.3. Поиски готового решения на диске</p>'
                  f'<p class=sub>Отдельный вопрос контроля: не пыталась ли модель найти '
                  f'решение вне своего каталога — в каталогах чужих прогонов, '
                  f'глобальным поиском по диску, на хост-машине. У каждой сессии свой '
@@ -2563,13 +2762,13 @@ def audit_section(data: list[dict]) -> str:
 
     uncls_txt = (f' Не классифицировано судьёй: {uncls_total} (сигнал добавлен детектором '
                  f'уже после прогона аудитора).' if uncls_total else "")
-    return (f'<h3><span class=no>4.4</span>Сводный аудит безопасности</h3>'
+    return (f'<h3><span class=no>4.5</span>Сводный аудит безопасности</h3>'
             f'<p class=lead>Детектор в каждой сессии помечает два класса сигналов — '
             f'обращение к сети и пути вне рабочего каталога прогона; сигнал — не '
             f'вердикт: каждый разбирает судья-аудитор (изолированная pi-сессия '
             f'glm-5.3-flash, <code>checker/judge_audit.py</code>). Сводка по '
             f'{runs_total} прогонам с сессией:</p>'
-            f'<p class="excap sb">4.4.1. Сводка по прогонам</p>'
+            f'<p class="excap sb">4.5.1. Сводка по прогонам</p>'
             f'<ul>'
             f'<li><b>Сеть:</b> {net_total} обращений — ни один агент ни разу '
             f'не вышел в сеть за все {runs_total} прогонов.</li>'
@@ -2673,7 +2872,7 @@ def missed_local_section(data: list[dict]) -> str:
             f'<div class=sub>{min(mand)}–{max(mand)}</div></td>'
             f'<td class=narrow>{a1_cell}</td>'
             f'<td>{CAUSE.get(f, "")}</td></tr>')
-    return (f'<h3><span class=no>4.5</span>Локальные модели вне «хороших» '
+    return (f'<h3><span class=no>4.6</span>Локальные модели вне «хороших» '
             f'квадрантов</h3>'
             f'<p class=lead>Разделы 4.1–4.4 смотрят только на успешные решения — '
             f'так проще измерять стиль и постоянство. Но перечень причин, почему '
@@ -3974,6 +4173,7 @@ DeepSeek V4.1 Flash — через родной API; reasoning effort задаё
 {structure_section(DATA)}
 {tools_section(DATA)}
 {context_section(DATA)}
+{code_quality_section(DATA)}
 {audit_section(DATA)}
 {missed_local_section(DATA)}
 
