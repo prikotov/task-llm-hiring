@@ -2270,6 +2270,7 @@ def code_quality_section(data: list[dict]) -> str:
     не включаем) и архитектурные метрики AST-коллектора — связность
     (LCOM4), связанность (CE), циклы зависимостей, сложность (WMC, CC)."""
     import statistics as st
+    import html as _h
     from collections import defaultdict
 
     good = _good_runs(data)
@@ -2309,6 +2310,7 @@ def code_quality_section(data: list[dict]) -> str:
 
     # по-прогонный сбор: линтеры (на KLOC src/) и архитектура
     per: dict = {}
+    locs: dict = {}
     for r in good:
         d = ROOT / "models" / r["folder"] / "backend" / "test-assignment" / r["run"]
         mj = json.loads((d / "metrics.json").read_text())
@@ -2331,7 +2333,12 @@ def code_quality_section(data: list[dict]) -> str:
             "cc": am.get("method_cc_max") or 0,
             "m50": (am.get("findings_thresholds") or {}).get("method_loc_over_50") or 0,
         }
-        per.setdefault((r["folder"], r["note"]), []).append(rec)
+        k = (r["folder"], r["note"])
+        per.setdefault(k, []).append(rec)
+        # распределение размера классов: (loc, имя класса)
+        for cl in col["classes"]:
+            locs.setdefault(k, []).append((cl["metrics"].get("loc") or 0,
+                                           cl["name"].split("\\")[-1]))
 
     F_ORDER = ["openai-gpt-6.1-sol", "openai-gpt-6-luna", "anthropic-claude-haiku-5.5",
                "anthropic-claude-opus-5.5", "deepseek-flash", "huihui-ai-pi-100k",
@@ -2398,10 +2405,35 @@ def code_quality_section(data: list[dict]) -> str:
         x = (1 - v / mx) if invert and mx else v / (mx or 1)
         return min(0.5, x * 0.5)
 
+    CW, CH = 126, 30
+    loc_max_all = max((lo for v in locs.values() for lo, _ in v), default=1)
+
+    def loc_chart(k):
+        items = sorted(locs.get(k, []), key=lambda x: -x[0])
+        n = len(items) or 1
+        bw = max(1.0, (CW - 2) / n)
+        bars = "".join(
+            f'<rect x="{2 + i * bw:.1f}" y="{CH - 2 - (lo / loc_max_all) * (CH - 6):.1f}" '
+            f'width="{bw - 0.4:.1f}" height="{max(1.5, (lo / loc_max_all) * (CH - 6)):.1f}" '
+            f'fill="{"#b3543f" if lo >= 300 else "#315f9e"}" fill-opacity="0.75">'
+            f'<title>{_h.escape(name)} — {lo} строк</title></rect>'
+            for i, (lo, name) in enumerate(items))
+        mx, mx_name = items[0] if items else (0, "")
+        med = st.median([lo for lo, _ in items]) if items else 0
+        svg = (f'<svg width="{CW}" height="{CH}" style="display:block">'
+               f'<rect x="0" y="0" width="{CW}" height="{CH}" fill="transparent">'
+               f'<title>классов {n}; медиана {med:.0f} строк; максимум {mx} '
+               f'({_h.escape(mx_name)})</title></rect>{bars}</svg>')
+        num = (f'<div style="font-size:13px"><b style="color:'
+               f'{"#b3543f" if mx >= 300 else "#1d2433"}">{mx}</b>'
+               f'<span class=sub> · мед {med:.0f}</span></div>')
+        return (f'<div style="display:flex;align-items:center;gap:8px">{svg}{num}</div>')
+
     ars_trs = []
     for f, note, row in ars:
         cells = (
             f'<td class=narrow>{row["classes"]:.0f}</td>'
+            f'<td>{loc_chart((f, note))}</td>'
             f'<td class=narrow>{row["ce"]:.1f}</td>'
             f'<td class=narrow '
             f'style="color:{"#2f7d54" if row["cyc"] == 0 else "#b3543f"}">'
@@ -2415,6 +2447,7 @@ def code_quality_section(data: list[dict]) -> str:
         f'<div style="overflow-x:auto"><table style="width:auto"><thead>'
         f'<tr><th>Модель</th><th class=narrow>Мышл.</th>'
         f'<th class=narrow title="классов в src/">Классов</th>'
+        f'<th class=narrow title="распределение размера классов: столбик — класс, от большего к меньшему">LOC классов<br><span class=sub>макс · мед</span></th>'
         f'<th class=narrow title="внутренних зависимостей App→App на класс — связанность">CE<br><span class=sub>на класс</span></th>'
         f'<th class=narrow title="циклических компонент в графе App→App">Циклы</th>'
         f'<th class=narrow title="классов с LCOM4 выше 1 — связность">LCOM4&gt;1<br><span class=sub>классов</span></th>'
@@ -2462,7 +2495,9 @@ def code_quality_section(data: list[dict]) -> str:
             f'одинаково полноценные решения. Подозрительны только крайности: '
             f'единичные «божьи классы», тянущие всю логику, или, наоборот, '
             f'дробление до пустых обёрток. Успешные прогоны сетки укладываются '
-            f'в 13–40.</p>'
+            f'в 13–40; крайности показывает колонка «LOC классов» — форма '
+            f'распределения и максимум сразу отличают ровный ряд от одного '
+            f'класса-гиганта.</p>'
             f'<p><b>CE на класс (связанность).</b> Efferent coupling — среднее '
             f'число зависимостей класса на другие классы проекта (внутренние '
             f'App→App; вызовы vendor и глобальных функций не считаются). '
@@ -2505,7 +2540,10 @@ def code_quality_section(data: list[dict]) -> str:
             f'136 строк.</p>'
             f'</div>'
             f'{arch_table}'
-            f'<p class=sub>CE — среднее число внутренних зависимостей App→App '
+            f'<p class=sub>«LOC классов» — распределение размера классов '
+            f'режима: каждый столбик — класс, слева направо от большего '
+            f'к меньшему (красный — 300+ строк); рядом максимум и медиана. '
+            f'CE — среднее число внутренних зависимостей App→App '
             f'на класс; «Циклы» — циклические компоненты в этом графе '
             f'(зелёное «нет» — граф ацикличен). LCOM4&gt;1 — классы, где метод '
             f'использует непересекающиеся группы свойств. Max CC — наибольшая '
