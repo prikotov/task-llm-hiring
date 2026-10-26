@@ -2405,7 +2405,7 @@ def code_quality_section(data: list[dict]) -> str:
         x = (1 - v / mx) if invert and mx else v / (mx or 1)
         return min(0.5, x * 0.5)
 
-    CW, CH = 126, 30
+    CW, CH = 126, 44
     loc_max_all = max((lo for v in locs.values() for lo, _ in v), default=1)
 
     def loc_chart(k):
