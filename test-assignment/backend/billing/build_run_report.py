@@ -599,6 +599,51 @@ def dep_matrix(collector: dict) -> str:
             % (W, H, W, H, "".join(svg)))
 
 
+def coupling_table(collector: dict) -> str:
+    """Связанность классов по графу внутренних зависимостей: C_e (исходящие,
+    efferent coupling), C_a (входящие, afferent coupling) и нестабильность
+    I = C_e / (C_e + C_a): 0 — максимально стабильный класс, 1 — максимально
+    нестабильный. Здоровая слоистость: I≈1 у console-команд (точки входа),
+    I≈0 у примитивов домена."""
+    classes = {cl["name"] for cl in collector.get("classes") or []}
+    ce: dict[str, int] = {}
+    ca: dict[str, int] = {}
+    for dep in collector.get("dependencies") or []:
+        src, dst = dep.get("source"), dep.get("target")
+        if src in classes and dst in classes and src != dst:
+            ce[src] = ce.get(src, 0) + 1
+            ca[dst] = ca.get(dst, 0) + 1
+    if not ce and not ca:
+        return ""
+    rows = []
+    for name in sorted(set(ce) | set(ca)):
+        e, a = ce.get(name, 0), ca.get(name, 0)
+        i = e / (e + a) if e + a else 0.0
+        hue = "#2f7d54" if i <= 0.33 else "#d09a53" if i <= 0.66 else "#b3543f"
+        rows.append((i, name.split("\\")[-1], e, a, hue, int(round(i * 60))))
+    rows.sort(key=lambda x: (-x[0], x[1]))
+    trs = "".join(
+        f'<tr><td style="white-space:nowrap">{n}</td>'
+        f'<td style="text-align:center">{e}</td>'
+        f'<td style="text-align:center">{a}</td>'
+        f'<td><span style="display:inline-block;width:{bw}px;height:8px;'
+        f'border-radius:3px;background:{hue};vertical-align:middle;margin-right:6px"></span>'
+        f'<b style="color:{hue}">{i:.2f}</b></td></tr>'
+        for i, n, e, a, hue, bw in rows)
+    return ('<h3>Связанность классов: C<sub>e</sub>, C<sub>a</sub>, нестабильность I</h3>'
+            '<p class=sub>C<sub>e</sub> — исходящие связи на классы решения '
+            '(efferent coupling), C<sub>a</sub> — входящие (afferent coupling); '
+            'I = C<sub>e</sub> / (C<sub>e</sub> + C<sub>a</sub>) — нестабильность: '
+            '0 — максимально стабильный класс, 1 — максимально нестабильный. '
+            'Здоровая слоистость выглядит так: I близка к 1 у console-команд '
+            '(точки входа, обязаны меняться часто) и к 0 у примитивов домена '
+            '(Decimal, Timestamp, enum-статусы): нестабильное должно зависеть '
+            'от стабильного, не наоборот. Классы без внутренних связей '
+            'не показаны.</p>'
+            f'<table style="width:auto"><thead><tr><th>Класс</th>'
+            f'<th>C<sub>e</sub></th><th>C<sub>a</sub></th>'
+            f'<th>I (0…1)</th></tr></thead><tbody>{trs}</tbody></table>')
+
 def ast_tables(collector: dict, run_dir: Path | None = None) -> str:
     methods: dict[str, list] = {}
     fnames: dict[str, str] = {}
@@ -1391,6 +1436,7 @@ def build(run_dir: Path) -> str:
              "тяжеловато, красный &gt;10 — метод-спагетти.</p>"
              + ast_scatter(collector)
              + (('<h3>Матрица зависимостей классов</h3>' + matrix) if matrix else "")
+             + coupling_table(collector)
              + ast_tables(collector, run_dir)
              + art_links(run_dir, "metrics.json", "metrics-raw"))
 
