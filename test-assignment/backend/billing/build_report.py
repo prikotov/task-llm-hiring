@@ -2532,7 +2532,7 @@ def code_quality_section(data: list[dict]) -> str:
         f'<th class=narrow title="классов в src/; медиана · мин–макс по прогонам режима">Классов<br><span class=sub style="font-size:10.5px;text-transform:none">med<br>min–max</span></th>'
         f'<th class=narrow title="распределение размера классов: столбик — класс, от большего к меньшему; наведение на столбик — размер класса">LOC классов</th>'
         f'<th class=narrow title="распределение значений по классам: столбик — класс (прогоны режима объединены), от большего к меньшему; наведение на столбик — значение. C_e и C_a — по всем классам решения, I — по классам с зависимостями">C<sub>e</sub> / C<sub>a</sub> / I</th>'
-        f'<th class=narrow title="циклы в графе внутренних зависимостей App→App (circular dependency); «нет» — граф ацикличен">Циклические<br>зависимости</th>'
+        f'<th class=narrow style="width:1%" title="циклы в графе внутренних зависимостей App→App (circular dependency); «нет» — граф ацикличен">Цикли&shy;ческие зави&shy;симости</th>'
         f'<th class=narrow title="классов с LCOM4 выше 1 — связность">LCOM4&gt;1<br><span class=sub>классов</span></th>'
         f'<th class=narrow title="максимальная цикломатическая сложность метода">Max CC<br><span class=sub>метода</span></th>'
         f'<th class=narrow title="методов длиннее 50 строк">&gt;50 стр.<br><span class=sub>методов</span></th>'
