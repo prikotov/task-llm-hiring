@@ -2426,7 +2426,7 @@ def code_quality_section(data: list[dict]) -> str:
                f'({_h.escape(mx_name)})</title></rect>{bars}</svg>')
         num = (f'<div style="font-size:13px"><b style="color:'
                f'{"#b3543f" if mx >= 300 else "#1d2433"}">{mx}</b>'
-               f'<span class=sub> · мед {med:.0f}</span></div>')
+               f'<div class=sub>мед {med:.0f}</div></div>')
         return (f'<div style="display:flex;align-items:center;gap:8px">{svg}{num}</div>')
 
     ars_trs = []
@@ -2436,7 +2436,7 @@ def code_quality_section(data: list[dict]) -> str:
         cmin, cmax = cvals[0], cvals[-1]
         cmed = row["classes"]
         cls_cell = (f'{cmed:.0f}'
-                    + (f'<span class=sub> · {cmin:.0f}–{cmax:.0f}</span>'
+                    + (f'<div class=sub>{cmin:.0f}–{cmax:.0f}</div>'
                        if cmin != cmax else ""))
         cells = (
             f'<td class=narrow>{cls_cell}</td>'
@@ -2453,7 +2453,7 @@ def code_quality_section(data: list[dict]) -> str:
     arch_table = (
         f'<div style="overflow-x:auto"><table style="width:auto"><thead>'
         f'<tr><th>Модель</th><th class=narrow>Мышл.</th>'
-        f'<th class=narrow title="классов в src/; медиана · мин–макс по прогонам режима">Классов<br><span class=sub style="font-size:10.5px;text-transform:none">мед · мин–макс</span></th>'
+        f'<th class=narrow title="классов в src/; медиана · мин–макс по прогонам режима">Классов<br><span class=sub style="font-size:10.5px;text-transform:none">мед<br>мин–макс</span></th>'
         f'<th class=narrow title="распределение размера классов: столбик — класс, от большего к меньшему">LOC классов<br><span class=sub style="font-size:10.5px;text-transform:none">макс · мед</span></th>'
         f'<th class=narrow title="внутренних зависимостей App→App на класс — связанность">CE<br><span class=sub>на класс</span></th>'
         f'<th class=narrow title="циклических компонент в графе App→App">Циклы</th>'
