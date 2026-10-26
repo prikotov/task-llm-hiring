@@ -788,7 +788,8 @@ def ast_tables(collector: dict, run_dir: Path | None = None) -> str:
         for c, n, cc, loc, p in findings[:12]) or '<tr><td colspan=3 class=sub>нет</td></tr>'
     return ('<h3>Классы по WMC (топ-10)</h3>'
             '<p class=sub>WMC — суммарная сложность методов класса (сколько логики в классе '
-            "в целом); cc max — сложность самого сложного его метода; "
+            "в целом); cc max — <a href=\"https://en.wikipedia.org/wiki/Cyclomatic_complexity\">цикломатическая сложность</a> "
+            "самого сложного его метода; "
             f'<a href="https://objectscriptquality.com/docs/metrics/lack-cohesion-methods-lcom4">LCOM4</a> — число '
             "«зон ответственности» (⚠ при &gt;1). Имя файла — ссылка на код в git "
             "(работает после коммита артефактов).</p>"
