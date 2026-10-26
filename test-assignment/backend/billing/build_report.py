@@ -2459,6 +2459,11 @@ def code_quality_section(data: list[dict]) -> str:
                 f'<div style="display:flex;align-items:center;gap:5px">'
                 f'<span class=sub style="width:22px;text-align:right">{label}</span>'
                 f'{mini_dist(data, mx, fmt)}</div>')
+        if locs.get(k):
+            rows.append(
+                f'<div style="display:flex;align-items:center;gap:5px">'
+                f'<span class=sub style="width:22px;text-align:right">LOC</span>'
+                f'{loc_chart(k)}</div>')
         return "".join(rows) or "—"
 
     def _plural(n, one, few, many):
@@ -2516,7 +2521,6 @@ def code_quality_section(data: list[dict]) -> str:
                        if cmin != cmax else ""))
         cells = (
             f'<td class=narrow>{cls_cell}</td>'
-            f'<td>{loc_chart(k)}</td>'
             f'<td>{dist_cell(k)}</td>'
             f'<td class=narrow '
             f'style="color:{"#2f7d54" if row["cyc"] == 0 else "#b3543f"}">'
@@ -2530,8 +2534,7 @@ def code_quality_section(data: list[dict]) -> str:
         f'<div style="overflow-x:auto"><table style="width:auto"><thead>'
         f'<tr><th>Модель</th><th class=narrow>Мышл.</th>'
         f'<th class=narrow title="классов в src/; медиана · мин–макс по прогонам режима">Классов<br><span class=sub style="font-size:10.5px;text-transform:none">med<br>min–max</span></th>'
-        f'<th class=narrow title="распределение размера классов: столбик — класс, от большего к меньшему; наведение на столбик — размер класса">LOC классов</th>'
-        f'<th class=narrow title="распределение значений по классам: столбик — класс (прогоны режима объединены), от большего к меньшему; наведение на столбик — значение. C_e и C_a — по всем классам решения, I — по классам с зависимостями">C<sub>e</sub> / C<sub>a</sub> / I</th>'
+        f'<th class=narrow title="распределение значений по классам: столбик — класс (прогоны режима объединены), от большего к меньшему; наведение на столбик — значение. LOC, C_e и C_a — по всем классам решения, I — по классам с зависимостями; красный у LOC — 300+ строк">C<sub>e</sub> / C<sub>a</sub> / I / LOC</th>'
         f'<th class=narrow style="width:1%;font-size:10px;line-height:1.3" title="циклы в графе внутренних зависимостей App→App (circular dependency); «нет» — граф ацикличен">Циклические<br>зависимости</th>'
         f'<th class=narrow title="классов с LCOM4 выше 1 — связность">LCOM4&gt;1<br><span class=sub>классов</span></th>'
         f'<th class=narrow title="максимальная цикломатическая сложность метода">Max CC<br><span class=sub>метода</span></th>'
@@ -2688,16 +2691,15 @@ def code_quality_section(data: list[dict]) -> str:
             f'Это и качество ревью архитектуры поднимает, и, кажется, '
             f'экономит токены.</p></div>'
             f'{arch_table}'
-            f'<p class=sub>«LOC классов» — распределение размера классов '
-            f'режима: каждый столбик — класс одного из прогонов (прогоны '
-            f'режима объединены, поэтому у многопрогонных режимов столбиков '
-            f'больше, чем классов в одном решении), слева направо от большего '
-            f'к меньшему (красный — 300+ строк); наведение на столбик — '
-            f'размер класса. '
-            f'«C<sub>e</sub> / C<sub>a</sub> / I» — такие '
-            f'же распределения значений по классам: C<sub>e</sub> и '
+            f'<p class=sub>«C<sub>e</sub> / C<sub>a</sub> / I / LOC» — '
+            f'распределения значений по классам: каждый столбик — класс '
+            f'одного из прогонов (прогоны режима объединены, поэтому '
+            f'у многопрогонных режимов столбиков больше, чем классов '
+            f'в одном решении), слева направо от большего к меньшему; '
+            f'наведение на столбик — значение. LOC, C<sub>e</sub> и '
             f'C<sub>a</sub> — по всем классам решения, I — по классам '
-            f'с зависимостями. «Циклические зависимости» — циклы в графе '
+            f'с зависимостями; красный у LOC — 300+ строк. '
+            f'«Циклические зависимости» — циклы в графе '
             f'внутренних зависимостей: класс A использует B, а B — A '
             f'(зелёное «нет» — граф ацикличен). LCOM4&gt;1 — классы, где метод '
             f'использует непересекающиеся группы свойств. Max CC — наибольшая '
