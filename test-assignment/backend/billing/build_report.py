@@ -2350,9 +2350,11 @@ def code_quality_section(data: list[dict]) -> str:
                 for f in ("phpstan", "psalm", "phpcs")]
     lint_max = max(all_lint)
 
-    # 4.4.1 линтеры
-    ltrs = []
-    for k in sorted(per, key=m_rank):
+    # 4.4.1 линтеры — сортировка по сумме замечаний, от чистых к грязным
+    lint_max_sum = max(sum(med(k, f) for f in ("phpstan", "psalm", "phpcs"))
+                       for k in per)
+    rows_lint = []
+    for k in per:
         f, note = k
         cells = []
         vals = []
@@ -2362,10 +2364,15 @@ def code_quality_section(data: list[dict]) -> str:
             alpha = min(0.55, v / lint_max * 0.55)
             cells.append(f'<td class=narrow style="background:rgba(179,84,63,{alpha:.2f})" '
                          f'title="медиана по прогонам режима">{v:.0f}</td>')
-        cells.append(f'<td class=narrow><b>{sum(vals):.0f}</b></td>')
+        total = sum(vals)
+        alpha = min(0.55, total / lint_max_sum * 0.55)
+        cells.append(f'<td class=narrow style="background:rgba(179,84,63,{alpha:.2f})">'
+                     f'<b>{total:.0f}</b></td>')
         label = SHORT.get(f, f)
-        ltrs.append(f'<tr><td style="white-space:nowrap"><b>{label}</b></td>'
-                    f'<td class=narrow>{note}</td>{"".join(cells)}</tr>')
+        rows_lint.append((total, f'<tr><td style="white-space:nowrap"><b>{label}</b></td>'
+                          f'<td class=narrow>{note}</td>{"".join(cells)}</tr>'))
+    rows_lint.sort(key=lambda x: x[0])
+    ltrs = [h for _, h in rows_lint]
     lint_table = (
         f'<div style="overflow-x:auto"><table style="width:auto"><thead>'
         f'<tr><th>Модель</th><th class=narrow>Мышл.</th>'
