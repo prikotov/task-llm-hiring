@@ -789,7 +789,7 @@ def ast_tables(collector: dict, run_dir: Path | None = None) -> str:
     return ('<h3>Классы по WMC (топ-10)</h3>'
             '<p class=sub>WMC — суммарная сложность методов класса (сколько логики в классе '
             "в целом); cc max — сложность самого сложного его метода; "
-            f'<a href="https://www.researchgate.net/publication/238729882_Measuring_coupling_and_cohesion_in_object-oriented_systems">LCOM4</a> — число '
+            f'<a href="https://www.aivosto.com/project/help/pm-oo-cohesion.html">LCOM4</a> — число '
             "«зон ответственности» (⚠ при &gt;1) — четвёртая версия метрики "
             "LCOM Чидамбера и Кемерера в графовой формулировке Хитца и "
             "Монтазери. Имя файла — ссылка на код в git "
