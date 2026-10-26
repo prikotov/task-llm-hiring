@@ -2199,9 +2199,10 @@ def context_section(data: list[dict]) -> str:
             f'историю (автокомпакт), когда заполнение доходит до порога ~{thr}K — '
             f'медиана <code>tokensBefore</code> по {len(comp_before)} компактам '
             f'сетки. Ход — вызов модели; пик контекста — максимум промпта '
-            f'(input + cacheRead + cacheWrite) за сессию. Популяция — {runs_total} '
-            f'прогонов режимов из верхних квадрантов карт §4 (ревью оси A ≥ '
-            f'{REVIEW_GOOD:g}), как в 4.1–4.2:</p>'
+            f'(input + cacheRead + cacheWrite) за сессию. Анализируем только '
+            f'хорошие решения: популяция — {runs_total} прогонов режимов из '
+            f'верхних квадрантов карт §4 (ревью оси A ≥ {REVIEW_GOOD:g}), '
+            f'как в 4.1–4.2; прогоны вне квадрантов — в конце раздела (4.5):</p>'
             f'<ul>'
             f'<li><b>Одним проходом</b> — {one_total} из {runs_total} прогонов: '
             f'ни одного компакта.</li>'
@@ -2598,6 +2599,84 @@ def audit_section(data: list[dict]) -> str:
             f'<code>audit-verdict.md</code>, <code>audit.json</code>.</p>'
             f'{listing_html}'
             f'{seek_html}')
+
+
+def missed_local_section(data: list[dict]) -> str:
+    """Разбор локальных режимов, не попавших в «хорошие» квадранты:
+    чекер, ревью оси A и причина по каждой. Пополнение 4.1–4.4, которые
+    смотрят только успешные решения."""
+    import statistics as st
+
+    good_keys = set()
+    for r in _good_runs(data):
+        good_keys.add((r["folder"], r["note"], r["ctx"], "-tuned" in r["tag"]))
+    LOCAL = ["muse-glimmer", "gemma4-31b-it-qat-pi-100k", "gemma4-26b-pi-100k",
+             "ornith-1.5-35b", "bonsai-2-27b"]
+
+    per: dict = {}
+    for r in data:
+        if r["folder"] not in LOCAL:
+            continue
+        k = (r["folder"], r["note"], r["ctx"], "-tuned" in r["tag"])
+        if k in good_keys:
+            continue
+        p = per.setdefault(r["folder"], {"runs": []})
+        p["runs"].append(r)
+
+    CAUSE = {
+        "muse-glimmer": "решает быстро и дёшево, но без тестов и бонуса: "
+                        "чекер стабилен (10–11), до полного зачёта — один шаг, "
+                        "а ревью A (2.5–3.0) чуть ниже порога",
+        "gemma4-31b-it-qat-pi-100k": "код рабочий, но нестабильного качества: "
+                                     "чекер 8–10, судьи режут реализацию "
+                                     "(A 1.5–3.0, среднее 2.33)",
+        "gemma4-26b-pi-100k": "бимодальность: два самовыхода за ~1 минуту (2/11, "
+                              "A 1.0) и одна полноценная работа (10/11, A 2.5) — "
+                              "не стабильный уровень, а лотерея входа",
+        "ornith-1.5-35b": "единственный полный провал: длинная агентная работа "
+                          "не даётся (чекер 1–3, A 0–1); в run-03 — 758 ходов "
+                          "и 9 компактов при 3/13; темп 0.1M–39M токенов",
+        "bonsai-2-27b": "ни одной строки кода: единственный учитываемый прогон — "
+                        "stop=length посреди размышлений (второй — вне метрик, "
+                        "чужая модель в vLLM)",
+    }
+    trs = []
+    for f in LOCAL:
+        if f not in per:
+            continue
+        rs = per[f]["runs"]
+        mand = [r["mand"] or 0 for r in rs]
+        a1 = [r["a1"] for r in rs if r["a1"] is not None]
+        a1_cell = (f'{st.mean(a1):.2f}'
+                   + (f'<div class=sub>{", ".join(f"{a:.1f}" for a in a1)}</div>'
+                      if len(a1) > 1 else "")
+                   if a1 else '<span class=sub>—</span>')
+        trs.append(
+            f'<tr><td style="white-space:nowrap"><b>{SHORT.get(f, f)}</b></td>'
+            f'<td class=narrow>{len(rs)}</td>'
+            f'<td class=narrow>{st.mean(mand):.1f}'
+            f'<div class=sub>{min(mand)}–{max(mand)}</div></td>'
+            f'<td class=narrow>{a1_cell}</td>'
+            f'<td>{CAUSE.get(f, "")}</td></tr>')
+    return (f'<h3><span class=no>4.5</span>Локальные модели вне «хороших» '
+            f'квадрантов</h3>'
+            f'<p class=lead>Разделы 4.1–4.4 смотрят только на успешные решения — '
+            f'так честнее измерять стиль и постоянство. Но перечень причин, почему '
+            f'локальные модели в «хорошие» квадранты не попали, — тоже результат '
+            f'этапа. Из девяти локальных моделей вошли четыре (huihui, qwen3.8, '
+            f'orca в двух квантованиях — все thinking max); ниже — остальные пять '
+            f'с числами: чекер обязательных сценариев из 11, ревью оси A 0–4 '
+            f'(порог квадрантов — среднее {REVIEW_GOOD:g}). Неудачи облачных '
+            f'(обе GigaChat) разобраны в §3 и §7.</p>'
+            f'<table style="width:auto"><thead><tr><th>Модель</th>'
+            f'<th class=narrow>Прогонов</th><th class=narrow>Чекер (среднее, '
+            f'разброс)</th><th class=narrow>Ревью A (среднее, по прогонам)</th>'
+            f'<th>Причина</th></tr></thead><tbody>{"".join(trs)}</tbody></table>'
+            f'<p class=sub>Общий знаменатель исключённых: либо не сделан последний '
+            f'шаг (muse — тесты), либо нестабильное качество кода (gemma4:31b), '
+            f'либо нестабильный вход в работу (gemma4:26b, bonsai-2), либо полная '
+            f'несостоятельность в длинной агентной работе (ornith). Выводы по '
+            f'каждой модели — в её model.md и карточках §7.</p>')
 
 
 def structure_section(data: list[dict]) -> str:
@@ -3880,6 +3959,7 @@ DeepSeek V4.1 Flash — через родной API; reasoning effort задаё
 {tools_section(DATA)}
 {context_section(DATA)}
 {audit_section(DATA)}
+{missed_local_section(DATA)}
 
 <h2 id=charts><span class=no>5.</span>Что показывают метрики</h2>
 <h3>Время и токены</h3>
