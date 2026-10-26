@@ -2431,9 +2431,16 @@ def code_quality_section(data: list[dict]) -> str:
 
     ars_trs = []
     for f, note, row in ars:
+        k = (f, note)
+        cvals = sorted(x["classes"] for x in per[k])
+        cmin, cmax = cvals[0], cvals[-1]
+        cmed = row["classes"]
+        cls_cell = (f'{cmed:.0f}'
+                    + (f'<span class=sub> · {cmin:.0f}–{cmax:.0f}</span>'
+                       if cmin != cmax else ""))
         cells = (
-            f'<td class=narrow>{row["classes"]:.0f}</td>'
-            f'<td>{loc_chart((f, note))}</td>'
+            f'<td class=narrow>{cls_cell}</td>'
+            f'<td>{loc_chart(k)}</td>'
             f'<td class=narrow>{row["ce"]:.1f}</td>'
             f'<td class=narrow '
             f'style="color:{"#2f7d54" if row["cyc"] == 0 else "#b3543f"}">'
@@ -2446,7 +2453,7 @@ def code_quality_section(data: list[dict]) -> str:
     arch_table = (
         f'<div style="overflow-x:auto"><table style="width:auto"><thead>'
         f'<tr><th>Модель</th><th class=narrow>Мышл.</th>'
-        f'<th class=narrow title="классов в src/">Классов</th>'
+        f'<th class=narrow title="классов в src/; медиана · мин–макс по прогонам режима">Классов<br><span class=sub>медиана · мин–макс</span></th>'
         f'<th class=narrow title="распределение размера классов: столбик — класс, от большего к меньшему">LOC классов<br><span class=sub>макс · мед</span></th>'
         f'<th class=narrow title="внутренних зависимостей App→App на класс — связанность">CE<br><span class=sub>на класс</span></th>'
         f'<th class=narrow title="циклических компонент в графе App→App">Циклы</th>'
