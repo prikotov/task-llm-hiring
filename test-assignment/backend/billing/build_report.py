@@ -2432,39 +2432,31 @@ def code_quality_section(data: list[dict]) -> str:
     ce_max_all = max((v for lst in ce_cls.values() for v, _ in lst), default=1) or 1
     ca_max_all = max((v for lst in ca_cls.values() for v, _ in lst), default=1) or 1
 
-    def mini_dist(data, mx, fmt):
+    def mini_dist(data, mx, fmt, cw=CW):
         vals = sorted(data, key=lambda x: -x[0])
         n = len(vals) or 1
-        bw = max(1.0, (CW - 2) / n)
+        bw = (cw - 2) / n
         bars = "".join(
-            f'<rect x="{2 + i * bw:.1f}" y="{20 - max(1.2, (v / mx) * 17):.1f}" '
-            f'width="{bw - 0.4:.1f}" height="{max(1.2, (v / mx) * 17):.1f}" '
+            f'<rect x="{2 + i * bw:.2f}" y="{20 - max(1.2, (v / mx) * 17):.1f}" '
+            f'width="{max(bw, 0.5):.2f}" height="{max(1.2, (v / mx) * 17):.1f}" '
             f'fill="#315f9e" fill-opacity="0.75">'
             f'<title>{fmt(v)}</title></rect>'
             for i, (v, _name) in enumerate(vals))
-        return f'<svg width="{CW}" height="21" style="display:block">{bars}</svg>'
+        return f'<svg width="{cw}" height="21" style="display:block">{bars}</svg>'
 
     def dist_cell(k):
-        rows = []
-        for label, data, mx, fmt in (
-                ("C_e", ce_cls.get(k) or [], ce_max_all,
-                 lambda v: f"{v:.0f} исходящих"),
-                ("C_a", ca_cls.get(k) or [], ca_max_all,
-                 lambda v: f"{v:.0f} входящих"),
-                ("I", i_cls.get(k) or [], 1.0,
-                 lambda v: f"I = {v:.2f}")):
-            if not data:
-                continue
-            rows.append(
-                f'<div style="display:flex;align-items:center;gap:5px">'
-                f'<span class=sub style="width:22px;text-align:right">{label}</span>'
-                f'{mini_dist(data, mx, fmt)}</div>')
-        if locs.get(k):
-            rows.append(
-                f'<div style="display:flex;align-items:center;gap:5px">'
-                f'<span class=sub style="width:22px;text-align:right">LOC</span>'
-                f'{loc_chart(k)}</div>')
-        return "".join(rows) or "—"
+        cw2 = 72   # половина ширины колонки: два графика в строке
+        cells = [
+            mini_dist(ce_cls.get(k) or [], ce_max_all,
+                      lambda v: f"{v:.0f} исходящих", cw2),
+            mini_dist(ca_cls.get(k) or [], ca_max_all,
+                      lambda v: f"{v:.0f} входящих", cw2),
+            mini_dist(i_cls.get(k) or [], 1.0,
+                      lambda v: f"I = {v:.2f}", cw2),
+            loc_chart(k, cw2, 21),
+        ]
+        return ('<div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 8px">'
+                + "".join(f"<div>{c}</div>" for c in cells) + "</div>")
 
     def _plural(n, one, few, many):
         n = abs(n) % 100
@@ -2498,17 +2490,17 @@ def code_quality_section(data: list[dict]) -> str:
                 f'<th class=narrow>{col_header}</th></tr></thead>'
                 f'<tbody>{trs}</tbody></table>{tie_s}')
 
-    def loc_chart(k):
+    def loc_chart(k, cw=CW, ch=CH):
         items = sorted(locs.get(k, []), key=lambda x: -x[0])
         n = len(items) or 1
-        bw = max(1.0, (CW - 2) / n)
+        bw = (cw - 2) / n
         bars = "".join(
-            f'<rect x="{2 + i * bw:.1f}" y="{CH - 2 - (lo / loc_max_all) * (CH - 6):.1f}" '
-            f'width="{bw - 0.4:.1f}" height="{max(1.5, (lo / loc_max_all) * (CH - 6)):.1f}" '
+            f'<rect x="{2 + i * bw:.2f}" y="{ch - 2 - (lo / loc_max_all) * (ch - 6):.1f}" '
+            f'width="{max(bw, 0.5):.2f}" height="{max(1.5, (lo / loc_max_all) * (ch - 6)):.1f}" '
             f'fill="{"#b3543f" if lo >= 300 else "#315f9e"}" fill-opacity="0.75">'
             f'<title>{lo} {_plural(lo, "строка", "строки", "строк")}</title></rect>'
             for i, (lo, _name) in enumerate(items))
-        return f'<svg width="{CW}" height="{CH}" style="display:block">{bars}</svg>'
+        return f'<svg width="{cw}" height="{ch}" style="display:block">{bars}</svg>'
 
     ars_trs = []
     for f, note, row in ars:
@@ -2534,7 +2526,9 @@ def code_quality_section(data: list[dict]) -> str:
         f'<div style="overflow-x:auto"><table style="width:auto"><thead>'
         f'<tr><th>Модель</th><th class=narrow>Мышл.</th>'
         f'<th class=narrow title="классов в src/; медиана · мин–макс по прогонам режима">Классов<br><span class=sub style="font-size:10.5px;text-transform:none">med<br>min–max</span></th>'
-        f'<th class=narrow title="распределение значений по классам: столбик — класс (прогоны режима объединены), от большего к меньшему; наведение на столбик — значение. LOC, C_e и C_a — по всем классам решения, I — по классам с зависимостями; красный у LOC — 300+ строк">C<sub>e</sub> / C<sub>a</sub><br>I / LOC</th>'
+        f'<th class=narrow style="font-size:10px" title="распределение значений по классам: столбик — класс (прогоны режима объединены), от большего к меньшему; наведение на столбик — значение. LOC, C_e и C_a — по всем классам решения, I — по классам с зависимостями; красный у LOC — 300+ строк">'
+        f'<div style="display:flex;justify-content:space-around"><span>C<sub>e</sub></span><span>C<sub>a</sub></span></div>'
+        f'<div style="display:flex;justify-content:space-around"><span>I</span><span>LOC</span></div></th>'
         f'<th class=narrow style="width:1%;font-size:10px;line-height:1.3" title="циклы в графе внутренних зависимостей App→App (circular dependency); «нет» — граф ацикличен">Цикл. зави&shy;симости</th>'
         f'<th class=narrow title="классов с LCOM4 выше 1 — связность">LCOM4&gt;1<br><span class=sub>классов</span></th>'
         f'<th class=narrow title="максимальная цикломатическая сложность метода">Max CC<br><span class=sub>метода</span></th>'
