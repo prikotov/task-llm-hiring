@@ -788,8 +788,11 @@ def ast_tables(collector: dict, run_dir: Path | None = None) -> str:
         for c, n, cc, loc, p in findings[:12]) or '<tr><td colspan=3 class=sub>нет</td></tr>'
     return ('<h3>Классы по WMC (топ-10)</h3>'
             '<p class=sub>WMC — суммарная сложность методов класса (сколько логики в классе '
-            "в целом); cc max — сложность самого сложного его метода; LCOM4 — число "
-            "«зон ответственности» (⚠ при &gt;1). Имя файла — ссылка на код в git "
+            "в целом); cc max — сложность самого сложного его метода; "
+            f'<a href="https://www.researchgate.net/publication/238729882_Measuring_coupling_and_cohesion_in_object-oriented_systems">LCOM4</a> — число '
+            "«зон ответственности» (⚠ при &gt;1) — четвёртая версия метрики "
+            "LCOM Чидамбера и Кемерера в графовой формулировке Хитца и "
+            "Монтазери. Имя файла — ссылка на код в git "
             "(работает после коммита артефактов).</p>"
             "<table><thead><tr><th>Класс</th><th>LOC</th><th>методов</th><th>WMC</th><th>cc max</th><th>LCOM4</th></tr></thead>"
             f"<tbody>{top}</tbody></table>"
