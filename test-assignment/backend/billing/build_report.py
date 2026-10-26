@@ -2454,7 +2454,7 @@ def code_quality_section(data: list[dict]) -> str:
         f'<div style="overflow-x:auto"><table style="width:auto"><thead>'
         f'<tr><th>Модель</th><th class=narrow>Мышл.</th>'
         f'<th class=narrow title="классов в src/; медиана · мин–макс по прогонам режима">Классов<br><span class=sub style="font-size:10.5px;text-transform:none">мед · мин–макс</span></th>'
-        f'<th class=narrow title="распределение размера классов: столбик — класс, от большего к меньшему">LOC классов<br><span class=sub>макс · мед</span></th>'
+        f'<th class=narrow title="распределение размера классов: столбик — класс, от большего к меньшему">LOC классов<br><span class=sub style="font-size:10.5px;text-transform:none">макс · мед</span></th>'
         f'<th class=narrow title="внутренних зависимостей App→App на класс — связанность">CE<br><span class=sub>на класс</span></th>'
         f'<th class=narrow title="циклических компонент в графе App→App">Циклы</th>'
         f'<th class=narrow title="классов с LCOM4 выше 1 — связность">LCOM4&gt;1<br><span class=sub>классов</span></th>'
