@@ -2637,7 +2637,7 @@ def code_quality_section(data: list[dict]) -> str:
             f'Разбивает методы '
             f'класса на группы: методы попадают в одну группу, если используют '
             f'общее свойство; число групп и есть значение — <a href='
-            f'"https://www.aivosto.com/project/help/pm-oo-cohesion.html">описание '
+            f'"https://objectscriptquality.com/docs/metrics/lack-cohesion-methods-lcom4">описание '
             f'метрики</a>. LCOM4 = 1 — класс '
             f'про одно дело; LCOM4 больше 1 — внутри класса несколько независимых '
             f'обязанностей, кандидат на разделение. В колонке — число таких '

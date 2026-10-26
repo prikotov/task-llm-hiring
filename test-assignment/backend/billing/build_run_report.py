@@ -789,7 +789,7 @@ def ast_tables(collector: dict, run_dir: Path | None = None) -> str:
     return ('<h3>Классы по WMC (топ-10)</h3>'
             '<p class=sub>WMC — суммарная сложность методов класса (сколько логики в классе '
             "в целом); cc max — сложность самого сложного его метода; "
-            f'<a href="https://www.aivosto.com/project/help/pm-oo-cohesion.html">LCOM4</a> — число '
+            f'<a href="https://objectscriptquality.com/docs/metrics/lack-cohesion-methods-lcom4">LCOM4</a> — число '
             "«зон ответственности» (⚠ при &gt;1). Имя файла — ссылка на код в git "
             "(работает после коммита артефактов).</p>"
             "<table><thead><tr><th>Класс</th><th>LOC</th><th>методов</th><th>WMC</th><th>cc max</th><th>LCOM4</th></tr></thead>"
