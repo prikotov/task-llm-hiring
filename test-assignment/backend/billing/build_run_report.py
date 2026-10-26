@@ -644,6 +644,73 @@ def coupling_table(collector: dict) -> str:
             f'<th>C<sub>e</sub></th><th>C<sub>a</sub></th>'
             f'<th>I (0…1)</th></tr></thead><tbody>{trs}</tbody></table>')
 
+def cycles_block(collector: dict) -> str:
+    """Циклические зависимости: компоненты сильной связности графа внутренних
+    зависимостей (классы, где от каждого достижим каждый). Каждое кольцо —
+    кандидат на разрыв (принцип ациклических зависимостей Мартина)."""
+    classes = {cl["name"] for cl in collector.get("classes") or []}
+    edges = [(dep["source"], dep["target"])
+             for dep in collector.get("dependencies") or []
+             if dep.get("source") in classes and dep.get("target") in classes
+             and dep["source"] != dep["target"]]
+    g: dict[str, set[str]] = {}
+    for a, b in edges:
+        g.setdefault(a, set()).add(b)
+    index: dict[str, int] = {}
+    low: dict[str, int] = {}
+    on: set[str] = set()
+    stack: list[str] = []
+    counter = [0]
+    comps: list[list[str]] = []
+
+    def visit(u: str) -> None:
+        index[u] = low[u] = counter[0]
+        counter[0] += 1
+        stack.append(u)
+        on.add(u)
+        for w in sorted(g.get(u, ())):
+            if w not in index:
+                visit(w)
+                low[u] = min(low[u], low[w])
+            elif w in on:
+                low[u] = min(low[u], index[w])
+        if low[u] == index[u]:
+            comp = []
+            while True:
+                w = stack.pop()
+                on.discard(w)
+                comp.append(w)
+                if w == u:
+                    break
+            if len(comp) > 1:
+                comps.append(sorted(comp))
+
+    sys.setrecursionlimit(10000)
+    for u in sorted(g):
+        if u not in index:
+            visit(u)
+    if not comps:
+        return ('<h3>Циклические зависимости</h3>'
+                '<p class=lead>Кольца (компоненты сильной связности) в графе '
+                'внутренних зависимостей: <b style="color:#2f7d54">нет</b> — граф '
+                'ацикличен, как требует принцип ациклических зависимостей Мартина '
+                '(Acyclic Dependencies Principle).</p>')
+    short = lambda c: c.split("\\")[-1]
+    items = []
+    for comp in comps:
+        inner = sorted((a, b) for a, b in edges if a in comp and b in comp)
+        chain = " ↔ ".join(html.escape(short(c)) for c in comp)
+        detail = ", ".join(html.escape(f"{short(a)} → {short(b)}") for a, b in inner)
+        items.append(f'<li style="margin-bottom:4px">{chain}'
+                     f'<div class=sub>{detail}</div></li>')
+    return ('<h3>Циклические зависимости</h3>'
+            '<p class=lead>Компоненты сильной связности графа внутренних зависимостей: '
+            'классы, где от каждого достижим каждый. Каждое кольцо — кандидат на разрыв: '
+            'вынести интерфейс или событие (принцип ациклических зависимостей Мартина, '
+            'Acyclic Dependencies Principle).</p>'
+            f'<ul style="margin:4px 0 10px 18px;padding:0">{"".join(items)}</ul>')
+
+
 def ast_tables(collector: dict, run_dir: Path | None = None) -> str:
     methods: dict[str, list] = {}
     fnames: dict[str, str] = {}
@@ -1437,6 +1504,7 @@ def build(run_dir: Path) -> str:
              + ast_scatter(collector)
              + (('<h3>Матрица зависимостей классов</h3>' + matrix) if matrix else "")
              + coupling_table(collector)
+             + cycles_block(collector)
              + ast_tables(collector, run_dir)
              + art_links(run_dir, "metrics.json", "metrics-raw"))
 
