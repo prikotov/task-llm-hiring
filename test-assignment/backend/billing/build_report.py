@@ -2314,6 +2314,7 @@ def code_quality_section(data: list[dict]) -> str:
     per: dict = {}
     locs: dict = {}
     ce_cls: dict = {}   # (исходящих связей, класс) по всем классам режима
+    class_files: dict = {}   # короткое имя класса -> (прогон, файл в solution)
     ca_cls: dict = {}   # (входящих связей, класс)
     i_cls: dict = {}    # (нестабильность I, класс) — классы с зависимостями
     for r in good:
@@ -2351,12 +2352,14 @@ def code_quality_section(data: list[dict]) -> str:
             (ce_per_class[c] / (ce_per_class[c] + ca_per_class[c]),
              c.split("\\")[-1])
             for c in set(ce_per_class) | set(ca_per_class))
-        ce_cls.setdefault(k, []).extend(
-            (ce_per_class.get(cl["name"], 0), cl["name"].split("\\")[-1])
-            for cl in col["classes"])
-        ca_cls.setdefault(k, []).extend(
-            (ca_per_class.get(cl["name"], 0), cl["name"].split("\\")[-1])
-            for cl in col["classes"])
+        for cl in col["classes"]:
+            short = cl["name"].split("\\")[-1]
+            ce_cls.setdefault(k, []).append((ce_per_class.get(cl["name"], 0), short))
+            class_files.setdefault(k, {}).setdefault(
+                short, (r["run"], cl["metrics"]["filePath"].split("/repo/")[-1]))
+        for cl in col["classes"]:
+            short = cl["name"].split("\\")[-1]
+            ca_cls.setdefault(k, []).append((ca_per_class.get(cl["name"], 0), short))
         # распределение размера классов: (loc, имя класса)
         for cl in col["classes"]:
             locs.setdefault(k, []).append((cl["metrics"].get("loc") or 0,
@@ -2479,8 +2482,16 @@ def code_quality_section(data: list[dict]) -> str:
                         key=lambda x: (-x[0], m_rank(x[1]), x[2]))
         top = ranked[:5]
         ties = sum(1 for v, _, _ in ranked[5:] if v == top[-1][0])
+        def name_cell(kk, name):
+            f = class_files.get(kk, {}).get(name)
+            if not f:
+                return _h.escape(name)
+            href = (f"../models/{kk[0]}/backend/test-assignment/"
+                    f"{f[0]}/solution/{f[1]}")
+            return f'<a href="{href}">{_h.escape(name)}</a>'
+
         trs = "".join(
-            f'<tr><td>{_h.escape(name)}</td>'
+            f'<tr><td>{name_cell(kk, name)}</td>'
             f'<td style="white-space:nowrap">{SHORT.get(kk[0], kk[0])}</td>'
             f'<td class=narrow>{kk[1]}</td>'
             f'<td class=narrow><b>{v:.{nd}f}</b></td></tr>'
