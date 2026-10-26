@@ -2311,6 +2311,9 @@ def code_quality_section(data: list[dict]) -> str:
     # по-прогонный сбор: линтеры (на KLOC src/) и архитектура
     per: dict = {}
     locs: dict = {}
+    ce_cls: dict = {}   # (исходящих связей, класс) по всем классам режима
+    ca_cls: dict = {}   # (входящих связей, класс)
+    i_cls: dict = {}    # (нестабильность I, класс) — классы с зависимостями
     for r in good:
         d = ROOT / "models" / r["folder"] / "backend" / "test-assignment" / r["run"]
         mj = json.loads((d / "metrics.json").read_text())
@@ -2328,18 +2331,12 @@ def code_quality_section(data: list[dict]) -> str:
         ce_per_class = defaultdict(int)
         for _src, tgt in internal:
             ce_per_class[_src] += 1
-        i_vals = [ce_per_class[c] / (ce_per_class[c] + ca_per_class[c])
-                  for c in set(ce_per_class) | set(ca_per_class)]
-        i_med = st.median(i_vals) if i_vals else 0
         rec = {
             "note": r["note"],
             "phpstan": mj["phpstan"]["errors"] / loc,
             "psalm": (mj["psalm"].get("issues") or 0) / loc,
             "phpcs": (r["phpcs"] or 0) / loc,
             "classes": ncls,
-            "ce": len(internal) / ncls,
-            "ca": ca_med,
-            "i": i_med,
             "cyc": len(cyc),
             "lcom": am.get("lcom4_over_1") or 0,
             "cc": am.get("method_cc_max") or 0,
@@ -2347,6 +2344,17 @@ def code_quality_section(data: list[dict]) -> str:
         }
         k = (r["folder"], r["note"])
         per.setdefault(k, []).append(rec)
+        # распределения связанности по классам: (значение, короткое имя)
+        i_cls.setdefault(k, []).extend(
+            (ce_per_class[c] / (ce_per_class[c] + ca_per_class[c]),
+             c.split("\\")[-1])
+            for c in set(ce_per_class) | set(ca_per_class))
+        ce_cls.setdefault(k, []).extend(
+            (ce_per_class.get(cl["name"], 0), cl["name"].split("\\")[-1])
+            for cl in col["classes"])
+        ca_cls.setdefault(k, []).extend(
+            (ca_per_class.get(cl["name"], 0), cl["name"].split("\\")[-1])
+            for cl in col["classes"])
         # распределение размера классов: (loc, имя класса)
         for cl in col["classes"]:
             locs.setdefault(k, []).append((cl["metrics"].get("loc") or 0,
@@ -2364,11 +2372,6 @@ def code_quality_section(data: list[dict]) -> str:
 
     def med(k, field):
         return st.median([x[field] for x in per[k]])
-
-    def spread(k, field, nd):
-        lo = min(x[field] for x in per[k])
-        hi = max(x[field] for x in per[k])
-        return (f"{lo:.{nd}f}–{hi:.{nd}f}" if lo != hi else f"{lo:.{nd}f}")
 
     all_lint = [x[f] for recs in per.values() for x in recs
                 for f in ("phpstan", "psalm", "phpcs")]
@@ -2424,6 +2427,41 @@ def code_quality_section(data: list[dict]) -> str:
 
     CW, CH = 126, 44
     loc_max_all = max((lo for v in locs.values() for lo, _ in v), default=1)
+    ce_max_all = max((v for lst in ce_cls.values() for v, _ in lst), default=1) or 1
+    ca_max_all = max((v for lst in ca_cls.values() for v, _ in lst), default=1) or 1
+
+    def mini_dist(data, mx, fmt):
+        vals = sorted(data, key=lambda x: -x[0])
+        n = len(vals) or 1
+        bw = max(1.0, (CW - 2) / n)
+        bars = "".join(
+            f'<rect x="{2 + i * bw:.1f}" y="{20 - max(1.2, (v / mx) * 17):.1f}" '
+            f'width="{bw - 0.4:.1f}" height="{max(1.2, (v / mx) * 17):.1f}" '
+            f'fill="#315f9e" fill-opacity="0.75">'
+            f'<title>{_h.escape(name)} — {fmt(v)}</title></rect>'
+            for i, (v, name) in enumerate(vals))
+        return f'<svg width="{CW}" height="21" style="display:block">{bars}</svg>'
+
+    def dist_cell(k):
+        rows = []
+        for label, data, mx, fmt in (
+                ("C_e", ce_cls.get(k) or [], ce_max_all,
+                 lambda v: f"{v:.0f} исх."),
+                ("C_a", ca_cls.get(k) or [], ca_max_all,
+                 lambda v: f"{v:.0f} вх."),
+                ("I", i_cls.get(k) or [], 1.0,
+                 lambda v: f"I = {v:.2f}")):
+            if not data:
+                continue
+            med = st.median([v for v, _ in data])
+            mtxt = (f"мед {med:.2f}" if label == "I" else
+                    f"мед {med:.0f}" if med == int(med) else f"мед {med:.1f}")
+            rows.append(
+                f'<div style="display:flex;align-items:center;gap:5px">'
+                f'<span class=sub style="width:22px;text-align:right">{label}</span>'
+                f'{mini_dist(data, mx, fmt)}'
+                f'<span class=sub style="white-space:nowrap">{mtxt}</span></div>')
+        return "".join(rows) or "—"
 
     def loc_chart(k):
         items = sorted(locs.get(k, []), key=lambda x: -x[0])
@@ -2458,9 +2496,7 @@ def code_quality_section(data: list[dict]) -> str:
         cells = (
             f'<td class=narrow>{cls_cell}</td>'
             f'<td>{loc_chart(k)}</td>'
-            f'<td class=narrow style="white-space:nowrap">{spread(k, "ce", 1)}</td>'
-            f'<td class=narrow style="white-space:nowrap">{spread(k, "ca", 1)}</td>'
-            f'<td class=narrow style="white-space:nowrap">{spread(k, "i", 2)}</td>'
+            f'<td>{dist_cell(k)}</td>'
             f'<td class=narrow '
             f'style="color:{"#2f7d54" if row["cyc"] == 0 else "#b3543f"}">'
             f'{"нет" if row["cyc"] == 0 else f"{row["cyc"]:.0f}"}</td>'
@@ -2474,9 +2510,7 @@ def code_quality_section(data: list[dict]) -> str:
         f'<tr><th>Модель</th><th class=narrow>Мышл.</th>'
         f'<th class=narrow title="классов в src/; медиана · мин–макс по прогонам режима">Классов<br><span class=sub style="font-size:10.5px;text-transform:none">мед<br>мин–макс</span></th>'
         f'<th class=narrow title="распределение размера классов: столбик — класс, от большего к меньшему">LOC классов<br><span class=sub style="font-size:10.5px;text-transform:none">макс · мед</span></th>'
-        f'<th class=narrow title="исходящих внутренних зависимостей App→App на класс (среднее по классам прогона); в ячейке — разброс мин–макс по прогонам режима">C<sub>e</sub><br><span class=sub style="font-size:10.5px;text-transform:none;white-space:nowrap">мин–макс</span></th>'
-        f'<th class=narrow title="входящих зависимостей App→App на класс с зависимостями (медиана по классам прогона); в ячейке — разброс мин–макс по прогонам режима">C<sub>a</sub><br><span class=sub style="font-size:10.5px;text-transform:none;white-space:nowrap">мин–макс</span></th>'
-        f'<th class=narrow title="нестабильность I = C_e / (C_e + C_a), медиана по классам с зависимостями; в ячейке — разброс мин–макс по прогонам режима">I<br><span class=sub style="font-size:10.5px;text-transform:none;white-space:nowrap">мин–макс</span></th>'
+        f'<th class=narrow title="распределение значений по классам: столбик — класс (прогоны режима объединены), от большего к меньшему; под диаграммой — медиана. C_e и C_a — по всем классам решения, I — по классам с зависимостями">C<sub>e</sub> / C<sub>a</sub> / I<br><span class=sub style="font-size:10.5px;text-transform:none">по классам</span></th>'
         f'<th class=narrow title="циклических компонент в графе App→App">Циклы</th>'
         f'<th class=narrow title="классов с LCOM4 выше 1 — связность">LCOM4&gt;1<br><span class=sub>классов</span></th>'
         f'<th class=narrow title="максимальная цикломатическая сложность метода">Max CC<br><span class=sub>метода</span></th>'
@@ -2517,8 +2551,10 @@ def code_quality_section(data: list[dict]) -> str:
             f'<p><b>Как читать метрики.</b> Все шесть считаются по src/ каждого '
             f'прогона AST-коллектором яруса 2; в таблице — медианы по прогонам '
             f'режима, а связанность и нестабильность (C<sub>e</sub>, '
-            f'C<sub>a</sub>, I) — разбросом мин–макс по прогонам: медиана одной '
-            f'цифрой прячет, насколько значение гуляет от прогона к прогону.</p>'
+            f'C<sub>a</sub>, I) — распределением значений по классам: '
+            f'каждый столбик — один класс, прогоны режима объединены, поэтому '
+            f'число прогонов роли не играет; под диаграммой — медиана '
+            f'по всем столбикам.</p>'
             f'<p><b>Классов.</b> Число классов в src/ — грубая мера масштаба '
             f'и степени декомпозиции решения. Само по себе значение не бывает '
             f'хорошим или плохим: 13 классов у Sol low и 38 у DeepSeek max — '
@@ -2531,7 +2567,7 @@ def code_quality_section(data: list[dict]) -> str:
             f'<p><b>C<sub>e</sub> — исходящая связанность.</b> Обозначение '
             f'C<sub>e</sub> — из связки метрик Роберта Мартина: C — coupling '
             f'(связанность), нижний индекс e — efferent (исходящая). Смысл: '
-            f'среднее число зависимостей класса на другие классы проекта — '
+            f'число зависимостей класса на другие классы проекта — '
             f'только внутренние App→App, вызовы vendor и глобальных функций '
             f'не считаются. Показывает, насколько плотно классы переплетены: '
             f'чем ниже, тем легче менять и тестировать класс изолированно. '
@@ -2539,12 +2575,14 @@ def code_quality_section(data: list[dict]) -> str:
             f'и больше связей. Пример: RepriceService у DeepSeek (max) '
             f'зависит от восьми внутренних классов (Money, '
             f'PricingCalculator, UsageEvent…) — это верхний '
-            f'сервис-оркестратор, широкий кругозор для него нормален.</p>'
+            f'сервис-оркестратор, широкий кругозор для него нормален. '
+            f'В таблице — распределение по всем классам решения, включая '
+            f'ни с кем не связанные (нулевой хвост у основания).</p>'
             f'<p><b>C<sub>a</sub> — входящая связанность.</b> Afferent coupling: '
-            f'сколько классов проекта использует данный. Значение прогона — '
-            f'медиана входящих связей по классам, у которых связи есть; '
-            f'в таблице — разброс мин–макс по прогонам. '
-            f'Высокое C<sub>a</sub> — «популярное» ядро: класс, на который '
+            f'сколько классов проекта использует данный. В таблице — '
+            f'распределение по всем классам решения: у большинства входящих '
+            f'связей нет вовсе (нулевой хвост у основания). Заметный '
+            f'ненулевой массив — «популярное» ядро: класс, на который '
             f'смотрит много кода, менять его больно, зато он хорошо проверен '
             f'употреблением.</p>'
             f'<p><b>I — нестабильность.</b> Выводится из пары: '
@@ -2554,9 +2592,9 @@ def code_quality_section(data: list[dict]) -> str:
             f'полюса ровно как учит принцип стабильных зависимостей — I = 1 '
             f'у console-команд (точки входа, обязаны меняться часто), I = 0 '
             f'у примитивов домена (Decimal, Timestamp, enum-статусы — менять '
-            f'их больно, и они ни на кого не смотрят). Значение прогона — '
-            f'медиана I по классам с зависимостями; в таблице — разброс '
-            f'мин–макс по прогонам.</p>'
+            f'их больно, и они ни на кого не смотрят). В таблице — '
+            f'распределение по классам с зависимостями; под диаграммой — '
+            f'медиана.</p>'
             f'<p><b>Циклы.</b> Циклические компоненты в графе внутренних '
             f'зависимостей: класс A использует B, а B — A, напрямую или через '
             f'цепочку. Цикл означает, что классы нельзя вынуть и тестировать '
@@ -2594,11 +2632,11 @@ def code_quality_section(data: list[dict]) -> str:
             f'режима объединены, поэтому у многопрогонных режимов столбиков '
             f'больше, чем классов в одном решении), слева направо от большего '
             f'к меньшему (красный — 300+ строк); рядом максимум и медиана '
-            f'по всем столбикам. C<sub>e</sub> — среднее число внутренних '
-            f'зависимостей App→App на класс; C<sub>a</sub> — медиана входящих '
-            f'зависимостей на класс (по классам, у которых связи есть): '
-            f'высокое значение — «популярное» стабильное ядро, на которое '
-            f'смотрит много кода. «Циклы» — циклические компоненты в этом графе '
+            f'по всем столбикам. «C<sub>e</sub> / C<sub>a</sub> / I» — такие '
+            f'же распределения значений по классам: C<sub>e</sub> и '
+            f'C<sub>a</sub> — по всем классам решения, I — по классам '
+            f'с зависимостями. «Циклы» — циклические компоненты в графе '
+            f'внутренних зависимостей '
             f'(зелёное «нет» — граф ацикличен). LCOM4&gt;1 — классы, где метод '
             f'использует непересекающиеся группы свойств. Max CC — наибольшая '
             f'цикломатическая сложность метода; &gt;50 стр. — методов длиннее '
