@@ -2216,7 +2216,7 @@ def context_section(data: list[dict]) -> str:
             f'<tr><th>Модель</th><th class=narrow>Мышл.</th><th class=narrow>Прогонов</th>'
             f'<th class=narrow>Компактов</th>'
             f'<th class=narrow>Ходов (медиана · min–max)</th>'
-            f'<th class=narrow>Пик, K</th></tr></thead>'
+            f'<th class=narrow>Пик контекста</th></tr></thead>'
             f'<tbody>{"".join(trs)}</tbody></table></div>'
             f'<div class=note>'
             f'<p><b>Почему одним проходом.</b> Порог автокомпакта один для всех '
