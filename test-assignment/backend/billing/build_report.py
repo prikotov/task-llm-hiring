@@ -2156,7 +2156,7 @@ def context_section(data: list[dict]) -> str:
                      if p["comp"] else '<span class=sub>—</span>')
         # ходы на общей шкале (min–max всех прогонов таблицы): светлая дорожка —
         # общая шкала, синяя полоса — мин–макс режима, вертикаль — медиана
-        W, H = 170, 20
+        W, H = 130, 30
 
         def xx(v):
             return round((v - gmin) / (gmax - gmin) * (W - 8) + 4, 1)
@@ -2168,14 +2168,14 @@ def context_section(data: list[dict]) -> str:
                + (f' <span class=sub>· {tmin}–{tmax}</span>' if tmin != tmax else ""))
         candle = (f'<div style="display:flex;align-items:center;gap:8px">'
                   f'<svg width="{W}" height="{H}" style="flex:none">'
-                  f'<rect x="2" y="{H // 2 - 3}" width="{W - 4}" height="6" rx="3" '
+                  f'<rect x="2" y="{H // 2 - 5}" width="{W - 4}" height="10" rx="4" '
                   f'fill="#eef0f4"/>'
-                  f'<rect x="{xx(tmin)}" y="{H // 2 - 3}" '
-                  f'width="{max(4, xx(tmax) - xx(tmin)):.1f}" height="6" rx="3" '
+                  f'<rect x="{xx(tmin)}" y="{H // 2 - 5}" '
+                  f'width="{max(5, xx(tmax) - xx(tmin)):.1f}" height="10" rx="4" '
                   f'fill="#315f9e" fill-opacity="0.35"/>'
-                  f'<line x1="{xx(tmed):.1f}" y1="{H // 2 - 8}" '
-                  f'x2="{xx(tmed):.1f}" y2="{H // 2 + 8}" stroke="#315f9e" '
-                  f'stroke-width="2"/>{ticks}'
+                  f'<line x1="{xx(tmed):.1f}" y1="{H // 2 - 12}" '
+                  f'x2="{xx(tmed):.1f}" y2="{H // 2 + 12}" stroke="#315f9e" '
+                  f'stroke-width="2.5"/>{ticks}'
                   # подложка с подсказкой — последним слоем, чтобы ловить наведение
                   f'<rect x="0" y="0" width="{W}" height="{H}" fill="transparent">'
                   f'<title>{tip}</title></rect></svg>'
@@ -2213,7 +2213,7 @@ def context_section(data: list[dict]) -> str:
             f'только у Opus · 04 — {230}K<sup>*</sup>.</li>'
             f'</ul>'
             f'<div style="overflow-x:auto"><table style="width:auto"><thead>'
-            f'<tr><th>Модель</th><th class=narrow>Мышл.</th><th class=narrow>Прг.</th>'
+            f'<tr><th>Модель</th><th class=narrow>Мышл.</th><th class=narrow>Прогонов</th>'
             f'<th class=narrow>Компактов</th>'
             f'<th class=narrow>Ходов (медиана · min–max)</th>'
             f'<th class=narrow>Пик, K</th></tr></thead>'
