@@ -2430,39 +2430,33 @@ def code_quality_section(data: list[dict]) -> str:
     ce_max_all = max((v for lst in ce_cls.values() for v, _ in lst), default=1) or 1
     ca_max_all = max((v for lst in ca_cls.values() for v, _ in lst), default=1) or 1
 
-    def mini_dist(data, mx, nd):
-        vals = sorted((v for v, _name in data), reverse=True)
-        med = st.median(vals) if vals else 0
+    def mini_dist(data, mx, fmt):
+        vals = sorted(data, key=lambda x: -x[0])
         n = len(vals) or 1
         bw = max(1.0, (CW - 2) / n)
         bars = "".join(
             f'<rect x="{2 + i * bw:.1f}" y="{20 - max(1.2, (v / mx) * 17):.1f}" '
             f'width="{bw - 0.4:.1f}" height="{max(1.2, (v / mx) * 17):.1f}" '
-            f'fill="#315f9e" fill-opacity="0.75"></rect>'
-            for i, v in enumerate(vals))
-        # вертикальная линия — медиана (середина отсортированного ряда столбиков)
-        lx = 2 + bw * n / 2
-        fmt_med = (f"{med:.2f}" if nd == 2 else
-                   f"{med:.0f}" if med == int(med) else f"{med:.1f}")
-        return (f'<svg width="{CW}" height="21" style="display:block">'
-                f'{bars}'
-                f'<line x1="{lx:.1f}" y1="2" x2="{lx:.1f}" y2="20" '
-                f'stroke="#1d2433" stroke-width="2"/>'
-                f'<rect x="0" y="0" width="{CW}" height="21" fill="transparent">'
-                f'<title>вертикальная линия — медиана {fmt_med}</title></rect></svg>')
+            f'fill="#315f9e" fill-opacity="0.75">'
+            f'<title>{fmt(v)}</title></rect>'
+            for i, (v, _name) in enumerate(vals))
+        return f'<svg width="{CW}" height="21" style="display:block">{bars}</svg>'
 
     def dist_cell(k):
         rows = []
-        for label, data, mx, nd in (
-                ("C_e", ce_cls.get(k) or [], ce_max_all, 0),
-                ("C_a", ca_cls.get(k) or [], ca_max_all, 0),
-                ("I", i_cls.get(k) or [], 1.0, 2)):
+        for label, data, mx, fmt in (
+                ("C_e", ce_cls.get(k) or [], ce_max_all,
+                 lambda v: f"{v:.0f} исходящих"),
+                ("C_a", ca_cls.get(k) or [], ca_max_all,
+                 lambda v: f"{v:.0f} входящих"),
+                ("I", i_cls.get(k) or [], 1.0,
+                 lambda v: f"I = {v:.2f}")):
             if not data:
                 continue
             rows.append(
                 f'<div style="display:flex;align-items:center;gap:5px">'
                 f'<span class=sub style="width:22px;text-align:right">{label}</span>'
-                f'{mini_dist(data, mx, nd)}</div>')
+                f'{mini_dist(data, mx, fmt)}</div>')
         return "".join(rows) or "—"
 
     def _plural(n, one, few, many):
@@ -2504,21 +2498,10 @@ def code_quality_section(data: list[dict]) -> str:
         bars = "".join(
             f'<rect x="{2 + i * bw:.1f}" y="{CH - 2 - (lo / loc_max_all) * (CH - 6):.1f}" '
             f'width="{bw - 0.4:.1f}" height="{max(1.5, (lo / loc_max_all) * (CH - 6)):.1f}" '
-            f'fill="{"#b3543f" if lo >= 300 else "#315f9e"}" fill-opacity="0.75"></rect>'
+            f'fill="{"#b3543f" if lo >= 300 else "#315f9e"}" fill-opacity="0.75">'
+            f'<title>{lo} {_plural(lo, "строка", "строки", "строк")}</title></rect>'
             for i, (lo, _name) in enumerate(items))
-        mx, mx_name = items[0] if items else (0, "")
-        med = st.median([lo for lo, _ in items]) if items else 0
-        mi = round(med)
-        lx = 2 + bw * n / 2
-        return (f'<svg width="{CW}" height="{CH}" style="display:block">'
-                f'{bars}'
-                f'<line x1="{lx:.1f}" y1="2" x2="{lx:.1f}" y2="{CH - 2}" '
-                f'stroke="#1d2433" stroke-width="2"/>'
-                f'<rect x="0" y="0" width="{CW}" height="{CH}" fill="transparent">'
-                f'<title>вертикальная линия — медиана {mi} '
-                f'{_plural(mi, "строка", "строки", "строк")}; '
-                f'максимум {mx} ({_h.escape(mx_name)}); классов {n}</title>'
-                f'</rect></svg>')
+        return f'<svg width="{CW}" height="{CH}" style="display:block">{bars}</svg>'
 
     ars_trs = []
     for f, note, row in ars:
@@ -2545,8 +2528,8 @@ def code_quality_section(data: list[dict]) -> str:
         f'<div style="overflow-x:auto"><table style="width:auto"><thead>'
         f'<tr><th>Модель</th><th class=narrow>Мышл.</th>'
         f'<th class=narrow title="классов в src/; медиана · мин–макс по прогонам режима">Классов<br><span class=sub style="font-size:10.5px;text-transform:none">мед<br>мин–макс</span></th>'
-        f'<th class=narrow title="распределение размера классов: столбик — класс, от большего к меньшему; вертикальная линия — медиана (наведение — подробности)">LOC классов</th>'
-        f'<th class=narrow title="распределение значений по классам: столбик — класс (прогоны режима объединены), от большего к меньшему; вертикальная линия — медиана (наведение — значение). C_e и C_a — по всем классам решения, I — по классам с зависимостями">C<sub>e</sub> / C<sub>a</sub> / I</th>'
+        f'<th class=narrow title="распределение размера классов: столбик — класс, от большего к меньшему; наведение на столбик — размер класса">LOC классов</th>'
+        f'<th class=narrow title="распределение значений по классам: столбик — класс (прогоны режима объединены), от большего к меньшему; наведение на столбик — значение. C_e и C_a — по всем классам решения, I — по классам с зависимостями">C<sub>e</sub> / C<sub>a</sub> / I</th>'
         f'<th class=narrow title="циклических компонент в графе App→App">Циклы</th>'
         f'<th class=narrow title="классов с LCOM4 выше 1 — связность">LCOM4&gt;1<br><span class=sub>классов</span></th>'
         f'<th class=narrow title="максимальная цикломатическая сложность метода">Max CC<br><span class=sub>метода</span></th>'
@@ -2590,8 +2573,8 @@ def code_quality_section(data: list[dict]) -> str:
             f'C<sub>e</sub>, C<sub>a</sub>, I) — распределением значений '
             f'по классам: '
             f'каждый столбик — один класс, прогоны режима объединены, поэтому '
-            f'число прогонов роли не играет. Вертикальная линия на диаграмме — '
-            f'медиана по всем столбикам, её значение — в наведении.</p>'
+            f'число прогонов роли не играет; наведение на столбик — значение '
+            f'показателя.</p>'
             f'<p><b>Классов.</b> Число классов в src/ — грубая мера масштаба '
             f'и степени декомпозиции решения. Само по себе значение не бывает '
             f'хорошим или плохим: 13 классов у Sol low и 38 у DeepSeek max — '
@@ -2630,8 +2613,7 @@ def code_quality_section(data: list[dict]) -> str:
             f'у console-команд (точки входа, обязаны меняться часто), I = 0 '
             f'у примитивов домена (Decimal, Timestamp, enum-статусы — менять '
             f'их больно, и они ни на кого не смотрят). В таблице — '
-            f'распределение по классам с зависимостями; вертикальная линия — '
-            f'медиана.</p>'
+            f'распределение по классам с зависимостями.</p>'
             f'<p><b>Циклы.</b> Циклические компоненты в графе внутренних '
             f'зависимостей: класс A использует B, а B — A, напрямую или через '
             f'цепочку. Цикл означает, что классы нельзя вынуть и тестировать '
@@ -2668,8 +2650,8 @@ def code_quality_section(data: list[dict]) -> str:
             f'режима: каждый столбик — класс одного из прогонов (прогоны '
             f'режима объединены, поэтому у многопрогонных режимов столбиков '
             f'больше, чем классов в одном решении), слева направо от большего '
-            f'к меньшему (красный — 300+ строк); вертикальная линия — медиана '
-            f'по всем столбикам, подробности в наведении. '
+            f'к меньшему (красный — 300+ строк); наведение на столбик — '
+            f'размер класса. '
             f'«C<sub>e</sub> / C<sub>a</sub> / I» — такие '
             f'же распределения значений по классам: C<sub>e</sub> и '
             f'C<sub>a</sub> — по всем классам решения, I — по классам '
