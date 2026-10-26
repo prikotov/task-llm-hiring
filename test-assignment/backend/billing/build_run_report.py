@@ -662,7 +662,7 @@ def git_code_link(run_dir: Path | None, pth: str, label: str | None = None) -> s
 
 def cycles_block(collector: dict, run_dir: Path | None = None) -> str:
     """Циклические зависимости: компоненты сильной связности графа внутренних
-    зависимостей (классы, где от каждого достижим каждый). Каждое кольцо —
+    зависимостей (классы, где от каждого достижим каждый). Каждый цикл —
     кандидат на разрыв (принцип ациклических зависимостей Мартина). Имена
     классов — ссылки на код в git."""
     classes = {cl["name"] for cl in collector.get("classes") or []}
@@ -710,7 +710,7 @@ def cycles_block(collector: dict, run_dir: Path | None = None) -> str:
             visit(u)
     if not comps:
         return ('<h3 id="cycles">Циклические зависимости</h3>'
-                '<p class=lead>Кольца (компоненты сильной связности) в графе '
+                '<p class=lead>Циклы (компоненты сильной связности) в графе '
                 'внутренних зависимостей: <b style="color:#2f7d54">нет</b> — граф '
                 'ацикличен, как требует принцип ациклических зависимостей Мартина '
                 '(Acyclic Dependencies Principle).</p>')
@@ -728,7 +728,7 @@ def cycles_block(collector: dict, run_dir: Path | None = None) -> str:
                      f'<div class=sub>{detail}</div></li>')
     return ('<h3 id="cycles">Циклические зависимости</h3>'
             '<p class=lead>Компоненты сильной связности графа внутренних зависимостей: '
-            'классы, где от каждого достижим каждый. Каждое кольцо — кандидат на разрыв: '
+            'классы, где от каждого достижим каждый. Каждый цикл — кандидат на разрыв: '
             'вынести интерфейс или событие (принцип ациклических зависимостей Мартина, '
             'Acyclic Dependencies Principle).</p>'
             f'<ul style="margin:4px 0 10px 18px;padding:0">{"".join(items)}</ul>')
