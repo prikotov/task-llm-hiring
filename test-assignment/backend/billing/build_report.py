@@ -436,6 +436,8 @@ pre.req{background:#fff;border:1px solid var(--line);border-radius:12px;padding:
 .note{background:#fff9e8;border:1px solid #eedd9f;border-radius:12px;padding:13px 17px;font-size:14.5px;margin:14px 0}
 .note p{margin:0 0 9px}
 .note p:last-child{margin:0}
+.infobox{background:#eef3fa;border:1px solid #cfdeef;border-left:3px solid #315f9e;border-radius:12px;padding:13px 17px;font-size:14.5px;margin:14px 0}
+.infobox p{margin:0}
 .scalebox{background:#f4f7fb;border:1px solid var(--line);border-radius:10px;padding:11px 16px;font-size:13.5px;color:var(--mut);margin:14px 0}
 .scalebox>b{display:block;margin:2px 0 9px;font-size:15px;color:var(--ink)}
 .scalebox div{margin-top:7px}
@@ -2646,7 +2648,9 @@ def code_quality_section(data: list[dict]) -> str:
             f'ревьюить, переиспользовать и покрывать тестами. Хорошо — ноль-'
             f'единицы на решение. Рекорд — метод apply у qwen3.8 (run-02): '
             f'136 строк.</p>'
-            f'<p><b>Про «нормальные значения».</b> У Мартина Фаулера — автора '
+            f'</div>'
+            f'<div class=infobox><p><b>Про «нормальные значения».</b> У '
+            f'Мартина Фаулера — автора '
             f'знаменитого каталога запахов кода, на котором стоит сам жанр '
             f'этого подраздела, — нормальных значений нет, и это '
             f'принципиальная позиция: запах — качественный сигнал без точных '
@@ -2663,8 +2667,7 @@ def code_quality_section(data: list[dict]) -> str:
             f'Граница LCOM4 = 1 — Хитц и Монтазери. Длину методов никто '
             f'не канонизировал — это фольклор и эвристики Clean Code '
             f'дяди Боба. Поэтому и наш ориентир здесь — не порог, а форма '
-            f'распределений: смотреть на запах, как учит Фаулер.</p>'
-            f'</div>'
+            f'распределений: смотреть на запах, как учит Фаулер.</p></div>'
             f'{arch_table}'
             f'<p class=sub>«LOC классов» — распределение размера классов '
             f'режима: каждый столбик — класс одного из прогонов (прогоны '
