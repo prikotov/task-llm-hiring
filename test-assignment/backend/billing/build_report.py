@@ -2321,6 +2321,10 @@ def code_quality_section(data: list[dict]) -> str:
         internal = [(e["source"], e["target"]) for e in col["dependencies"]
                     if e["source"].startswith("App\\") and e["target"].startswith("App\\")]
         cyc = cycles_of(internal)
+        ca_per_class = defaultdict(int)
+        for _src, tgt in internal:
+            ca_per_class[tgt] += 1
+        ca_med = st.median(ca_per_class.values()) if ca_per_class else 0
         rec = {
             "note": r["note"],
             "phpstan": mj["phpstan"]["errors"] / loc,
@@ -2328,6 +2332,7 @@ def code_quality_section(data: list[dict]) -> str:
             "phpcs": (r["phpcs"] or 0) / loc,
             "classes": ncls,
             "ce": len(internal) / ncls,
+            "ca": ca_med,
             "cyc": len(cyc),
             "lcom": am.get("lcom4_over_1") or 0,
             "cc": am.get("method_cc_max") or 0,
@@ -2395,6 +2400,7 @@ def code_quality_section(data: list[dict]) -> str:
     for k in sorted(per, key=m_rank):
         f, note = k
         row = {"classes": med(k, "classes"), "ce": med(k, "ce"),
+               "ca": med(k, "ca"),
                "cyc": med(k, "cyc"), "lcom": med(k, "lcom"),
                "cc": med(k, "cc"), "m50": med(k, "m50")}
         for field in arch_max:
@@ -2442,6 +2448,7 @@ def code_quality_section(data: list[dict]) -> str:
             f'<td class=narrow>{cls_cell}</td>'
             f'<td>{loc_chart(k)}</td>'
             f'<td class=narrow>{row["ce"]:.1f}</td>'
+            f'<td class=narrow>{row["ca"]:.1f}</td>'
             f'<td class=narrow '
             f'style="color:{"#2f7d54" if row["cyc"] == 0 else "#b3543f"}">'
             f'{"нет" if row["cyc"] == 0 else f"{row["cyc"]:.0f}"}</td>'
@@ -2455,7 +2462,8 @@ def code_quality_section(data: list[dict]) -> str:
         f'<tr><th>Модель</th><th class=narrow>Мышл.</th>'
         f'<th class=narrow title="классов в src/; медиана · мин–макс по прогонам режима">Классов<br><span class=sub style="font-size:10.5px;text-transform:none">мед<br>мин–макс</span></th>'
         f'<th class=narrow title="распределение размера классов: столбик — класс, от большего к меньшему">LOC классов<br><span class=sub style="font-size:10.5px;text-transform:none">макс · мед</span></th>'
-        f'<th class=narrow title="внутренних зависимостей App→App на класс — связанность (efferent coupling)">C<sub>e</sub><br><span class=sub>на класс</span></th>'
+        f'<th class=narrow title="внутренних зависимостей App→App на класс — связанность (efferent coupling)">C<sub>e</sub><br><span class=sub style="font-size:10.5px;text-transform:none">на класс</span></th>'
+        f'<th class=narrow title="входящих зависимостей App→App на класс (классы с зависимостями) — afferent coupling">C<sub>a</sub><br><span class=sub style="font-size:10.5px;text-transform:none">мед. на класс</span></th>'
         f'<th class=narrow title="циклических компонент в графе App→App">Циклы</th>'
         f'<th class=narrow title="классов с LCOM4 выше 1 — связность">LCOM4&gt;1<br><span class=sub>классов</span></th>'
         f'<th class=narrow title="максимальная цикломатическая сложность метода">Max CC<br><span class=sub>метода</span></th>'
@@ -2510,7 +2518,8 @@ def code_quality_section(data: list[dict]) -> str:
             f'(связанность), нижний индекс e — efferent (исходящая), то есть '
             f'efferent coupling — исходящая связанность; парная метрика про '
             f'входящие связи — C<sub>a</sub>, afferent coupling (входящая '
-            f'связанность), здесь не выводится. Смысл: среднее число '
+            f'связанность); в таблице — медиана входящих связей на класс. '
+            f'Смысл: среднее число '
             f'зависимостей класса '
             f'на другие классы проекта — только внутренние App→App, вызовы '
             f'vendor и глобальных функций не считаются. Показывает, насколько '
@@ -2566,8 +2575,10 @@ def code_quality_section(data: list[dict]) -> str:
             f'больше, чем классов в одном решении), слева направо от большего '
             f'к меньшему (красный — 300+ строк); рядом максимум и медиана '
             f'по всем столбикам. C<sub>e</sub> — среднее число внутренних '
-            f'зависимостей App→App '
-            f'на класс; «Циклы» — циклические компоненты в этом графе '
+            f'зависимостей App→App на класс; C<sub>a</sub> — медиана входящих '
+            f'зависимостей на класс (по классам, у которых связи есть): '
+            f'высокое значение — «популярное» стабильное ядро, на которое '
+            f'смотрит много кода. «Циклы» — циклические компоненты в этом графе '
             f'(зелёное «нет» — граф ацикличен). LCOM4&gt;1 — классы, где метод '
             f'использует непересекающиеся группы свойств. Max CC — наибольшая '
             f'цикломатическая сложность метода; &gt;50 стр. — методов длиннее '
