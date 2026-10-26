@@ -2430,27 +2430,23 @@ def code_quality_section(data: list[dict]) -> str:
     ce_max_all = max((v for lst in ce_cls.values() for v, _ in lst), default=1) or 1
     ca_max_all = max((v for lst in ca_cls.values() for v, _ in lst), default=1) or 1
 
-    def mini_dist(data, mx, fmt):
+    def mini_dist(data, mx):
         vals = sorted(data, key=lambda x: -x[0])
         n = len(vals) or 1
         bw = max(1.0, (CW - 2) / n)
         bars = "".join(
             f'<rect x="{2 + i * bw:.1f}" y="{20 - max(1.2, (v / mx) * 17):.1f}" '
             f'width="{bw - 0.4:.1f}" height="{max(1.2, (v / mx) * 17):.1f}" '
-            f'fill="#315f9e" fill-opacity="0.75">'
-            f'<title>{_h.escape(name)} — {fmt(v)}</title></rect>'
-            for i, (v, name) in enumerate(vals))
+            f'fill="#315f9e" fill-opacity="0.75"></rect>'
+            for i, (v, _name) in enumerate(vals))
         return f'<svg width="{CW}" height="21" style="display:block">{bars}</svg>'
 
     def dist_cell(k):
         rows = []
-        for label, data, mx, fmt in (
-                ("C_e", ce_cls.get(k) or [], ce_max_all,
-                 lambda v: f"{v:.0f} исх."),
-                ("C_a", ca_cls.get(k) or [], ca_max_all,
-                 lambda v: f"{v:.0f} вх."),
-                ("I", i_cls.get(k) or [], 1.0,
-                 lambda v: f"I = {v:.2f}")):
+        for label, data, mx in (
+                ("C_e", ce_cls.get(k) or [], ce_max_all),
+                ("C_a", ca_cls.get(k) or [], ca_max_all),
+                ("I", i_cls.get(k) or [], 1.0)):
             if not data:
                 continue
             med = st.median([v for v, _ in data])
@@ -2459,9 +2455,41 @@ def code_quality_section(data: list[dict]) -> str:
             rows.append(
                 f'<div style="display:flex;align-items:center;gap:5px">'
                 f'<span class=sub style="width:22px;text-align:right">{label}</span>'
-                f'{mini_dist(data, mx, fmt)}'
+                f'{mini_dist(data, mx)}'
                 f'<span class=sub style="white-space:nowrap">{mtxt}</span></div>')
         return "".join(rows) or "—"
+
+    def _plural(n, one, few, many):
+        n = abs(n) % 100
+        if 11 <= n <= 14:
+            return many
+        d = n % 10
+        return one if d == 1 else few if 2 <= d <= 4 else many
+
+    def top_table(vals_dict, nd, col_header):
+        best: dict = {}
+        for kk, lst in vals_dict.items():
+            for v, name in lst:
+                key = (kk, name)
+                if best.get(key, -1) < v:
+                    best[key] = v
+        ranked = sorted(((v, kk, name) for (kk, name), v in best.items()),
+                        key=lambda x: (-x[0], m_rank(x[1]), x[2]))
+        top = ranked[:5]
+        ties = sum(1 for v, _, _ in ranked[5:] if v == top[-1][0])
+        trs = "".join(
+            f'<tr><td>{_h.escape(name)}</td>'
+            f'<td style="white-space:nowrap">{SHORT.get(kk[0], kk[0])}</td>'
+            f'<td class=narrow>{kk[1]}</td>'
+            f'<td class=narrow><b>{v:.{nd}f}</b></td></tr>'
+            for v, kk, name in top)
+        tie_s = (f'<div class=sub>ещё {ties} '
+                 f'{_plural(ties, "класс", "класса", "классов")} '
+                 f'с тем же значением</div>' if ties else "")
+        return (f'<table style="width:auto"><thead>'
+                f'<tr><th>Класс</th><th>Модель</th><th class=narrow>Мышл.</th>'
+                f'<th class=narrow>{col_header}</th></tr></thead>'
+                f'<tbody>{trs}</tbody></table>{tie_s}')
 
     def loc_chart(k):
         items = sorted(locs.get(k, []), key=lambda x: -x[0])
@@ -2641,6 +2669,22 @@ def code_quality_section(data: list[dict]) -> str:
             f'использует непересекающиеся группы свойств. Max CC — наибольшая '
             f'цикломатическая сложность метода; &gt;50 стр. — методов длиннее '
             f'50 строк.</p>'
+            f'<p><b>Кто создаёт хвосты.</b> Верхние точки тех же распределений '
+            f'по всем {n_runs} хорошим прогонам: у класса берётся максимум '
+            f'по прогонам режима, при равных значениях режимы идут '
+            f'в порядке раздела 3. Верхушка I многолюдна — максимальную '
+            f'нестабильность делят в основном console-команды.</p>'
+            f'<div style="display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start">'
+            f'<div><div style="font-weight:600;margin-bottom:4px">Топ-5 · '
+            f'C<sub>e</sub> — больше всех зависят от соседей</div>'
+            f'{top_table(ce_cls, 0, "C<sub>e</sub>")}</div>'
+            f'<div><div style="font-weight:600;margin-bottom:4px">Топ-5 · '
+            f'C<sub>a</sub> — кого чаще всего используют</div>'
+            f'{top_table(ca_cls, 0, "C<sub>a</sub>")}</div>'
+            f'<div><div style="font-weight:600;margin-bottom:4px">Топ-5 · '
+            f'I — самые нестабильные</div>'
+            f'{top_table(i_cls, 2, "I")}</div>'
+            f'</div>'
             f'<p><b>Вывод.</b> Архитектурное качество почти не дифференцирует '
             f'успешные модели — и это главный вывод подраздела: все, кто дошёл '
             f'до «хороших» квадрантов, уже умеют в слои. Макроструктуру диктует '
