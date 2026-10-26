@@ -2445,18 +2445,21 @@ def code_quality_section(data: list[dict]) -> str:
         return f'<svg width="{cw}" height="21" style="display:block">{bars}</svg>'
 
     def dist_cell(k):
-        cw2 = 72   # половина ширины колонки: два графика в строке
-        cells = [
+        cw2 = 72   # половина ширины колонки: два графика в столбце
+        left = [
             mini_dist(ce_cls.get(k) or [], ce_max_all,
                       lambda v: f"{v:.0f} исходящих", cw2),
             mini_dist(ca_cls.get(k) or [], ca_max_all,
                       lambda v: f"{v:.0f} входящих", cw2),
+        ]
+        right = [
             mini_dist(i_cls.get(k) or [], 1.0,
                       lambda v: f"I = {v:.2f}", cw2),
             loc_chart(k, cw2, 21),
         ]
-        return ('<div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 8px">'
-                + "".join(f"<div>{c}</div>" for c in cells) + "</div>")
+        return ('<div style="display:grid;grid-template-columns:1fr 1fr;'
+                'grid-template-rows:auto auto;grid-auto-flow:column;gap:3px 8px">'
+                + "".join(f"<div>{c}</div>" for c in left + right) + "</div>")
 
     def _plural(n, one, few, many):
         n = abs(n) % 100
@@ -2527,8 +2530,9 @@ def code_quality_section(data: list[dict]) -> str:
         f'<tr><th>Модель</th><th class=narrow>Мышл.</th>'
         f'<th class=narrow title="классов в src/; медиана · мин–макс по прогонам режима">Классов<br><span class=sub style="font-size:10.5px;text-transform:none">med<br>min–max</span></th>'
         f'<th class=narrow style="font-size:10px" title="распределение значений по классам: столбик — класс (прогоны режима объединены), от большего к меньшему; наведение на столбик — значение. LOC, C_e и C_a — по всем классам решения, I — по классам с зависимостями; красный у LOC — 300+ строк">'
-        f'<div style="display:flex;justify-content:space-around"><span>C<sub>e</sub></span><span>C<sub>a</sub></span></div>'
-        f'<div style="display:flex;justify-content:space-around"><span>I</span><span>LOC</span></div></th>'
+        f'<div style="display:flex">'
+        f'<div style="flex:1;text-align:center">C<sub>e</sub><br>C<sub>a</sub></div>'
+        f'<div style="flex:1;text-align:center">I<br>LOC</div></div></th>'
         f'<th class=narrow style="width:1%;font-size:10px;line-height:1.3" title="циклы в графе внутренних зависимостей App→App (circular dependency); «нет» — граф ацикличен">Цикл. зави&shy;симости</th>'
         f'<th class=narrow title="классов с LCOM4 выше 1 — связность">LCOM4&gt;1<br><span class=sub>классов</span></th>'
         f'<th class=narrow title="максимальная цикломатическая сложность метода">Max CC<br><span class=sub>метода</span></th>'
