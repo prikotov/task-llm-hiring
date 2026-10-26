@@ -2152,7 +2152,7 @@ def context_section(data: list[dict]) -> str:
         p = per[k]
         tmin, tmax = min(p["turns"]), max(p["turns"])
         tmed = st.median(p["turns"])
-        comp_cell = (f'<b>{p["comp"]}</b><div class=sub>макс {p["cmax"]} на прогон</div>'
+        comp_cell = (f'<b>{p["comp"]}</b><div class=sub>до {p["cmax"]} в прогоне</div>'
                      if p["comp"] else '<span class=sub>—</span>')
         # ходы на общей шкале (min–max всех прогонов таблицы): светлая дорожка —
         # общая шкала, синяя полоса — мин–макс режима, вертикаль — медиана
@@ -2216,7 +2216,7 @@ def context_section(data: list[dict]) -> str:
             f'<div style="overflow-x:auto"><table style="width:auto"><thead>'
             f'<tr><th>Модель</th><th class=narrow>Мышл.</th><th class=narrow>Прг.</th>'
             f'<th class=narrow>Без компакта</th><th class=narrow>Компактов</th>'
-            f'<th class=narrow>Ходов</th>'
+            f'<th class=narrow>Ходов (медиана · min–max)</th>'
             f'<th class=narrow>Пик, K</th></tr></thead>'
             f'<tbody>{"".join(trs)}</tbody></table></div>'
             f'<div class=note>'
