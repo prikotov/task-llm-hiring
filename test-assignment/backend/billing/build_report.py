@@ -2365,6 +2365,11 @@ def code_quality_section(data: list[dict]) -> str:
     def med(k, field):
         return st.median([x[field] for x in per[k]])
 
+    def spread(k, field, nd):
+        lo = min(x[field] for x in per[k])
+        hi = max(x[field] for x in per[k])
+        return (f"{lo:.{nd}f}–{hi:.{nd}f}" if lo != hi else f"{lo:.{nd}f}")
+
     all_lint = [x[f] for recs in per.values() for x in recs
                 for f in ("phpstan", "psalm", "phpcs")]
     lint_max = max(all_lint)
@@ -2406,8 +2411,7 @@ def code_quality_section(data: list[dict]) -> str:
     arch_max = {"lcom": 0, "cc": 0, "m50": 0}
     for k in sorted(per, key=m_rank):
         f, note = k
-        row = {"classes": med(k, "classes"), "ce": med(k, "ce"),
-               "ca": med(k, "ca"), "i": med(k, "i"),
+        row = {"classes": med(k, "classes"),
                "cyc": med(k, "cyc"), "lcom": med(k, "lcom"),
                "cc": med(k, "cc"), "m50": med(k, "m50")}
         for field in arch_max:
@@ -2454,9 +2458,9 @@ def code_quality_section(data: list[dict]) -> str:
         cells = (
             f'<td class=narrow>{cls_cell}</td>'
             f'<td>{loc_chart(k)}</td>'
-            f'<td class=narrow>{row["ce"]:.1f}</td>'
-            f'<td class=narrow>{row["ca"]:.1f}</td>'
-            f'<td class=narrow><b>{row["i"]:.2f}</b></td>'
+            f'<td class=narrow style="white-space:nowrap">{spread(k, "ce", 1)}</td>'
+            f'<td class=narrow style="white-space:nowrap">{spread(k, "ca", 1)}</td>'
+            f'<td class=narrow style="white-space:nowrap">{spread(k, "i", 2)}</td>'
             f'<td class=narrow '
             f'style="color:{"#2f7d54" if row["cyc"] == 0 else "#b3543f"}">'
             f'{"нет" if row["cyc"] == 0 else f"{row["cyc"]:.0f}"}</td>'
@@ -2470,9 +2474,9 @@ def code_quality_section(data: list[dict]) -> str:
         f'<tr><th>Модель</th><th class=narrow>Мышл.</th>'
         f'<th class=narrow title="классов в src/; медиана · мин–макс по прогонам режима">Классов<br><span class=sub style="font-size:10.5px;text-transform:none">мед<br>мин–макс</span></th>'
         f'<th class=narrow title="распределение размера классов: столбик — класс, от большего к меньшему">LOC классов<br><span class=sub style="font-size:10.5px;text-transform:none">макс · мед</span></th>'
-        f'<th class=narrow title="внутренних зависимостей App→App на класс — связанность (efferent coupling)">C<sub>e</sub><br><span class=sub style="font-size:10.5px;text-transform:none">на класс</span></th>'
-        f'<th class=narrow title="входящих зависимостей App→App на класс (классы с зависимостями) — afferent coupling">C<sub>a</sub><br><span class=sub style="font-size:10.5px;text-transform:none">мед. на класс</span></th>'
-        f'<th class=narrow title="нестабильность I = C_e / (C_e + C_a), медиана по классам с зависимостями">I<br><span class=sub style="font-size:10.5px;text-transform:none">мед.</span></th>'
+        f'<th class=narrow title="исходящих внутренних зависимостей App→App на класс (среднее по классам прогона); в ячейке — разброс мин–макс по прогонам режима">C<sub>e</sub><br><span class=sub style="font-size:10.5px;text-transform:none;white-space:nowrap">мин–макс</span></th>'
+        f'<th class=narrow title="входящих зависимостей App→App на класс с зависимостями (медиана по классам прогона); в ячейке — разброс мин–макс по прогонам режима">C<sub>a</sub><br><span class=sub style="font-size:10.5px;text-transform:none;white-space:nowrap">мин–макс</span></th>'
+        f'<th class=narrow title="нестабильность I = C_e / (C_e + C_a), медиана по классам с зависимостями; в ячейке — разброс мин–макс по прогонам режима">I<br><span class=sub style="font-size:10.5px;text-transform:none;white-space:nowrap">мин–макс</span></th>'
         f'<th class=narrow title="циклических компонент в графе App→App">Циклы</th>'
         f'<th class=narrow title="классов с LCOM4 выше 1 — связность">LCOM4&gt;1<br><span class=sub>классов</span></th>'
         f'<th class=narrow title="максимальная цикломатическая сложность метода">Max CC<br><span class=sub>метода</span></th>'
@@ -2512,7 +2516,9 @@ def code_quality_section(data: list[dict]) -> str:
             f'<div class=note>'
             f'<p><b>Как читать метрики.</b> Все шесть считаются по src/ каждого '
             f'прогона AST-коллектором яруса 2; в таблице — медианы по прогонам '
-            f'режима.</p>'
+            f'режима, а связанность и нестабильность (C<sub>e</sub>, '
+            f'C<sub>a</sub>, I) — разбросом мин–макс по прогонам: медиана одной '
+            f'цифрой прячет, насколько значение гуляет от прогона к прогону.</p>'
             f'<p><b>Классов.</b> Число классов в src/ — грубая мера масштаба '
             f'и степени декомпозиции решения. Само по себе значение не бывает '
             f'хорошим или плохим: 13 классов у Sol low и 38 у DeepSeek max — '
@@ -2535,8 +2541,9 @@ def code_quality_section(data: list[dict]) -> str:
             f'PricingCalculator, UsageEvent…) — это верхний '
             f'сервис-оркестратор, широкий кругозор для него нормален.</p>'
             f'<p><b>C<sub>a</sub> — входящая связанность.</b> Afferent coupling: '
-            f'сколько классов проекта использует данный. В таблице — медиана '
-            f'входящих связей на класс (по классам, у которых связи есть). '
+            f'сколько классов проекта использует данный. Значение прогона — '
+            f'медиана входящих связей по классам, у которых связи есть; '
+            f'в таблице — разброс мин–макс по прогонам. '
             f'Высокое C<sub>a</sub> — «популярное» ядро: класс, на который '
             f'смотрит много кода, менять его больно, зато он хорошо проверен '
             f'употреблением.</p>'
@@ -2547,8 +2554,9 @@ def code_quality_section(data: list[dict]) -> str:
             f'полюса ровно как учит принцип стабильных зависимостей — I = 1 '
             f'у console-команд (точки входа, обязаны меняться часто), I = 0 '
             f'у примитивов домена (Decimal, Timestamp, enum-статусы — менять '
-            f'их больно, и они ни на кого не смотрят). В таблице — медиана I '
-            f'по классам с зависимостями.</p>'
+            f'их больно, и они ни на кого не смотрят). Значение прогона — '
+            f'медиана I по классам с зависимостями; в таблице — разброс '
+            f'мин–макс по прогонам.</p>'
             f'<p><b>Циклы.</b> Циклические компоненты в графе внутренних '
             f'зависимостей: класс A использует B, а B — A, напрямую или через '
             f'цепочку. Цикл означает, что классы нельзя вынуть и тестировать '
