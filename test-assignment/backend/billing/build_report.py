@@ -2527,7 +2527,7 @@ def code_quality_section(data: list[dict]) -> str:
     arch_table = (
         f'<div style="overflow-x:auto"><table style="width:auto"><thead>'
         f'<tr><th>Модель</th><th class=narrow>Мышл.</th>'
-        f'<th class=narrow title="классов в src/; медиана · мин–макс по прогонам режима">Классов<br><span class=sub style="font-size:10.5px;text-transform:none">мед<br>мин–макс</span></th>'
+        f'<th class=narrow title="классов в src/; медиана · мин–макс по прогонам режима">Классов<br><span class=sub style="font-size:10.5px;text-transform:none">med<br>min–max</span></th>'
         f'<th class=narrow title="распределение размера классов: столбик — класс, от большего к меньшему; наведение на столбик — размер класса">LOC классов</th>'
         f'<th class=narrow title="распределение значений по классам: столбик — класс (прогоны режима объединены), от большего к меньшему; наведение на столбик — значение. C_e и C_a — по всем классам решения, I — по классам с зависимостями">C<sub>e</sub> / C<sub>a</sub> / I</th>'
         f'<th class=narrow title="циклических компонент в графе App→App">Циклы</th>'
