@@ -2504,19 +2504,21 @@ def code_quality_section(data: list[dict]) -> str:
         bars = "".join(
             f'<rect x="{2 + i * bw:.1f}" y="{CH - 2 - (lo / loc_max_all) * (CH - 6):.1f}" '
             f'width="{bw - 0.4:.1f}" height="{max(1.5, (lo / loc_max_all) * (CH - 6)):.1f}" '
-            f'fill="{"#b3543f" if lo >= 300 else "#315f9e"}" fill-opacity="0.75">'
-            f'<title>{_h.escape(name)} — {lo} строк</title></rect>'
-            for i, (lo, name) in enumerate(items))
+            f'fill="{"#b3543f" if lo >= 300 else "#315f9e"}" fill-opacity="0.75"></rect>'
+            for i, (lo, _name) in enumerate(items))
         mx, mx_name = items[0] if items else (0, "")
         med = st.median([lo for lo, _ in items]) if items else 0
-        svg = (f'<svg width="{CW}" height="{CH}" style="display:block">'
-               f'<rect x="0" y="0" width="{CW}" height="{CH}" fill="transparent">'
-               f'<title>классов {n}; медиана {med:.0f} строк; максимум {mx} '
-               f'({_h.escape(mx_name)})</title></rect>{bars}</svg>')
-        num = (f'<div style="font-size:13px"><b style="color:'
-               f'{"#b3543f" if mx >= 300 else "#1d2433"}">{mx}</b>'
-               f'<div class=sub>мед {med:.0f}</div></div>')
-        return (f'<div style="display:flex;align-items:center;gap:8px">{svg}{num}</div>')
+        mi = round(med)
+        lx = 2 + bw * n / 2
+        return (f'<svg width="{CW}" height="{CH}" style="display:block">'
+                f'{bars}'
+                f'<line x1="{lx:.1f}" y1="2" x2="{lx:.1f}" y2="{CH - 2}" '
+                f'stroke="#1d2433" stroke-width="2"/>'
+                f'<rect x="0" y="0" width="{CW}" height="{CH}" fill="transparent">'
+                f'<title>вертикальная линия — медиана {mi} '
+                f'{_plural(mi, "строка", "строки", "строк")}; '
+                f'максимум {mx} ({_h.escape(mx_name)}); классов {n}</title>'
+                f'</rect></svg>')
 
     ars_trs = []
     for f, note, row in ars:
@@ -2543,7 +2545,7 @@ def code_quality_section(data: list[dict]) -> str:
         f'<div style="overflow-x:auto"><table style="width:auto"><thead>'
         f'<tr><th>Модель</th><th class=narrow>Мышл.</th>'
         f'<th class=narrow title="классов в src/; медиана · мин–макс по прогонам режима">Классов<br><span class=sub style="font-size:10.5px;text-transform:none">мед<br>мин–макс</span></th>'
-        f'<th class=narrow title="распределение размера классов: столбик — класс, от большего к меньшему">LOC классов<br><span class=sub style="font-size:10.5px;text-transform:none">макс · мед</span></th>'
+        f'<th class=narrow title="распределение размера классов: столбик — класс, от большего к меньшему; вертикальная линия — медиана (наведение — подробности)">LOC классов</th>'
         f'<th class=narrow title="распределение значений по классам: столбик — класс (прогоны режима объединены), от большего к меньшему; вертикальная линия — медиана (наведение — значение). C_e и C_a — по всем классам решения, I — по классам с зависимостями">C<sub>e</sub> / C<sub>a</sub> / I</th>'
         f'<th class=narrow title="циклических компонент в графе App→App">Циклы</th>'
         f'<th class=narrow title="классов с LCOM4 выше 1 — связность">LCOM4&gt;1<br><span class=sub>классов</span></th>'
@@ -2584,8 +2586,9 @@ def code_quality_section(data: list[dict]) -> str:
             f'<div class=note>'
             f'<p><b>Как читать метрики.</b> Все шесть считаются по src/ каждого '
             f'прогона AST-коллектором яруса 2; в таблице — медианы по прогонам '
-            f'режима, а связанность и нестабильность (C<sub>e</sub>, '
-            f'C<sub>a</sub>, I) — распределением значений по классам: '
+            f'режима, а размер, связанность и нестабильность (LOC, '
+            f'C<sub>e</sub>, C<sub>a</sub>, I) — распределением значений '
+            f'по классам: '
             f'каждый столбик — один класс, прогоны режима объединены, поэтому '
             f'число прогонов роли не играет. Вертикальная линия на диаграмме — '
             f'медиана по всем столбикам, её значение — в наведении.</p>'
@@ -2665,8 +2668,9 @@ def code_quality_section(data: list[dict]) -> str:
             f'режима: каждый столбик — класс одного из прогонов (прогоны '
             f'режима объединены, поэтому у многопрогонных режимов столбиков '
             f'больше, чем классов в одном решении), слева направо от большего '
-            f'к меньшему (красный — 300+ строк); рядом максимум и медиана '
-            f'по всем столбикам. «C<sub>e</sub> / C<sub>a</sub> / I» — такие '
+            f'к меньшему (красный — 300+ строк); вертикальная линия — медиана '
+            f'по всем столбикам, подробности в наведении. '
+            f'«C<sub>e</sub> / C<sub>a</sub> / I» — такие '
             f'же распределения значений по классам: C<sub>e</sub> и '
             f'C<sub>a</sub> — по всем классам решения, I — по классам '
             f'с зависимостями. «Циклы» — циклические компоненты в графе '
@@ -2690,6 +2694,9 @@ def code_quality_section(data: list[dict]) -> str:
             f'<div><div style="font-weight:600;margin-bottom:4px">Топ-5 · '
             f'I — самые нестабильные</div>'
             f'{top_table(i_cls, 2, "I")}</div>'
+            f'<div><div style="font-weight:600;margin-bottom:4px">Топ-5 · '
+            f'LOC — самые крупные классы</div>'
+            f'{top_table(locs, 0, "LOC")}</div>'
             f'</div>'
             f'<p><b>Вывод.</b> Архитектурное качество почти не дифференцирует '
             f'успешные модели — и это главный вывод подраздела: все, кто дошёл '
