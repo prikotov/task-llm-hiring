@@ -599,7 +599,7 @@ def dep_matrix(collector: dict) -> str:
             % (W, H, W, H, "".join(svg)))
 
 
-def coupling_table(collector: dict) -> str:
+def coupling_table(collector: dict, run_dir: Path | None = None) -> str:
     """Связанность классов по графу внутренних зависимостей: C_e (исходящие,
     efferent coupling), C_a (входящие, afferent coupling) и нестабильность
     I = C_e / (C_e + C_a): 0 — максимально стабильный класс, 1 — максимально
@@ -615,12 +615,16 @@ def coupling_table(collector: dict) -> str:
             ca[dst] = ca.get(dst, 0) + 1
     if not ce and not ca:
         return ""
+    file_by_class = {cl["name"]: str(cl["metrics"].get("filePath") or "")
+                     for cl in collector.get("classes") or []}
     rows = []
     for name in sorted(set(ce) | set(ca)):
         e, a = ce.get(name, 0), ca.get(name, 0)
         i = e / (e + a) if e + a else 0.0
         hue = "#2f7d54" if i <= 0.33 else "#d09a53" if i <= 0.66 else "#b3543f"
-        rows.append((i, name.split("\\")[-1], e, a, hue, int(round(i * 60))))
+        label = name.split("\\")[-1]
+        rows.append((i, git_code_link(run_dir, file_by_class.get(name, ""), label),
+                     e, a, hue, int(round(i * 60))))
     rows.sort(key=lambda x: (-x[0], x[1]))
     trs = "".join(
         f'<tr><td style="white-space:nowrap">{n}</td>'
@@ -644,11 +648,26 @@ def coupling_table(collector: dict) -> str:
             f'<th>C<sub>e</sub></th><th>C<sub>a</sub></th>'
             f'<th>I (0…1)</th></tr></thead><tbody>{trs}</tbody></table>')
 
-def cycles_block(collector: dict) -> str:
+def git_code_link(run_dir: Path | None, pth: str, label: str | None = None) -> str:
+    """Ссылка на файл решения в git (blob): report.html лежит локально,
+    а .php браузер предлагает скачать — смотрим код на GitHub."""
+    rel = pth.split("/repo/")[-1]
+    base = git_blob_base()
+    if run_dir and base:
+        git_path = run_dir.relative_to(ROOT) / "solution" / rel
+        label = label or rel.split("/")[-1]
+        return f'<a href="{base}/{git_path}">{html.escape(label)}</a>'
+    return html.escape(label or rel.split("/")[-1])
+
+
+def cycles_block(collector: dict, run_dir: Path | None = None) -> str:
     """Циклические зависимости: компоненты сильной связности графа внутренних
     зависимостей (классы, где от каждого достижим каждый). Каждое кольцо —
-    кандидат на разрыв (принцип ациклических зависимостей Мартина)."""
+    кандидат на разрыв (принцип ациклических зависимостей Мартина). Имена
+    классов — ссылки на код в git."""
     classes = {cl["name"] for cl in collector.get("classes") or []}
+    file_by_class = {cl["name"]: str(cl["metrics"].get("filePath") or "")
+                     for cl in collector.get("classes") or []}
     edges = [(dep["source"], dep["target"])
              for dep in collector.get("dependencies") or []
              if dep.get("source") in classes and dep.get("target") in classes
@@ -690,20 +709,24 @@ def cycles_block(collector: dict) -> str:
         if u not in index:
             visit(u)
     if not comps:
-        return ('<h3>Циклические зависимости</h3>'
+        return ('<h3 id="cycles">Циклические зависимости</h3>'
                 '<p class=lead>Кольца (компоненты сильной связности) в графе '
                 'внутренних зависимостей: <b style="color:#2f7d54">нет</b> — граф '
                 'ацикличен, как требует принцип ациклических зависимостей Мартина '
                 '(Acyclic Dependencies Principle).</p>')
     short = lambda c: c.split("\\")[-1]
+
+    def class_link(full: str) -> str:
+        return git_code_link(run_dir, file_by_class.get(full, ""), short(full))
+
     items = []
     for comp in comps:
         inner = sorted((a, b) for a, b in edges if a in comp and b in comp)
-        chain = " ↔ ".join(html.escape(short(c)) for c in comp)
+        chain = " ↔ ".join(class_link(c) for c in comp)
         detail = ", ".join(html.escape(f"{short(a)} → {short(b)}") for a, b in inner)
         items.append(f'<li style="margin-bottom:4px">{chain}'
                      f'<div class=sub>{detail}</div></li>')
-    return ('<h3>Циклические зависимости</h3>'
+    return ('<h3 id="cycles">Циклические зависимости</h3>'
             '<p class=lead>Компоненты сильной связности графа внутренних зависимостей: '
             'классы, где от каждого достижим каждый. Каждое кольцо — кандидат на разрыв: '
             'вынести интерфейс или событие (принцип ациклических зависимостей Мартина, '
@@ -722,15 +745,7 @@ def ast_tables(collector: dict, run_dir: Path | None = None) -> str:
         fnames.setdefault(cls, fn["name"])
 
     def code_link(pth: str, label: str | None = None) -> str:
-        """Ссылка на файл решения в git (blob):report.html лежит локально,
-        а .php браузер предлагает скачать — смотрим код на GitHub."""
-        rel = pth.split("/repo/")[-1]
-        base = git_blob_base()
-        if run_dir and base:
-            git_path = run_dir.relative_to(ROOT) / "solution" / rel
-            label = label or rel.split("/")[-1]
-            return f'<a href="{base}/{git_path}">{html.escape(label)}</a>'
-        return html.escape(label or rel.split("/")[-1])
+        return git_code_link(run_dir, pth, label)
 
     file_by_class = {}
     for cl in collector.get("classes") or []:
@@ -1503,8 +1518,8 @@ def build(run_dir: Path) -> str:
              "тяжеловато, красный &gt;10 — метод-спагетти.</p>"
              + ast_scatter(collector)
              + (('<h3>Матрица зависимостей классов</h3>' + matrix) if matrix else "")
-             + coupling_table(collector)
-             + cycles_block(collector)
+             + coupling_table(collector, run_dir)
+             + cycles_block(collector, run_dir)
              + ast_tables(collector, run_dir)
              + art_links(run_dir, "metrics.json", "metrics-raw"))
 

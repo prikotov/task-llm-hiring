@@ -2630,7 +2630,7 @@ def code_quality_section(data: list[dict]) -> str:
             f'цикл — кандидат на разрыв (вынести интерфейс или событие). '
             f'В сетке у 13 из 25 прогонов циклов нет вовсе; у остальных — '
             f'одна-две пары, реже четыре-пять. Пример — <a href="../models/'
-            f'openai-gpt-6.1-sol/backend/test-assignment/run-02/report.html">'
+            f'openai-gpt-6.1-sol/backend/test-assignment/run-02/report.html#cycles">'
             f'Sol max</a>: цикл PriceAdjustment ↔ UsageEvent (кольца каждого '
             f'прогона теперь видны в его отчёте, раздел «Циклические '
             f'зависимости»).</p>'
