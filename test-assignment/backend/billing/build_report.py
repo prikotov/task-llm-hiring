@@ -3664,7 +3664,9 @@ def cloud_pairs(data: list[dict]):
     """Облачные модели: low → max по чекеру, ревью и цене (div-бары)."""
     import html as _h
     blocks = []
-    for folder in ("openai-gpt-6-luna", "openai-gpt-6.1-sol", "deepseek-flash"):
+    for folder in ("openai-gpt-6-luna", "openai-gpt-6.1-sol",
+                   "anthropic-claude-haiku-5.5", "anthropic-claude-opus-5.5",
+                   "deepseek-flash"):
         rs = sorted([r for r in data if r["folder"] == folder and r["cost"] is not None],
                     key=lambda r: 0 if r["note"] == "low" else 1)
         if len(rs) < 2:
@@ -4469,7 +4471,7 @@ DeepSeek V4.1 Flash — через родной API; reasoning effort задаё
 <h2 id=results><span class=no>4.</span>Результаты моделей</h2>
 {results_table(DATA)}{quality_price_map(results_agg(DATA))}{quality_speed_map(results_agg(DATA))}{quality_triangle_map(results_agg(DATA))}
 <h3>Уровень размышлений: low → max</h3>
-<p class=excap>У всех трёх облачных моделей есть пара прогонов low/max на прочих равных.
+<p class=excap>У всех пяти облачных моделей есть пара прогонов low/max на прочих равных.
 max поднимает до полного зачёта Luna и Sol; DeepSeek V4.1 Flash-1017 полон на обоих уровнях, но max пишет
 заметно более чистый код. Цена max — от ×3 (Luna) до ×10 (Sol) по API.</p>
 {cloud_pairs(DATA)}
