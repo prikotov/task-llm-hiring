@@ -1,0 +1,36 @@
+All done! Here's the summary of what I implemented:
+
+## Files Created
+
+| File | Purpose |
+|---|---|
+| `src/Domain/Billing/Decimal.php` | Exact decimal arithmetic (bcmath), HALF_UP rounding, string-based cost |
+| `src/Domain/Billing/EventPricingService.php` | Rate a single event against its active price with off-peak multiplier |
+| `src/Domain/Billing/OffPeakWindow.php` | Off-peak time window check (wraps around midnight) |
+| `src/Entity/Provider.php` | Provider entity (code, off-peak window) |
+| `src/Entity/Model.php` | Model entity (provider, code, prices collection) |
+| `src/Entity/Price.php` | Price row (provider, model, validFrom, units, rates) |
+| `src/Entity/UsageEvent.php` | Usage event (provider, model, tokens, ts, status) |
+| `src/Entity/UsageRating.php` | Rating record (event, effectiveFrom, cost, price) |
+| `src/Application/Import/PricesParser.php` | JSON parser with validation for providers/models/prices |
+| `src/Application/Import/UsageParser.php` | JSONL parser with validation |
+| `src/Application/Import/CatalogRepository.php` | DB helpers for providers, models, prices |
+| `src/Application/Import/PricesImportService.php` | Upsert providers/models/prices |
+| `src/Application/Import/UsageImportService.php` | Idempotent usage import, bad-line reporting |
+| `src/Application/Billing/RateService.php` | Rating, repricing, and report logic |
+| `src/Application/Billing/RepriceService.php` | Applies a price correction file, returns affected prices |
+| `src/Command/PricesImportCommand.php` | `app:prices:import` |
+| `src/Command/UsageImportCommand.php` | `app:usage:import` |
+| `src/Command/RateCommand.php` | `app:billing:rate` |
+| `src/Command/ReportCommand.php` | `app:billing:report --from --to` |
+| `src/Command/RepriceCommand.php` | `app:billing:reprice <file>` |
+| `tests/AcceptanceTest.php` | Full end-to-end acceptance test |
+| `tests/DecimalTest.php` | Decimal arithmetic unit tests |
+| `tests/OffPeakWindowTest.php` | Off-peak window unit tests |
+| `tests/ParserTest.php` | Parser unit tests |
+| `tests/BillingEngineTest.php` | Event pricing unit tests |
+| `tests/KernelTestCase.php` | Base test class |
+| `PR_DESCRIPTION.md` | PR description (Russian) |
+| `COMMIT_MESSAGE.md` | Commit message |
+
+**20 tests, 69 assertions — all passing.**

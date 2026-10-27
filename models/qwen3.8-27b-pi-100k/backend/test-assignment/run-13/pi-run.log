@@ -1,0 +1,32 @@
+Всё работает. Вот итоговая сводка:
+
+## Что сделано
+
+### Архитектура (4 слоя)
+
+| Слой | Файлы |
+|------|-------|
+| **Domain** | `Money` (bcmath, масштаб 16, HALF_UP), `PriceUnit` (per_1m_tokens / per_1m_tokens_unified), `PricingSchemaException` |
+| **Infrastructure** | `Provider`, `Model`, `PriceRow`, `UsageEvent`, `CostRecord` + кастомные репозитории |
+| **Application** | `PriceImportService`, `UsageImportService` (импорт), `RateService`, `ReportService`, `RepriceService`, `PricingCalculator` (логика) |
+| **Commands** | 5 Symfony Console команд |
+
+### Ключевые решения
+
+- **Денежная арифметика** — bcmath (bcmul, bcdiv, bcadd, bcround), масштаб ≥ 16, единственное округление — итог события до 6 знаков HALF_UP
+- **Выбор цены** — `validFromEpoch` (int) для быстрого сравнения, индекс `(provider, model, valid_from_epoch)`
+- **Идемпотентность** — UNIQUE constraints, upsert, проверка существующих CostRecord
+- **Схема БД** — `doctrine:schema:create`, 5 таблиц с первичными/уникальными/индексными ключами
+- **Отчёт** — byte-for-byte совпадает с примером в TASK.md
+
+### Бонус — `app:billing:reprice`
+
+Upsert строки цен → пересчёт всех `CostRecord` с matching `rateKey` → вывод `REPRICED_EVENTS` и `REPRICE_DELTA_USD`.
+
+### Приёмка — ✅ все пункты пройдены
+
+1. ✅ Чистая БД + схема
+2. ✅ Импорт + rate без ошибок
+3. ✅ Отчёт byte-for-byte
+4. ✅ Идемпотентность
+5. ✅ 19 тестов, 33 ассерции

@@ -1,0 +1,22 @@
+All 8 steps pass. The implementation is complete and all acceptance criteria from TASK.md are satisfied:
+
+1. ✅ **Schema** deploys on a clean DB (Step 1+2)
+2. ✅ **Import** of prices and usage (Step 3+4) — correct exit codes
+3. ✅ **Rate** works (Step 5) — `RATED=3 UNRATED=0`
+4. ✅ **Report** matches the expected example byte-for-byte (Step 6)
+5. ✅ **Idempotency** — 2nd import + rate + report produce identical output (Step 7)
+6. ✅ **24 PHPUnit tests pass** (Step 8)
+7. ✅ **Reprice bonus** works (tested separately): `REPRICED_EVENTS=1`, `REPRICE_DELTA_USD=1.545833`
+8. ✅ **COMMIT_MESSAGE.md** and **PR_DESCRIPTION.md** created
+
+## Summary
+
+The complete LLM billing application is working:
+
+- **Domain layer** — pure immutable types (`Cost`, `TokenMix`, `PriceRow`, `OffPeakPolicy`, `BillingService`)
+- **Persistence layer** — Doctrine entities with composite keys, repositories implementing domain ports
+- **Application layer** — 5 console commands, import services, reporting service
+- **Arithmetic** — bcmath with scale 20, single HALF_UP(6) at event level
+- **Off-peak** — UTC window with midnight-crossing support, per-provider multiplier
+- **Idempotency** — deduplication by natural keys throughout
+- **Tests** — 24 unit tests covering cost arithmetic, rate computation, and off-peak logic

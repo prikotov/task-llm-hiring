@@ -1,0 +1,64 @@
+parameters:
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    App\:
+        resource: '../src/'
+        exclude:
+            - '../src/Kernel.php'
+
+    # Явные бинды (конструкторная инъекция)
+    App\Command\AppPricesImportCommand:
+        arguments:
+            $service: '@App\Application\Service\PriceBookService'
+            $em: '@doctrine.orm.entity_manager'
+
+    App\Command\AppUsageImportCommand:
+        arguments:
+            $service: '@App\Application\Service\UsageImportService'
+
+    App\Command\AppBillingRateCommand:
+        arguments:
+            $service: '@App\Application\Service\RatingService'
+
+    App\Command\AppBillingReportCommand:
+        arguments:
+            $service: '@App\Application\Service\ReportService'
+
+    App\Command\AppBillingRepriceCommand:
+        arguments:
+            $service: '@App\Application\Service\RepriceService'
+            $em: '@doctrine.orm.entity_manager'
+
+    App\Application\Service\RepriceService:
+        arguments:
+            $em: '@doctrine.orm.entity_manager'
+            $priceBook: '@App\Application\Service\PriceBookService'
+            $calculator: '@App\Domain\RateCalculator'
+
+    App\Application\Service\PriceBookService:
+        arguments:
+            $em: '@doctrine.orm.entity_manager'
+
+    App\Application\Service\UsageImportService:
+        arguments:
+            $em: '@doctrine.orm.entity_manager'
+
+    App\Application\Service\RatingService:
+        arguments:
+            $em: '@doctrine.orm.entity_manager'
+            $priceBook: '@App\Application\Service\PriceBookService'
+            $calculator: '@App\Domain\RateCalculator'
+
+    App\Application\Service\ReportService:
+        arguments:
+            $em: '@doctrine.orm.entity_manager'
+
+    App\Domain\RateCalculator: ~
+    App\Domain\Money: ~
+    App\Domain\OffPeakWindow: ~
+    App\Domain\PriceSheet: ~
+    App\Domain\UsageEvent: ~

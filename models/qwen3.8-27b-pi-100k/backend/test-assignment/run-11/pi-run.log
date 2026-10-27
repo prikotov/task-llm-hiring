@@ -1,0 +1,17 @@
+Everything works. Final summary:
+
+**Done:**
+- Full acceptance flow: clean DB → schema → import prices → import usage → rate → report matches expected exactly
+- Idempotency: re-running import + rate + report produces identical results (RATED=0, no re-rating)
+- All 21 tests pass (15 unit tests in `MoneyTest`, 6 integration tests)
+- Bonus reprice command works with proper delta reporting
+- `COMMIT_MESSAGE.md` and `PR_DESCRIPTION.md` written in Russian per spec
+
+**File structure (new code):**
+- `src/Domain/` — Money, RateCalculator, OffPeakWindow, PriceSheet, UsageEvent
+- `src/Entity/` — Provider, Model, Price, UsageEvent, UsageRating
+- `src/Application/Service/` — PriceBookService, UsageImportService, RatingService, ReportService, RepriceService, PriceRetrievalService
+- `src/Application/Exception/` — BillingException
+- `src/Command/` — 5 commands (App*Command.php)
+- `tests/Domain/MoneyTest.php` — unit tests
+- `tests/Application/IntegrationTest.php` — integration tests
