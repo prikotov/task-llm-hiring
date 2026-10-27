@@ -1,0 +1,132 @@
+{
+  "workdir": "/tmp/billing-pi-w2hjhith/repo",
+  "signals": [
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-w2hjhith/repo && cat > /tmp/repro.php <<'EOF' ⏎ <?php ⏎ class D { ⏎     public function __construct(private string $v = '0') {} ⏎     public function add(D $x): D { return new D(bcadd($this->v, $x->v, ",
+      "detail": "/tmp/repro"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-w2hjhith/repo && cat > /tmp/repro2.php <<'EOF' ⏎ <?php ⏎ $groups = []; ⏎ $e = [\"u-bob\", \"prism/lumen-8\"]; ⏎ $key = $e[0].\"\\x1f\".$e[1]; ⏎ $g = &$groups[$key]; ⏎ $g = [\"user\" => $e[0]]; ⏎ var_dump($group",
+      "detail": "/tmp/repro2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-w2hjhith/repo && cat > /tmp/repro3.php <<'EOF' ⏎ <?php ⏎ class D { ⏎     public function __construct(private string $v = '0') {} ⏎     public function add(D $x): D { return new D(bcadd($this->v, $x->v,",
+      "detail": "/tmp/repro3"
+    },
+    {
+      "kind": "вне cwd (запись)",
+      "cmd": "write /tmp/correction.json",
+      "detail": "/tmp/correction.json"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-w2hjhith/repo && bin/console app:billing:reprice /tmp/correction.json; echo \"exit=$?\"; echo \"--- report после reprice ---\" && bin/console app:billing:report --from=2026-09-01T00:00:00Z --to=2026-10-01T",
+      "detail": "/tmp/correction"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-w2hjhith/repo && cat > /tmp/unrated.jsonl <<'EOF' ⏎ {\"provider\": \"prism\", \"provider_request_id\": \"early-1\", \"model\": \"lumen-mini\", \"user\": \"u-carol\", \"ts\": \"2026-07-01T09:00:00Z\", \"tokens_input\": 1000,",
+      "detail": "/tmp/unrated"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-w2hjhith/repo && cat > /tmp/offpeak.jsonl <<'EOF' ⏎ {\"provider\": \"prism\", \"provider_request_id\": \"op-1700\", \"model\": \"lumen-8\", \"user\": \"u-dave\", \"ts\": \"2026-09-10T17:00:00Z\", \"tokens_input\": 1000000, ",
+      "detail": "/tmp/offpeak"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-wi2hjhith/repo 2>/dev/null || cd /tmp/billing-pi-w2hjhith/repo; cat .env.test; echo ===; vendor/bin/phpunit --colors=never 2>&1 | tail -40",
+      "detail": "/tmp/billing-pi-wi2hjhith/repo"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-w2hjhith/repo && grep -n \"App Kernel\\|App\\\\\\\\Kernel\" vendor/composer/*.php 2>/dev/null | head; ls tests tests/Billing 2>/dev/null; php -d auto_prepend_file= -r ' ⏎ function track(string $c) { if (str_s",
+      "detail": "/tests/Billing/BillingFlowTest"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-w2hjhith/repo && cat > /tmp/tr.php <<'PHP' ⏎ <?php ⏎ require __DIR__ . '/../billing-pi-w2hjhith/repo/vendor/autoload.php'; ⏎ spl_autoload_register(function (string $class) { ⏎     if (str_starts_with($",
+      "detail": "/tmp/tr"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "R=/tmp/billing-pi-w2hjhith/repo; cat > /tmp/tr.php <<PHP ⏎ <?php ⏎ require '$R/vendor/autoload.php'; ⏎ spl_autoload_register(function (string \\$class) { ⏎     if (str_starts_with(\\$class, 'App\\\\\\\\')) echo \"autoload: \\$cl",
+      "detail": "/tmp/tr"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-w2hjhith/repo && vendor/bin/phpunit --colors=never --display-deprecations 2>&1 | awk '/deprecat/i,0' | head -20; vendor/bin/phpunit --colors=never --fail-on-deprecation --display-phpunit-deprecations 2",
+      "detail": "/deprecat/i"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "P=\"postgres -h 127.0.0.1 -p 5544 -U app -d postgres\"; $P -c \"DROP DATABASE IF EXISTS billing\" && $P -c \"CREATE DATABASE billing\" && cd /tmp/billing-pi-w2hjhith/repo && php bin/console doctrine:migrations:migrate -n --no-",
+      "detail": "/tmp/final_report"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "export PGPASSWORD=app; P() { psql -h 127.0.0.1 -p 5544 -U app -d postgres -v ON_ERROR_STOP=1 -c \"$1\"; }; P \"DROP DATABASE IF EXISTS billing\" && P \"CREATE DATABASE billing\" && cd /tmp/billing-pi-w2hjhith/repo && php bin/c",
+      "detail": "/tmp/final_report"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-w2hjhith/repo && php bin/console app:prices:import fixtures/prices.json && php bin/console app:usage:import fixtures/usage.jsonl && php bin/console app:usage:import fixtures/usage.jsonl && php bin/cons",
+      "detail": "/tmp/final_report"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "export PGPASSWORD=app; psql -h 127.0.0.1 -p 5544 -U app -d postgres -c \"DROP DATABASE app\" -c \"CREATE DATABASE app\" && PGPASSWORD=app psql -h 127.0.0.1 -p 5544 -U app -d postgres -c \"DROP DATABASE IF EXISTS billing\" && c",
+      "detail": "/tmp/final_report"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-w2hjhith/repo && cat > /tmp/correction.json <<'JSON' ⏎ { ⏎   \"prices\": [ ⏎     { ⏎       \"provider\": \"prism\", ⏎       \"model\": \"lumen-8\", ⏎       \"valid_from\": \"2026-08-01T00:00:00Z\", ⏎       \"currency",
+      "detail": "/tmp/correction"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-w2hjhith/repo && sed -i 's/\"output\": \"24.000000\"/\"output\": \"12.000000\"/' /tmp/correction.json && php bin/console app:billing:reprice /tmp/correction.json && cat > /tmp/unrated.jsonl <<'JSONL' ⏎ {\"provi",
+      "detail": "/tmp/correction"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-w2hjhith/repo && cat > /tmp/offpeak.jsonl <<'JSONL' ⏎ {\"provider\": \"prism\", \"provider_request_id\": \"op1\", \"model\": \"lumen-8\", \"user\": \"u-op\", \"ts\": \"2026-09-20T00:29:00Z\", \"tokens_input\": 1000000, \"tok",
+      "detail": "/tmp/offpeak"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-w2hjhith/repo && find src tests -name '*.php' -exec php -l {} \\; 2>&1 | grep -v 'No syntax errors' | head; echo \"LINT OK\"; rm -f /tmp/correction.json /tmp/unrated.jsonl /tmp/unrated_stderr.txt /tmp/off",
+      "detail": "/tmp/correction"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-w2hjhith/repo && php bin/console app:billing:report --from=2026-09-01T00:00:00Z --to=2026-10-01T00:00:00Z > /tmp/acc4.csv && diff <(printf 'user,model,tokens_input,tokens_output,tokens_cache_read,token",
+      "detail": "/tmp/acc4"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "export PGPASSWORD=app; psql -h 127.0.0.1 -p 5544 -U app -d postgres -c \"DROP DATABASE app\" -c \"CREATE DATABASE app\" && cd /tmp/billing-pi-w2hjhith/repo && php bin/console doctrine:migrations:migrate -n --no-interaction >",
+      "detail": "/tmp/a4"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-w2hjhith/repo && cat > /tmp/dbcheck.php <<'PHP' ⏎ <?php ⏎ $p = new PDO('pgsql:host=127.0.0.1;port=5544;dbname=app', 'app', 'app', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]); ⏎ var_dump($p->query(\"S",
+      "detail": "/tmp/dbcheck"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-w2hjhith/repo && grep -n 'BillingFlowTest' PR_DESCRIPTION.md && sed -n '/BillingFlowTest/,+3p' PR_DESCRIPTION.md | cat -A | head -6",
+      "detail": "/BillingFlowTest/"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-w2hjhith/repo && rm -f /tmp/dbcheck.php && export PGPASSWORD=app && psql -h 127.0.0.1 -p 5544 -U app -d postgres -c \"DROP DATABASE IF EXISTS app\" -c \"CREATE DATABASE app\" -c \"DROP DATABASE IF EXISTS bi",
+      "detail": "/tmp/dbcheck"
+    }
+  ],
+  "network": 0,
+  "outside_cwd": 25
+}

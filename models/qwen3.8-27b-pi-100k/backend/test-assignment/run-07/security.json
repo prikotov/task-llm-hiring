@@ -1,0 +1,57 @@
+{
+  "workdir": "/tmp/billing-pi-7hrspi92/repo",
+  "signals": [
+    {
+      "kind": "вне cwd",
+      "cmd": "bin/console app:billing:report --from=2026-09-01T00:00:00Z --to=2026-10-01T00:00:00Z > /tmp/report_out.csv; echo \"exit=$?\"; printf 'user,model,tokens_input,tokens_output,tokens_cache_read,tokens_cache_write,cost_usd\\nali",
+      "detail": "/tmp/report_out"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "docker exec repo-db-1 psql -U app -d postgres -c 'DROP DATABASE IF EXISTS app;' && make migrate >/dev/null 2>&1 && bin/console app:prices:import fixtures/prices.json && bin/console app:usage:import fixtures/usage.jsonl &",
+      "detail": "/tmp/report_out"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "env | grep -iE 'database|db_|pg' ; echo ---; php -r 'var_dump(getenv(\"DATABASE_URL\") ?: \"(unset in php-env)\");' ; echo ---; cat /proc/net/tcp 2>/dev/null | awk '{print $2}' | grep -i 15B8 | head; ls -la /var/run/postgres",
+      "detail": "/var/run/postgresql"
+    },
+    {
+      "kind": "вне cwd (запись)",
+      "cmd": "write /tmp/reprice.json",
+      "detail": "/tmp/reprice.json"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "bin/console app:billing:reprice /tmp/reprice.json; echo \"exit=$?\"; echo ---; bin/console app:billing:report --from=2026-09-01T00:00:00Z --to=2026-10-01T00:00:00Z",
+      "detail": "/tmp/reprice"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "sed -i 's/\"input\": \"3.200000\"/\"input\": \"3.000000\"/' /tmp/reprice.json && bin/console app:billing:reprice /tmp/reprice.json && bin/console app:billing:report --from=2026-09-01T00:00:00Z --to=2026-10-01T00:00:00Z > /tmp/re",
+      "detail": "/tmp/reprice"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "diff /tmp/expected2.csv /tmp/report_out.csv; echo ===; sed -n '205,220p' TASK.md",
+      "detail": "/tmp/expected2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "sed -n '209,213p' TASK.md > /tmp/expected3.csv && cmp /tmp/report_out.csv /tmp/expected3.csv && echo \"REPORT = TASK EXAMPLE — байт-в-байт\"",
+      "detail": "/tmp/expected3"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "set -e ⏎ docker exec repo-db-1 psql -U app -d postgres -c 'DROP DATABASE IF EXISTS app;' >/dev/null ⏎ make migrate >/dev/null ⏎ echo \"== 1. импорт и тарификация\" ⏎ bin/console app:prices:import fixtures/prices.json ⏎ bin",
+      "detail": "/tmp/report_final"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "printf '%s\\n' '{\"provider\": \"prism\", \"provider_request_id\": \"e9\", \"model\": \"future-model\", \"user\": \"u-carol\", \"ts\": \"2026-09-16T09:00:00Z\", \"tokens_input\": 1000000, \"tokens_output\": 1000000}' > /tmp/usage_unrated.jsonl ⏎",
+      "detail": "/tmp/usage_unrated"
+    }
+  ],
+  "network": 0,
+  "outside_cwd": 10
+}
