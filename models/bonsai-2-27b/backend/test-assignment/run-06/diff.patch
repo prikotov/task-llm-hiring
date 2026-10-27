@@ -1,0 +1,314 @@
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Decimal.php /tmp/billing-pi-9m88nyhs/repo/src/Domain/Decimal.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Decimal.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-9m88nyhs/repo/src/Domain/Decimal.php	2026-10-28 00:02:48.822326308 +0700
+@@ -0,0 +1,79 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Domain;
++
++/**
++ * Точная десятичная арифметика на bcmath — без float.
++ *
++ * WORK_SCALE = 18 — запас для всех промежуточных вычислений:
++ * цены за 1M токенов (порядок 0.1–10), токены ≤ 10^9 → сумма
++ * ≤ ~10^12; 18 знаков более чем достаточно.
++ */
++final class Decimal
++{
++    public const WORK_SCALE = 18;
++    public const REPORT_SCALE = 6;
++
++    /** Сложение. */
++    public static function add(string $a, string $b): string
++    {
++        return bcadd($a, $b, self::WORK_SCALE);
++    }
++
++    /** Вычитание. */
++    public static function sub(string $a, string $b): string
++    {
++        return bcsub($a, $b, self::WORK_SCALE);
++    }
++
++    /** Умножение. */
++    public static function mul(string $a, string $b): string
++    {
++        return bcmul($a, $b, self::WORK_SCALE);
++    }
++
++    /** Деление (a / b), b ≠ 0. */
++    public static function div(string $a, string $b): string
++    {
++        return bcdiv($a, $b, self::WORK_SCALE);
++    }
++
++    /**
++     * Округление HALF_UP: 2.5 → 3, 2.499 → 2.
++     *
++     * Умножаем на 10^scale со слишком большим масштабом (WORK_SCALE),
++     * берём целую часть (bcdiv scale=0) и остаток (bcmod scale=scale).
++     * Если остаток ≥ 0.5 — округляем вверх.
++     */
++    public static function roundHalfUp(string $value, int $scale = self::REPORT_SCALE): string
++    {
++        if ($scale < 0) {
++            $scale = 0;
++        }
++        $scalePow = (string) pow(10, $scale);
++        // Умножаем со слишком большим масштабом — сохраняем все цифры
++        $scaled = bcmul($value, $scalePow, self::WORK_SCALE);
++        // Целая часть и дробная часть
++        $intPart = (string) bcdiv($scaled, '1', 0);
++        $fracPart = bcmod($scaled, '1', $scale);
++        $half = bcdiv('1', '2', $scale);
++        if (bccomp($fracPart, $half, $scale) >= 0) {
++            return bcadd($intPart, '1', 0);
++        }
++        return $intPart;
++    }
++
++    /** Итоговая стоимость в формате отчёта: ровно 6 знаков. */
++    public static function forReport(string $value): string
++    {
++        return self::roundHalfUp($value, self::REPORT_SCALE);
++    }
++
++    /** Сравнение. */
++    public static function cmp(string $a, string $b): int
++    {
++        return bccomp($a, $b, self::WORK_SCALE);
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/OffPeakWindow.php /tmp/billing-pi-9m88nyhs/repo/src/Domain/OffPeakWindow.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/OffPeakWindow.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-9m88nyhs/repo/src/Domain/OffPeakWindow.php	2026-10-28 00:02:57.695159310 +0700
+@@ -0,0 +1,63 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Domain;
++
++/**
++ * Оф-пиковое окно провайдера: [window_start, window_end) по часам UTC.
++ * Окно может переходить через полночь (напр. 16:30–00:30).
++ */
++final class OffPeakWindow
++{
++    /** Число минут от 00:00. */
++    private int $startMin;
++    private int $endMin;
++    /** Множитель стоимости. */
++    private string $multiplier;
++
++    private function __construct(string $windowStart, string $windowEnd, string $multiplier)
++    {
++        $this->startMin = self::toMinutes($windowStart);
++        $this->endMin = self::toMinutes($windowEnd);
++        $this->multiplier = $multiplier;
++    }
++
++    public static function fromData(array $data): self
++    {
++        return new self(
++            $data['window_start'],
++            $data['window_end'],
++            $data['multiplier']
++        );
++    }
++
++    /**
++     * Проверка: попадает ли время в окно?
++     *
++     * Окно [start, end):
++     * - Если endMin > startMin: обычный интервал (e.g. 00:30–16:30)
++     * - Если endMin <= startMin: окно через полночь (e.g. 16:30–00:30)
++     */
++    public function isWithin(int $timeOfDayMinutes): bool
++    {
++        if ($this->endMin > $this->startMin) {
++            // Обычное окно: start ≤ t < end
++            return $this->startMin <= $timeOfDayMinutes && $timeOfDayMinutes < $this->endMin;
++        }
++        // Окно через полночь: t >= start OR t < end
++        return $this->startMin <= $timeOfDayMinutes || $timeOfDayMinutes < $this->endMin;
++    }
++
++    public function multiplier(): string
++    {
++        return $this->multiplier;
++    }
++
++    private static function toMinutes(string $hms): int
++    {
++        // Формат "HH:MM"
++        [$h, $m] = array_map('intval', explode(':', $hms));
++        return $h * 60 + $m;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/PriceLine.php /tmp/billing-pi-9m88nyhs/repo/src/Domain/PriceLine.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/PriceLine.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-9m88nyhs/repo/src/Domain/PriceLine.php	2026-10-28 00:03:17.077794506 +0700
+@@ -0,0 +1,96 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Domain;
++
++/**
++ * Строка истории цен: (provider, model, valid_from) — цена,
++ * действующая с момента valid_from до следующей.
++ *
++ * unit:
++ *   - per_1m_tokens: 4 вида токенов (input, output, cache_read, cache_write)
++ *   - per_1m_tokens_unified: единый rate_any
++ */
++final class PriceLine
++{
++    public string $provider;
++    public string $model;
++    public string $validFrom;
++    public string $currency;
++    public string $unit;
++
++    /** per_1m_tokens: { input, output, cache_read, cache_write } */
++    public array $rates;
++    /** per_1m_tokens_unified: { any } */
++    public array $ratesUnified;
++
++    private function __construct(
++        string $provider,
++        string $model,
++        string $validFrom,
++        string $currency,
++        string $unit,
++        array $rates
++    ) {
++        $this->provider = $provider;
++        $this->model = $model;
++        $this->validFrom = $validFrom;
++        $this->currency = $currency;
++        $this->unit = $unit;
++        $this->rates = $rates;
++        $this->ratesUnified = $rates;
++    }
++
++    public static function fromData(array $row): self
++    {
++        return new self(
++            (string) $row['provider'],
++            (string) $row['model'],
++            (string) $row['valid_from'],
++            (string) $row['currency'],
++            (string) $row['unit'],
++            $row['rates']
++        );
++    }
++
++    /**
++     * Точная стоимость события до применения оф-пика.
++     * Возвращает строку в рабочем масштабе (18 знаков).
++     */
++    public function eventCost(UsageEvent $event): string
++    {
++        $million = '1000000';
++
++        if ($this->unit === 'per_1m_tokens') {
++            $inputRate  = (string) ($this->rates['input'] ?? '0');
++            $outputRate = (string) ($this->rates['output'] ?? '0');
++            $crRate     = (string) ($this->rates['cache_read'] ?? '0');
++            $cwRate     = (string) ($this->rates['cache_write'] ?? '0');
++
++            $cost = '0';
++            if ($event->tokensInput !== 0) {
++                $cost = Decimal::add($cost, Decimal::div(Decimal::mul((string) $event->tokensInput, $inputRate), $million));
++            }
++            if ($event->tokensOutput !== 0) {
++                $cost = Decimal::add($cost, Decimal::div(Decimal::mul((string) $event->tokensOutput, $outputRate), $million));
++            }
++            if ($event->tokensCacheRead !== 0) {
++                $cost = Decimal::add($cost, Decimal::div(Decimal::mul((string) $event->tokensCacheRead, $crRate), $million));
++            }
++            if ($event->tokensCacheWrite !== 0) {
++                $cost = Decimal::add($cost, Decimal::div(Decimal::mul((string) $event->tokensCacheWrite, $cwRate), $million));
++            }
++
++            return $cost;
++        }
++
++        // per_1m_tokens_unified
++        $anyRate = (string) ($this->rates['any'] ?? '0');
++        $totalTokens = $event->tokensInput + $event->tokensOutput + $event->tokensCacheRead + $event->tokensCacheWrite;
++        if ($totalTokens === 0) {
++            return '0';
++        }
++        return Decimal::div(Decimal::mul((string) $totalTokens, $anyRate), $million);
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/UsageEvent.php /tmp/billing-pi-9m88nyhs/repo/src/Domain/UsageEvent.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/UsageEvent.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-9m88nyhs/repo/src/Domain/UsageEvent.php	2026-10-28 00:03:02.898061386 +0700
+@@ -0,0 +1,60 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Domain;
++
++/**
++ * Событие использования LLM (строка из usage.jsonl).
++ *
++ * Естественный ключ: (provider, provider_request_id) — доменное
++ * событие, которое дедуплицируется при импорте.
++ */
++final class UsageEvent
++{
++    public string $provider;
++    public string $providerRequestId;
++    public string $model;
++    public string $user;
++    /** Момент запроса (UTC), строка ISO-8601. */
++    public string $ts;
++    public int $tokensInput;
++    public int $tokensOutput;
++    public int $tokensCacheRead;
++    public int $tokensCacheWrite;
++
++    /**
++     * Итоговая стоимость события (USD). null — если событие ещё не
++     * рассчитано (unrated).
++     */
++    public ?string $cost;
++
++    /**
++     * Идентификатор строки цены, по которой тарифицировалось.
++     * null, если событие unrated.
++     */
++    public ?int $priceId;
++
++    /**
++     * Статус: 0 = unrated (не рассчитан), 1 = rated.
++     */
++    public int $status;
++
++    public static function fromRow(array $row): self
++    {
++        $event = new self();
++        $event->provider = (string) $row['provider'];
++        $event->providerRequestId = (string) $row['provider_request_id'];
++        $event->model = (string) $row['model'];
++        $event->user = (string) $row['user'];
++        $event->ts = (string) $row['ts'];
++        $event->tokensInput = (int) $row['tokens_input'];
++        $event->tokensOutput = (int) $row['tokens_output'];
++        $event->tokensCacheRead = (int) $row['tokens_cache_read'];
++        $event->tokensCacheWrite = (int) $row['tokens_cache_write'];
++        $event->cost = null;
++        $event->priceId = null;
++        $event->status = 0; // unrated
++        return $event;
++    }
++}
