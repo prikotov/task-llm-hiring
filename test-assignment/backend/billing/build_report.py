@@ -4468,12 +4468,6 @@ DeepSeek V4.1 Flash — через родной API; reasoning effort задаё
 
 <h2 id=results><span class=no>4.</span>Результаты моделей</h2>
 {results_table(DATA)}{quality_price_map(results_agg(DATA))}{quality_speed_map(results_agg(DATA))}{quality_triangle_map(results_agg(DATA))}
-<h3>Время и токены</h3>
-<p class=excap>Каждая точка — прогон: по горизонтали время, по вертикали суммарные токены,
-цвет — итог чекера. Облачные решают в 2–5 раз быстрее и на порядок экономнее: 0.3–6.1M токенов
-против 8–20M у локальных, которые проговаривают рассуждения вслух под пиком 86K.</p>
-{cost_scatter(DATA)}
-
 <h3>Уровень размышлений: low → max</h3>
 <p class=excap>У всех трёх облачных моделей есть пара прогонов low/max на прочих равных.
 max поднимает до полного зачёта Luna и Sol; DeepSeek V4.1 Flash-1017 полон на обоих уровнях, но max пишет
