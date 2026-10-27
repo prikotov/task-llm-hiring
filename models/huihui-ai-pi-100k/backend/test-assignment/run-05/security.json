@@ -1,0 +1,87 @@
+{
+  "workdir": "/tmp/billing-pi-93bx_npc/repo",
+  "signals": [
+    {
+      "kind": "вне cwd (запись)",
+      "cmd": "write /tmp/offpeak_test.jsonl",
+      "detail": "/tmp/offpeak_test.jsonl"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-93bx_npc/repo && php bin/console app:usage:import /tmp/offpeak_test.jsonl 2>&1 && php bin/console app:billing:rate 2>&1 && PGPASSWORD=app psql -h 127.0.0.1 -p 5544 -U app -d app -Atc \"select request_id",
+      "detail": "/tmp/offpeak_test"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-93bx_npc/repo && printf '%s\\n%s\\n' '{\"provider\": \"prism\", \"provider_request_id\": \"o5\", \"model\": \"lumen-8\", \"user\": \"u-alice\", \"ts\": \"2026-09-15T16:30:00Z\", \"tokens_input\": 1000000, \"tokens_output\": 100",
+      "detail": "/tmp/boundaries"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-93bx_npc/repo && printf '%s\\n' '{\"provider\": \"sfera\", \"provider_request_id\": \"nx1\", \"model\": \"gyro-mini\", \"user\": \"u-bob\", \"ts\": \"2026-09-16T03:00:00Z\", \"tokens_input\": 1000000, \"tokens_output\": 0, \"to",
+      "detail": "/tmp/unrated"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-93bx_npc/repo && cat > /tmp/late_price.json <<'EOF' ⏎ { ⏎   \"providers\": [], ⏎   \"models\": [], ⏎   \"prices\": [ ⏎     { ⏎       \"provider\": \"sfera\", ⏎       \"model\": \"gyro-mini\", ⏎       \"valid_from\": \"",
+      "detail": "/tmp/late_price"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-93bx_npc/repo && cat > /tmp/late_price.json <<'EOF' ⏎ { ⏎   \"providers\": [{ \"code\": \"sfera\", \"name\": \"Sfera Cloud\" }], ⏎   \"models\": [{ \"provider\": \"sfera\", \"code\": \"gyro-mini\" }], ⏎   \"prices\": [ ⏎   ",
+      "detail": "/tmp/late_price"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-93bx_npc/repo && cat > /tmp/correction.json <<'EOF' ⏎ { ⏎   \"providers\": [], ⏎   \"models\": [], ⏎   \"prices\": [ ⏎     { ⏎       \"provider\": \"prism\", ⏎       \"model\": \"lumen-8\", ⏎       \"valid_from\": \"20",
+      "detail": "/tmp/correction"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-93bx_npc/repo && php bin/console app:billing:reprice /tmp/correction.json 2>&1; echo \"rc=$?\"; PGPASSWORD=app psql -h 127.0.0.1 -p 5544 -U app -d app -Atc \"select request_id, cost from usage_events orde",
+      "detail": "/tmp/correction"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-93bx_npc/repo && echo '{ bad json' > /tmp/bad.json && php bin/console app:prices:import /tmp/bad.json; echo \"rc=$? (expect 1)\"; php bin/console app:prices:import /nonexistent.json; echo \"rc=$? (expect ",
+      "detail": "/tmp/bad"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-93bx_npc/repo && set -e ⏎ PGPASSWORD=app psql -h 127.0.0.1 -p 5544 -U app -d postgres -c 'drop database if exists app;' ⏎ make migrate 2>&1 | tail -3 ⏎ echo '=== [1] import + rate:' ⏎ php bin/console a",
+      "detail": "/tmp/report1"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-93bx_npc/repo && php bin/console app:billing:reprice /tmp/correction.json; echo \"rc=$?\"; PGPASSWORD=app psql -h 127.0.0.1 -p 5544 -U app -d app -Atc \"select request_id, cost from usage_events order by ",
+      "detail": "/tmp/correction"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-93bx_npc/repo && echo '--- prices import stdout:' && php bin/console app:prices:import fixtures/prices.json 2>/dev/null; echo '--- prices import stderr:' && php bin/console app:prices:import fixtures/p",
+      "detail": "/tmp/correction"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-93bx_npc/repo && cat > /tmp/correction_nosections.json <<'EOF' ⏎ { ⏎   \"prices\": [ ⏎     { ⏎       \"provider\": \"prism\", ⏎       \"model\": \"lumen-8\", ⏎       \"valid_from\": \"2026-09-15T12:00:00Z\", ⏎      ",
+      "detail": "/tmp/correction_nosections"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-93bx_npc/repo && PGPASSWORD=app psql -h 127.0.0.1 -p 5544 -U app -d postgres -c 'drop database if exists app;' >/dev/null && make migrate 2>&1 | tail -1 && echo '=== ACCEPTANCE (TASK.md §Приёмка):' && ",
+      "detail": "/tmp/acc1"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-93bx_npc/repo && perl -0pi -e 's/throw new InputException\\(sprintf\\(.*?провайдер \"\\u{0022}s\"\\u{0022} отсутствует в справочнике \\(в файле или в БД\\)', \\$label, \\$record->provider\\)\\);\\/\\/s/throw new Inp",
+      "detail": "/s/throw"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-93bx_npc/repo && PGPASSWORD=app psql -h 127.0.0.1 -p 5544 -U app -d postgres -c 'drop database if exists app;' >/dev/null && make migrate 2>&1 | tail -1 && php bin/console app:prices:import fixtures/pr",
+      "detail": "/tmp/final"
+    }
+  ],
+  "network": 0,
+  "outside_cwd": 16
+}

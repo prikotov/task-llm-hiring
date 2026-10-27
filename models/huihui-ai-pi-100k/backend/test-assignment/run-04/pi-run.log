@@ -1,0 +1,26 @@
+Готово. Итоговое состояние:
+
+**Тесты** — `make test`: **70/70 OK** (61 юнит + 9 интеграционных):
+- юнит: `MoneyMath` (bcmath, roundHalfUp6), `TimeWindow` (окна через полночь, `start==end`), `CostCalculator` (per-1M / unified, off-peak), parser каталога (ошибки, валидация форматов);
+- интеграционные (на отдельной базе `app_test`): полный приёмочный сценарий с **байт-в-байт** совпадением CSV, идемпотентность повторного импорта, unrated→rated, дедупликация по `(provider, request_id)`, off-peak (включая границы `23:00`/`01:00`), ретро-коррекция (дельта, повторный отчёт без задвоений), коды ошибок.
+
+**Приёмка на рабочей базе** проверена вручную:
+```
+bin/console app:prices:import fixtures/prices.json
+bin/console app:usage:import fixtures/usage.jsonl
+bin/console app:billing:rate            → RATED=3 UNRATED=0
+bin/console app:billing:report --from=2026-09-01T00:00:00Z --to=2026-10-01T00:00:00Z
+                                        → TOTAL ... 33.662499 (байт-в-байт)
+повторный импорт + rate + report        → результат не меняется (idempotency)
+bin/console app:billing:reprice fixtures/reprice.json
+                                        → REPRICED_EVENTS=1, REPRICE_DELTA_USD=1.200000
+```
+
+**Правки в этой финальной сессии:**
+- DTO вынесены в `App\Ingest\Defs\*` (PSR-4, по классу в файле), ссылки везде обновлены;
+- `Support.php` разбит на `FileSupport.php` / `CommandSupport.php` + совместимый вывод в stderr;
+- тестовая БД отделена (`app_test`): нашёл ловушку dotenv (`.env.test` не переопределяет `.env`), поэтому в `doctrine.yaml` — параметр `TEST_DATABASE_URL` + `when@test`; подтверждено, что тесты больше не трогают dev-БД;
+- `framework.test=true` для KernelTestCase;
+- созданы `COMMIT_MESSAGE.md` и `PR_DESCRIPTION.md` (на русском, с перечнем и обоснованием всех отступлений).
+
+Все 5 пунктов приёмки TASK.md + бонус выполнены.

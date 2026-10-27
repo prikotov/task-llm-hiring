@@ -1,0 +1,30 @@
+Готово — всё подтверждено в финальном виде. Итог:
+
+## Реализация
+
+**Команды** (все через `bin/console`, exit 0/1 по spec):
+- `app:prices:import <json>` — идемпотентный upsert (providers по `code`, models по `(provider, code)`, prices по `(provider, model, valid_from)`)
+- `app:usage:import <jsonl>` — дедуп по `(provider, provider_request_id)` через `ON CONFLICT DO NOTHING`
+- `app:billing:rate` — stdout: `RATED=<n> UNRATED=<m>`; каждый unrated — строка в stderr `UNRATED <provider>/<request_id> <ts> no_price`; при каждом запуске повторяет попытку для pending
+- `app:billing:report [--from] [--to]` — CSV в stdout, группировка `(user, model)`, сортировка, `TOTAL`-строка, только rated
+- `app:billing:reprice <json>` (бонус) — перезапись строки цены + пересчёт привязанных событий + журнал в `reprice_log`, вывод `REPRICED_EVENTS` / `REPRICE_DELTA_USD`
+
+**Ключевая корректность:**
+- Точная десятичная арифметика: bcmath с масштабом 16, float для денег нигде нет
+- Округление: ровно одно — HALF_UP до 6 знаков на итог события (`bcadd(bcmul($v, 1e6, 16), '0.5', 0)` → `bcdiv 6`)
+- Суммы отчёта — сумма уже округлённых стоимостей событий, без повторного округления
+- Обе схемы: `per_1m_tokens` (4 вида) и `per_1m_tokens_unified` (`any`)
+- Оф-пик: окно `[start, end)` UTC, корректно через полночь, множитель — ко всей стоимости события
+- Выбор цены: макс. `valid_from ≤ ts` (включительно)
+
+## Проверено
+- **Приёмка TASK.md** на `app` БД: отчёт совпадает с эталоном побайтно (14.262499 / 11.000000 / 8.400000 / TOTAL 33.662499)
+- **Идемпотентность**: 2-й прогон — `duplicates=3, RATED=0`, отчёт тот же
+- **Edge-кейсы**: границы оф-пика (16:29 peak / 16:30 и 00:15 offpeak / 00:30 peak), late-arriving prices (unrated → rated позже)
+- **Reprice**: Δ +3.6 / −3.6, events=1, журнал пишется, события после revert — в эталонном состоянии
+- **Валидация**: битый JSON/JSONL → rc=1; валидный → rc=0
+- **Тесты**: `vendor/bin/phpunit` — 10 тестов, 28 ассерций, все зелёные
+
+## Финальные документы
+- `COMMIT_MESSAGE.md` — краткое коммит-сообщение
+- `PR_DESCRIPTION.md` — что сделано, какие файлы затронуты, все допущения (включая выбор timestamptz в БД / строки UTC в ORM-ключе, `start==end` трактуется как «окно пусто», exit-коды 0/1, юнит-тесты по домену), как прогнать, добавленные зависимости (только из `composer.json` — `ext-bcmath`, `doctrine/*`, `symfony/*`)

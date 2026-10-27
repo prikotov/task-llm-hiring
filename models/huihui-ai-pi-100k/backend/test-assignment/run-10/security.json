@@ -1,0 +1,132 @@
+{
+  "workdir": "/tmp/billing-pi-citw7xxl/repo",
+  "signals": [
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-citw7xxl/repo && ls -1 /tmp/billing-pi-citw7xxl/.pi-billing-dev/ 2>/dev/null; PGPASSWORD=postgres psql -h 127.0.0.1 -p 5544 -U postgres -d app -tA -c \"SELECT count(*) AS providers FROM providers; SELEC",
+      "detail": "/tmp/billing-pi-citw7xxl/"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pitw7xxl/repo 2>/dev/null; cd /tmp/billing-pi-citw7xxl/repo && cat > /tmp/repro.php <<'PHP' ⏎ <?php ⏎ require __DIR__ . '/vendor/autoload.php'; ⏎ use App\\Kernel; ⏎ use App\\Repository\\ProviderRepository; ⏎",
+      "detail": "/tmp/billing-pitw7xxl/repo"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-citw7xxl/repo && cat > /tmp/repro.php <<'PHP' ⏎ <?php ⏎ require '/tmp/billing-pi-citw7xxl/repo/vendor/autoload.php'; ⏎ use App\\Kernel; ⏎ $kernel = new Kernel('dev', true); ⏎ $kernel->boot(); ⏎ $em = $k",
+      "detail": "/tmp/repro"
+    },
+    {
+      "kind": "вне cwd (запись)",
+      "cmd": "edit /tmp/billing-pitw7xxl/repo/src/Entity/PriceRow.php",
+      "detail": "/tmp/billing-pitw7xxl/repo/src/Entity/PriceRow.php"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pitw7xxl/repo && grep -n \"models\" src/Entity/Provider.php | head -10; echo \"---user ---\"; grep -n \"user\" src/Entity/UsageEvent.php | head -8",
+      "detail": "/tmp/billing-pitw7xxl/repo"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pitw7xxl/repo && grep -n \"user\\b\\|'user'\\|\\\"user\\\"\\|->user\" migrations/*.php",
+      "detail": "/tmp/billing-pitw7xxl/repo"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "ls -d /tmp/billing*/repo 2>&1; echo \"---\"; ls /tmp/ | grep billing",
+      "detail": "/tmp/billing"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "ls /tmp/billing-pi-citw7xxl/",
+      "detail": "/tmp/billing-pi-citw7xxl/"
+    },
+    {
+      "kind": "вне cwd (запись)",
+      "cmd": "edit /tmp/billing-pitw7xxl/repo/src/Entity/UsageEvent.php",
+      "detail": "/tmp/billing-pitw7xxl/repo/src/Entity/UsageEvent.php"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pitw7xxl/repo && grep -rn \"column:\" src/Entity/",
+      "detail": "/tmp/billing-pitw7xxl/repo"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "grep -rn \"column:\" /tmp/billing-pitw7xxl/repo/src/Entity/ ; echo \"exit=$?\"",
+      "detail": "/tmp/billing-pitw7xxl/repo/src/Entity/"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/expected_report.csv <<'CSV' ⏎ user,model,tokens_input,tokens_output,tokens_cache_read,tokens_cache_write,cost_usd ⏎ u-alice,prism/lumen-8,1200000,800000,2500000,83333,14.262499 ⏎ u-alice,sfera/gyro-pro,3000000",
+      "detail": "/tmp/expected_report"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "bin/console app:prices:import fixtures/prices.json 2>/dev/null && bin/console app:usage:import fixtures/usage.jsonl 2>/dev/null && bin/console app:billing:rate && bin/console app:billing:report --from 2026-09-01T00:00:00",
+      "detail": "/tmp/actual_report2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/unrated_test.jsonl <<'JSONL' ⏎ {\"provider\": \"prism\", \"provider_request_id\": \"e0-early\", \"model\": \"lumen-8\", \"user\": \"u-alice\", \"ts\": \"2026-07-01T10:00:00Z\", \"tokens_input\": 1000000, \"tokens_output\": 100000, \"t",
+      "detail": "/tmp/unrated_test"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "bin/console doctrine:database:drop --force --no-interaction 2>/dev/null && bin/console doctrine:database:create --no-interaction 2>/dev/null && bin/console doctrine:migrations:migrate --no-interaction 2>&1 | tail -1 && e",
+      "detail": "/tmp/unrated_test"
+    },
+    {
+      "kind": "вне cwd (запись)",
+      "cmd": "edit /tmp/billing-pitw7xxl/repo/src/Service/RateRunner.php",
+      "detail": "/tmp/billing-pitw7xxl/repo/src/Service/RateRunner.php"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "set -e ⏎ bin/console doctrine:database:drop --force --no-interaction 2>/dev/null ⏎ bin/console doctrine:database:create --no-interaction 2>/dev/null ⏎ bin/console doctrine:migrations:migrate --no-interaction 2>&1 | tail ",
+      "detail": "/tmp/actual_final"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "echo \"=== reprice #1 (2.4 -> 3.6, expect n=1 delta 4.2) ===\"; bin/console app:billing:reprice fixtures/reprice_correction.json; echo \"exit=$?\" ⏎ echo \"=== reprice #2 (idempotent, expect n=1 delta 0) ===\"; bin/console app",
+      "detail": "/tmp/bad_correction"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "echo \"=== unknown model correction (expect exit 1 + clean msg) ===\"; bin/console app:billing:reprice /tmp/bad_correction.json 2>&1 | tail -3; echo \"exit=${PIPESTATUS[0]}\" ⏎ echo \"=== unknown provider correction (expect e",
+      "detail": "/tmp/bad_correction"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd src 2>/dev/null; cd .. ⏎ mk() { printf '%s' \"$2\" > \"/tmp/billing-pi-citw7xxl/repo/$1\"; } ⏎ # bad JSON (trailing garbage) ⏎ printf '{ \"providers\": [ { \"code\": \"x\" }, \"notclosed' > /tmp/bad.json ⏎ # bad JSONL (malformed",
+      "detail": "/tmp/bad"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/offpeak_test.jsonl <<'J' ⏎ {\"provider\":\"prism\",\"provider_request_id\":\"op-1\",\"model\":\"lumen-8\",\"user\":\"u-x\",\"ts\":\"2026-08-10T17:00:00Z\",\"tokens_input\":1200000,\"tokens_output\":800000,\"tokens_cache_read\":2500000,",
+      "detail": "/tmp/offpeak_test"
+    },
+    {
+      "kind": "вне cwd (запись)",
+      "cmd": "write /tmp/billing-pitw7xxl/repo/PR_DESCRIPTION.md",
+      "detail": "/tmp/billing-pitw7xxl/repo/PR_DESCRIPTION.md"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "pwd; echo \"---\"; echo \"== root repo deliverables ==\"; ls -la COMMIT_MESSAGE.md PR_DESCRIPTION.md 2>&1; echo \"== did I also write into a typo dir? ==\"; ls /tmp/billing-pitw7xxl/repo/ 2>&1 | head",
+      "detail": "/tmp/billing-pitw7xxl/repo/"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "echo \"== typo dir contents ==\"; ls -la /tmp/billing-pitw7xxl/repo/ 2>&1 ⏎ # Move the file into the correct repo ⏎ mv /tmp/billing-pitw7xxl/repo/PR_DESCRIPTION.md /tmp/billing-pi-citw7xxl/repo/PR_DESCRIPTION.md ⏎ # Remove",
+      "detail": "/tmp/billing-pitw7xxl/repo/"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "echo \"=== CURRENT REPORT (should match TASK.md эталон) ===\"; bin/console app:billing:report 2>/dev/null ⏎ echo \"=== vs эталон ===\"; bin/console app:billing:report 2>/dev/null | diff /tmp/expected_report.csv - && echo \"MA",
+      "detail": "/tmp/expected_report"
+    }
+  ],
+  "network": 0,
+  "outside_cwd": 25
+}
