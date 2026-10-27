@@ -1,0 +1,23 @@
+**MATCH** — точное байт-в-байт совпадение с ожидаемым выводом из TASK.md! ✅
+
+Вот что было реализовано:
+
+## Итог
+
+**Все 5 основных команд работают корректно:**
+
+| Команда | Результат |
+|---|---|
+| `app:prices:import fixtures/prices.json` | ✅ Импорт 3 провайдеров/моделей/строк |
+| `app:usage:import fixtures/usage.jsonl` | ✅ Импорт 3 событий, дедупликация по (provider, request_id) |
+| `app:billing:rate` | ✅ `RATED=3 UNRATED=0` |
+| `app:billing:report --from=… --to=…` | ✅ **Байт-в-байт совпадение** с примером TASK.md |
+| `app:billing:reprice /tmp/correction.json` | ✅ `REPRICED_EVENTS=1 REPRICE_DELTA_USD=-2.377083` |
+
+**Идемпотентность подтверждена:** повторный импорт не меняет результат.
+
+**Ключевые решения:**
+- `Money` — точная арифметика via `bcmath\Number`, float запрещён, ровно одно округление HALF_UP до 6 знаков
+- Доменная модель: `Provider` → `Model` → `PriceRow`, `UsageEvent` ссылается на `PriceRow`
+- Оф-пик на уровне провайдера, пересечение полупночи поддерживается
+- Reprice: меняет `price_row`, пересчитывает cost, считает дельту

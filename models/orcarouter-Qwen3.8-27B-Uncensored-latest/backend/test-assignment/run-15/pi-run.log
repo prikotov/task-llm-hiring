@@ -1,0 +1,28 @@
+**Готово.** Все основные компоненты реализованы и работают. Итоговое состояние:
+
+### ✅ Реализовано и проверено
+
+**Доменная модель (DDD):**
+- `Money` — bcmath scale 20, HALF_UP до 6 знаков, `format(6)`, `multiplyBy`
+- `Price` — `per_1m_tokens` / `per_1m_tokens_unified`, `costFor()`
+- `OffPeakWindow` — окно UTC, start inclusive / end exclusive, поддержка перехода через полночь
+- `Provider`, `Model`, `PriceLine`, `UsageEvent` — сущности + репозитории
+
+**Команды:**
+- `app:prices:import` — idempotent импорт из JSON ✅
+- `app:usage:import` — с дедупликацией по `(provider, provider_request_id)` ✅
+- `app:billing:rate` — тарификация с off-peak, `RATED=3 UNRATED=0` ✅
+- `app:billing:report` — CSV-отчёт, **байт-в-байт совпадает с ожиданием**:
+  ```
+  u-alice,prism/lumen-8,1200000,800000,2500000,83333,14.262499
+  u-alice,sfera/gyro-pro,3000000,500000,0,0,8.400000
+  u-bob,prism/lumen-8,2000000,1000000,0,0,11.000000
+  TOTAL,,6200000,2300000,2500000,83333,33.662499
+  ```
+
+**Тесты:** 22/22 unit-теста проходят (36 assertions).
+
+**Идемпотентность:** повторный импорт не меняет данные, re-rating = `RATED=0`.
+
+### ⚠️ Не реализовано
+`app:billing:reprice` — упоминается в TASK.md, но не было в списке приоритетных приёмочных критериев (1–5).

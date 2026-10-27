@@ -1,0 +1,21 @@
+All monetary calculations are correct. Let me also check the `BillingReportCommand` to ensure it handles the `parseDate` return type correctly — it returns `?DateTimeImmutable` but the caller checks `if ($from === null) return Command::FAILURE`, but this is the success case for "no `--from` option". That's correct behavior.
+
+However, there's an edge case: the `parseDate` method returns `null` for both:
+1. `$raw === null` (no option) ← this is the "no filter" case
+2. Invalid format (parse error)
+
+These two cases are conflated! If `--from` is provided but invalid, we should exit 1, not treat it as "no filter". Let me fix the `parseDate` method:
+
+Actually, looking at it again: the method signature is `?DateTimeImmutable` and returns `null` for both "not provided" and "invalid". But we only call it with the option value, so if the option isn't provided, `$raw` is `null`, and if it IS provided but invalid, the catch block writes to stderr and returns... `null` as well.
+
+The calling code:
+```php
+$from = $this->parseDate($input->getOption('from'), 'from', $stderr);
+if ($from === null) return Command::FAILURE;
+```
+
+This will return FAILURE for both "not provided" AND "invalid". That's wrong — "not provided" should proceed with no filter. Let me fix this:
+
+</parameter>
+</invoke>
+</parameter>

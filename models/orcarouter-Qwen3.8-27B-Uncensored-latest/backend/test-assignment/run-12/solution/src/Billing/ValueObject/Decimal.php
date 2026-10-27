@@ -1,0 +1,494 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Billing\ValueObject;
+
+use InvalidArgumentException;
+use Stringable;
+
+/**
+ * Immutable decimal number backed by decimal digit strings (float is never used).
+ *
+ * All arithmetic is exact; rounding is applied explicitly via {@see round()}
+ * (or {@see div()}, which rounds the result to the requested scale).
+ * Default rounding mode is HALF_UP (2.5 → 3), as required for money.
+ */
+final class Decimal implements Stringable
+{
+    public const ROUND_HALF_UP = 'half_up';
+    public const ROUND_HALF_EVEN = 'half_even';
+    public const ROUND_HALF_DOWN = 'half_down';
+    public const ROUND_DOWN = 'down';
+    public const ROUND_UP = 'up';
+
+    /** 1 or -1 (zero → 1). */
+    private readonly int $sign;
+
+    /** Unsigned integer-part digits, no leading zero, '' for zero. */
+    private readonly string $intPart;
+
+    /** Unsigned fraction digits, no trailing zero, '' if none. */
+    private readonly string $fracPart;
+
+    private function __construct(int $sign, string $intPart, string $fracPart)
+    {
+        $this->sign = $sign;
+        $this->intPart = $intPart;
+        $this->fracPart = $fracPart;
+    }
+
+    public static function zero(): self
+    {
+        return new self(1, '', '');
+    }
+
+    public static function one(): self
+    {
+        return new self(1, '1', '');
+    }
+
+    /** @param string|int $value canonical decimal text, e.g. "3.750000" */
+    public static function fromString(string|int $value): self
+    {
+        $text = is_int($value) ? (string) $value : trim((string) $value);
+        if ('' === $text || 1 !== preg_match('/^[+-]?(?:\d+|\.\d+|\d+\.\d*)$/', $text)) {
+            throw new InvalidArgumentException(sprintf('Cannot parse decimal from "%s".', (string) $value));
+        }
+
+        $sign = str_starts_with($text, '-') ? -1 : 1;
+        $body = preg_replace('/^[+-]/', '', $text) ?? $text;
+        [$int, $frac] = array_pad(explode('.', $body, 2), 2, '');
+
+        return self::make($sign, ltrim($int, '0'), rtrim($frac, '0'));
+    }
+
+    private static function make(int $sign, string $intPart, string $fracPart): self
+    {
+        if ('' === $intPart && '' === $fracPart) {
+            return self::zero();
+        }
+
+        return new self($sign, $intPart, $fracPart);
+    }
+
+    private function withSign(int $sign): self
+    {
+        if ($this->isZero()) {
+            return self::zero();
+        }
+
+        return new self($sign, $this->intPart, $this->fracPart);
+    }
+
+    public function toString(): string
+    {
+        if ($this->isZero()) {
+            return '0';
+        }
+        $prefix = $this->sign < 0 ? '-' : '';
+        if ('' === $this->fracPart) {
+            return $prefix.$this->intPart;
+        }
+        if ('' === $this->intPart) {
+            return $prefix.'0.';
+        }
+
+        return $prefix.$this->intPart.'.'.$this->fracPart;
+    }
+
+    public function __toString(): string
+    {
+        return $this->toString();
+    }
+
+    public function isZero(): bool
+    {
+        return '' === $this->intPart && '' === $this->fracPart;
+    }
+
+    public function isNegative(): bool
+    {
+        return !$this->isZero() && $this->sign < 0;
+    }
+
+    public function negate(): self
+    {
+        return $this->withSign(-$this->sign);
+    }
+
+    public function abs(): self
+    {
+        return $this->withSign(1);
+    }
+
+    public function compare(self $other): int
+    {
+        $cmp = self::magCompare($this->magnitude(), $other->magnitude());
+        if (0 !== $cmp) {
+            $cmp *= $this->isNegative() === $other->isNegative() ? 1 : -1;
+        }
+
+        return $cmp;
+    }
+
+    public function equals(self $other): bool
+    {
+        return 0 === $this->compare($other);
+    }
+
+    public function greaterThan(self $other): bool
+    {
+        return $this->compare($other) > 0;
+    }
+
+    public function lessThan(self $other): bool
+    {
+        return $this->compare($other) < 0;
+    }
+
+    public function add(self $other): self
+    {
+        if ($this->isZero()) {
+            return $other;
+        }
+        if ($other->isZero()) {
+            return $this;
+        }
+
+        $scale = max(strlen($this->fracPart), strlen($other->fracPart));
+        $a = $this->shift($scale);
+        $b = $other->shift($scale);
+
+        if ($this->isNegative() === $other->isNegative()) {
+            return self::fromShifted($this->sign, self::addPlain($a, $b), $scale);
+        }
+
+        $cmp = self::magCompare($a, $b);
+        if (0 === $cmp) {
+            return self::zero();
+        }
+
+        return $cmp > 0
+            ? self::fromShifted($this->sign, self::subPlain($a, $b), $scale)
+            : self::fromShifted($other->sign, self::subPlain($b, $a), $scale);
+    }
+
+    public function sub(self $other): self
+    {
+        return $this->add($other->negate());
+    }
+
+    public function mul(self $other): self
+    {
+        if ($this->isZero() || $other->isZero()) {
+            return self::zero();
+        }
+
+        $scale = strlen($this->fracPart) + strlen($other->fracPart);
+        $product = rtrim(self::mulPlain($this->magnitude(), $other->magnitude()), '0');
+        if ('' === $product) {
+            $product = '0';
+        }
+
+        // Trailing product zeros align with dropped scale digits (canonical form).
+        while ($scale > 0 && str_ends_with($product, '0')) {
+            $product = substr($product, 0, -1);
+            --$scale;
+        }
+
+        return self::fromShifted($this->sign * $other->sign < 0 ? -1 : 1, $product, $scale);
+    }
+
+    /** Exact division then rounding to at most $scale fraction digits. */
+    public function div(self $other, int $scale = 20, string $mode = self::ROUND_HALF_UP): self
+    {
+        if ($scale < 0) {
+            throw new InvalidArgumentException('Scale must be >= 0.');
+        }
+        if ($other->isZero()) {
+            throw new DivisionByZeroError('Division by zero.');
+        }
+        if ($this->isZero()) {
+            return self::zero();
+        }
+
+        $sign = $this->sign * $other->sign < 0 ? -1 : 1;
+
+        // Give the quotient ($scale + 1) fraction digits; the last digit is the
+        // rounding guard, the true remainder lies beyond it.
+        $num = $this->magnitude().str_repeat('0', strlen($other->fracPart) + $scale + 1);
+        $den = $other->magnitude();
+
+        [$quotient, $remainder] = self::longDivide($num, $den);
+        $quotient = self::padLeftZeros($quotient, $scale + 1);
+
+        $fracCut = max(0, strlen($quotient) - ($scale + 1));
+        $intPart = substr($quotient, 0, $fracCut);
+        $keep = substr($quotient, $fracCut, $scale);
+        $guard = $quotient[strlen($quotient) - 1];
+
+        // Tail past the guard digit: is 2*remainder >= den (= "half or more")?
+        $tailCmp = self::magCompare(self::mulPlain($remainder, '2'), $den);
+
+        return self::make($sign, ltrim($intPart, '0'), self::applyRounding($keep, $guard, $tailCmp, $mode));
+    }
+
+    /** Round this value to at most $scale fraction digits. */
+    public function round(int $scale, string $mode = self::ROUND_HALF_UP): self
+    {
+        if ($scale < 0) {
+            throw new InvalidArgumentException('Scale must be >= 0.');
+        }
+        if ($this->isZero()) {
+            return self::zero();
+        }
+        if (strlen($this->fracPart) <= $scale) {
+            return $this; // already within the requested precision
+        }
+
+        $keep = substr($this->fracPart, 0, $scale);
+        $tail = substr($this->fracPart, $scale); // 1 or more digits
+        $guard = $tail[0];
+        $rest = substr($tail, 1);
+        $tailCmp = $guard > '5' ? 1 : ($guard < '5' ? -1 : (self::isZeroDigits($rest) ? 0 : 1));
+
+        return self::make($this->sign, $this->intPart, self::applyRounding($keep, $guard, $tailCmp, $mode));
+    }
+
+    // --------------------------------------------------------------- internals
+
+    private function magnitude(): string
+    {
+        $plain = ltrim($this->intPart.$this->fracPart, '0');
+
+        return $plain !== '' ? $plain : '0';
+    }
+
+    /** Digits of magnitude * 10^$scale. */
+    private function shift(int $scale): string
+    {
+        $fracPart = str_pad($this->fracPart, $scale, '0', STR_PAD_RIGHT);
+        $plain = ltrim($this->intPart.$fracPart, '0');
+
+        return $plain !== '' ? $plain : '0';
+    }
+
+    private static function fromShifted(int $sign, string $digits, int $scale): self
+    {
+        $digits = ltrim($digits, '0');
+        if ('' === $digits) {
+            return self::zero();
+        }
+
+        if ($scale <= 0) {
+            return new self($sign, $digits, '');
+        }
+
+        $intPart = strlen($digits) > $scale ? substr($digits, 0, strlen($digits) - $scale) : '';
+        $fracPart = substr($digits, max(0, strlen($digits) - $scale));
+
+        return self::make($sign, ltrim($intPart, '0'), rtrim($fracPart, '0'));
+    }
+
+    private static function isZeroDigits(string $digits): bool
+    {
+        return '' === $digits || 1 === preg_match('/^0+$/', $digits);
+    }
+
+    private static function padLeftZeros(string $s, int $length): string
+    {
+        return strlen($s) >= $length ? $s : str_repeat('0', $length - strlen($s)).$s;
+    }
+
+    /**
+     * Returns the (possibly incremented, possibly empty) kept fraction digits.
+     *
+     * @param string $keep     kept fraction digits (may be "")
+     * @param string $guard    digit directly past the boundary
+     * @param int    $tailCmp  -1 tail is < half, 0 == half, 1 > half
+     */
+    private static function applyRounding(string $keep, string $guard, int $tailCmp, string $mode): string
+    {
+        $increment = match ($mode) {
+            self::ROUND_HALF_UP => $guard >= '5',
+            self::ROUND_HALF_EVEN => self::halfEven($guard, $keep),
+            self::ROUND_HALF_DOWN => $guard > '5' || ($guard === '5' && 1 === $tailCmp),
+            self::ROUND_DOWN => false,
+            self::ROUND_UP => $guard !== '0' || 0 !== $tailCmp,
+            default => throw new InvalidArgumentException(sprintf('Unknown rounding mode "%s".', $mode)),
+        };
+
+        if (!$increment) {
+            return $keep;
+        }
+
+        $result = '';
+        $carry = 1;
+        for ($i = strlen($keep) - 1; $i >= 0 && $carry > 0; --$i) {
+            $d = ($keep[$i] - '0') + $carry;
+            $carry = intdiv($d, 10);
+            $result .= (string) ($d % 10);
+        }
+        if ($carry > 0) {
+            $result .= '1';
+        }
+        if ('' === $result) {
+            $result = '1';
+        }
+
+        return ltrim($result, '0');
+    }
+
+    private static function halfEven(string $guard, string $keep): bool
+    {
+        if ($guard > '5') {
+            return true;
+        }
+        if ($guard < '5') {
+            return false;
+        }
+
+        // Exactly half: round to the even neighbour.
+        $last = '' === $keep ? '0' : $keep[strlen($keep) - 1];
+
+        return in_array($last, ['1', '3', '5', '7', '9'], true);
+    }
+
+    private static function magCompare(string $a, string $b): int
+    {
+        $a = ltrim($a, '0');
+        $b = ltrim($b, '0');
+        if ('' === $a && '' === $b) {
+            return 0;
+        }
+        if ('' === $a) {
+            return -1;
+        }
+        if ('' === $b) {
+            return 1;
+        }
+        if (strlen($a) !== strlen($b)) {
+            return strlen($a) > strlen($b) ? 1 : -1;
+        }
+
+        return $a === $b ? 0 : ($a > $b ? 1 : -1);
+    }
+
+    private static function addPlain(string $a, string $b): string
+    {
+        $a = ltrim($a, '0');
+        $b = ltrim($b, '0');
+        if ('' === $a || '' === $b) {
+            return '0';
+        }
+
+        $result = '0';
+        $carry = 0;
+        for ($i = 0, $len = max(strlen($a), strlen($b)); $i < $len; ++$i) {
+            $x = $i < strlen($a) ? $a[$i] - '0' : 0;
+            $y = $i < strlen($b) ? $b[$i] - '0' : 0;
+            $s = $x + $y + $carry;
+            $carry = intdiv($s, 10);
+            $result .= (string) ($s % 10);
+        }
+        if ($carry > 0) {
+            $result .= (string) $carry;
+        }
+
+        return ltrim($result, '0') ?: '0';
+    }
+
+    /** Requires a >= b. */
+    private static function subPlain(string $a, string $b): string
+    {
+        $a = ltrim($a, '0') ?: '0';
+        $b = ltrim($b, '0') ?: '0';
+        if ('0' === $b && $a === $b) {
+            return '0';
+        }
+
+        $result = '0';
+        $borrow = 0;
+        for ($i = 0; $i < strlen($a); ++$i) {
+            $x = $a[$i] - '0';
+            $y = $i < strlen($b) ? $b[$i] - '0' : 0;
+            $d = $x - $y - $borrow;
+            $borrow = $d < 0 ? 1 : 0;
+            if ($d < 0) {
+                $d += 10;
+            }
+            $result .= (string) $d;
+        }
+
+        return ltrim($result, '0') ?: '0';
+    }
+
+    private static function mulPlain(string $a, string $b): string
+    {
+        $a = ltrim($a, '0');
+        $b = ltrim($b, '0');
+        if ('' === $a || '' === $b) {
+            return '0';
+        }
+
+        $a = strrev($a);
+        $b = strrev($b);
+        $digits = array_fill(0, strlen($a) + strlen($b), 0);
+
+        for ($i = 0; $i < strlen($a); ++$i) {
+            $ai = $a[$i] - '0';
+            if (0 === $ai) {
+                continue;
+            }
+            for ($j = 0; $j < strlen($b); ++$j) {
+                $digits[$i + $j] += $ai * ($b[$j] - '0');
+            }
+        }
+
+        for ($i = 1; $i < count($digits); ++$i) {
+            if ($digits[$i] >= 10) {
+                $digits[$i - 1] += intdiv($digits[$i], 10);
+                $digits[$i] %= 10;
+            }
+        }
+
+        $out = '';
+        for ($i = count($digits) - 1; $i >= 0; --$i) {
+            $out .= (string) $digits[$i];
+        }
+
+        return ltrim($out, '0') ?: '0';
+    }
+
+    /**
+     * @return array{0: string, 1: string} [quotient, remainder]
+     */
+    private static function longDivide(string $dividend, string $divisor): array
+    {
+        $dividend = ltrim($dividend, '0') ?: '0';
+        $divisor = ltrim($divisor, '0') ?: '0';
+        if ('0' === $divisor) {
+            throw new DivisionByZeroError('Division by zero.');
+        }
+        if (self::magCompare($dividend, $divisor) < 0) {
+            return ['0', '0' === $dividend ? '0' : $dividend];
+        }
+
+        $quotient = '';
+        $remainder = '0';
+        foreach (str_split($dividend) as $digit) {
+            $remainder = '0' === $remainder ? $digit : $remainder.$digit;
+            $remainder = ltrim($remainder, '0') ?: '0';
+
+            $q = 0;
+            while (self::magCompare($remainder, $divisor) >= 0) {
+                $remainder = self::subPlain($remainder, $divisor);
+                ++$q;
+            }
+            $quotient .= (string) $q;
+        }
+
+        return [ltrim($quotient, '0') ?: '0', $remainder];
+    }
+}

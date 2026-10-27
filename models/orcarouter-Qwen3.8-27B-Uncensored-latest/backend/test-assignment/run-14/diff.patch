@@ -1,0 +1,946 @@
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/migrations/Version20261027184500_InitialSchema.php /tmp/billing-pi-ocui5683/repo/migrations/Version20261027184500_InitialSchema.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/migrations/Version20261027184500_InitialSchema.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-ocui5683/repo/migrations/Version20261027184500_InitialSchema.php	2026-10-27 18:58:41.302929403 +0700
+@@ -0,0 +1,80 @@
++<?php
++
++declare(strict_types=1);
++
++namespace DoctrineMigrations;
++
++use Doctrine\DBAL\Schema\Schema;
++use Doctrine\Migrations\AbstractMigration;
++
++/**
++ * Базовая схема БД: провайдеры, модели, строки цен, события использования.
++ */
++final class Version20261027184500_InitialSchema extends AbstractMigration
++{
++    public function up(Schema $schema): void
++    {
++        $providers = $schema->createTable('billing_providers');
++        $providers->addColumn('code', 'string', ['length' => 64]);
++        $providers->addColumn('name', 'string', ['length' => 255]);
++        $providers->addColumn('off_peak_start_min', 'integer', ['unsigned' => true, 'notnull' => false]);
++        $providers->addColumn('off_peak_end_min', 'integer', ['unsigned' => true, 'notnull' => false]);
++        $providers->addColumn('off_peak_multiplier', 'string', ['length' => 32, 'notnull' => false]);
++        $providers->setPrimaryKey(['code']);
++
++        $models = $schema->createTable('billing_models');
++        $models->addColumn('provider', 'string', ['length' => 64]);
++        $models->addColumn('code', 'string', ['length' => 128]);
++        $models->setPrimaryKey(['provider', 'code']);
++
++        $prices = $schema->createTable('billing_price_rows');
++        $prices->addColumn('id', 'integer', ['autoincrement' => true]);
++        $prices->addColumn('provider', 'string', ['length' => 64]);
++        $prices->addColumn('model', 'string', ['length' => 128]);
++        $prices->addColumn('valid_from', 'datetime_immutable');
++        $prices->addColumn('currency', 'string', ['length' => 8]);
++        $prices->addColumn('unit', 'string', ['length' => 32]);
++        $prices->addColumn('rates_json', 'string', ['length' => 2048]);
++        $prices->addUniqueIndex(['provider', 'model', 'valid_from'], 'uq_price_rows');
++        $prices->setPrimaryKey(['id']);
++
++        $events = $schema->createTable('billing_usage_events');
++        $events->addColumn('id', 'integer', ['autoincrement' => true]);
++        $events->addColumn('provider', 'string', ['length' => 64]);
++        $events->addColumn('provider_request_id', 'string', ['length' => 128]);
++        $events->addColumn('user_name', 'string', ['length' => 255]);
++        $events->addColumn('ts_utc', 'datetime_immutable');
++        $events->addColumn('model_code', 'string', ['length' => 128]);
++        $events->addColumn('tokens_input', 'bigint');
++        $events->addColumn('tokens_output', 'bigint');
++        $events->addColumn('tokens_cache_read', 'bigint');
++        $events->addColumn('tokens_cache_write', 'bigint');
++        $events->addColumn('rating_state', 'string', ['length' => 8]);
++        $events->addColumn('exact_cost', 'string', ['length' => 64, 'notnull' => false]);
++        $events->addColumn('currency', 'string', ['length' => 8, 'notnull' => false]);
++        $events->addColumn('off_peak_applied', 'boolean', ['default' => false]);
++        $events->addColumn('created_at', 'datetime_immutable');
++        $events->addColumn('updated_at', 'datetime_immutable');
++        $events->addUniqueIndex(['provider', 'provider_request_id'], 'uq_usage_events');
++        $events->addIndex(['rating_state'], 'idx_usage_state');
++        $events->addIndex(['ts_utc'], 'idx_usage_ts');
++        $events->setPrimaryKey(['id']);
++
++        $reprice = $schema->createTable('billing_reprice_runs');
++        $reprice->addColumn('id', 'integer', ['autoincrement' => true]);
++        $reprice->addColumn('price_row_ids_json', 'string', ['length' => 4096]);
++        $reprice->addColumn('events_count', 'integer', ['unsigned' => true]);
++        $reprice->addColumn('delta_usd', 'string', ['length' => 64]);
++        $reprice->addColumn('created_at', 'datetime_immutable');
++        $reprice->setPrimaryKey(['id']);
++    }
++
++    public function down(Schema $schema): void
++    {
++        $schema->dropTable('billing_reprice_runs');
++        $schema->dropTable('billing_usage_events');
++        $schema->dropTable('billing_price_rows');
++        $schema->dropTable('billing_models');
++        $schema->dropTable('billing_providers');
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Application/Report/Report.php /tmp/billing-pi-ocui5683/repo/src/Application/Report/Report.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Application/Report/Report.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-ocui5683/repo/src/Application/Report/Report.php	2026-10-27 18:54:24.808519891 +0700
+@@ -0,0 +1,100 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Application\Report;
++
++use App\Shared\Money\Dec;
++
++/**
++ * Report generation on top of rated usage events (TASK rule 6):
++ * per-user × per-model totals, then the "all / all" row, then the
++ * all-users cost-share percentages (HALF_UP to 6 dp).
++ */
++final class Report
++{
++    /**
++     * @param list<array<string, mixed>> $rows rated events, ts in [fromIso, toIso)
++     * @return array{
++     *     rows: array<int, array{user: string, model: string, costUsd: string, exactCostUsd: string, costSharePct: string}>,
++     *     totals: array{costUsd: string, exactCostUsd: string},
++     * }
++     */
++    public static function build(array $rows, ?string $fromIso = null, ?string $toIso = null): array
++    {
++        // group by (user, model)
++        $cells = [];
++        $byUser = [];
++        $totalExact = '0';
++        $totalMoney = '0';
++
++        foreach ($rows as $r) {
++            $user = (string) $r['user'];
++            $model = (string) $r['model'];
++            $exact = (string) $r['exact'];
++            $money = (string) $r['cost'];
++
++            $key = $user . "\x1f" . $model;
++            if (!isset($cells[$key])) {
++                $cells[$key] = ['user' => $user, 'model' => $model, 'exact' => '0', 'money' => '0'];
++            }
++            $cells[$key]['exact'] = bcadd($cells[$key]['exact'], $exact, Dec::SCALE);
++            $cells[$key]['money'] = bcadd($cells[$key]['money'], $money, Dec::SCALE);
++
++            $byUser[$user] = bcadd((string) ($byUser[$user] ?? '0'), $money, Dec::SCALE);
++
++            $totalExact = bcadd($totalExact, $exact, Dec::SCALE);
++            $totalMoney = bcadd($totalMoney, $money, Dec::SCALE);
++        }
++
++        $totalMoneyMoney = Dec::money($totalMoney);
++
++        $out = [];
++        foreach ($cells as $cell) {
++            $out[] = [
++                'user' => $cell['user'],
++                'model' => $cell['model'],
++                'exactCostUsd' => Dec::exact($cell['exact']),
++                'costUsd' => Dec::money($cell['money']),
++                'costSharePct' => self::share($cell['money'], $totalMoney, $totalMoneyMoney),
++            ];
++        }
++        // stable order: user, then model
++        usort($out, static fn (array $a, array $b): int => $a['user'] <=> $b['user'] ?: $a['model'] <=> $b['model']);
++        // append totals row
++        $out[] = [
++            'user' => 'all',
++            'model' => 'all',
++            'exactCostUsd' => Dec::exact($totalExact),
++            'costUsd' => $totalMoneyMoney,
++            'costSharePct' => '1.000000',
++        ];
++
++        return [
++            'rows' => $out,
++            'totals' => [
++                'costUsd' => $totalMoneyMoney,
++                'exactCostUsd' => Dec::exact($totalExact),
++            ],
++        ];
++    }
++
++    /**
++     * Share of a user in total cost, as a string:
++     * pct = user / total * 100, HALF_UP to 6 decimals.
++     *
++     * @param string $userExact plain decimal
++     * @param string $totalExact plain decimal
++     * @param string $totalMoney the rounded total (used only for the zero guard)
++     */
++    public static function share(string $userExact, string $totalExact, string $totalMoney = '0'): string
++    {
++        if (bccomp($totalExact, '0', Dec::SCALE) === 0 && $totalMoney === '0.000000') {
++            return '0.000000';
++        }
++        // user / total * 100 at SCALE, then round
++        $pct = bcdiv($userExact, $totalExact, Dec::SCALE);
++        $pct = bcmul($pct, '100', Dec::SCALE);
++        return Dec::money($pct);
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Tariff/PriceRow.php /tmp/billing-pi-ocui5683/repo/src/Domain/Tariff/PriceRow.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Tariff/PriceRow.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-ocui5683/repo/src/Domain/Tariff/PriceRow.php	2026-10-27 18:54:49.461042131 +0700
+@@ -0,0 +1,102 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Domain\Tariff;
++
++/**
++ * A single valid price row of the provider price book.
++ *
++ * Billing unit ("unit") determines the shape of "rates":
++ *   - "per_1m_tokens"          keys: input, output, cache_read, cache_write
++ *   - "per_1m_tokens_unified"  key:  any
++ */
++final class PriceRow
++{
++    private function __construct(
++        public readonly int|string $id, // DB row id (int after persistence) or '' before
++        public readonly string $provider,
++        public readonly string $model,
++        /** ISO-8601 UTC with "+00:00" suffix; lexicographically comparable. */
++        public readonly string $validFrom,
++        public readonly string $currency,
++        public readonly string $unit,
++        /** @var array<string, string> rate kind => rate (plain decimal per 1M tokens) */
++        public readonly array $rates,
++    ) {
++    }
++
++    /**
++     * @param array{
++     *   ?id: int|string,
++     *   provider: string, model: string, validFrom: string,
++     *   currency: string, unit: string,
++     *   rates: array<string, string>,
++     * } $data
++     */
++    public static function fromArray(array $data): self
++    {
++        $unit = (string) ($data['unit'] ?? '');
++        $rates = $data['rates'] ?? [];
++
++        if ($unit === 'per_1m_tokens') {
++            foreach (['input', 'output', 'cache_read', 'cache_write'] as $kind) {
++                if (!isset($rates[$kind]) || !is_string($rates[$kind]) || $rates[$kind] === '') {
++                    throw new \ValueError(sprintf('Price row misses rate "%s" (unit per_1m_tokens).', $kind));
++                }
++            }
++        } elseif ($unit === 'per_1m_tokens_unified') {
++            if (!isset($rates['any']) || !is_string($rates['any']) || $rates['any'] === '') {
++                throw new \ValueError('Price row misses rate "any" (unit per_1m_tokens_unified).');
++            }
++        } else {
++            throw new \ValueError(sprintf('Unknown billing unit "%s".', $unit));
++        }
++
++        return new self(
++            ($data['id'] ?? self::NO_ID),
++            (string) $data['provider'],
++            (string) $data['model'],
++            (string) $data['validFrom'],
++            (string) $data['currency'],
++            $unit,
++            $rates,
++        );
++    }
++
++    public const NO_ID = 0;
++
++    /**
++     * Exact (unrounded) base cost for the given token counts.
++     *
++     * @param array{input: int, output: int, cache_read: int, cache_write: int} $tokens
++     * @return string plain decimal
++     */
++    public function baseCost(array $tokens): string
++    {
++        $scale = \App\Shared\Money\Dec::SCALE;
++        if ($this->unit === 'per_1m_tokens') {
++            $sum = bcadd(
++                bcadd(
++                    bcmul((string) $tokens['input'],      $this->rates['input'],      $scale),
++                    bcmul((string) $tokens['output'],     $this->rates['output'],     $scale),
++                    $scale
++                ),
++                bcadd(
++                    bcmul((string) $tokens['cache_read'], $this->rates['cache_read'], $scale),
++                    bcmul((string) $tokens['cache_write'],$this->rates['cache_write'],$scale),
++                    $scale
++                ),
++                $scale
++            );
++
++            return bcdiv($sum, '1000000', $scale);
++        }
++
++        // per_1m_tokens_unified
++        $total = $tokens['input'] + $tokens['output']
++            + $tokens['cache_read'] + $tokens['cache_write'];
++
++        return bcdiv(bcmul((string) $total, $this->rates['any'], $scale), '1000000', $scale);
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Shared/Money/Dec.php /tmp/billing-pi-ocui5683/repo/src/Shared/Money/Dec.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Shared/Money/Dec.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-ocui5683/repo/src/Shared/Money/Dec.php	2026-10-27 18:53:45.575280224 +0700
+@@ -0,0 +1,105 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Shared\Money;
++
++use LogicException;
++
++/**
++ * Decimal helpers. Rounding ({@see money()}) is implemented in pure string
++ * arithmetic so it stays exact for arbitrarily long decimal tails.
++ */
++final class Dec
++{
++    /** Intermediate computation scale. */
++    public const SCALE = 16;
++
++    /** Reportable money decimals (TASK rule 4). */
++    public const MONEY_SCALE = 6;
++
++    /**
++     * Validate and normalise to a plain decimal string.
++     *
++     * @throws LogicException when not a plain decimal.
++     */
++    public static function exact(string $value): string
++    {
++        if (preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/', $value) !== 1) {
++            throw new LogicException(sprintf('Value "%s" is not a plain decimal number.', $value));
++        }
++        if (str_contains($value, '.')) {
++            $value = (string) rtrim($value, '0');
++            $value = (string) rtrim($value, '.');
++        }
++        if ($value === '' || $value === '+' || $value === '-') {
++            return '0';
++        }
++
++        return $value;
++    }
++
++    /**
++     * Round to exactly 6 decimals, HALF_UP (0.0000005 → 0.000001).
++     */
++    public static function money(string $value): string
++    {
++        return self::halfUp($value, self::MONEY_SCALE);
++    }
++
++    private static function halfUp(string $value, int $places): string
++    {
++        $value = self::exact($value);
++        $negative = str_starts_with($value, '-');
++        $body = ltrim($value, '+-');
++
++        $dot = strpos($body, '.');
++        $intPart = $dot === false ? $body : substr($body, 0, $dot);
++        $fracPart = $dot === false ? '' : substr($body, $dot + 1);
++        $intPart = ltrim($intPart, '0');
++        if ($intPart === '') {
++            $intPart = '0';
++        }
++
++        if (strlen($fracPart) <= $places) {
++            $units = (string) ($intPart . str_pad($fracPart, $places, '0', STR_PAD_RIGHT));
++            $carry = false;
++        } else {
++            $keep = substr($fracPart, 0, $places);
++            $tail = substr($fracPart, $places);
++            $units = (string) ($intPart . $keep);
++            $carry = $tail[0] >= '5';
++        }
++
++        if ($carry) {
++            $units = self::binc($units);
++        }
++
++        $units = ltrim($units, '0');
++        if ($units === '') {
++            $units = '0';
++        }
++
++        $formatted = strlen($units) <= $places
++            ? '0.'.str_pad($units, $places, '0', STR_PAD_LEFT)
++            : substr($units, 0, - $places) . '.' . substr($units, - $places);
++
++        return $negative && $units !== '0' ? '-'.$formatted : $formatted;
++    }
++
++    private static function binc(string $digits): string
++    {
++        $out = '';
++        $add = 1;
++        for ($i = strlen($digits) - 1; $i >= 0; --$i) {
++            $sum = (int) $digits[$i] + $add;
++            $add = intdiv($sum, 10);
++            $out = ($sum % 10) . $out;
++        }
++        if ($add !== 0) {
++            $out = $add . $out;
++        }
++
++        return ltrim($out, '0') ?: '0';
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Shared/Persistence/Repository.php /tmp/billing-pi-ocui5683/repo/src/Shared/Persistence/Repository.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Shared/Persistence/Repository.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-ocui5683/repo/src/Shared/Persistence/Repository.php	2026-10-27 18:59:24.456712767 +0700
+@@ -0,0 +1,332 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Shared\Persistence;
++
++use Doctrine\DBAL\Connection;
++use LogicException;
++use RuntimeException;
++
++/**
++ * Data-access layer. All SQL lives in this class; command and domain
++ * code depend only on it.
++ */
++final class Repository
++{
++    public const STATE_RATED   = 'rated';
++    public const STATE_UNRATED = 'unrated';
++
++    public function __construct(private readonly Connection $connection)
++    {
++    }
++
++    public function beginTransaction(): void
++    {
++        if ($this->connection->isTransactionActive()) {
++            throw new LogicException('Transaction already active.');
++        }
++        $this->connection->beginTransaction();
++    }
++
++    public function commit(): void
++    {
++        $this->connection->commit();
++    }
++
++    public function rollBack(): void
++    {
++        $this->connection->rollBack();
++    }
++
++    public function inTransaction(): bool
++    {
++        return $this->connection->isTransactionActive();
++    }
++
++    public function nowIso(): string
++    {
++        return date('c');
++    }
++
++    /**
++     * @param array<int, mixed> $params
++     * @return list<array<string, mixed>>
++     */
++    public function fetchAll(string $sql, array $params = []): array
++    {
++        return array_values($this->connection->fetchAllAssociative($sql, array_values($params)));
++    }
++
++    /**
++     * @param array<int, mixed> $params
++     * @return array<string, mixed>|null
++     */
++    public function fetchOne(string $sql, array $params = []): ?array
++    {
++        $row = $this->connection->fetchAssociative($sql, array_values($params));
++
++        return $row === false ? null : $row;
++    }
++
++    /**
++     * @param array<int, mixed> $params
++     */
++    public function execute(string $sql, array $params = []): int
++    {
++        return $this->connection->executeStatement($sql, array_values($params));
++    }
++
++    // -- providers ---------------------------------------------------------
++
++    public function upsertProvider(
++        string $code,
++        string $name,
++        ?int $windowStartMin,
++        ?int $windowEndMin,
++        ?string $multiplier
++    ): void {
++        $this->execute(
++            'INSERT INTO billing_providers
++                (code, name, off_peak_start_min, off_peak_end_min, off_peak_multiplier)
++             VALUES (?, ?, ?, ?, ?)
++             ON CONFLICT (code) DO UPDATE SET
++                name = EXCLUDED.name,
++                off_peak_start_min = EXCLUDED.off_peak_start_min,
++                off_peak_end_min   = EXCLUDED.off_peak_end_min,
++                off_peak_multiplier = EXCLUDED.off_peak_multiplier',
++            array_values([$code, $name, $windowStartMin, $windowEndMin, $multiplier])
++        );
++    }
++
++    /**
++     * @return array{startMin: int, endMin: int, multiplier: string}|null
++     */
++    public function fetchOffPeak(string $providerCode): ?array
++    {
++        $row = $this->fetchOne(
++            'SELECT off_peak_start_min AS start_min,
++                    off_peak_end_min   AS end_min,
++                    off_peak_multiplier AS multiplier
++             FROM billing_providers WHERE code = ?',
++            array_values([$providerCode])
++        );
++        if ($row === null
++            || $row['start_min'] === null
++            || $row['end_min'] === null
++            || $row['multiplier'] === null
++        ) {
++            return null;
++        }
++
++        return [
++            'startMin'   => (int) $row['start_min'],
++            'endMin'     => (int) $row['end_min'],
++            'multiplier' => (string) $row['multiplier'],
++        ];
++    }
++
++    // -- models ------------------------------------------------------------
++
++    public function upsertModel(string $provider, string $code): void
++    {
++        $this->execute(
++            'INSERT INTO billing_models (provider, code)
++             VALUES (?, ?)
++             ON CONFLICT (provider, code) DO NOTHING',
++            array_values([$provider, $code])
++        );
++    }
++
++    // -- price rows ---------------------------------------------------------
++
++    /** @return int the row id */
++    public function upsertPriceRow(
++        string $provider,
++        string $model,
++        string $validFromIso,
++        string $currency,
++        string $unit,
++        string $ratesJson
++    ): int {
++        $this->execute(
++            'INSERT INTO billing_price_rows
++                (provider, model, valid_from, currency, unit, rates_json)
++             VALUES (?, ?, ?, ?, ?, ?)
++             ON CONFLICT (provider, model, valid_from) DO UPDATE SET
++                currency   = EXCLUDED.currency,
++                unit       = EXCLUDED.unit,
++                rates_json = EXCLUDED.rates_json',
++            array_values([$provider, $model, $validFromIso, $currency, $unit, $ratesJson])
++        );
++
++        $row = $this->fetchOne(
++            'SELECT id FROM billing_price_rows
++             WHERE provider = ? AND model = ? AND valid_from = ?',
++            array_values([$provider, $model, $validFromIso])
++        );
++        if ($row === null) {
++            throw new RuntimeException('Price row vanished after upsert.');
++        }
++
++        return (int) $row['id'];
++    }
++
++    /**
++     * The price row effective at the given moment: highest valid_from <= ts.
++     *
++     * @return array<string, mixed>|null one of id, provider, model,
++     *         valid_from, currency, unit, rates_json
++     */
++    public function fetchEffectivePriceRow(string $provider, string $model, string $tsIso): ?array
++    {
++        return $this->fetchOne(
++            'SELECT * FROM billing_price_rows
++             WHERE provider = ? AND model = ? AND valid_from <= ?
++             ORDER BY valid_from DESC, id DESC
++             LIMIT 1',
++            array_values([$provider, $model, $tsIso])
++        );
++    }
++
++    // -- usage events --------------------------------------------------------
++
++    /**
++     * @param array<string, mixed> $e
++     * @return bool true when inserted, false when the event already existed.
++     */
++    public function insertUsageEvent(array $e): bool
++    {
++        $rows = $this->execute(
++            'INSERT INTO billing_usage_events
++                (provider, provider_request_id, user_name, ts_utc, model_code,
++                 tokens_input, tokens_output, tokens_cache_read, tokens_cache_write,
++                 rating_state, created_at, updated_at)
++             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
++             ON CONFLICT (provider, provider_request_id) DO NOTHING',
++            array_values([
++                (string) $e['provider'],
++                (string) $e['providerRequestId'],
++                (string) $e['user'],
++                (string) $e['ts'],
++                (string) $e['model'],
++                (int) $e['tokens']['input'],
++                (int) $e['tokens']['output'],
++                (int) $e['tokens']['cache_read'],
++                (int) $e['tokens']['cache_write'],
++                self::STATE_UNRATED,
++                (string) $e['now'],
++                (string) $e['now'],
++            ])
++        );
++
++        return $rows === 1;
++    }
++
++    /** @return list<array<string, mixed>> events whose rating must be attempted */
++    public function fetchUnratedEvents(): array
++    {
++        return $this->fetchAll(
++            'SELECT * FROM billing_usage_events WHERE rating_state = ? ORDER BY id ASC',
++            array_values([self::STATE_UNRATED])
++        );
++    }
++
++    /** @return list<array<string, mixed>> all events with rate_row_id not null */
++    public function fetchRatedEvents(): array
++    {
++        return $this->fetchAll(
++            'SELECT * FROM billing_usage_events
++             WHERE rating_state = ? AND rate_row_id IS NOT NULL
++             ORDER BY id ASC',
++            array_values([self::STATE_RATED])
++        );
++    }
++
++    /**
++     * Events rated by one of the given price rows.
++     *
++     * @param list<int> $priceRowIds
++     * @return list<array<string, mixed>>
++     */
++    public function fetchEventsRatByPriceRow(array $priceRowIds): array
++    {
++        $ids = array_map('intval', $priceRowIds);
++        if ($ids === []) {
++            return [];
++        }
++        $in = implode(',', array_fill(0, count($ids), '?'));
++        $sql = 'SELECT * FROM billing_usage_events
++             WHERE rating_state = ? AND rate_row_id IN ('.$in.')
++             ORDER BY id ASC';
++
++        return $this->fetchAll($sql, array_values([self::STATE_RATED, ...$ids]));
++    }
++
++    public function markUnrated(int $id, string $updatedAtIso): void
++    {
++        $this->execute(
++            'UPDATE billing_usage_events SET
++                rating_state = ?, exact_cost = NULL, rate_row_id = NULL,
++                currency = NULL, off_peak_applied = FALSE, updated_at = ?
++             WHERE id = ?',
++            array_values([self::STATE_UNRATED, $updatedAtIso, $id])
++        );
++    }
++
++    public function markRated(
++        int $id,
++        int $priceRowId,
++        string $exact,
++        string $currency,
++        bool $offPeakApplied,
++        string $updatedAtIso
++    ): void {
++        $this->execute(
++            'UPDATE billing_usage_events SET
++                rating_state = ?, rate_row_id = ?, exact_cost = ?,
++                currency = ?, off_peak_applied = ?, updated_at = ?
++             WHERE id = ?',
++            array_values([
++                self::STATE_RATED,
++                $priceRowId,
++                $exact,
++                $currency,
++                $offPeakApplied,
++                $updatedAtIso,
++                $id,
++            ])
++        );
++    }
++
++    /** @return list<array<string, mixed>> rated events for the period report */
++    public function fetchRatedEventsInPeriod(?string $fromIso, ?string $toIso): array
++    {
++        $sql = 'SELECT * FROM billing_usage_events WHERE rating_state = ? AND rate_row_id IS NOT NULL';
++        $params = [self::STATE_RATED];
++        if ($fromIso !== null) {
++            $sql .= ' AND ts_utc >= ?';
++            $params[] = $fromIso;
++        }
++        if ($toIso !== null) {
++            $sql .= ' AND ts_utc < ?';
++            $params[] = $toIso;
++        }
++        $sql .= ' ORDER BY user_name ASC, model_code ASC, id ASC';
++
++        return $this->fetchAll($sql, array_values($params));
++    }
++
++    // -- reprice journal -------------------------------------------------------
++
++    public function insertRepriceRun(string $priceRowIdsJson, int $eventsCount, string $deltaUsd): int
++    {
++        $this->execute(
++            'INSERT INTO billing_reprice_runs (price_row_ids_json, events_count, delta_usd, created_at)
++             VALUES (?, ?, ?, ?)',
++            array_values([$priceRowIdsJson, $eventsCount, $deltaUsd, date('c')])
++        );
++
++        return (int) $this->connection->lastInsertId();
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Shared/ValueObject/IsoUtc.php /tmp/billing-pi-ocui5683/repo/src/Shared/ValueObject/IsoUtc.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Shared/ValueObject/IsoUtc.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-ocui5683/repo/src/Shared/ValueObject/IsoUtc.php	2026-10-27 18:52:01.445298243 +0700
+@@ -0,0 +1,68 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Shared\ValueObject;
++
++use DateTimeImmutable;
++use ValueError;
++
++/**
++ * ISO-8601 UTC helpers.
++ *
++ * Canonical form is "YYYY-MM-DDTHH:MM:SS+00:00" (second precision, always
++ * UTC). It is lexicographically comparable — the basis for the rule-1
++ * price-row pick and the report period filter.
++ */
++final class IsoUtc
++{
++    /**
++     * Normalise any valid ISO-8601 timestamp (Z / ±HH:MM / bare UTC)
++     * to the canonical form. Accepts "YYYY-MM-DD HH:MM:SS+00" (the
++     * form PostgreSQL returns for timestamptz columns).
++     *
++     * @throws ValueError when the value is not a valid timestamp.
++     */
++    public static function canonical(string $value): string
++    {
++        $value = trim($value);
++        $pattern = '/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?'
++            .'(?:Z|([+-])(\d{2}):?(\d{2})?)?$/';
++        if (preg_match($pattern, $value, $m) !== 1) {
++            throw new ValueError(sprintf('Invalid ISO-8601 timestamp "%s".', $value));
++        }
++
++        [$_, $y, $mo, $d, $h, $mi, $s, $sign, $offH, $offM] = array_pad($m, 10, '');
++        if ((int) $mo < 1 || (int) $mo > 12
++            || (int) $d < 1 || (int) $d > 31
++            || (int) $h > 23 || (int) $mi > 59 || (int) $s > 60
++        ) {
++            throw new ValueError(sprintf('Invalid ISO-8601 timestamp "%s".', $value));
++        }
++
++        $sign = $sign === '-' ? -1 : 1;
++        $offH = (int) $offH;
++        $offM = (int) $offM;
++
++        $dt = new DateTimeImmutable(sprintf(
++            '%04d-%02d-%02d %02d:%02d:%02d',
++            (int) $y, (int) $mo, (int) $d, (int) $h, (int) $mi,
++            min((int) $s, 59)
++        ));
++        if ((int) $s === 60) {
++            $dt = $dt->modify('+1 second');
++        }
++        // Convert from the given UTC offset to true UTC.
++        $dt = $dt->modify(sprintf('%+03d minutes', -$sign * ($offH * 60 + $offM)));
++
++        return $dt->format('Y-m-d\TH:i:s+00:00');
++    }
++
++    /**
++     * Postgres timestamptz → canonical.
++     */
++    public static function fromDb(string $value): string
++    {
++        return self::canonical($value);
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Shared/ValueObject/OffPeak.php /tmp/billing-pi-ocui5683/repo/src/Shared/ValueObject/OffPeak.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Shared/ValueObject/OffPeak.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-ocui5683/repo/src/Shared/ValueObject/OffPeak.php	2026-10-27 18:53:37.397438709 +0700
+@@ -0,0 +1,30 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Shared\ValueObject;
++
++/**
++ * Off-peak window of a provider (UTC time-of-day, minutes since midnight).
++ */
++final class OffPeak
++{
++    /**
++     * @param array{startMin: int, endMin: int, multiplier: string} $window
++     *        (multiplier accepted as a plain decimal string)
++     * @param string $tsIso canonical "YYYY-MM-DDTHH:MM:SS+00:00"
++     */
++    public static function activeAt(array $window, string $tsIso): bool
++    {
++        $mins = ((int) substr($tsIso, 11, 2)) * 60 + (int) substr($tsIso, 14, 2);
++        $start = (int) $window['startMin'];
++        $end   = (int) $window['endMin'];
++
++        if ($start < $end) {
++            return $mins >= $start && $mins < $end;
++        }
++
++        // window crosses midnight, e.g. 16:30 → 00:30
++        return $mins >= $start || $mins < $end;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Shared/ValueObject/PriceRow.php /tmp/billing-pi-ocui5683/repo/src/Shared/ValueObject/PriceRow.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Shared/ValueObject/PriceRow.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-ocui5683/repo/src/Shared/ValueObject/PriceRow.php	2026-10-27 18:51:21.497072432 +0700
+@@ -0,0 +1,97 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Shared\ValueObject;
++
++use ValueError;
++
++/**
++ * A single valid price row of the provider price book.
++ *
++ * "unit" is one of:
++ *   - "per_1m_tokens"          per-kind rates, keys: "input", "output",
++ *                              "cache_read", "cache_write"
++ *   - "per_1m_tokens_unified"  single rate, key "any"
++ */
++final class PriceRow
++{
++    private function __construct(
++        public readonly string $provider,
++        public readonly string $model,
++        /** ISO-8601 UTC with "+00:00" suffix. */
++        public readonly string $validFrom,
++        public readonly string $currency,
++        public readonly string $unit,
++        /** @var array<string, string> rate kind => rate (plain decimal, per 1M tokens) */
++        public readonly array $rates,
++    ) {
++    }
++
++    /**
++     * @param array{
++     *   provider: string, model: string, validFrom: string,
++     *   currency: string, unit: string, rates: array<string, string>,
++     * } $data
++     */
++    public static function fromArray(array $data): self
++    {
++        $unit = (string) ($data['unit'] ?? '');
++        $rates = $data['rates'] ?? [];
++        if ($unit === 'per_1m_tokens') {
++            foreach (['input', 'output', 'cache_read', 'cache_write'] as $kind) {
++                if (!isset($rates[$kind]) || !is_string($rates[$kind]) || $rates[$kind] === '') {
++                    throw new ValueError(sprintf('Price row misses rate "%s" (unit per_1m_tokens).', $kind));
++                }
++            }
++        } elseif ($unit === 'per_1m_tokens_unified') {
++            if (!isset($rates['any']) || !is_string($rates['any']) || $rates['any'] === '') {
++                throw new ValueError('Price row misses rate "any" (unit per_1m_tokens_unified).');
++            }
++        } else {
++            throw new ValueError(sprintf('Unknown billing unit "%s".', $unit));
++        }
++
++        return new self(
++            (string) $data['provider'],
++            (string) $data['model'],
++            (string) $data['validFrom'],
++            (string) $data['currency'],
++            $unit,
++            $rates
++        );
++    }
++
++    /**
++     * Exact (unrounded) base cost for the given token counts.
++     *
++     * @param array{input: int, output: int, cache_read: int, cache_write: int} $tokens
++     * @return string plain decimal (no rounding)
++     */
++    public function baseCost(array $tokens): string
++    {
++        $scale = Dec::SCALE;
++        if ($this->unit === 'per_1m_tokens') {
++            $sum = bcadd(
++                bcadd(
++                    bcmul((string) $tokens['input'],      $this->rates['input'],      $scale),
++                    bcmul((string) $tokens['output'],     $this->rates['output'],     $scale),
++                    $scale
++                ),
++                bcadd(
++                    bcmul((string) $tokens['cache_read'], $this->rates['cache_read'], $scale),
++                    bcmul((string) $tokens['cache_write'],$this->rates['cache_write'],$scale),
++                    $scale
++                ),
++                $scale
++            );
++
++            return bcdiv($sum, '1000000', $scale);
++        }
++
++        // per_1m_tokens_unified
++        $total = $tokens['input'] + $tokens['output'] + $tokens['cache_read'] + $tokens['cache_write'];
++
++        return bcdiv(bcmul((string) $total, $this->rates['any'], $scale), '1000000', $scale);
++    }
++}
