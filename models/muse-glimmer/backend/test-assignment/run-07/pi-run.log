@@ -1,0 +1,26 @@
+Готово. Реализация выполнена, схема развернута и команды работают.
+
+**Проверка:**
+```bash
+make db-up
+make migrate
+bin/console app:prices:import fixtures/prices.json
+bin/console app:usage:import fixtures/usage.jsonl
+bin/console app:billing:rate
+# RATED=3 UNRATED=0
+bin/console app:billing:report --from=2026-09-01T00:00:00Z --to=2026-10-01T00:00:00Z
+```
+Вывод совпадает с примером:
+```
+user,model,tokens_input,tokens_output,tokens_cache_read,tokens_cache_write,cost_usd
+u-alice,prism/lumen-8,1200000,800000,2500000,83333,14.262499
+u-alice,sfera/gyro-pro,3000000,500000,0,0,8.400000
+u-bob,prism/lumen-8,2000000,1000000,0,0,11.000000
+TOTAL,,6200000,2300000,2500000,83333,33.662499
+```
+
+Созданы файлы:
+- `COMMIT_MESSAGE.md`
+- `PR_DESCRIPTION.md`
+
+Команды доступны: `app:prices:import`, `app:usage:import`, `app:billing:rate`, `app:billing:report`. Схема использует Doctrine миграции, расчёт — bcmath без float, off-peak, выбор цены по `valid_from`, идемпотентность импорта и дедупликация событий реализованы.

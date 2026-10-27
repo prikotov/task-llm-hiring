@@ -1,0 +1,30 @@
+All requested tasks have been implemented.
+
+### Summary of changes:
+1.  **Domain Modeling**: Created Entities `Provider`, `Model`, `Price`, and `Usage` with appropriate relationships.
+2.  **Data Import**:
+    *   `app:prices:import`: Implements idempotent upsert of providers, models, and their versioned pricing.
+    *   `app:usage:import`: Implements deduplicated import of usage events.
+3.  **Billing Logic**:
+    *   `app:billing:rate`: Implements the core pricing engine using `bcmath` for arbitrary precision decimal arithmetic.
+    *   **Off-peak**: Handles UTC window checks, including windows that span midnight.
+    *   **Rounding**: Implemented `HALF_UP` rounding to 6 decimal places for individual events.
+    *   **Versioning**: Correctly selects the price valid at the time of the event.
+4.  **Reporting**:
+    *   `app:billing:report`: Generates a CSV report grouped by user and model, with correctly aggregated tokens and costs, including a total row.
+
+### Verification:
+The application was tested using the provided fixtures:
+```bash
+bin/console app:prices:import fixtures/prices.json
+bin/console app:usage:import fixtures/usage.jsonl
+bin/console app:billing:rate
+bin/console app:billing:report --from=2026-09-01T00:00:00Z --to=2026-10-01T00:00:00Z
+```
+The output matches the required format and totals specified in `TASK.md`.
+
+Files created:
+- `src/Entity/{Provider, Model, Price, Usage}.php`
+- `src/Command/{PricesImportCommand, UsageImportCommand, BillingRateCommand, BillingReportCommand}.php`
+- `COMMIT_MESSAGE.md`
+- `PR_DESCRIPTION.md`

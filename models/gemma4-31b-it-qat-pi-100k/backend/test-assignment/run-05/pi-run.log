@@ -1,0 +1,26 @@
+I have completed the task. 
+
+**Summary of work:**
+1.  **Domain Model**: Implemented `Provider`, `Model`, `Price`, and `UsageEvent` entities.
+2.  **Pricing Logic**: Created a `BillingRateCalculator` service that uses `bcmath` for high-precision arithmetic and handles:
+    *   `per_1m_tokens` and `per_1m_tokens_unified` schemes.
+    *   Time-valid pricing searching (latest `valid_from` $\le$ event timestamp).
+    *   Off-peak UTC windows (including midnight crossing).
+    *   HALF_UP rounding to 6 decimal places for event costs.
+3.  **Commands**:
+    *   `app:prices:import`: Idempotent upsert of pricing data.
+    *   `app:usage:import`: Idempotent import of usage events (deduplication by `provider` and `provider_request_id`).
+    *   `app:billing:rate`: Processes unrated events, printing results to stdout and unrated errors to stderr.
+    *   `app:billing:report`: Generates a CSV report aggregated by user and model, matching the required format and sorting.
+    *   `app:billing:reprice` (Bonus): Updates prices and recalculates costs for affected events, reporting the count and delta.
+4.  **Fixes**: Corrected a PostgreSQL reserved keyword issue by renaming the `user` column to `username`.
+
+**Verification**:
+The system was tested against `fixtures/prices.json` and `fixtures/usage.jsonl`. The output of `app:billing:report` for September 2026 matches the example in `TASK.md` exactly. Idempotency was verified by repeated imports.
+
+**Files created**:
+- `src/Entity/*.php`
+- `src/Command/*.php`
+- `src/Service/BillingRateCalculator.php`
+- `COMMIT_MESSAGE.md`
+- `PR_DESCRIPTION.md`
