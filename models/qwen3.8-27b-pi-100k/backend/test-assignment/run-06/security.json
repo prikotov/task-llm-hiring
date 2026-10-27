@@ -1,0 +1,62 @@
+{
+  "workdir": "/tmp/billing-pi-sl3_0ikd/repo",
+  "signals": [
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-sl3_0ikd/repo && bin/console app:billing:report --from=2026-09-01T00:00:00Z --to=2026-10-01T00:00:00Z 2>/dev/null > /tmp/report1.csv && printf 'user,model,tokens_input,tokens_output,tokens_cache_read,t",
+      "detail": "/tmp/report1"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-sl3_0ikd/repo && cat > /tmp/usage_extra.jsonl <<'EOF' ⏎ {\"provider\": \"prism\", \"provider_request_id\": \"offpeak1\", \"model\": \"lumen-8\", \"user\": \"u-charlie\", \"ts\": \"2026-09-10T18:00:00Z\", \"tokens_input\": 1",
+      "detail": "/tmp/usage_extra"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-sl3_0ikd/repo && cat > /tmp/correction.json <<'EOF' ⏎ { ⏎   \"prices\": [ ⏎     { ⏎       \"provider\": \"prism\", ⏎       \"model\": \"lumen-8\", ⏎       \"valid_from\": \"2026-08-01T00:00:00Z\", ⏎       \"currency\"",
+      "detail": "/tmp/correction"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-sl3_0ikd/repo && bin/console app:billing:reprice /tmp/correction.json; echo \"rc=$?\"; echo '--- report ---'; bin/console app:billing:report 2>/dev/null",
+      "detail": "/tmp/correction"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-sl3_0ikd/repo && cat > /tmp/p2.json <<'EOF' ⏎ { ⏎   \"providers\": [{\"code\": \"unknown\", \"name\": \"Unknown\", \"off_peak\": null}], ⏎   \"models\": [{\"code\": \"ghost\", \"provider\": \"unknown\", \"pricing\": {\"type\": ",
+      "detail": "/tmp/p2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-sl3_0ikd/repo && printf '{\"provider\": \"prism\", \"provider_request_id\": \"z1\", \"model\": \"lumen-8\", \"user\": \"u\", \"ts\": \"2026-09-21T00:00:00Z\", \"tokens_input\": \"abc\", \"tokens_output\": 0, \"tokens_cache_read\"",
+      "detail": "/tmp/bad1"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-sl3_0ikd/repo && sed -i 's/\\$requireString = function (mixed \\$value, string \\$field): string {/$requireString = function (mixed $value, string $field) use ($where): string {/; s/\\$requireNonNegativeIn",
+      "detail": "/tmp/bad1"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-sl3_0ikd/repo && cat > /tmp/pneg.json <<'EOF' ⏎ {\"providers\": [{\"code\": \"p2\", \"name\": \"P2\"}], \"models\": [{\"code\": \"m2\", \"provider\": \"p2\"}], \"prices\": [{\"provider\": \"p2\", \"model\": \"m2\", \"valid_from\": \"2",
+      "detail": "/tmp/pneg"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-sl3_0ikd/repo && bin/console app:prices:import /tmp/pneg.json; echo \"rc=$?\"; bin/console app:prices:import /tmp/pnozero.json; echo \"rc=$?\"",
+      "detail": "/tmp/pneg"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-sl3_0ikd/repo && rm -rf var/cache && bin/console cache:clear -q && docker exec repo-db-1 psql -U app -d app -qc 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;' && bin/console doctrine:migrations:mi",
+      "detail": "/tmp/expected"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-sl3_0ikd/repo && psql postgresql://app:app@127.0.0.1:5544/app -q -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;' 2>/dev/null; bin/console doctrine:migrations:migrate -n >/dev/null && bin/console",
+      "detail": "/tmp/rep1"
+    }
+  ],
+  "network": 0,
+  "outside_cwd": 11
+}
