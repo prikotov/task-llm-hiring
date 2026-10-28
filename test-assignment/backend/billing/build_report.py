@@ -4432,40 +4432,40 @@ max — 13, 11, 9, и без размышлений тоже слабее — 11
 medium — {POS[("qwen3.8-27b-pi-100k", "medium", False)]}-е, max — {POS[("qwen3.8-27b-pi-100k", "max", False)]}-е.
 У huihui место от уровня не зависит: low — {POS[("huihui-ai-pi-100k", "low", False)]}-е,
 max — {POS[("huihui-ai-pi-100k", "max", False)]}-е, medium — {POS[("huihui-ai-pi-100k", "medium", False)]}-е.
-Детали — <a href="#s46">4.6</a> и карточки моделей <a href="#models">3</a>.</div>
+Позиции — <a href="#results">в таблице результатов</a>, лестницы уровней —
+<a href="#models">карточки qwen3.8 и huihui в разделе 3</a>.</div>
 <div class=card><b>Без размышлений держится только qwen3.8</b>Все трое несут MTP-спекуляцию —
 сравнение чистое: qwen3.8 — 12, 11, 11 из 13; huihui — лотерея: 12, 2, 13; orca — развал:
 12, 2, 10. Ревью оси A у huihui и orca падает до 1.0; orca к тому же вышла за пределы своей
-рабочей папки и правила решение соседнего прогона. Детали — <a href="#s46">4.6</a>,
-инцидент — <a href="../models/orcarouter-Qwen3.8-27B-Uncensored-latest/model.md">model.md</a>.</div>
+рабочей папки и правила решение соседнего прогона. Детали — <a href="#s46">off-серии в разделе 4.6</a>,
+инцидент — <a href="../models/orcarouter-Qwen3.8-27B-Uncensored-latest/model.md">model.md orca</a>.</div>
 <div class=card><b>Max выручает облака</b>Luna 6: low 10 → max 13/13; Sol 6.1: low 11 → max 13/13.
 DeepSeek полон на обоих уровнях, но max пишет чище (phpcs 0 против 60). Детали —
-<a href="#results">таблица 4</a>.</div>
+<a href="#results">строки уровней в таблице результатов</a>.</div>
 <div class=card><b>MTP ускоряет даром</b>Спекуляция draft-токенами: генерация ×1.8
-(orca: 63 → 115 ток/с) при качестве в пределах шума (13, 11, 13). Детали —
-<a href="#models">3</a> и прогоны <a href="#runs">6</a>.</div>
+(orca: 63 → 115 ток/с) при качестве в пределах шума (13, 11, 13). Детали — <a href="#models">карточка orca в разделе 3</a>, прогоны — <a href="#runs">раздел 6</a>.</div>
 <div class=card><b>Слепой судья подтверждает ревью</b>Расхождение оси A не больше полбалла
 в {N_HALF / N_PAIRS * 100:.0f}% прогонов (ровно совпали — {N_EXACT / N_PAIRS * 100:.0f}%),
-но работоспособность решения выносит только чекер. Детали — <a href="#judges">5</a>.</div>
+но работоспособность решения выносит только чекер. Детали — <a href="#judges">раздел 5</a>.</div>
 </div>
 <p class="excap sb">Главные разочарования</p>
 <div class=cards>
 <div class=card><b>bonsai-2: «98.2% бенчмарков» ≠ агентная работа</b>Тернарный дистиллят Prism:
 на thinking-уровнях — паралич (ни строки кода), на off — неработающие решения;
-0–2 из 13 во всех восьми прогонах. <a href="../models/bonsai-2-27b/model.md">model.md</a> · <a href="#s46">4.6</a></div>
+0–2 из 13 во всех восьми прогонах. Разбор — <a href="../models/bonsai-2-27b/model.md">model.md bonsai-2</a>, уровни — <a href="#s46">раздел 4.6</a>.</div>
 <div class=card><b>ornith-1.5: токены в никуда</b>1–3 из 13 во всех прогонах при разбросе
 темпа 0.06M / 10M / 39M токенов; бенчмарки хвалят её на vLLM/bf16 — наш результат на
-ollama согласуется со скепсисом. <a href="../models/ornith-1.5-35b/model.md">model.md</a></div>
+ollama согласуется со скепсисом. Разбор — <a href="../models/ornith-1.5-35b/model.md">model.md ornith</a>.</div>
 <div class=card><b>GigaChat: цикл из одинаковых запросов</b>Ultra повторила один DQL-запрос
 448 раз (44 минуты, 7.75M токенов ради 2/11), Max вышла за 7 секунд; известный дефект
 семейства (<a href="https://github.com/ai-forever/langchain-gigachat/pull/69">PR #69</a>).
-<a href="../models/gigachat-3-ultra/model.md">model.md</a></div>
+Разбор — <a href="../models/gigachat-3-ultra/model.md">model.md GigaChat 3 Ultra</a>.</div>
 <div class=card><b>gemma4:31b QAT: ни одного зачёта</b>0/3 на родном thinking-уровне, на off —
 лотерея 6–11 у живых прогонов и самовыход за 24 секунды.
-<a href="../models/gemma4-31b-it-qat-pi-100k/model.md">model.md</a> · <a href="#s46">4.6</a></div>
+Разбор — <a href="../models/gemma4-31b-it-qat-pi-100k/model.md">model.md gemma4:31b</a>, уровни — <a href="#s46">раздел 4.6</a>.</div>
 <div class=card><b>muse: строго обязательное</b>Быстро и дёшево на любом уровне (2–6 мин),
 но ни тестов, ни бонусной команды во всех девяти прогонах — 0/3 зачётов.
-<a href="../models/muse-glimmer/model.md">model.md</a> · <a href="#s46">4.6</a></div>
+Разбор — <a href="../models/muse-glimmer/model.md">model.md muse</a>, уровни — <a href="#s46">раздел 4.6</a>.</div>
 </div>
 
 <h2 id=method><span class=no>2.</span>Методика этапа</h2>
