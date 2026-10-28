@@ -324,8 +324,13 @@ header p{margin:5px 0;opacity:.93;max-width:74ch}
 .toc ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:5px 28px}
 .toc a{color:var(--acc);text-decoration:none}
 .toc a:hover{text-decoration:underline}
-.toc ul.toc-sub{display:block;margin:3px 0 6px;padding-left:14px;grid-column:1/-1}
-.toc ul.toc-sub li{font-size:13px;margin:2px 0}
+/* строка с вложенным списком подразделов занимает всю ширину сетки,
+   иначе 5 и 6 встают рядом с подпунктами и читаются как их часть */
+.toc li:has(> ul.toc-sub){grid-column:1/-1}
+.toc ul.toc-sub{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+  gap:3px 26px;margin:5px 0 10px;padding:2px 0 2px 16px;border-left:2px solid #dbe3ec}
+.toc ul.toc-sub li{font-size:13px;margin:0}
+.toc ul.toc-sub a{color:#5a6c85}
 h2{font-size:24px;margin:44px 0 10px;letter-spacing:-.01em}
 h2 .no{color:var(--mut);font-weight:400;margin-right:8px}
 h3{font-size:17.5px;margin:26px 0 2px}
