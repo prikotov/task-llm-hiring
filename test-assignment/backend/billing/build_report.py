@@ -4351,6 +4351,19 @@ _durs = {("retag" if r["retag"] else "native"): r["dur"]
          and r["note"] == "max" and r["n"] and r["dur"] is not None}
 DUR_MTP = round(_durs["retag"])
 DUR_NATIVE = round(_durs["native"])
+
+
+def _min_word(n: int) -> str:
+    """«минута/минуты/минут» по правилам русского склонения."""
+    if n % 10 == 1 and n % 100 != 11:
+        return "минута"
+    if n % 10 in (2, 3, 4) and not (12 <= n % 100 <= 14):
+        return "минуты"
+    return "минут"
+
+
+MIN_MTP = _min_word(DUR_MTP)
+MIN_NATIVE = _min_word(DUR_NATIVE)
 AUDIT_OK = sum(1 for r in DATA if r["audit"] == "чисто")
 AUDIT_WARN = sum(1 for r in DATA if r["audit"] == "пограничное")
 _folders = {r["folder"]: r["prov"] for r in DATA}
@@ -4446,7 +4459,7 @@ max — {POS[("huihui-ai-pi-100k", "max", False)]}-е, medium — {POS[("huihui-
 без размышлений оседают на {POS[("huihui-ai-pi-100k", "off", False)]}-е и
 {POS[("orcarouter-Qwen3.8-27B-Uncensored-latest", "off", True)]}-е, ревью оси A падает до 1.0.</div>
 <div class=card><b>MTP втрое сокращает время выполнения задания</b>Среднее время выполнения задания orca
-с MTP — {DUR_MTP} минут, без — {DUR_NATIVE} минут (обе серии с размышлениями). Качество чуть ниже: строка MTP-серии —
+с MTP — {DUR_MTP} {MIN_MTP}, без — {DUR_NATIVE} {MIN_NATIVE} (обе серии с размышлениями). Качество чуть ниже: строка MTP-серии —
 {POS[("orcarouter-Qwen3.8-27B-Uncensored-latest", "max", True)]}-е место таблицы против
 {POS[("orcarouter-Qwen3.8-27B-Uncensored-latest", "max", False)]}-го у родной серии; потеря —
 бонусы одного прогона, обязательные 11 из 11 везде. MTP включён у qwen3.8, huihui и orca.</div>
