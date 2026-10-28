@@ -4437,8 +4437,8 @@ max — {POS[("huihui-ai-pi-100k", "max", False)]}-е, medium — {POS[("huihui-
 (выше даже своих max-прогонов на {POS[("qwen3.8-27b-pi-100k", "max", False)]}-м); huihui и orca
 без размышлений оседают на {POS[("huihui-ai-pi-100k", "off", False)]}-е и
 {POS[("orcarouter-Qwen3.8-27B-Uncensored-latest", "off", True)]}-е, ревью оси A падает до 1.0.</div>
-<div class=card><b>MTP ускоряет генерацию без потери качества</b>MTP-черновик — предсказание
-нескольких токенов за шаг — даёт ×1.8 к скорости генерации (orca: 63 → 115 ток/с). Качество
+<div class=card><b>MTP ускоряет генерацию без потери качества</b>MTP draft — модель за один шаг
+выдаёт несколько токенов, а не один: генерация ускоряется ×1.8 (orca: 63 → 115 ток/с). Качество
 не сдвигается: строка MTP-серии — {POS[("orcarouter-Qwen3.8-27B-Uncensored-latest", "max", True)]}-е место
 таблицы против {POS[("orcarouter-Qwen3.8-27B-Uncensored-latest", "max", False)]}-го у родной серии orca,
 разница в пределах разброса трёх прогонов. Черновик включён у qwen3.8, huihui и orca.
