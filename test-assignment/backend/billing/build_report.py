@@ -4432,7 +4432,7 @@ max — 13, 11, 9, и без размышлений тоже слабее — 11
 medium — {POS[("qwen3.8-27b-pi-100k", "medium", False)]}-е, max — {POS[("qwen3.8-27b-pi-100k", "max", False)]}-е.
 У huihui место от уровня не зависит: low — {POS[("huihui-ai-pi-100k", "low", False)]}-е,
 max — {POS[("huihui-ai-pi-100k", "max", False)]}-е, medium — {POS[("huihui-ai-pi-100k", "medium", False)]}-е.
-Позиции — <a href="#results">в таблице результатов</a>, лестницы уровней —
+Позиции — <a href="#results">в таблице результатов</a>, детали по уровням —
 <a href="#models">карточки qwen3.8 и huihui в разделе 3</a>.</div>
 <div class=card><b>Без размышлений держится только qwen3.8</b>Все трое несут MTP-спекуляцию —
 сравнение чистое: qwen3.8 — 12, 11, 11 из 13; huihui — лотерея: 12, 2, 13; orca — развал:
