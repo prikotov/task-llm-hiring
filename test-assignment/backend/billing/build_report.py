@@ -4343,6 +4343,14 @@ for _r in sorted(results_agg(DATA), key=table_sort_key):
     if _r["n"]:
         _pos += 1
         POS[(_r["folder"], _r["note"], _r["retag"])] = _pos
+# средняя длительность задания у orca: серия с MTP против родной (без него) —
+# единственная чистая пара «с/без» в сетке (у qwen3.8 и huihui MTP включён всегда)
+_durs = {("retag" if r["retag"] else "native"): r["dur"]
+         for r in results_agg(DATA)
+         if r["folder"] == "orcarouter-Qwen3.8-27B-Uncensored-latest"
+         and r["note"] == "max" and r["n"] and r["dur"] is not None}
+DUR_MTP = round(_durs["retag"])
+DUR_NATIVE = round(_durs["native"])
 AUDIT_OK = sum(1 for r in DATA if r["audit"] == "чисто")
 AUDIT_WARN = sum(1 for r in DATA if r["audit"] == "пограничное")
 _folders = {r["folder"]: r["prov"] for r in DATA}
@@ -4437,12 +4445,10 @@ max — {POS[("huihui-ai-pi-100k", "max", False)]}-е, medium — {POS[("huihui-
 (выше даже своих max-прогонов на {POS[("qwen3.8-27b-pi-100k", "max", False)]}-м); huihui и orca
 без размышлений оседают на {POS[("huihui-ai-pi-100k", "off", False)]}-е и
 {POS[("orcarouter-Qwen3.8-27B-Uncensored-latest", "off", True)]}-е, ревью оси A падает до 1.0.</div>
-<div class=card><b>MTP ускоряет генерацию без потери качества</b>MTP — модель выдаёт несколько
-токенов за один шаг, а не один: генерация ускоряется ×1.8 (orca: 63 → 115 ток/с). Качество
-не сдвигается: строка MTP-серии — {POS[("orcarouter-Qwen3.8-27B-Uncensored-latest", "max", True)]}-е место
-таблицы против {POS[("orcarouter-Qwen3.8-27B-Uncensored-latest", "max", False)]}-го у родной серии orca,
-разница в пределах разброса трёх прогонов. MTP включён у qwen3.8, huihui и orca.
-Детали — <a href="#models">карточка orca в разделе 3</a>, прогоны — <a href="#runs">раздел 6</a>.</div>
+<div class=card><b>MTP ускоряет генерацию без потери качества</b>Среднее время задания:
+с MTP — {DUR_MTP} минут, без — {DUR_NATIVE} (orca, обе серии с размышлениями).
+Качество не сдвигается: строка MTP-серии — {POS[("orcarouter-Qwen3.8-27B-Uncensored-latest", "max", True)]}-е место
+таблицы против {POS[("orcarouter-Qwen3.8-27B-Uncensored-latest", "max", False)]}-го у родной серии. MTP включён у qwen3.8, huihui и orca.</div>
 <div class=card><b>Слепой судья подтверждает ревью</b>Расхождение оси A не больше полбалла
 в {N_HALF / N_PAIRS * 100:.0f}% прогонов (ровно совпали — {N_EXACT / N_PAIRS * 100:.0f}%),
 но работоспособность решения выносит только чекер. Детали — <a href="#judges">раздел 5</a>.</div>
