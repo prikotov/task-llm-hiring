@@ -4427,10 +4427,10 @@ max — 13, 11, 9, и без размышлений тоже слабее — 11
 пограничные (вспомогательные скрипты в /tmp), в сеть не выходил ни один агент.</p>
 <p class="excap sb">Инсайты</p>
 <div class=cards>
-<div class=card><b>Увеличение уровня размышлений не делает решение лучше</b>У qwen3.8 рост
-уровня откатывает строку таблицы вниз: low — {POS[("qwen3.8-27b-pi-100k", "low", False)]}-е место,
+<div class=card><b>Увеличение уровня размышлений не делает решение лучше</b>У qwen3.8
+с ростом уровня решение ухудшается: low — {POS[("qwen3.8-27b-pi-100k", "low", False)]}-е место,
 medium — {POS[("qwen3.8-27b-pi-100k", "medium", False)]}-е, max — {POS[("qwen3.8-27b-pi-100k", "max", False)]}-е.
-У huihui включённые уровни кучкуются рядом: low — {POS[("huihui-ai-pi-100k", "low", False)]}-е,
+У huihui место от уровня не зависит: low — {POS[("huihui-ai-pi-100k", "low", False)]}-е,
 max — {POS[("huihui-ai-pi-100k", "max", False)]}-е, medium — {POS[("huihui-ai-pi-100k", "medium", False)]}-е.
 Детали — <a href="#s46">4.6</a> и карточки моделей <a href="#models">3</a>.</div>
 <div class=card><b>Без размышлений держится только qwen3.8</b>Все трое несут MTP-спекуляцию —
