@@ -557,6 +557,11 @@ def results_agg(data: list[dict]) -> list[dict]:
     return agg
 
 
+def table_sort_key(r):
+    """Лучшие наверху: чекер → ревью (ось A) → нарушения → покрытие."""
+    return (-r["total"], -(r["a1"] or 0), r["viol"], -(r["cov"] or 0))
+
+
 def results_table(data: list[dict]):
     """Строка — модель в одном режиме (уровень рассуждений + контекст):
     прогоны одинаковых условий сворачиваются в одну строку, все числа —
@@ -566,10 +571,6 @@ def results_table(data: list[dict]):
     def fmt_mn(v):
         """Среднее: целое — без дробной части, иначе один знак."""
         return "—" if v is None else (f"{v:g}" if abs(v - round(v)) < 0.05 else f"{v:.1f}")
-
-    def sort_key(r):
-        """Лучшие наверху: чекер → ревью (ось A) → нарушения → покрытие."""
-        return (-r["total"], -(r["a1"] or 0), r["viol"], -(r["cov"] or 0))
 
     # значки колонки «Прогоны»: ✓ — живой (в метриках); вне метрик — по типу:
     # ✂ обрыв сбоем, ⏱ лимит времени, 💤 повисшая сессия, ∅ решение не написано
@@ -603,7 +604,11 @@ def results_table(data: list[dict]):
                 if out else "—")
 
     trs = []
-    for r in sorted(agg, key=sort_key):
+    pos = 0
+    for r in sorted(agg, key=table_sort_key):
+        # строки без живых прогонов не ранжируются — позиции нет («—»)
+        if r["n"]:
+            pos += 1
         n, kind = r["n"], r["worst"]
         trcls = (' class="top"' if n and r["n_full"] == n
                  else ' class="neg"' if FAIL in r["kinds"] else "")
@@ -644,7 +649,8 @@ def results_table(data: list[dict]):
                 loc_cell += (f'<div class=sub style="line-height:1.3;white-space:nowrap">пуст. {r["blank_pct"]:.0f}%<br>'
                              f'комм. {r["comm_pct"]:.0f}%</div>')
         trs.append(
-            f"<tr{trcls}><td><b>{r['short']}</b><br>{prov_badge}</td>"
+            f'<tr{trcls}><td class="narrow">{pos if r["n"] else "—"}</td>'
+            f"<td><b>{r['short']}</b><br>{prov_badge}</td>"
             f'<td class="narrow">{r["note"]}</td>'
             f'<td class="narrow">{run_badges(r)}</td>'
             f'<td class="narrow">{bar}</td>'
@@ -658,6 +664,7 @@ def results_table(data: list[dict]):
             f'<td class="narrow">{fmt_dur(r["dur"])}</td>'
             f'<td class="narrow">{cost}</td><td class="narrow">{price}</td></tr>')
     return ('<div style="overflow-x:auto"><table><thead><tr>'
+            '<th rowspan=2 class=narrow>№</th>'
             "<th rowspan=2>Модель<sup>1</sup></th><th rowspan=2 class=narrow>Мышл.</th>"
             "<th rowspan=2 class=narrow>Про&shy;гоны<sup>1</sup></th>"
             "<th rowspan=2 class=narrow>Чекер<sup>2</sup></th>"
@@ -674,7 +681,8 @@ def results_table(data: list[dict]):
             "<th class=\"narrow sub\">phpstan</th><th class=\"narrow sub\">phpmd</th></tr></thead><tbody>"
             + "".join(trs) + "</tbody></table></div>"
             '<div class=note><sup>1</sup> Прогоны одинаковых условий свёрнуты в одну строку, '
-            "числовые колонки такой строки — <b>среднее по прогонам</b>. Сортировка — "
+            "числовые колонки такой строки — <b>среднее по прогонам</b>. № — позиция строки "
+            "в этой сортировке; строки без живых прогонов не ранжируются («—»). Сортировка — "
             "от лучших к худшим: средняя сумма сценариев чекера → балл ревью (ось A) → "
             "суммарные нарушения phpcs+psalm+phpstan → покрытие тестами. Детальные данные "
             "Значки колонки «Прогоны»: ✓ — живой прогон (посчитан в строке и метриках); "
@@ -4328,6 +4336,13 @@ N_PAIRS = len(_pairs)
 # фактические доли согласия — честнее порога ±1 (значения осей кратны 0.5)
 N_EXACT = sum(1 for r in _pairs if round(abs(r["a1"] - r["a2"]), 2) == 0)
 N_HALF = sum(1 for r in _pairs if round(abs(r["a1"] - r["a2"]), 2) <= 0.5)
+# позиции строк таблицы результатов (как в results_table) — ссылки на них из текста;
+# ключ — (folder, note, retag); строки без живых прогонов позиции не получают
+POS, _pos = {}, 0
+for _r in sorted(results_agg(DATA), key=table_sort_key):
+    if _r["n"]:
+        _pos += 1
+        POS[(_r["folder"], _r["note"], _r["retag"])] = _pos
 AUDIT_OK = sum(1 for r in DATA if r["audit"] == "чисто")
 AUDIT_WARN = sum(1 for r in DATA if r["audit"] == "пограничное")
 _folders = {r["folder"]: r["prov"] for r in DATA}
@@ -4413,8 +4428,11 @@ max — 13, 11, 9, и без размышлений тоже слабее — 11
 <p class="excap sb">Инсайты</p>
 <div class=cards>
 <div class=card><b>Увеличение уровня размышлений не делает решение лучше</b>У qwen3.8:
-low — 13, 13, 13, max — 13, 11, 9; у huihui ровные 12–13 на всех уровнях, у muse тоже.
-Детали — <a href="#s46">4.6</a> и карточки моделей <a href="#models">3</a>.</div>
+low — {POS[("qwen3.8-27b-pi-100k", "low", False)]}-е место таблицы результатов, medium —
+{POS[("qwen3.8-27b-pi-100k", "medium", False)]}-е, max — {POS[("qwen3.8-27b-pi-100k", "max", False)]}-е;
+у huihui: low — {POS[("huihui-ai-pi-100k", "low", False)]}-е, а off —
+{POS[("huihui-ai-pi-100k", "off", False)]}-е. Детали — <a href="#s46">4.6</a>
+и карточки моделей <a href="#models">3</a>.</div>
 <div class=card><b>Без размышлений держится только qwen3.8</b>Все трое несут MTP-спекуляцию —
 сравнение чистое: qwen3.8 теряет немного (12, 11, 11), huihui — лотерея (12, 2, 13),
 orca разваливается (12, 2, 10) с провалами ревью до 1.0 и выходом из своей рабочей копии.
