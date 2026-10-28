@@ -4450,15 +4450,13 @@ max — 13, 11, 9, и без размышлений тоже слабее — 11
 <div class=cards>
 <div class=card><b>Увеличение уровня размышлений не делает решение лучше</b>У qwen3.8
 с ростом уровня решение ухудшается: low — {POS[("qwen3.8-27b-pi-100k", "low", False)]}-е место,
-medium — {POS[("qwen3.8-27b-pi-100k", "medium", False)]}-е, max — {POS[("qwen3.8-27b-pi-100k", "max", False)]}-е.
-У huihui место от уровня не зависит: low — {POS[("huihui-ai-pi-100k", "low", False)]}-е,
-max — {POS[("huihui-ai-pi-100k", "max", False)]}-е, medium — {POS[("huihui-ai-pi-100k", "medium", False)]}-е.
-Позиции — <a href="#results">в таблице результатов</a>.<br><br>
-Выключение размышлений по качеству приближает qwen3.8 к её max-уровню: off —
-{POS[("qwen3.8-27b-pi-100k", "off", False)]}-е место, max — {POS[("qwen3.8-27b-pi-100k", "max", False)]}-е
-(для сравнения: low — {POS[("qwen3.8-27b-pi-100k", "low", False)]}-е); huihui и orca
-без размышлений оседают на {POS[("huihui-ai-pi-100k", "off", False)]}-е и
-{POS[("orcarouter-Qwen3.8-27B-Uncensored-latest", "off", True)]}-е, ревью оси A падает до 1.0.</div>
+medium — {POS[("qwen3.8-27b-pi-100k", "medium", False)]}-е, off — {POS[("qwen3.8-27b-pi-100k", "off", False)]}-е,
+max — {POS[("qwen3.8-27b-pi-100k", "max", False)]}-е — выключение по качеству приближает модель к её max-уровню.
+У huihui место от уровня не зависит (low — {POS[("huihui-ai-pi-100k", "low", False)]}-е, max —
+{POS[("huihui-ai-pi-100k", "max", False)]}-е, medium — {POS[("huihui-ai-pi-100k", "medium", False)]}-е), но off
+оседает на {POS[("huihui-ai-pi-100k", "off", False)]}-е. У orca: с размышлениями —
+{POS[("orcarouter-Qwen3.8-27B-Uncensored-latest", "max", False)]}-е, без — {POS[("orcarouter-Qwen3.8-27B-Uncensored-latest", "off", True)]}-е
+и ревью до 1.0. Позиции — <a href="#results">в таблице результатов</a>.</div>
 <div class=card><b>MTP втрое сокращает время выполнения задания</b>Среднее время выполнения задания orca
 с MTP — {DUR_MTP} {MIN_MTP}, без — {DUR_NATIVE} {MIN_NATIVE} (обе серии с размышлениями).
 Качество чуть ниже, но это может быть погрешностью оценки, MTP не должен его ухудшать.
