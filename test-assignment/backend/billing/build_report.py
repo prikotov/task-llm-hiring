@@ -446,9 +446,11 @@ pre.req{background:#fff;border:1px solid var(--line);border-radius:12px;padding:
 .mgroup th,.mgroup td{white-space:nowrap}
 .mgroup td:last-child{white-space:normal}
 .note{background:#fff9e8;border:1px solid #eedd9f;border-radius:12px;padding:13px 17px;font-size:14.5px;margin:14px 0}
-.intro{background:#f3f6fa;border:1px solid #dbe2ec;border-left:4px solid var(--acc);border-radius:12px;padding:13px 17px;font-size:14.5px;margin:14px 0}
-.intro p{margin:0 0 9px}
-.intro p:last-child{margin:0}
+header.hero{background:linear-gradient(140deg,#1d2c46 0%,#315f9e 90%);color:#fff;
+  border-radius:16px;padding:30px 38px 26px;margin:16px 0 10px}
+header.hero p{margin:6px 0;opacity:.93;max-width:74ch;font-size:15px}
+header.hero p:first-child{font-size:15.5px;opacity:1}
+header.hero b{color:#fff;font-weight:700}
 .note p{margin:0 0 9px}
 .note p:last-child{margin:0}
 .infobox{background:#eef3fa;border:1px solid #cfdeef;border-left:3px solid #315f9e;border-radius:12px;padding:13px 17px;font-size:14.5px;margin:14px 0}
@@ -4315,7 +4317,7 @@ HTML = f"""<!DOCTYPE html>
 <h1 class=pagetitle>Этап 2: тестовое задание «биллинг LLM-токенов»</h1>
 <p class=sub style="margin:-6px 4px 14px">{pl_runs(len(DATA_ALL))} · {len({r["folder"] for r in DATA_ALL})} моделей ({N_LOCAL} локальных + {N_CLOUD} облачных) · {RANGE_DATES} · отчёт собран в ZCode при содействии GLM-5.3. Ветка feat/billing-test-assignment (PR #14).</p>
 
-<div class=intro id=intro>
+<header class=hero id=intro>
 <p><b>Методологический каркас отчёта — принцип «всё познаётся в сравнении».</b>
 Оценка современных LLM в агентской среде давно вышла за рамки бинарных метрик
 «выполнил/не выполнил»: на длинной многошаговой задаче результат модели — баланс
@@ -4334,7 +4336,7 @@ HTML = f"""<!DOCTYPE html>
 <p>Сдвоенный срез заменяет сухой рейтинг картиной: одна и та же модель на разных
 уровнях размышлений ведёт себя как разные кандидаты, а разница между моделями
 на одном уровне — как разница архитектур, а не промптов.</p>
-</div>
+</header>
 <nav class=toc>
 <div class=toc-title>Содержание</div>
 <ul>
