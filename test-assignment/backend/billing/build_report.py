@@ -448,8 +448,9 @@ pre.req{background:#fff;border:1px solid var(--line);border-radius:12px;padding:
 .note{background:#fff9e8;border:1px solid #eedd9f;border-radius:12px;padding:13px 17px;font-size:14.5px;margin:14px 0}
 header.hero{background:linear-gradient(140deg,#1d2c46 0%,#315f9e 90%);color:#fff;
   border-radius:16px;padding:30px 38px 26px;margin:16px 0 10px}
-header.hero p{margin:6px 0;opacity:.93;max-width:74ch;font-size:15px}
-header.hero p:first-child{font-size:15.5px;opacity:1}
+header.hero p{margin:15px 0;opacity:.93;max-width:74ch;font-size:15px;line-height:1.55}
+header.hero p:first-child{font-size:15.5px;opacity:1;margin-top:0}
+header.hero p:last-child{margin-bottom:0}
 header.hero b{color:#fff;font-weight:700}
 .note p{margin:0 0 9px}
 .note p:last-child{margin:0}
