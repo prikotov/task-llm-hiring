@@ -4445,7 +4445,7 @@ max — {POS[("huihui-ai-pi-100k", "max", False)]}-е, medium — {POS[("huihui-
 (выше даже своих max-прогонов на {POS[("qwen3.8-27b-pi-100k", "max", False)]}-м); huihui и orca
 без размышлений оседают на {POS[("huihui-ai-pi-100k", "off", False)]}-е и
 {POS[("orcarouter-Qwen3.8-27B-Uncensored-latest", "off", True)]}-е, ревью оси A падает до 1.0.</div>
-<div class=card><b>MTP втрое сокращает время задания</b>Среднее время: с MTP — {DUR_MTP} минут, без —
+<div class=card><b>MTP втрое сокращает время прогона</b>Среднее время прогона: с MTP — {DUR_MTP} минут, без —
 {DUR_NATIVE} (orca, обе серии с размышлениями). Качество чуть ниже: строка MTP-серии —
 {POS[("orcarouter-Qwen3.8-27B-Uncensored-latest", "max", True)]}-е место таблицы против
 {POS[("orcarouter-Qwen3.8-27B-Uncensored-latest", "max", False)]}-го у родной серии; потеря —
