@@ -4454,8 +4454,9 @@ medium — {POS[("qwen3.8-27b-pi-100k", "medium", False)]}-е, max — {POS[("qw
 У huihui место от уровня не зависит: low — {POS[("huihui-ai-pi-100k", "low", False)]}-е,
 max — {POS[("huihui-ai-pi-100k", "max", False)]}-е, medium — {POS[("huihui-ai-pi-100k", "medium", False)]}-е.
 Позиции — <a href="#results">в таблице результатов</a>.<br><br>
-Выключение размышлений qwen3.8 почти не вредит — {POS[("qwen3.8-27b-pi-100k", "off", False)]}-е место
-(выше даже своих max-прогонов на {POS[("qwen3.8-27b-pi-100k", "max", False)]}-м); huihui и orca
+Выключение размышлений по качеству приближает qwen3.8 к её max-уровню: off —
+{POS[("qwen3.8-27b-pi-100k", "off", False)]}-е место, max — {POS[("qwen3.8-27b-pi-100k", "max", False)]}-е
+(для сравнения: low — {POS[("qwen3.8-27b-pi-100k", "low", False)]}-е); huihui и orca
 без размышлений оседают на {POS[("huihui-ai-pi-100k", "off", False)]}-е и
 {POS[("orcarouter-Qwen3.8-27B-Uncensored-latest", "off", True)]}-е, ревью оси A падает до 1.0.</div>
 <div class=card><b>MTP втрое сокращает время выполнения задания</b>Среднее время выполнения задания orca
