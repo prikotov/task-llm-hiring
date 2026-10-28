@@ -4446,7 +4446,7 @@ max — {POS[("huihui-ai-pi-100k", "max", False)]}-е, medium — {POS[("huihui-
 без размышлений оседают на {POS[("huihui-ai-pi-100k", "off", False)]}-е и
 {POS[("orcarouter-Qwen3.8-27B-Uncensored-latest", "off", True)]}-е, ревью оси A падает до 1.0.</div>
 <div class=card><b>MTP ускоряет генерацию без потери качества</b>Среднее время задания:
-с MTP — {DUR_MTP} минут, без — {DUR_NATIVE} (orca, обе серии с размышлениями).
+с MTP — {DUR_MTP} минут, без — {DUR_NATIVE} — втрое быстрее (orca, обе серии с размышлениями).
 Качество не сдвигается: строка MTP-серии — {POS[("orcarouter-Qwen3.8-27B-Uncensored-latest", "max", True)]}-е место
 таблицы против {POS[("orcarouter-Qwen3.8-27B-Uncensored-latest", "max", False)]}-го у родной серии. MTP включён у qwen3.8, huihui и orca.</div>
 <div class=card><b>Слепой судья подтверждает ревью</b>Расхождение оси A не больше полбалла
