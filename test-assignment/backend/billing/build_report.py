@@ -4296,6 +4296,21 @@ _dates = sorted(r.get("started_at", "")[:10] for r in
                 (json.loads((ROOT / "models" / r["folder"] / "backend" / "test-assignment"
                              / r["run"] / "run.json").read_text()) for r in DATA)) if DATA else []
 RANGE_DATES = (_dates[0] + " — " + _dates[-1]) if _dates else "—"
+# человекочитаемый диапазон для шапки: «с 17 по 27 октября 2026 года»
+_MON = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля",
+        "августа", "сентября", "октября", "ноября", "декабря"]
+if _dates:
+    from datetime import date as _date
+    _d0, _d1 = _date.fromisoformat(_dates[0]), _date.fromisoformat(_dates[-1])
+    if (_d0.year, _d0.month) == (_d1.year, _d1.month):
+        RANGE_HUMAN = f"с {_d0.day} по {_d1.day} {_MON[_d1.month - 1]} {_d1.year} года"
+    else:
+        _y0 = f" {_d0.year} года" if _d0.year != _d1.year else ""
+        RANGE_HUMAN = (f"с {_d0.day} {_MON[_d0.month - 1]}{_y0} "
+                       f"по {_d1.day} {_MON[_d1.month - 1]} {_d1.year} года")
+else:
+    RANGE_HUMAN = "—"
+
 
 # выжимки для нарратива
 # согласие судей — только по живым прогонам: вердикты обрывка решения
@@ -4316,7 +4331,7 @@ HTML = f"""<!DOCTYPE html>
 <title>Этап 2: тестовое задание «биллинг LLM-токенов»</title>
 <style>{CSS}</style></head><body><div class=wrap>
 <h1 class=pagetitle>Этап 2: тестовое задание «биллинг LLM-токенов»</h1>
-<p class=sub style="margin:-6px 4px 14px">{pl_runs(len(DATA_ALL))} · {len({r["folder"] for r in DATA_ALL})} моделей ({N_LOCAL} локальных + {N_CLOUD} облачных) · {RANGE_DATES} · отчёт собран в ZCode при содействии GLM-5.3. Ветка feat/billing-test-assignment (PR #14).</p>
+<p class=sub style="margin:-6px 4px 14px">Отчёт подготовлен {RANGE_HUMAN} в ZCode при содействии моделей GLM-5.3 и GLM-5.3-Flash.</p>
 
 <header class=hero id=intro>
 <p><b>Методологический каркас отчёта — принцип «всё познаётся в сравнении».</b>
