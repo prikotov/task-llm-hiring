@@ -569,9 +569,10 @@ def results_table(data: list[dict]):
                 out.append(f'<span class="deadmark {kind}" data-tip="Прогон вне метрик: '
                            f'{tip}. Причина каждого — по пометке ‡ в разделе 6">'
                            f'{glyph}{k}</span>')
-        # клик по значкам — к прогонам этой модели в разделе 6
-        return (f'<a href="#runs-{r["folder"]}" style="text-decoration:none" '
-                f'title="Прогоны этой модели в разделе 6">{ "<br>".join(out) }</a>'
+        # клик по значкам — к прогонам этой модели в разделе 6 (title не ставим:
+        # нативный тултип дублирует data-tip значков)
+        return (f'<a href="#runs-{r["folder"]}" style="text-decoration:none">'
+                f'{"<br>".join(out)}</a>'
                 if out else "—")
 
     trs = []
