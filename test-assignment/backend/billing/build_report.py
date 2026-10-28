@@ -569,7 +569,10 @@ def results_table(data: list[dict]):
                 out.append(f'<span class="deadmark {kind}" data-tip="Прогон вне метрик: '
                            f'{tip}. Причина каждого — по пометке ‡ в разделе 6">'
                            f'{glyph}{k}</span>')
-        return "<br>".join(out)
+        # клик по значкам — к прогонам этой модели в разделе 6
+        return (f'<a href="#runs-{r["folder"]}" style="text-decoration:none" '
+                f'title="Прогоны этой модели в разделе 6">{ "<br>".join(out) }</a>'
+                if out else "—")
 
     trs = []
     for r in sorted(agg, key=sort_key):
@@ -652,6 +655,7 @@ def results_table(data: list[dict]):
             "инструмента); ∅ — решение не написано (дифф 0 строк — чекер оценивал "
             "нетронутый скелет, мерить нечего). Прогоны вне метрик не учитываются в общих "
             "результатах, каждая помечена ‡ в разделе 6, у ‡ — точная причина. "
+            "Клик по значкам колонки «Прогоны» ведёт к прогонам этой модели в разделе 6. "
             "Строки «orca · MTP» — прогоны тех же весов orca "
             "с включённым MTP draft (тег qwen3.8-unc — локальный ретаг тех же блобов, сверка "
             "2026-10-21), качество в пределах шума серий. Время прогона у MTP-серии втрое меньше: "
@@ -3981,7 +3985,7 @@ def runs_inventory() -> str:
                   else '</p>'))
         groups.append(
             head
-            + f'<div class=mgroup><h3>{SHORT.get(d.name, d.name)}</h3>'
+            + f'<div class=mgroup id="runs-{d.name}"><h3>{SHORT.get(d.name, d.name)}</h3>'
             + sub
             + '<table><thead><tr><th class=narrow rowspan=2>Прогон</th><th class=narrow rowspan=2>Мышл.</th>'
             '<th class=narrow rowspan=2>Чекер</th><th class=narrow rowspan=2>Ревью<br>A/B</th>'
