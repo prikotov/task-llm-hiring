@@ -4437,9 +4437,6 @@ max — {POS[("huihui-ai-pi-100k", "max", False)]}-е, medium — {POS[("huihui-
 (выше даже своих max-прогонов на {POS[("qwen3.8-27b-pi-100k", "max", False)]}-м); huihui и orca
 без размышлений оседают на {POS[("huihui-ai-pi-100k", "off", False)]}-е и
 {POS[("orcarouter-Qwen3.8-27B-Uncensored-latest", "off", True)]}-е, ревью оси A падает до 1.0.</div>
-<div class=card><b>Max выручает облака</b>Luna 6: low 10 → max 13/13; Sol 6.1: low 11 → max 13/13.
-DeepSeek полон на обоих уровнях, но max пишет чище (phpcs 0 против 60). Детали —
-<a href="#results">строки уровней в таблице результатов</a>.</div>
 <div class=card><b>MTP ускоряет даром</b>MTP-черновик — модель предсказывает несколько токенов
 за шаг, ускоряя генерацию; включён у qwen3.8, huihui и orca. Результат: ×1.8
 (orca: 63 → 115 ток/с) при качестве в пределах шума (13, 11, 13). Детали — <a href="#models">карточка orca в разделе 3</a>, прогоны — <a href="#runs">раздел 6</a>.</div>
