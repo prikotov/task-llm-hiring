@@ -4441,7 +4441,7 @@ max — {POS[("huihui-ai-pi-100k", "max", False)]}-е, medium — {POS[("huihui-
 токенов за один шаг, а не один: генерация ускоряется ×1.8 (orca: 63 → 115 ток/с). Качество
 не сдвигается: строка MTP-серии — {POS[("orcarouter-Qwen3.8-27B-Uncensored-latest", "max", True)]}-е место
 таблицы против {POS[("orcarouter-Qwen3.8-27B-Uncensored-latest", "max", False)]}-го у родной серии orca,
-разница в пределах разброса трёх прогонов. Черновик включён у qwen3.8, huihui и orca.
+разница в пределах разброса трёх прогонов. MTP включён у qwen3.8, huihui и orca.
 Детали — <a href="#models">карточка orca в разделе 3</a>, прогоны — <a href="#runs">раздел 6</a>.</div>
 <div class=card><b>Слепой судья подтверждает ревью</b>Расхождение оси A не больше полбалла
 в {N_HALF / N_PAIRS * 100:.0f}% прогонов (ровно совпали — {N_EXACT / N_PAIRS * 100:.0f}%),
