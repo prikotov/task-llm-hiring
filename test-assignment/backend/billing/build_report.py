@@ -360,6 +360,18 @@ tr.top td{background:#eef6ef}
         line-height:18px;cursor:help;white-space:nowrap}
 .dsym{cursor:help;font-weight:700}
 .dsym.cut{color:#b3543f}.dsym.time{color:#9a6b00}
+.chartbox{position:relative;margin:6px 0}
+.chartbox .ctbar{position:absolute;top:6px;right:8px;display:flex;gap:6px;z-index:5}
+.chartbox .ctbar button{border:1px solid #cfd6df;background:#fff;
+  border-radius:8px;padding:3px 10px;font-size:12px;cursor:pointer;color:#46536a}
+.chartbox .ctbar button:hover{background:#eef2f7}
+.chartbox .chint{font-size:11.5px;color:#9aa3ad;margin-top:2px}
+.chartbox.full{position:fixed;inset:10px;z-index:200;background:#fff;
+  box-shadow:0 10px 44px rgba(20,30,50,.4);padding:6px;display:flex;flex-direction:column}
+.chartbox.full .ctbar{top:10px;right:16px}
+.chartbox.full svg{width:100%;height:100%;max-width:none;flex:1}
+.chartbox.full .chint{margin:2px 6px 0}
+.chartbox svg{touch-action:none}
 .dsym.hang{color:#6b5b9e}.dsym.blank{color:#66707f}
 .ptag{color:#66707f;font-size:10.5px;font-weight:600;cursor:help}
 .provchip{display:inline-block;margin-top:2px;padding:0 5px;border-radius:7px;
@@ -780,6 +792,17 @@ def _map_names(rows: list[dict]) -> None:
         r["_name"], r["_key"] = name, (k[0], k[1], seen[k])
 
 
+def chart_shell(inner: str) -> str:
+    """Интерактивный контейнер карт: кнопки «во весь экран» и «сброс»,
+    подсказка управления; зум/пан — в TOOLTIP_JS (viewBox)."""
+    return (f'<div class=chartbox>'
+            f'<div class=ctbar><button class=fsb type=button>⛶ во весь экран</button>'
+            f'<button class=rst type=button>⟲ сброс</button></div>'
+            f'{inner}'
+            f'<div class=chint>колесо — масштаб (к курсору) · перетаскивание — сдвиг · '
+            f'двойной клик или ⟲ — сброс</div></div>')
+
+
 def quality_price_map(agg: list[dict]) -> str:
     """Карта моделей: результат чекера (из 13) против цены прогона,
     лог-шкала — как «Карта моделей» в отчёте интервью."""
@@ -787,7 +810,7 @@ def quality_price_map(agg: list[dict]) -> str:
     pts_src = [r for r in agg if r["cost"] is not None and r["a1"] is not None]
     if not pts_src:
         return ""
-    W, H = 920, 540
+    W, H = 1080, 600
     ML, MR, MT, MB = 64, 24, 28, 58
     PW, PH = W - ML - MR, H - MT - MB
     XMIN, XMAX = 0.005, 10           # $ за прогон, лог-шкала; GigaChat ₽0 — левый край,
@@ -911,7 +934,7 @@ def quality_price_map(agg: list[dict]) -> str:
                f'цена прогона, $ — лог-шкала; GigaChat ₽0 (freemium) прижат к левому краю</text>')
     svg.append(f'<text x=16 y={MT+PH/2:.0f} font-size=12.5 fill=#66707f transform="rotate(-90 16 {MT+PH/2:.0f})">'
                f'ревью, ось A — код и архитектура (0–4)</text>')
-    return ('<h3>Карта моделей: качество и цена</h3>'
+    return chart_shell('<h3>Карта моделей: качество и цена</h3>'
             '<p>Каждая точка — строка таблицы выше: по вертикали балл ревью оси A '
             '(«код и архитектура», 0–4), по горизонтали средняя цена прогона в лог-шкале. '
             'Пунктир делит поле на зоны: порог качества — 3 балла ревью, порог цены — '
@@ -932,7 +955,7 @@ def quality_speed_map(agg: list[dict]) -> str:
         return ""
     _map_names(pts_src)
 
-    W, H = 920, 540
+    W, H = 1080, 600
     ML, MR, MT, MB = 64, 24, 28, 58
     PW, PH = W - ML - MR, H - MT - MB
     XMIN, XMAX = 0, 45               # минуты прогона
@@ -1029,7 +1052,7 @@ def quality_speed_map(agg: list[dict]) -> str:
                f'длительность прогона, минуты; диаметр точки — выходные токены сессии</text>')
     svg.append(f'<text x=16 y={MT+PH/2:.0f} font-size=12.5 fill=#66707f transform="rotate(-90 16 {MT+PH/2:.0f})">'
                f'ревью, ось A — код и архитектура (0–4)</text>')
-    return ('<h3>Карта моделей: качество и скорость</h3>'
+    return chart_shell('<h3>Карта моделей: качество и скорость</h3>'
             '<p>Каждая точка — строка таблицы выше: по вертикали балл ревью оси A '
             '(«код и архитектура», 0–4), по горизонтали длительность прогона. Пунктир — '
             'пороги зон: 3 балла ревью и 15 минут. Диаметр точки — выходные токены '
@@ -1205,7 +1228,7 @@ def cost_scatter(data: list[dict]):
     pts = [r for r in data if r["tok"]]
     if not pts:
         return '<div class=note>нет данных</div>'
-    W, H = 920, 480
+    W, H = 1080, 560
     ML, MR, MT, MB = 56, 24, 24, 52
     PW, PH = W - ML - MR, H - MT - MB
     XMAX = max(44, max(r["dur"] for r in pts) * 1.1)
@@ -4046,6 +4069,73 @@ document.querySelectorAll('svg.scatter g.pt').forEach(function (pt) {
   });
   dot.addEventListener('mouseleave', function () { tip.style.display = 'none'; });
 });
+
+// Карты §4: зум колесом (к курсору), пан перетаскиванием, сброс двойным
+// кликом или кнопкой, «во весь экран» — тот же svg-узел, тултипы живут.
+(function () {
+  document.querySelectorAll('.chartbox').forEach(function (box) {
+    var svg = box.querySelector('svg');
+    if (!svg || !svg.getAttribute('viewBox')) return;
+    var vb0 = svg.getAttribute('viewBox').split(/\\s+/).map(Number);
+    var vb = vb0.slice();
+    var KMAX = 8;
+    function apply() { svg.setAttribute('viewBox', vb.join(' ')); }
+    function scale() {
+      var rc = svg.getBoundingClientRect();
+      return Math.min(rc.width / vb[2], rc.height / vb[3]);
+    }
+    function toSvg(cx, cy) {
+      var rc = svg.getBoundingClientRect();
+      var s = Math.min(rc.width / vb[2], rc.height / vb[3]);
+      var ox = (rc.width - vb[2] * s) / 2, oy = (rc.height - vb[3] * s) / 2;
+      return [vb[0] + (cx - rc.left - ox) / s, vb[1] + (cy - rc.top - oy) / s];
+    }
+    svg.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      var k = e.deltaY > 0 ? 1.15 : 1 / 1.15;
+      var w0 = vb[2], nw = Math.min(vb0[2], Math.max(vb0[2] / KMAX, w0 * k));
+      if (nw === w0) return;
+      var p = toSvg(e.clientX, e.clientY);
+      vb[0] = p[0] - (p[0] - vb[0]) * nw / w0;
+      vb[1] = p[1] - (p[1] - vb[1]) * nw / w0;
+      vb[2] = nw; vb[3] = vb0[3] * nw / vb0[2];
+      apply();
+    }, {passive: false});
+    var drag = null;
+    svg.addEventListener('pointerdown', function (e) {
+      drag = {x: e.clientX, y: e.clientY, vb: vb.slice()};
+      try { svg.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    svg.addEventListener('pointermove', function (e) {
+      if (!drag) return;
+      var s = scale();
+      vb[0] = Math.max(vb0[0] - vb0[2] * 0.5, Math.min(vb0[0] + vb0[2] * 0.5,
+                   drag.vb[0] - (e.clientX - drag.x) / s));
+      vb[1] = Math.max(vb0[1] - vb0[3] * 0.5, Math.min(vb0[1] + vb0[3] * 0.5,
+                   drag.vb[1] - (e.clientY - drag.y) / s));
+      apply();
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) {
+      svg.addEventListener(ev, function () { drag = null; });
+    });
+    svg.addEventListener('dblclick', function () { vb = vb0.slice(); apply(); });
+    var rst = box.querySelector('.rst');
+    if (rst) rst.addEventListener('click', function () { vb = vb0.slice(); apply(); });
+    var fs = box.querySelector('.fsb');
+    if (fs) fs.addEventListener('click', function () {
+      box.classList.toggle('full');
+      fs.textContent = box.classList.contains('full') ? '✕ выйти' : '⛶ во весь экран';
+    });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    document.querySelectorAll('.chartbox.full').forEach(function (b) {
+      b.classList.remove('full');
+      var f = b.querySelector('.fsb');
+      if (f) f.textContent = '⛶ во весь экран';
+    });
+  });
+})();
 
 // Тултипы SVG-сегментов (пончики, свечи, карты): нативные <title> в части
 // вьюверов показываются нестабильно, а рядом с нашим тултипом — двоятся.
