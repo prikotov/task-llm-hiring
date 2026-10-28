@@ -372,9 +372,6 @@ tr.top td{background:#eef6ef}
 .chartbox.full svg{width:100%;height:100%;max-width:none;flex:1}
 .chartbox.full .chint{margin:2px 6px 0}
 .chartbox svg{touch-action:none}
-.chartbox .lblx{display:none}
-.chartbox.showlbl .lblx{display:inline}
-.chartbox.showlbl .lblb{background:#e2ecdf;border-color:#9db8a4;color:#2f7d54}
 .dsym.hang{color:#6b5b9e}.dsym.blank{color:#66707f}
 .ptag{color:#66707f;font-size:10.5px;font-weight:600;cursor:help}
 .provchip{display:inline-block;margin-top:2px;padding:0 5px;border-radius:7px;
@@ -885,7 +882,6 @@ def chart_shell(inner: str) -> str:
     тултипом), подсказка управления; зум/пан — в TOOLTIP_JS (viewBox)."""
     return (f'<div class=chartbox>'
             f'<div class=ctbar><button class=fsb type=button>⛶ во весь экран</button>'
-            f'<button class=lblb type=button>все подписи</button>'
             f'<button class=rst type=button>⟲ сброс</button></div>'
             f'{inner}'
             f'<div class=chint>колесо — масштаб (к курсору) · перетаскивание — сдвиг · '
@@ -977,8 +973,7 @@ def quality_price_map(agg: list[dict]) -> str:
         obstacles.append((fx, fy - 10, fx + fw, fy + 3, True))
     label_geo = _place_labels(pts, obstacles, skip=tuple(forced))
     for r in pts_src:
-        if r["a1"] == 0 and r["_key"] in prim_keys:
-            # точка на нижней кромке — подпись над точкой (только видимые)
+        if r["a1"] == 0:   # точка на нижней кромке — подпись над точкой,
             label_geo[r["_key"]] = (px(r["cost"]) + 10, "start",
                                     py(r["a1"]) - 30)   # выше капшена
 
@@ -1031,8 +1026,7 @@ def quality_price_map(agg: list[dict]) -> str:
         svg.append(f'<g class="pt">'
                    f'<circle class="dot" cx="{x:.0f}" cy="{y:.0f}" r="{rad:.1f}" fill="{hue}" '
                    f'fill-opacity="0.8" stroke="#fff" stroke-width="1.5"/>'
-                   f'<text{" class=lblx" if r["_key"] not in prim_keys else ""} '
-                   f'x="{tx:.0f}" y="{ty:.0f}" text-anchor="{anchor}" font-size="11" '
+                   f'<text x="{tx:.0f}" y="{ty:.0f}" text-anchor="{anchor}" font-size="11" '
                    f'fill="{hue}">{r["_name"]}</text>'
                    + leader
                    + f'<g class="tip">' + "".join(tip) + "</g></g>")
@@ -1100,11 +1094,11 @@ def quality_speed_map(agg: list[dict]) -> str:
     label_geo = _place_labels(pts)
     # Sol 6.1 ·low: автораскладка наезжает на подпись Luna 6 ·max — уводим под точку
     sols = [r for r in pts_src if r["short"] == "Sol 6.1" and r["note"] == "low"]
-    if sols and sols[0]["_key"] in prim_keys:   # правка только для видимых подписей
+    if sols:   # автораскладка наезжает на подпись Luna 6 ·max — уводим под точку
         rl = sols[0]
         label_geo[rl["_key"]] = (px(rl["dur"]), "middle", py(rl["a1"]) + 22)
     for r in pts_src:
-        if r["a1"] == 0 and r["_key"] in prim_keys:   # нижняя кромка, видимая подпись
+        if r["a1"] == 0:   # точка на нижней кромке — подпись над точкой,
             label_geo[(r["short"], r["note"])] = (px(r["dur"]) + 10, "start",
                                                   py(r["a1"]) - 30)   # выше капшена
 
@@ -1158,8 +1152,7 @@ def quality_speed_map(agg: list[dict]) -> str:
         svg.append(f'<g class="pt">'
                    f'<circle class="dot" cx="{x:.0f}" cy="{y:.0f}" r="{rad:.1f}" fill="{hue}" '
                    f'fill-opacity="0.8" stroke="#fff" stroke-width="1.5"/>'
-                   f'<text{" class=lblx" if r["_key"] not in prim_keys else ""} '
-                   f'x="{tx:.0f}" y="{ty:.0f}" text-anchor="{anchor}" font-size="11" '
+                   f'<text x="{tx:.0f}" y="{ty:.0f}" text-anchor="{anchor}" font-size="11" '
                    f'fill="{hue}">{r["_name"]}</text>'
                    f'<g class="tip">' + "".join(tip) + "</g></g>")
     svg.append(f'<text x="{ML+PW/2:.0f}" y="{H-16}" text-anchor="middle" font-size="12.5" fill="#66707f">'
@@ -4240,10 +4233,6 @@ document.querySelectorAll('svg.scatter g.pt').forEach(function (pt) {
       box.classList.toggle('full');
       fs.textContent = box.classList.contains('full') ? '✕ выйти' : '⛶ во весь экран';
     });
-    var lb = box.querySelector('.lblb');
-    if (lb) lb.addEventListener('click', function () {
-      box.classList.toggle('showlbl');
-    });
   });
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
@@ -4323,6 +4312,26 @@ HTML = f"""<!DOCTYPE html>
 <h1 class=pagetitle>Этап 2: тестовое задание «биллинг LLM-токенов»</h1>
 <p class=sub style="margin:-6px 4px 14px">{pl_runs(len(DATA_ALL))} · {len({r["folder"] for r in DATA_ALL})} моделей ({N_LOCAL} локальных + {N_CLOUD} облачных) · {RANGE_DATES} · отчёт собран в ZCode при содействии GLM-5.3. Ветка feat/billing-test-assignment (PR #14).</p>
 
+<div class=note id=intro>
+<p><b>Методологический каркас отчёта — принцип «всё познаётся в сравнении».</b>
+Оценка современных LLM в агентской среде давно вышла за рамки бинарных метрик
+«выполнил/не выполнил»: на длинной многошаговой задаче результат модели — баланс
+между её архитектурными возможностями и выделенным ей бюджетом размышлений
+(inference compute). Здесь сравнение развёрнуто в двух плоскостях.</p>
+<p><b>Горизонтальное, межмодельное:</b> шестнадцать моделей — облачные API,
+российские облака и локальные веса на ollama — решают одно и то же задание
+в одинаковом агентском харнесе с одинаковыми проверками. Видно, кто сильнее
+в базовой логике и адаптивности — и какой ценой в токенах и минутах.</p>
+<p><b>Вертикальное, внутримодельное:</b> у большинства участников задание
+прогнано на разных уровнях размышлений шкалы модели — от выключенного мышления
+до максимума, по три параллельных прогона на уровень. Это показывает, как
+модель масштабирует качество по мере углубления внутреннего монолога (у qwen3.8
+лестница перевёрнута, у huihui плоская, orca без размышлений разваливается),
+а разброс трёх прогонов одного режима меряет стабильность.</p>
+<p>Сдвоенный срез заменяет сухой рейтинг картиной: одна и та же модель на разных
+уровнях размышлений ведёт себя как разные кандидаты, а разница между моделями
+на одном уровне — как разница архитектур, а не промптов.</p>
+</div>
 <nav class=toc>
 <div class=toc-title>Содержание</div>
 <ul>
