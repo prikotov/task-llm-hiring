@@ -562,12 +562,14 @@ def results_table(data: list[dict]):
 
     def run_badges(r) -> str:
         out = [f'<span class="okmark" data-tip="Живые прогоны: посчитаны в этой строке '
-               f'и во всех метриках раздела">✓{r["n"]}</span>'] if r["n"] else []
+               f'и во всех метриках раздела. Клик — прогоны модели в разделе 6">'
+               f'✓{r["n"]}</span>'] if r["n"] else []
         for kind, (glyph, tip) in DEAD_ICON.items():
             k = r["deadkinds"].get(kind, 0)
             if k:
                 out.append(f'<span class="deadmark {kind}" data-tip="Прогон вне метрик: '
-                           f'{tip}. Причина каждого — по пометке ‡ в разделе 6">'
+                           f'{tip}. Причина каждого — по пометке ‡ в разделе 6. '
+                           f'Клик — прогоны модели в разделе 6">'
                            f'{glyph}{k}</span>')
         # клик по значкам — к прогонам этой модели в разделе 6 (title не ставим:
         # нативный тултип дублирует data-tip значков)
