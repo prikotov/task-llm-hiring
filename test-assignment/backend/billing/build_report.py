@@ -372,6 +372,9 @@ tr.top td{background:#eef6ef}
 .chartbox.full svg{width:100%;height:100%;max-width:none;flex:1}
 .chartbox.full .chint{margin:2px 6px 0}
 .chartbox svg{touch-action:none}
+.chartbox .lblx{display:none}
+.chartbox.showlbl .lblx{display:inline}
+.chartbox.showlbl .lblb{background:#e2ecdf;border-color:#9db8a4;color:#2f7d54}
 .dsym.hang{color:#6b5b9e}.dsym.blank{color:#66707f}
 .ptag{color:#66707f;font-size:10.5px;font-weight:600;cursor:help}
 .provchip{display:inline-block;margin-top:2px;padding:0 5px;border-radius:7px;
@@ -706,26 +709,32 @@ def results_table(data: list[dict]):
             "у GigaChat — ₽0 (freemium), у локальных — электричество и амортизация.</div>")
 
 
-def _place_labels(pts, obstacles=()):
+def _place_labels(pts, obstacles=(), skip=()):
     """Авторазмещение подписей точек: перебор кандидатных позиций вокруг
     точки; штраф — пересечение с чужими подписями, точками и obstacles
-    (по мотивам place_labels из interview/build_report.py). key → (x, anchor, y)."""
+    (по мотивам place_labels из interview/build_report.py). key → (x, anchor, y).
+    skip — ключи, чьи подписи уже размещены снаружи (forced-стеки): их боксы
+    передаются в obstacles, сами точки из раскладки исключаются. После
+    жадного прохода — до трёх стадий ремонта: оставшиеся пересечения
+    переразмещаются против финального набора (жадный проход копит
+    коллизии, потому что поздние точки не влияют на ранние)."""
     cands = []
     for dx, dy in ((10, 4), (-10, 4), (10, -6), (-10, -6)):
         cands.append((dx, dy, "start" if dx > 0 else "end"))
-    for dist in (8, 14, 22, 32, 44, 58, 72, 86, 100):
+    for dist in (8, 14, 22, 32, 44, 58, 72, 86, 100, 118):
         cands.append((0, -dist, "middle"))
         cands.append((0, dist, "middle"))
-    for dist in (22, 34, 46, 58, 70, 82, 94, 106):
+    for dist in (22, 34, 46, 58, 70, 82, 94, 106, 122):
         cands.append((dist, 4, "start"))
         cands.append((-dist, 4, "end"))
         cands.append((dist, -6, "start"))
         cands.append((-dist, -6, "end"))
         cands.append((dist, 16, "start"))
         cands.append((-dist, 16, "end"))
-    placed = list(obstacles)
+    obstacles = list(obstacles)
     dots = [(p["x"] - p["r"], p["y"] - p["r"], p["x"] + p["r"], p["y"] + p["r"])
             for p in pts]
+    todo = [p for p in pts if p["key"] not in skip]
 
     def label_box(p, dx, dy, anchor):
         if anchor == "start":
@@ -734,37 +743,113 @@ def _place_labels(pts, obstacles=()):
             bx0, bx1 = p["x"] + dx - p["w"], p["x"] + dx
         else:  # middle: подпись центрирована по точке
             bx0, bx1 = p["x"] + dx - p["w"] / 2, p["x"] + dx + p["w"] / 2
-        return bx0, p["y"] + dy - 10, bx1, p["y"] + dy + 3, False
+        return (bx0, p["y"] + dy - 10, bx1, p["y"] + dy + 3)
 
-    out = {}
-    for i, p in enumerate(pts):
+    def hit_area(i, box, slots):
+        """Площадь пересечений бокса подписи i: с чужими подписями (дорого),
+        точками (дешевле) и статичными obstacles (средне)."""
+        bx0, by0, bx1, by1 = box
+        area = 0.0
+        for k, L in enumerate(slots):
+            if k == i:
+                continue
+            ox = min(bx1, L[2] + 2) - max(bx0, L[0] - 2)
+            oy = min(by1, L[3] + 2) - max(by0, L[1] - 2)
+            if ox > 0 and oy > 0:
+                area += ox * oy * 4   # любое пересечение подписей дорого
+        for j, D in enumerate(dots):
+            if j == i:
+                continue
+            ox = min(bx1, D[2]) - max(bx0, D[0])
+            oy = min(by1, D[3]) - max(bx0, D[1])
+            if ox > 0 and oy > 0:
+                area += 3.0 * ox * oy
+        for L in obstacles:
+            ox = min(bx1, L[2] + 2) - max(bx0, L[0] - 2)
+            oy = min(by1, L[3] + 2) - max(by0, L[1] - 2)
+            if ox > 0 and oy > 0:
+                area += ox * oy * 2
+        return area
+
+    slots, out = [], {}
+    for i, p in enumerate(todo):
         best = None
         for ci, (dx, dy, anchor) in enumerate(cands):
-            bx0, by0, bx1, by1, _ = label_box(p, dx, dy, anchor)
-            if bx0 < p["xmin"] or bx1 > p["xmax"] or by0 < p["ymin"] or by1 > p["ymax"]:
+            box = label_box(p, dx, dy, anchor)
+            if box[0] < p["xmin"] or box[2] > p["xmax"] or box[1] < p["ymin"] or box[3] > p["ymax"]:
                 continue
-            area = 0.0
-            for L in placed:
-                ox = min(bx1, L[2] + 2) - max(bx0, L[0] - 2)
-                oy = min(by1, L[3] + 2) - max(bx0, L[1] - 2)
-                if ox > 0 and oy > 0:
-                    area += ox * oy * 4   # любое пересечение подписей дорого
-            for j, D in enumerate(dots):
-                if j == i:
-                    continue
-                ox = min(bx1, D[2]) - max(bx0, D[0])
-                oy = min(by1, D[3]) - max(by0, D[1])
-                if ox > 0 and oy > 0:
-                    area += 3.0 * ox * oy
-            score = (round(area, 1), ci)
+            score = (round(hit_area(i, box, slots), 1), ci)
             if best is None or score < best[0]:
-                best = (score, dx, dy, anchor)
+                best = (score, dx, dy, anchor, box)
         if best is None:   # все кандидаты вне поля — примыкающая подпись
-            best = ((0.0, -1), -10, 4, "end")
-        _, dx, dy, anchor = best
-        placed.append(label_box(p, dx, dy, anchor))  # (5-кортеж: с флагом подписи)
+            best = ((10 ** 9, -1), -10, 4, "end", label_box(p, -10, 4, "end"))
+        _, dx, dy, anchor, box = best
+        slots.append(box)
         out[p["key"]] = (p["x"] + dx, anchor, p["y"] + dy)
+    # ремонт: переразмещаем подписи с ненулевыми пересечениями против
+    # текущего финального набора (своя старая коробка в сравнении не участвует)
+    for _pass in range(6):
+        fixed = 0
+        for i, p in enumerate(todo):
+            if hit_area(i, slots[i], slots) <= 0.0:
+                continue
+            best = None
+            for ci, (dx, dy, anchor) in enumerate(cands):
+                box = label_box(p, dx, dy, anchor)
+                if box[0] < p["xmin"] or box[2] > p["xmax"] or box[1] < p["ymin"] or box[3] > p["ymax"]:
+                    continue
+                trial = slots[:i] + [box] + slots[i + 1:]
+                score = (round(hit_area(i, box, trial), 1), ci)
+                if best is None or score < best[0]:
+                    best = (score, dx, dy, anchor, box)
+            if best and best[0][0] < hit_area(i, slots[i], slots):
+                _, dx, dy, anchor, box = best
+                slots[i] = box
+                out[p["key"]] = (p["x"] + dx, anchor, p["y"] + dy)
+                fixed += 1
+        if not fixed:
+            break
+    # обмен позициями: пересекающейся паре пробуем поменять боксы местами —
+    # жадная раскладка циклически suboptimal, обмен часто разрешает пару.
+    # Геометрию подписи восстанавливаем центром бокса: текст с anchor=middle
+    # в центре бокса попадает ровно туда, где бокс был при любом исходном
+    # anchor (бокс всегда охватывает текст)
+    from itertools import combinations
+    for _pass in range(3):
+        moved = 0
+        for i, j in combinations(range(len(slots)), 2):
+            before = (hit_area(i, slots[i], slots) + hit_area(j, slots[j], slots))
+            if before <= 0:
+                continue
+            trial = slots[:]
+            trial[i], trial[j] = slots[j], slots[i]
+            after = (hit_area(i, trial[i], trial) + hit_area(j, trial[j], trial))
+            if after < before:
+                slots[i], slots[j] = trial[i], trial[j]
+                for k, q in ((i, todo[i]), (j, todo[j])):
+                    L = slots[k]
+                    cx = (L[0] + L[2]) / 2
+                    out[q["key"]] = (cx, "middle", L[3] - 3)
+                moved += 1
+        if not moved:
+            break
+    # стек: то, что после ремонта всё ещё пересекается, выносим в колонку у
+    # правого края поля (порядок — по y точки, шаг 15), детерминированно
+    # без коллизий; карта дорисует линию-выноску к далёкой подписи
+    stuck = [i for i in range(len(slots)) if hit_area(i, slots[i], slots) > 0]
+    if stuck:
+        stuck.sort(key=lambda i: todo[i]["y"])
+        colw = max(todo[i]["w"] for i in stuck) + 12
+        x_col = todo[0]["xmax"] - colw
+        y_top, step = todo[0]["ymin"] + 2, 15
+        rows = max(1, int((todo[0]["ymax"] - todo[0]["ymin"] - 6) // step))
+        for k, i in enumerate(stuck):
+            bx = x_col - (k // rows) * (colw + 6)
+            by = y_top + (k % rows) * step
+            slots[i] = (bx, by, bx + todo[i]["w"], by + 13)
+            out[todo[i]["key"]] = (bx, "start", by + 10)
     return out
+
 
 
 MAP_SHORT = {"DeepSeek V4.1 Flash-1017": "DeepSeek"}
@@ -784,23 +869,27 @@ def _map_names(rows: list[dict]) -> None:
         k = (r["short"], r["note"])
         seen[k] = seen.get(k, 0) + 1
         name = MAP_SHORT.get(r["short"], r["short"])
+        # компактный разделитель без пробелов: подписи карт плотные, ширина
+        # входит прямо в расчёт раскладки
         if cnt[r["short"]] > 1:
-            name += f" · {r['note']}"
+            name += f"·{r['note']}"
         if seen[k] > 1:
             tag = prov_tag.get(r.get("prov"), "")
-            name += f" · {tag}" if tag else f" · {seen[k]}"
+            name += f"·{tag}" if tag else f"·{seen[k]}"
         r["_name"], r["_key"] = name, (k[0], k[1], seen[k])
 
 
 def chart_shell(inner: str) -> str:
-    """Интерактивный контейнер карт: кнопки «во весь экран» и «сброс»,
-    подсказка управления; зум/пан — в TOOLTIP_JS (viewBox)."""
+    """Интерактивный контейнер карт: кнопки «во весь экран», «сброс» и
+    «все подписи» (по умолчанию подписана лучшая строка модели — остальные
+    тултипом), подсказка управления; зум/пан — в TOOLTIP_JS (viewBox)."""
     return (f'<div class=chartbox>'
             f'<div class=ctbar><button class=fsb type=button>⛶ во весь экран</button>'
+            f'<button class=lblb type=button>все подписи</button>'
             f'<button class=rst type=button>⟲ сброс</button></div>'
             f'{inner}'
             f'<div class=chint>колесо — масштаб (к курсору) · перетаскивание — сдвиг · '
-            f'двойной клик или ⟲ — сброс</div></div>')
+            f'двойной клик или ⟲ — сброс · наведение на точку — карточка</div></div>')
 
 
 def quality_price_map(agg: list[dict]) -> str:
@@ -838,12 +927,22 @@ def quality_price_map(agg: list[dict]) -> str:
     # несколько строк в таблице (иначе «Sol 6.1 ·low» и «Sol 6.1 ·max» неотличимы);
     # полные дубликаты (модель+режим) различаются провайдером — _map_names
     _map_names(pts_src)
+    # подписи: у каждой модели подписана лучшая строка (ревью выше, при
+    # равенстве — дешевле); остальные режимы — тултипом и по кнопке
+    # «все подписи»: три десятка подписей в кластере локальных моделей
+    # физически не помещаются без наложений
+    prim_row: dict[str, dict] = {}
+    for r in pts_src:
+        cur = prim_row.get(r["short"])
+        if cur is None or (r["a1"], -(r["cost"] or 0)) > (cur["a1"], -(cur["cost"] or 0)):
+            prim_row[r["short"]] = r
+    prim_keys = {r["_key"] for r in prim_row.values()}
     pts = []
     from collections import Counter
     spot_cnt = Counter((round(px(r["cost"])), round(py(r["a1"]))) for r in pts_src)
     same_spot: dict[tuple, int] = {}
-    forced = {}
-    for r in pts_src:
+    forced: dict[tuple, tuple] = {}
+    for r in sorted(pts_src, key=lambda r: r["_key"] not in prim_keys):
         lbl = r["_name"]
         x = px(r["cost"])
         y = py(r["a1"])
@@ -856,7 +955,8 @@ def quality_price_map(agg: list[dict]) -> str:
             # стек вверх: внизу может лежать капшен квадранта
             forced[r["_key"]] = (x + 10, "start", y - 16 - 14 * n)
         pts.append({"key": r["_key"], "x": x, "y": y,
-                    "r": rad_of(r["viol"]), "w": len(lbl) * 5.2 + 6,
+                    "extra": r["_key"] not in prim_keys,
+                    "r": rad_of(r["viol"]), "w": len(lbl) * 6.5 + 8,
                     "xmin": ML - 30, "xmax": ML + PW + 8,
                     "ymin": MT - 6, "ymax": MT + PH + 6})
     # верхние капшены — над полем (внутри поля они сталкиваются с точками
@@ -870,10 +970,15 @@ def quality_price_map(agg: list[dict]) -> str:
         w = len(txt) * 6.3 + 10
         bx0, bx1 = (cx, cx + w) if anc == "start" else (cx - w, cx)
         obstacles.append((bx0, cy - 12, bx1, cy + 3, True))
-    label_geo = _place_labels(pts, obstacles)
-    label_geo.update(forced)
+    # forced-стеки размещены снаружи: их боксы — препятствия, сами точки
+    # из авторазметки исключены (skip), иначе раскладка бьётся со стеком
+    for key, (fx, _anc, fy) in forced.items():
+        fw = next(len(r["_name"]) for r in pts_src if r["_key"] == key) * 6.5 + 8
+        obstacles.append((fx, fy - 10, fx + fw, fy + 3, True))
+    label_geo = _place_labels(pts, obstacles, skip=tuple(forced))
     for r in pts_src:
-        if r["a1"] == 0:   # точка на нижней кромке — подпись над точкой,
+        if r["a1"] == 0 and r["_key"] in prim_keys:
+            # точка на нижней кромке — подпись над точкой (только видимые)
             label_geo[r["_key"]] = (px(r["cost"]) + 10, "start",
                                     py(r["a1"]) - 30)   # выше капшена
 
@@ -926,7 +1031,8 @@ def quality_price_map(agg: list[dict]) -> str:
         svg.append(f'<g class="pt">'
                    f'<circle class="dot" cx="{x:.0f}" cy="{y:.0f}" r="{rad:.1f}" fill="{hue}" '
                    f'fill-opacity="0.8" stroke="#fff" stroke-width="1.5"/>'
-                   f'<text x="{tx:.0f}" y="{ty:.0f}" text-anchor="{anchor}" font-size="11" '
+                   f'<text{" class=lblx" if r["_key"] not in prim_keys else ""} '
+                   f'x="{tx:.0f}" y="{ty:.0f}" text-anchor="{anchor}" font-size="11" '
                    f'fill="{hue}">{r["_name"]}</text>'
                    + leader
                    + f'<g class="tip">' + "".join(tip) + "</g></g>")
@@ -954,6 +1060,13 @@ def quality_speed_map(agg: list[dict]) -> str:
     if not pts_src:
         return ""
     _map_names(pts_src)
+    # подписи: лучшая строка модели — ревью выше, при равенстве быстрее
+    prim_row: dict[str, dict] = {}
+    for r in pts_src:
+        cur = prim_row.get(r["short"])
+        if cur is None or (r["a1"], -(r["dur"] or 0)) > (cur["a1"], -(cur["dur"] or 0)):
+            prim_row[r["short"]] = r
+    prim_keys = {r["_key"] for r in prim_row.values()}
 
     W, H = 1080, 600
     ML, MR, MT, MB = 64, 24, 28, 58
@@ -977,21 +1090,21 @@ def quality_speed_map(agg: list[dict]) -> str:
         # корневая шкала: диаметр — выходные токены сессии
         return 5.5 + min(max((out - 40000) / 100000, 0), 1) ** 0.5 * 8
 
-    pts_src = sorted(pts_src, key=lambda r: r["short"])
+    pts_src = sorted(pts_src, key=lambda r: (r["_key"] not in prim_keys, r["short"]))
     pts = []
     for r in pts_src:
         pts.append({"key": r["_key"], "x": px(r["dur"]), "y": py(r["a1"]),
-                    "r": rad_of(r["out"]), "w": len(r["_name"]) * 5.2 + 6,
+                    "r": rad_of(r["out"]), "w": len(r["_name"]) * 6.5 + 8,
                     "xmin": ML - 30, "xmax": ML + PW + 8,
                     "ymin": MT - 6, "ymax": MT + PH + 6})
     label_geo = _place_labels(pts)
     # Sol 6.1 ·low: автораскладка наезжает на подпись Luna 6 ·max — уводим под точку
     sols = [r for r in pts_src if r["short"] == "Sol 6.1" and r["note"] == "low"]
-    if sols:
+    if sols and sols[0]["_key"] in prim_keys:   # правка только для видимых подписей
         rl = sols[0]
         label_geo[rl["_key"]] = (px(rl["dur"]), "middle", py(rl["a1"]) + 22)
     for r in pts_src:
-        if r["a1"] == 0:   # точка на нижней кромке — подпись над точкой,
+        if r["a1"] == 0 and r["_key"] in prim_keys:   # нижняя кромка, видимая подпись
             label_geo[(r["short"], r["note"])] = (px(r["dur"]) + 10, "start",
                                                   py(r["a1"]) - 30)   # выше капшена
 
@@ -1045,7 +1158,8 @@ def quality_speed_map(agg: list[dict]) -> str:
         svg.append(f'<g class="pt">'
                    f'<circle class="dot" cx="{x:.0f}" cy="{y:.0f}" r="{rad:.1f}" fill="{hue}" '
                    f'fill-opacity="0.8" stroke="#fff" stroke-width="1.5"/>'
-                   f'<text x="{tx:.0f}" y="{ty:.0f}" text-anchor="{anchor}" font-size="11" '
+                   f'<text{" class=lblx" if r["_key"] not in prim_keys else ""} '
+                   f'x="{tx:.0f}" y="{ty:.0f}" text-anchor="{anchor}" font-size="11" '
                    f'fill="{hue}">{r["_name"]}</text>'
                    f'<g class="tip">' + "".join(tip) + "</g></g>")
     svg.append(f'<text x="{ML+PW/2:.0f}" y="{H-16}" text-anchor="middle" font-size="12.5" fill="#66707f">'
@@ -4125,6 +4239,10 @@ document.querySelectorAll('svg.scatter g.pt').forEach(function (pt) {
     if (fs) fs.addEventListener('click', function () {
       box.classList.toggle('full');
       fs.textContent = box.classList.contains('full') ? '✕ выйти' : '⛶ во весь экран';
+    });
+    var lb = box.querySelector('.lblb');
+    if (lb) lb.addEventListener('click', function () {
+      box.classList.toggle('showlbl');
     });
   });
   document.addEventListener('keydown', function (e) {
