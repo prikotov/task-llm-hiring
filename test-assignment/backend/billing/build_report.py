@@ -4436,8 +4436,7 @@ max — {POS[("huihui-ai-pi-100k", "max", False)]}-е, medium — {POS[("huihui-
 Выключение размышлений qwen3.8 почти не вредит — {POS[("qwen3.8-27b-pi-100k", "off", False)]}-е место
 (выше даже своих max-прогонов на {POS[("qwen3.8-27b-pi-100k", "max", False)]}-м); huihui и orca
 без размышлений оседают на {POS[("huihui-ai-pi-100k", "off", False)]}-е и
-{POS[("orcarouter-Qwen3.8-27B-Uncensored-latest", "off", True)]}-е, ревью оси A падает до 1.0.
-Детали — <a href="#runs">прогоны off-серий в разделе 6</a>.</div>
+{POS[("orcarouter-Qwen3.8-27B-Uncensored-latest", "off", True)]}-е, ревью оси A падает до 1.0.</div>
 <div class=card><b>Max выручает облака</b>Luna 6: low 10 → max 13/13; Sol 6.1: low 11 → max 13/13.
 DeepSeek полон на обоих уровнях, но max пишет чище (phpcs 0 против 60). Детали —
 <a href="#results">строки уровней в таблице результатов</a>.</div>
