@@ -4335,9 +4335,9 @@ _contam = [r for r in DATA_ALL if r["contention"]]
 HTML = f"""<!DOCTYPE html>
 <html lang="ru"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Тестовое задание «биллинг LLM-токенов»</title>
+<title>Этап 2: тестовое задание «биллинг LLM-токенов»</title>
 <style>{CSS}</style></head><body><div class=wrap>
-<h1 class=pagetitle>Тестовое задание «биллинг LLM-токенов»</h1>
+<h1 class=pagetitle>Этап 2: тестовое задание «биллинг LLM-токенов»</h1>
 <p class=sub style="margin:-6px 4px 14px">Отчёт подготовлен {RANGE_HUMAN} в ZCode при содействии моделей GLM-5.3 и GLM-5.3-Flash.</p>
 
 <header class=hero id=intro>
