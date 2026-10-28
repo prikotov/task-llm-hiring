@@ -324,6 +324,8 @@ header p{margin:5px 0;opacity:.93;max-width:74ch}
 .toc ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:5px 28px}
 .toc a{color:var(--acc);text-decoration:none}
 .toc a:hover{text-decoration:underline}
+.toc ul.toc-sub{display:block;margin:3px 0 6px;padding-left:14px;grid-column:1/-1}
+.toc ul.toc-sub li{font-size:13px;margin:2px 0}
 h2{font-size:24px;margin:44px 0 10px;letter-spacing:-.01em}
 h2 .no{color:var(--mut);font-weight:400;margin-right:8px}
 h3{font-size:17.5px;margin:26px 0 2px}
@@ -2174,7 +2176,7 @@ def tools_section(data: list[dict]) -> str:
                 "Пытались вызвать, но утилиты в окружении нет: "
                 + ", ".join(f"<code>{w}</code> ({c})" for w, c in miss_all.most_common(8)) + ".")
 
-    return (f'<h3><span class=no>4.2</span>Инструменты и утилиты в работе</h3>'
+    return (f'<h3 id=s42><span class=no>4.2</span>Инструменты и утилиты в работе</h3>'
             f'<p class=sub>След сессии pi: что модели вызывали сами. Популяция — {n} '
             f'успешных прогонов; поиск несуществующих утилит — по всем {n_live} живым.</p>'
             f'{donuts}'
@@ -2339,7 +2341,7 @@ def context_section(data: list[dict]) -> str:
                    f'<td>{candle}</td>'
                    f'<td class=narrow>{peak_cell}</td></tr>')
 
-    return (f'<h3><span class=no>4.3</span>Работа с контекстом</h3>'
+    return (f'<h3 id=s43><span class=no>4.3</span>Работа с контекстом</h3>'
             f'<p class=lead>Харнес pi подаёт всем контекст 102.4K и сам сжимает '
             f'историю (автокомпакт), когда заполнение доходит до порога ~{thr}K — '
             f'медиана <code>tokensBefore</code> по {len(comp_before)} компактам '
@@ -2696,7 +2698,7 @@ def code_quality_section(data: list[dict]) -> str:
 
     acyclic = sum(1 for recs in per.values() for x in recs if x["cyc"] == 0)
     n_runs = sum(len(x) for x in per.values())
-    return (f'<h3><span class=no>4.4</span>Качество кода: статический анализ '
+    return (f'<h3 id=s44><span class=no>4.4</span>Качество кода: статический анализ '
             f'и архитектура (ярус 2)</h3>'
             f'<p class=lead>Той же популяции ({n_runs} прогонов «хороших» режимов) '
             f'достаётся и ярус 2 — метрики кода, собранные чекером по src/: '
@@ -3205,7 +3207,7 @@ def audit_section(data: list[dict]) -> str:
 
     uncls_txt = (f' Не классифицировано судьёй: {uncls_total} (сигнал добавлен детектором '
                  f'уже после прогона аудитора).' if uncls_total else "")
-    return (f'<h3><span class=no>4.5</span>Сводный аудит безопасности</h3>'
+    return (f'<h3 id=s45><span class=no>4.5</span>Сводный аудит безопасности</h3>'
             f'<p class=lead>Детектор в каждой сессии помечает два класса сигналов — '
             f'обращение к сети и пути вне рабочего каталога прогона; сигнал — не '
             f'вердикт: каждый разбирает судья-аудитор (изолированная pi-сессия '
@@ -3315,7 +3317,7 @@ def missed_local_section(data: list[dict]) -> str:
             f'<div class=sub>{min(mand)}–{max(mand)}</div></td>'
             f'<td class=narrow>{a1_cell}</td>'
             f'<td>{CAUSE.get(f, "")}</td></tr>')
-    return (f'<h3><span class=no>4.6</span>Локальные модели вне «хороших» '
+    return (f'<h3 id=s46><span class=no>4.6</span>Локальные модели вне «хороших» '
             f'квадрантов</h3>'
             f'<p class=lead>Разделы 4.1–4.4 смотрят только на успешные решения — '
             f'так проще измерять стиль и постоянство. Но перечень причин, почему '
@@ -3676,7 +3678,7 @@ def structure_section(data: list[dict]) -> str:
     excl_txt = " · ".join(f"{a['short']} · {a['note']}" for a in excluded)
     n_modes = sum(1 for rs in by_g.values() if len(rs) > 1)
 
-    return (f'<h3><span class=no>4.1</span>Структура кода: src/ и tests/</h3>'
+    return (f'<h3 id=s41><span class=no>4.1</span>Структура кода: src/ и tests/</h3>'
             f'<p class=lead>Задание не подсказывает устройство кода: скелет — это '
             f'src/Kernel.php и пустой tests/. Про архитектуру в TASK.md одна строка: '
             f'«Архитектура, разбиение на слои/модули, именование — на ваше '
@@ -4361,7 +4363,15 @@ HTML = f"""<!DOCTYPE html>
 <li><a href="#tldr">1. Главные выводы</a></li>
 <li><a href="#method">2. Методика этапа</a></li>
 <li><a href="#models">3. Модели</a></li>
-<li><a href="#results">4. Результаты моделей</a></li>
+<li><a href="#results">4. Результаты моделей</a>
+   <ul class=toc-sub>
+   <li><a href="#s41">4.1. Структура кода: src/ и tests/</a></li>
+   <li><a href="#s42">4.2. Инструменты и утилиты в работе</a></li>
+   <li><a href="#s43">4.3. Работа с контекстом</a></li>
+   <li><a href="#s44">4.4. Качество кода: статанализ и архитектура</a></li>
+   <li><a href="#s45">4.5. Сводный аудит безопасности</a></li>
+   <li><a href="#s46">4.6. Локальные вне «хороших» режимов</a></li>
+   </ul></li>
 <li><a href="#judges">5. Судьи: согласие ярусов</a></li>
 <li><a href="#runs">6. Прогоны и данные</a></li>
 <li><a href="#next">7. Стоимость и дальше</a></li>
