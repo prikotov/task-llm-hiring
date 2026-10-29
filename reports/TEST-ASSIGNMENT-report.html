@@ -313,25 +313,20 @@ doctrine/migrations 3.3, PHP ≥ 8.4; docker-compose с PostgreSQL 17; заго�
 </ul>
 
 <h3>Как запускается</h3>
-<p>Задание передаётся одним пользовательским сообщением.
-Единственный наш промпт — дословно, константа <code>TASK_PROMPT</code>
-в <code>runner_pi.py</code>:</p>
-<pre class=req># runner_pi.py, константа TASK_PROMPT — единственный промпт прогона
-Прочитай TASK.md в корне репозитория и выполни задание.</pre>
-<p>System prompt у сессии при этом есть — его собирает сам харнес pi: определения
-инструментов, инструкции агента и <code>AGENTS.md</code> скелета. Он одинаков для всех
-моделей и само задание не касается; наша надстройка над ним — только одна строка выше.</p>
 <p>Раннер разворачивает свежую копию скелета (без var/, <code>.env</code> — из
-<code>.env.example</code>) во временный каталог и запускает pi одной командой:</p>
-<pre class=req>pi -p --session-dir &lt;run&gt;/pi-session --model &lt;тег&gt; --thinking &lt;уровень&gt; &quot;&lt;промпт&gt;&quot;</pre>
-<p>Реальный вызов из сетки (run-02 qwen3.8, после перевода thinking на честный
-xhigh):</p>
+<code>.env.example</code>) во временный каталог и запускает pi одной командой — реальный
+вызов из сетки (run-02 qwen3.8):</p>
 <pre class=req>python3 test-assignment/backend/billing/runner_pi.py \
   --model qwen3.8:27b-pi-100k \
   --results models/qwen3.8-27b-pi-100k/backend/test-assignment/run-02 \
   --thinking max</pre>
-<p>Облачная модель — тот же раннер с провайдером (ключи и прокси — из env, в git не
-хранятся; thinking — уровень шкалы провайдера):</p>
+<p>Раннер передаёт агенту один промпт — константа <code>TASK_PROMPT</code>,
+одна и та же для всех моделей и прогонов: «Прочитай TASK.md в корне репозитория
+и выполни задание». System prompt при этом у сессии есть — его собирает харнес pi
+(определения инструментов, инструкции агента, <code>AGENTS.md</code> скелета);
+он одинаков для всех моделей и задание не касается. Облачная модель — тот же
+раннер с провайдером (ключи и прокси — из env, в git не хранятся; thinking —
+уровень шкалы провайдера):</p>
 <pre class=req>python3 test-assignment/backend/billing/runner_pi.py \
   --model openai/gpt-6.1-sol --provider openrouter \
   --results models/openai-gpt-6.1-sol/backend/test-assignment/run-02 \
