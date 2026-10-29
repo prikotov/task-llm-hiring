@@ -353,6 +353,8 @@ tr.neg td{background:#fdf6f4}
 tr.top td{background:#eef6ef}
 .barwrap{position:relative;background:#eef0f4;border-radius:6px;min-width:92px;max-width:110px;height:21px}
 .barwrap .bar{position:absolute;left:0;top:3px;bottom:3px;border-radius:5px;min-width:3px;opacity:.3}
+.barwrap .rng{position:absolute;top:3px;bottom:3px;border-radius:5px;min-width:4px;opacity:.3}
+.barwrap .tick{position:absolute;top:1px;bottom:1px;width:2px;border-radius:1px}
 .barwrap>span{position:absolute;left:7px;top:0;font-size:12.5px;line-height:21px;font-weight:600;color:var(--ink)}
 .barwrap+.barwrap{margin-top:2px}
 .barwrap.s{min-width:56px;max-width:72px}
@@ -1550,21 +1552,6 @@ def judges_dumbbell(data: list[dict]):
     if not rows:
         return ""
     return dumbbell(rows, 4, (0, 1, 2, 3, 4), "ось A: что сделано (0–4)", fmt="{:g}")
-
-
-def think_dumbbell(data: list[dict]):
-    """Устойчивость: разброс суммы чекера по прогонам модели (худший → лучший)."""
-    by_model: dict[str, list[int]] = {}
-    for r in data:
-        # только живые прогоны: обрывок решения (✂) — не «худший прогон» модели
-        if not r["dead"] and r["mand"] is not None:
-            by_model.setdefault(r["short"], []).append(r["mand"] + r["bonus"])
-    rows = [(m, min(v), max(v), "худший прогон", "лучший прогон")
-            for m, v in sorted(by_model.items())]
-    if not rows:
-        return ""
-    return dumbbell(rows, 13.6, (0, 5, 11, 13), "сценарии чекера (из 13)",
-                    ref_lines=((11, "обязательные 11"), (13, "максимум 13")))
 
 
 def structure_scan(data: list[dict]) -> list[dict]:
@@ -3869,10 +3856,18 @@ def quality_chart(data: list[dict]):
 
 
 def level_pairs(data: list[dict]):
-    """Серии уровней размышлений по всем моделям этапа: полоса на уровень
-    (div-бары) — средние по прогонам уровня: чекер, ревью, тесты, цена."""
+    """Серии уровней размышлений по всем моделям этапа: полоса на уровень —
+    диапазон сумм чекера по прогонам (худший–лучший) с меткой среднего;
+    справа — средние ревью (ось A), тесты и цена."""
     import html as _h
     agg = [r for r in results_agg(data) if r["n"] and r["mand"] is not None]
+    # суммы чекера по живым прогонам каждой группы (ключ — как в results_agg)
+    totals = {}
+    for r in data:
+        if r["dead"] or r["mand"] is None:
+            continue
+        k = (r["folder"], r["note"], r["ctx"], "-tuned" in r["tag"], r["retag"])
+        totals.setdefault(k, []).append(r["mand"] + r["bonus"])
     NOTE_O = {"off": 0, "нет": 1, "low": 2, "medium": 3,
               "high": 4, "xhigh": 5, "on": 6, "max": 7}
     order = ["openai-gpt-6-luna", "openai-gpt-6.1-sol", "anthropic-claude-haiku-5.5",
@@ -3894,7 +3889,11 @@ def level_pairs(data: list[dict]):
 
         for r in rs:
             total = (r["mand"] or 0) + (r["bonus"] or 0)
-            w = max(3, total / 13 * 100)
+            hue = KIND_HUE[r["worst"]]
+            runs = sorted(totals.get((r["folder"], r["note"], r["ctx"], r["tuned"], r["retag"]), []))
+            lo, hi = (runs[0], runs[-1]) if runs else (total, total)
+            lo_w, hi_w = lo / 13 * 100, hi / 13 * 100
+            avg_w = max(total / 13 * 100, 1.2)
             chk = fnum(r["mand"]) + (f'<span class=star>★</span>{fnum(r["bonus"])}' if r["bonus"] else "")
             rc = (' color:var(--good);font-weight:600' if r["a1"] is not None and r["a1"] >= REVIEW_GOOD
                   else ' color:var(--bad);font-weight:600' if r["a1"] is not None and r["a1"] <= 2
@@ -3903,13 +3902,17 @@ def level_pairs(data: list[dict]):
             lbl = _h.escape(r["note"] + (" · MTP" if r["retag"] else "")
                             + (" · tuned" if r["tuned"] else "")
                             + (" · orca" if r["prov"] == "orcarouter" else ""))
+            rng_txt = (f' <span style="color:var(--mut);font-weight:400">{lo:g}–{hi:g}</span>'
+                       if len(runs) > 1 else "")
             tests = "—" if r["tests"] is None else fnum(r["tests"])
             rev = "—" if r["a1"] is None else fnum(r["a1"])
             rev = f'<span{rcattr}>{rev}</span>' if rcattr else rev
             rows.append(
                 f'<div class=pairrow><span class=pairlbl{rcattr}>{lbl}</span>'
-                f'<div class=barwrap style="flex:0 1 420px"><div class=bar style="width:{w:.0f}%;'
-                f'background:{KIND_HUE[r["worst"]]}"></div><span>{chk}</span></div>'
+                f'<div class=barwrap style="flex:0 1 420px">'
+                f'<div class=rng style="left:{lo_w:.1f}%;width:{max(hi_w - lo_w, 1.2):.1f}%;background:{hue}"></div>'
+                f'<div class=tick style="left:calc({avg_w:.1f}% - 1px);background:{hue}"></div>'
+                f'<span>{chk}{rng_txt}</span></div>'
                 f'<span class=pairmeta>ревью {rev} · тесты {tests} · ${r["cost"]:.3f}</span></div>')
         blocks.append(f'<div class=pairblock><div class=pairtitle>'
                       f'{_h.escape(TITLE.get(folder, rs[0]["short"]))}</div>'
@@ -3917,12 +3920,12 @@ def level_pairs(data: list[dict]):
     if not blocks:
         return ""
     return (f'<div class=pairs>{"".join(blocks)}</div>'
-            '<p class=sub>Полоса — средняя сумма сценариев чекера из 13 по прогонам уровня '
-            '(★ — бонусные); справа — средний балл ревью (ось A), тестов написано и стоимость '
-            'прогона. У облачных уровни low/max, у локальных off/low/medium/max; « · MTP» — '
-            'ретаг-серия тех же весов, « · tuned» — файнтюн-вариант ornith, « · orca» — '
-            'прогон через OrcaRouter; уровни без живых прогонов не показаны '
-            '(у Haiku max — вне метрик).</p>')
+            '<p class=sub>Полоса — диапазон сумм чекера по прогонам уровня (из 13, '
+            'включая ★-бонус), вертикальная метка — среднее; справа — средний балл ревью '
+            '(ось A), тестов написано и стоимость прогона. У облачных уровни low/max, '
+            'у локальных off/low/medium/max; « · MTP» — ретаг-серия тех же весов, '
+            '« · tuned» — файнтюн-вариант ornith, « · orca» — прогон через OrcaRouter; '
+            'уровни без живых прогонов не показаны (у Haiku max — вне метрик).</p>')
 
 
 def tier_costs() -> str:
@@ -4905,13 +4908,6 @@ Luna добирает её только на max. DeepSeek на max пишет �
 а качество ведёт себя по-разному: huihui ровный на low/medium/max, qwen3.8 лучший на low.</p>
 {level_pairs(DATA)}
 
-<h3>Разброс прогонов</h3>
-<p class=excap>Полоса — от худшего к лучшему прогону модели, каждый с нуля в одинаковых условиях.
-У локальных это устойчивость: qwen на low берёт 13–13 в каждом прогоне,
-medium — 12–13, max — 9–13, off — 11–12; huihui ровно держит 12–13 на
-low/medium/max, но на off — лотерея 2–13. У облачных полоса —
-тот же эффект уровня размышлений, что и на графике выше.</p>
-{think_dumbbell(DATA)}
 {structure_section(DATA)}
 {tools_section(DATA)}
 {context_section(DATA)}
