@@ -353,8 +353,6 @@ tr.neg td{background:#fdf6f4}
 tr.top td{background:#eef6ef}
 .barwrap{position:relative;background:#eef0f4;border-radius:6px;min-width:92px;max-width:110px;height:21px}
 .barwrap .bar{position:absolute;left:0;top:3px;bottom:3px;border-radius:5px;min-width:3px;opacity:.3}
-.barwrap .rng{position:absolute;top:3px;bottom:3px;border-radius:5px;min-width:4px;opacity:.3}
-.barwrap .tick{position:absolute;top:1px;bottom:1px;width:2px;border-radius:1px}
 .barwrap>span{position:absolute;left:7px;top:0;font-size:12.5px;line-height:21px;font-weight:600;color:var(--ink)}
 .barwrap+.barwrap{margin-top:2px}
 .barwrap.s{min-width:56px;max-width:72px}
@@ -479,6 +477,10 @@ header.hero a{color:#fff;text-decoration:underline;text-underline-offset:2px}
 .pairblock{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 16px}
 .pairtitle{font-size:15px;font-weight:600;margin-bottom:6px}
 .pairrow{display:flex;align-items:center;gap:10px;margin:8px 0}
+.pairrng{display:flex;align-items:center;gap:6px;flex:none;font-size:12px;color:var(--mut)}
+.pairrng .rtrack{position:relative;width:64px;height:10px;background:#eef0f4;border-radius:5px}
+.pairrng .rband{position:absolute;top:0;bottom:0;border-radius:5px;min-width:3px;opacity:.5}
+.pairrng .rtick{position:absolute;top:-1px;bottom:-1px;width:2px;border-radius:1px}
 .pairlbl{width:72px;font-size:12px;color:var(--mut);text-align:right;flex:none}
 .pairmeta{font-size:12px;color:var(--mut);white-space:nowrap}
 .badge{display:inline-block;border-radius:5px;padding:1px 8px;font-size:12px;font-weight:600}
@@ -3894,6 +3896,7 @@ def level_pairs(data: list[dict]):
             lo, hi = (runs[0], runs[-1]) if runs else (total, total)
             lo_w, hi_w = lo / 13 * 100, hi / 13 * 100
             avg_w = max(total / 13 * 100, 1.2)
+            w = max(3, total / 13 * 100)
             chk = fnum(r["mand"]) + (f'<span class=star>★</span>{fnum(r["bonus"])}' if r["bonus"] else "")
             rc = (' color:var(--good);font-weight:600' if r["a1"] is not None and r["a1"] >= REVIEW_GOOD
                   else ' color:var(--bad);font-weight:600' if r["a1"] is not None and r["a1"] <= 2
@@ -3902,17 +3905,26 @@ def level_pairs(data: list[dict]):
             lbl = _h.escape(r["note"] + (" · MTP" if r["retag"] else "")
                             + (" · tuned" if r["tuned"] else "")
                             + (" · orca" if r["prov"] == "orcarouter" else ""))
-            rng_txt = (f' <span style="color:var(--mut);font-weight:400">{lo:g}–{hi:g}</span>'
-                       if len(runs) > 1 else "")
             tests = "—" if r["tests"] is None else fnum(r["tests"])
             rev = "—" if r["a1"] is None else fnum(r["a1"])
             rev = f'<span{rcattr}>{rev}</span>' if rcattr else rev
+            # распределение прогонов — отдельный элемент строки: мини-трек
+            # с лентой худший–лучший и меткой среднего
+            if len(runs) > 1:
+                rng_el = (f'<span class=pairrng><span class=rtrack>'
+                          f'<span class=rband style="left:{lo_w:.0f}%;'
+                          f'width:{max(hi_w - lo_w, 2):.0f}%;background:{hue}"></span>'
+                          f'<span class=rtick style="left:calc({avg_w:.0f}% - 1px);'
+                          f'background:{hue}"></span></span>{lo:g}–{hi:g}</span>')
+            else:
+                rng_el = (f'<span class=pairrng><span class=rtrack>'
+                          f'<span class=rtick style="left:calc({avg_w:.0f}% - 1px);'
+                          f'background:{hue}"></span></span>{lo:g}</span>')
             rows.append(
                 f'<div class=pairrow><span class=pairlbl{rcattr}>{lbl}</span>'
-                f'<div class=barwrap style="flex:0 1 420px">'
-                f'<div class=rng style="left:{lo_w:.1f}%;width:{max(hi_w - lo_w, 1.2):.1f}%;background:{hue}"></div>'
-                f'<div class=tick style="left:calc({avg_w:.1f}% - 1px);background:{hue}"></div>'
-                f'<span>{chk}{rng_txt}</span></div>'
+                f'<div class=barwrap style="flex:0 1 420px"><div class=bar style="width:{w:.0f}%;'
+                f'background:{hue}"></div><span>{chk}</span></div>'
+                f'{rng_el}'
                 f'<span class=pairmeta>ревью {rev} · тесты {tests} · ${r["cost"]:.3f}</span></div>')
         blocks.append(f'<div class=pairblock><div class=pairtitle>'
                       f'{_h.escape(TITLE.get(folder, rs[0]["short"]))}</div>'
@@ -3920,9 +3932,10 @@ def level_pairs(data: list[dict]):
     if not blocks:
         return ""
     return (f'<div class=pairs>{"".join(blocks)}</div>'
-            '<p class=sub>Полоса — диапазон сумм чекера по прогонам уровня (из 13, '
-            'включая ★-бонус), вертикальная метка — среднее; справа — средний балл ревью '
-            '(ось A), тестов написано и стоимость прогона. У облачных уровни low/max, '
+            '<p class=sub>Полоса — средняя сумма сценариев чекера из 13 (★ — бонусные), '
+            'мини-трек рядом — распределение прогонов уровня (лента худший–лучший, метка — '
+            'среднее); справа — средний балл ревью (ось A), тестов написано и стоимость '
+            'прогона. У облачных уровни low/max, '
             'у локальных off/low/medium/max; « · MTP» — ретаг-серия тех же весов, '
             '« · tuned» — файнтюн-вариант ornith, « · orca» — прогон через OrcaRouter; '
             'уровни без живых прогонов не показаны (у Haiku max — вне метрик).</p>')
