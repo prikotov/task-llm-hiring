@@ -335,6 +335,7 @@ h2{font-size:24px;margin:44px 0 10px;letter-spacing:-.01em}
 h2 .no{color:var(--mut);font-weight:400;margin-right:8px}
 h3{font-size:17.5px;margin:26px 0 2px}
 h4{font-size:15px;margin:16px 0 4px;color:var(--ink)}
+h4 .no{color:var(--mut);font-weight:400;margin-right:8px}
 h3 .no{color:var(--mut);font-weight:400;margin-right:8px}
 .lead{color:var(--mut);margin:8px 0 14px;font-size:15px}
 p{margin:10px 0}
@@ -4494,7 +4495,7 @@ Prism: на уровнях с размышлением живых прогоно
 <h2 id=method><span class=no>2.</span>Методика этапа</h2>
 <p class=lead>Что получает кандидат, в каком окружении работает модель и как устроены пять контуров оценки: два детерминированных, два модельных судьи и аудит безопасности.</p>
 
-<h3>Скелет задания</h3>
+<h3><span class=no>2.1</span>Скелет задания</h3>
 <p>Модель получает <a href="https://github.com/prikotov/task-llm-hiring/blob/main/test-assignment/backend/billing/skeleton/">каркас Symfony-проекта</a>
 (composer.json: symfony/framework-bundle 8.0, console/yaml, doctrine-bundle 3.2,
 doctrine/migrations 3.3, PHP ≥ 8.4; docker-compose с PostgreSQL 17; заготовка src/ и
@@ -4516,7 +4517,7 @@ doctrine/migrations 3.3, PHP ≥ 8.4; docker-compose с PostgreSQL 17; заго�
 менять ли файлы каркаса) модель выбирает сама — чекер наблюдает выбор.</li>
 </ul>
 
-<h3>Как запускается</h3>
+<h3><span class=no>2.2</span>Как запускается</h3>
 <p>Раннер разворачивает свежую копию скелета (без var/, <code>.env</code> — из
 <code>.env.example</code>) во временный каталог и запускает pi одной командой — реальный
 вызов (run-02 qwen3.8):</p>
@@ -4537,7 +4538,7 @@ doctrine/migrations 3.3, PHP ≥ 8.4; docker-compose с PostgreSQL 17; заго�
   --model openai/gpt-6.1-sol --provider openrouter \\
   --results models/openai-gpt-6.1-sol/backend/test-assignment/run-02 \\
   --thinking max</pre>
-<h3>Окружение</h3>
+<h3><span class=no>2.3</span>Окружение</h3>
 <p>cwd (current working directory — рабочая папка запускаемого pi) —
 свежая копия скелета. Поведение pi настраивают переменные окружения (документированы в pi):
 PI_CODING_AGENT_DIR переносит каталог конфигурации pi (~/.pi/agent — настройки, сессии,
@@ -4546,8 +4547,8 @@ PI_CODING_AGENT_DIR переносит каталог конфигурации p
 (обновления каталога моделей и подобные фоновые запросы). CLI-параметров у обеих нет —
 в pi это заведомо переменные окружения: они настраивают сам процесс, а не задание;
 раннер проставляет их на каждый запуск.</p>
-<h3>Генерация</h3>
-<h4>Ollama — локальные модели</h4>
+<h3><span class=no>2.4</span>Генерация</h3>
+<h4><span class=no>2.4.1</span>Ollama — локальные модели</h4>
 <p>Провайдер — ollama /v1 (openai-completions) внутреннего сервера.
 models.json раннера задаёт:</p>
 <ul>
@@ -4558,7 +4559,7 @@ thinking съедает его весь и ответ пуст;</li>
 </ul>
 <p>Лимит по времени — 90 минут на прогон. Лимит выходных токенов на xhigh/max — 32768
 (см. список выше); фактические значения по группам прогонов — в шапке таблиц раздела 6.</p>
-<h4>OpenRouter — облачные SOTA</h4>
+<h4><span class=no>2.4.2</span>OpenRouter — облачные SOTA</h4>
 <p>Облачные модели идут нативным openrouter-провайдером pi: модель берётся из каталога pi
 и вызывается своим родным протоколом — Anthropic (Opus 5.5, Haiku 5.5) через
 anthropic-messages, GPT (Sol 6.1, Luna 6) через openai-completions; точка —
@@ -4569,17 +4570,17 @@ openrouter.ai/api, ключ через OPENROUTER_API_KEY. Окно контек
 кастомная запись openai-completions с переопределениями на Haiku 5.5 max дала два
 прогона подряд stop=length посреди размышлений — в этом протоколе reasoning и ответ
 делят один лимит выходных токенов (оба прогона вне метрик).</p>
-<h4>OrcaRouter — Opus 5.5</h4>
+<h4><span class=no>2.4.3</span>OrcaRouter — Opus 5.5</h4>
 <p>Тот же нативный anthropic-messages (/v1/messages, Bearer-ключ), прайс Anthropic без
 наценки; Haiku 5.5 в каталоге OrcaRouter нет (2026-10-22). Мышление — штатными лимитами reasoning pi (low 2048 / medium 8192 /
 high и max 16384 токенов на вызов): adaptive-режим, включавшийся compat-флагами из
 каталога pi, не имеет потолка — первый «low»-прогон в нём потратил 70.8K reasoning
 и $4.38 (прерван лимитом ключа, вне метрик; разбор в model.md).</p>
-<h4>DeepSeek — родной API</h4>
+<h4><span class=no>2.4.4</span>DeepSeek — родной API</h4>
 <p>OpenAI-совместимый API api.deepseek.com без прокси, ключ DEEPSEEK_API_KEY; лимит
 выходных токенов 16000 — дефолт API 4096 режет ответы в полуслове. Размышления включаются параметром reasoning_effort: наш низший уровень (low)
 передаётся как low, высший (max) — как high.</p>
-<h4>GigaChat — через локальный мост</h4>
+<h4><span class=no>2.4.5</span>GigaChat — через локальный мост</h4>
 <p>API GigaChat не совпадает с тем, что ожидает pi: инструменты у GigaChat называются
 functions, авторизация — OAuth с регулярным обновлением токена. Поэтому раннер
 включает между pi и api.giga.chat локальный прокси gigachat_proxy — самописанный
@@ -4590,7 +4591,7 @@ functions, авторизация — OAuth с регулярным обновл
 остаётся в &lt;run&gt;/pi-session/*.jsonl — у всех провайдеров — и коммитится в
 репозиторий вместе с остальными артефактами прогона: его можно разбирать построчно.</p>
 
-<h3>Конвейер оценки: пять контуров</h3>
+<h3><span class=no>2.5</span>Конвейер оценки: пять контуров</h3>
 <div class=flow>
 <div class=step><b>1 · Чекер</b>детерминированный: golden-эталоны, чистая БД в docker</div>
 <div class=arrow>→</div>
