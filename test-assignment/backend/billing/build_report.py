@@ -2150,7 +2150,8 @@ def tools_section(data: list[dict]) -> str:
         return (st.mean([_tvd_sim(a, b) for a, b in combinations(tv, 2)]),
                 st.mean([_tvd_sim(a, b) for a, b in combinations(uv, 2)]))
 
-    head = "".join(f'<th class=narrow><code>{w}</code></th>' for w in shown)
+    head = "".join(f'<th class=narrow style="text-transform:none"><code>{w}</code></th>'
+                   for w in shown)
     rows_m = []
     for _, rs in modes:
         mix: Counter = Counter()
