@@ -3845,15 +3845,22 @@ def quality_chart(data: list[dict]):
                " · ".join(f'<span style="color:{h}">■</span> {n}' for h, n in zip(hues, names))))
 
 
-def cloud_pairs(data: list[dict]):
-    """Облачные модели: low → max по чекеру, ревью и цене (div-бары)."""
+def level_pairs(data: list[dict]):
+    """Серии уровней размышлений по всем моделям этапа: полоса на уровень
+    (div-бары) — средние по прогонам уровня: чекер, ревью, тесты, цена."""
     import html as _h
+    agg = [r for r in results_agg(data) if r["n"] and r["mand"] is not None]
+    NOTE_O = {"off": 0, "нет": 1, "low": 2, "medium": 3,
+              "high": 4, "xhigh": 5, "on": 6, "max": 7}
+    order = ["openai-gpt-6-luna", "openai-gpt-6.1-sol", "anthropic-claude-haiku-5.5",
+             "anthropic-claude-opus-5.5", "deepseek-flash"]
+    order += [f for _, fs in RUN_GROUPS for f in fs if f not in order]
+    TITLE = {"orcarouter-Qwen3.8-27B-Uncensored-latest": "orca (Q4_K_M)",
+             "orcarouter-Qwen3.8-27B-Uncensored-iq4_xs": "orca (IQ4_XS)"}
     blocks = []
-    for folder in ("openai-gpt-6-luna", "openai-gpt-6.1-sol",
-                   "anthropic-claude-haiku-5.5", "anthropic-claude-opus-5.5",
-                   "deepseek-flash"):
-        rs = sorted([r for r in data if r["folder"] == folder and r["cost"] is not None],
-                    key=lambda r: 0 if r["note"] == "low" else 1)
+    for folder in order:
+        rs = sorted([r for r in agg if r["folder"] == folder],
+                    key=lambda r: NOTE_O.get(r["note"], 9))
         if len(rs) < 2:
             continue
         rows = []
@@ -3861,19 +3868,28 @@ def cloud_pairs(data: list[dict]):
             total = (r["mand"] or 0) + (r["bonus"] or 0)
             w = max(3, total / 13 * 100)
             chk = f'{r["mand"]:g}' + (f'<span class=star>★</span>{r["bonus"]:g}' if r["bonus"] else "")
+            lbl = _h.escape(r["note"] + (" · MTP" if r["retag"] else "")
+                            + (" · tuned" if r["tuned"] else "")
+                            + (" · orca" if r["prov"] == "orcarouter" else ""))
+            tests = "—" if r["tests"] is None else f'{r["tests"]:g}'
+            rev = "—" if r["a1"] is None else f'{r["a1"]:g}'
             rows.append(
-                f'<div class=pairrow><span class=pairlbl>{_h.escape(r["note"])}</span>'
+                f'<div class=pairrow><span class=pairlbl>{lbl}</span>'
                 f'<div class=barwrap style="flex:0 1 420px"><div class=bar style="width:{w:.0f}%;'
-                f'background:{KIND_HUE[r["kind"]]}"></div><span>{chk}</span></div>'
-                f'<span class=pairmeta>ревью {r["a1"]:g} · тесты '
-                f'{r["tests"] if r["tests"] is not None else "—"} · ${r["cost"]:.3f}</span></div>')
-        blocks.append(f'<div class=pairblock><div class=pairtitle>{_h.escape(rs[0]["short"])}</div>'
+                f'background:{KIND_HUE[r["worst"]]}"></div><span>{chk}</span></div>'
+                f'<span class=pairmeta>ревью {rev} · тесты {tests} · ${r["cost"]:.3f}</span></div>')
+        blocks.append(f'<div class=pairblock><div class=pairtitle>'
+                      f'{_h.escape(TITLE.get(folder, rs[0]["short"]))}</div>'
                       + "".join(rows) + "</div>")
     if not blocks:
         return ""
     return (f'<div class=pairs>{"".join(blocks)}</div>'
-            '<p class=sub>Полоса — сумма сценариев чекера из 13 (★ — бонусные); справа — балл ревью (ось A), '
-            "тестов написано и стоимость API. low/max — уровень размышлений провайдера.</p>")
+            '<p class=sub>Полоса — средняя сумма сценариев чекера из 13 по прогонам уровня '
+            '(★ — бонусные); справа — средний балл ревью (ось A), тестов написано и стоимость '
+            'прогона. У облачных уровни low/max, у локальных off/low/medium/max; « · MTP» — '
+            'ретаг-серия тех же весов, « · tuned» — файнтюн-вариант ornith, « · orca» — '
+            'прогон через OrcaRouter; уровни без живых прогонов не показаны '
+            '(у Haiku max — вне метрик).</p>')
 
 
 def tier_costs() -> str:
@@ -4847,11 +4863,14 @@ enable_thinking, но /api/show шкалу не отдаёт) · 3 прогон�
 
 <h2 id=results><span class=no>4.</span>Результаты моделей</h2>
 {results_table(DATA)}{quality_price_map(results_agg(DATA))}{quality_speed_map(results_agg(DATA))}{quality_triangle_map(results_agg(DATA))}
-<h3>Уровень размышлений: low → max</h3>
-<p class=excap>У всех пяти облачных моделей есть пара прогонов low/max на прочих равных.
-max поднимает до полного зачёта Luna и Sol; DeepSeek V4.1 Flash-1017 полон на обоих уровнях, но max пишет
-заметно более чистый код. Цена max — от ×3 (Luna) до ×10 (Sol) по API.</p>
-{cloud_pairs(DATA)}
+<h3>Уровень размышлений: от низшего к высшему</h3>
+<p class=excap>Серии уровней размышлений есть у всех моделей этапа, у каждой — на прочих
+равных: облачные — low/max, локальные — off/low/medium/max (orca и gemma4 — вкл/выкл).
+max поднимает до полного зачёта Luna и Sol; DeepSeek V4.1 Flash-1017 полон на обоих
+уровнях, но max пишет заметно более чистый код — цена вопроса от ×3 (Luna) до ×10 (Sol)
+по API. У локальных уровень цены не меняет, а качество ведёт себя по-разному:
+huihui ровный на low/medium/max, qwen3.8 лучший на low.</p>
+{level_pairs(DATA)}
 
 <h3>Разброс прогонов</h3>
 <p class=excap>Полоса — от худшего к лучшему прогону модели, каждый с нуля в одинаковых условиях.
