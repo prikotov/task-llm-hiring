@@ -4204,6 +4204,11 @@ document.querySelectorAll('svg.scatter g.pt').forEach(function (pt) {
 // кликом или кнопкой, «во весь экран» — тот же svg-узел, тултипы живут.
 (function () {
   document.querySelectorAll('.chartbox').forEach(function (box) {
+    var fs = box.querySelector('.fsb');
+    if (fs) fs.addEventListener('click', function () {
+      box.classList.toggle('full');
+      fs.textContent = box.classList.contains('full') ? '✕ выйти' : '⛶ во весь экран';
+    });
     var svg = box.querySelector('svg');
     if (!svg || !svg.getAttribute('viewBox')) return;
     var vb0 = svg.getAttribute('viewBox').split(/\\s+/).map(Number);
@@ -4251,11 +4256,6 @@ document.querySelectorAll('svg.scatter g.pt').forEach(function (pt) {
     svg.addEventListener('dblclick', function () { vb = vb0.slice(); apply(); });
     var rst = box.querySelector('.rst');
     if (rst) rst.addEventListener('click', function () { vb = vb0.slice(); apply(); });
-    var fs = box.querySelector('.fsb');
-    if (fs) fs.addEventListener('click', function () {
-      box.classList.toggle('full');
-      fs.textContent = box.classList.contains('full') ? '✕ выйти' : '⛶ во весь экран';
-    });
   });
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
