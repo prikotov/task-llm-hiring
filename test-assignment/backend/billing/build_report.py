@@ -494,6 +494,12 @@ def pl_runs(n: int) -> str:
                       "прогона" if n % 10 in (2, 3, 4) and n % 100 not in (12, 13, 14) else "прогонов")
 
 
+def fnum1(v):
+    """Число с одним знаком после точки; хвост «.0» не пишется (для средних)."""
+    s = f"{v:.1f}"
+    return s[:-2] if s.endswith(".0") else s
+
+
 def fmt_dur(v):
     # U+00A0 между числом и единицей — не переносится в узких колонках
     if v is None:
@@ -1028,7 +1034,7 @@ def quality_price_map(agg: list[dict]) -> str:
         x, y = px(r["cost"]), py(r["a1"])
         rad, hue = rad_of(r["viol"]), hue_of(r["prov"])
         fx = (x - ML) / PW
-        chk = (f"чекер {r['mand']:g}" + (f"★{r['bonus']:g}" if r["bonus"] else "")
+        chk = (f"чекер {fnum1(r['mand'])}" + (f"★{fnum1(r['bonus'])}" if r["bonus"] else "")
                + f" из 13 · прогонов {r['n']}"
                + (f" (+{r['n_dead']} вне метрик)" if r["n_dead"] else ""))
         viol = (f"нарушения {r['viol']:.0f}" if r["viol"] is not None
@@ -1161,7 +1167,7 @@ def quality_speed_map(agg: list[dict]) -> str:
     for r in sorted(pts_src, key=lambda r: -rad_of(r["out"])):
         x, y = px(r["dur"]), py(r["a1"])
         rad, hue = rad_of(r["out"]), hue_of(r["prov"])
-        chk = (f"чекер {r['mand']:g}" + (f"★{r['bonus']:g}" if r["bonus"] else "")
+        chk = (f"чекер {fnum1(r['mand'])}" + (f"★{fnum1(r['bonus'])}" if r["bonus"] else "")
                + f" из 13 · прогонов {r['n']}"
                + (f" (+{r['n_dead']} вне метрик)" if r["n_dead"] else ""))
         tip_lines = [f'{r["short"]} ({r["note"]})',
@@ -1217,7 +1223,7 @@ def quality_triangle_map(agg: list[dict]) -> str:
         data.append({"name": r["_name"], "score": r["a1"],
                      "cost": round(max(r["cost"], 0.01), 4),
                      "dur": round(r["dur"], 1), "tok": int(r["out"] or 0),
-                     "chk": (f"чекер {r['mand']:g}" + (f"★{r['bonus']:g}" if r["bonus"] else "")
+                     "chk": (f"чекер {fnum1(r['mand'])}" + (f"★{fnum1(r['bonus'])}" if r["bonus"] else "")
                              + " из 13"),
                      "price": price, "color": HUES.get(r["prov"], "#315f9e")})
     payload = _json.dumps(data, ensure_ascii=False)
@@ -1356,7 +1362,7 @@ def quality_triangle_map(agg: list[dict]) -> str:
     if (hit) {
       hovered = hit.object;
       var m = hovered.userData;
-      tip.innerHTML = '<b>' + m.name + '</b><br>ревью A ' + m.score.toFixed(2)
+      tip.innerHTML = '<b>' + m.name + '</b><br>ревью A ' + m.score.toFixed(1)
           + ' · ' + m.chk + '<br>' + m.price + ' · ' + Math.round(m.dur * 10) / 10 + ' мин'
           + '<br>~' + Math.round(m.tok / 1000) + ' тыс. выходных токенов';
       tip.style.display = 'block';
