@@ -681,7 +681,7 @@ def results_table(data: list[dict]):
             f'<td class="narrow">{r["note"]}</td>'
             f'<td class="narrow">{run_badges(r)}</td>'
             f'<td class="narrow">{bar}</td>'
-            f'<td class="narrow">{jspan(r["a1"])} / {cell(r["b1"])}</td>'
+            f'<td class="narrow">{jspan(r["a1"])} / {jspan(r["b1"])}</td>'
             f'<td class="narrow">{jspan(r["a2"])}</td>'
             f'<td class="narrow">{fmt_mn(r["phpcs"])} · {fmt_mn(r["psalm"])} · '
             f'{fmt_mn(r["phpstan"])} · {fmt_mn(r["phpmd"])}</td>'
