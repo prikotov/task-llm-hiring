@@ -4740,15 +4740,15 @@ judge_tier3.py — тот же код, что в бою):</div>
 <table><thead><tr><th>Модель</th><th>Провайдер вызова</th><th>Почему в тесте</th>
 <th>Детали</th></tr></thead><tbody>
 <tr><td><b><a href="https://openrouter.ai/openai/gpt-6.1-sol">Sol 6.1</a></b> <span class="badge g">облако</span>
-<div class=sub style="margin-top:2px"><code>openai-gpt-6.1-sol</code> · <code>openai/gpt-6.1-sol</code></div></td><td>OpenAI · OpenRouter</td>
+<div class=sub style="margin-top:2px"><code>openai-gpt-6.1-sol</code></div></td><td>OpenAI · OpenRouter</td>
 <td>главный SOTA-бенчмарк: как выглядит потолок чистых способностей в агентной работе</td>
 <td>effort low и max</td></tr>
 <tr><td><b><a href="https://openrouter.ai/openai/gpt-6-luna">Luna 6</a></b> <span class="badge g">облако</span>
-<div class=sub style="margin-top:2px"><code>openai-gpt-6-luna</code> · <code>openai/gpt-6-luna</code></div></td><td>OpenAI · OpenRouter</td>
+<div class=sub style="margin-top:2px"><code>openai-gpt-6-luna</code></div></td><td>OpenAI · OpenRouter</td>
 <td>дешёвая модель топ-вендора: ценовой пол «умных»</td>
 <td>effort low и max</td></tr>
 <tr><td><b><a href="https://openrouter.ai/anthropic/claude-haiku-5.5">Haiku 5.5</a></b> <span class="badge g">облако</span>
-<div class=sub style="margin-top:2px"><code>anthropic-claude-haiku-5.5</code> · <code>anthropic/claude-haiku-5.5</code></div></td>
+<div class=sub style="margin-top:2px"><code>anthropic-claude-haiku-5.5</code></div></td>
 <td>Anthropic · OpenRouter</td>
 <td>дешёвая быстрая модель Anthropic — пара к Luna от другого вендора; нативно: контекст 1M,
 лимит выходных токенов 128K, шкала thinking off…max, $0.10/$0.50 за 1M</td>
@@ -4756,7 +4756,7 @@ judge_tier3.py — тот же код, что в бою):</div>
 после их разбора раннер переведён на нативный каталог pi, level max нативный) ·
 прогон: ctx 102400 вместо нативного 1M, лимит выходных токенов 32768 · 2 прогона</td></tr>
 <tr><td><b><a href="https://openrouter.ai/anthropic/claude-opus-5.5">Opus 5.5</a></b> <span class="badge g">облако</span>
-<div class=sub style="margin-top:2px"><code>anthropic-claude-opus-5.5</code> · <code>anthropic/claude-opus-5.5</code></div></td>
+<div class=sub style="margin-top:2px"><code>anthropic-claude-opus-5.5</code></div></td>
 <td>Anthropic · OpenRouter + OrcaRouter</td>
 <td>флагман Anthropic, самая дорогая модель интервью ($5.82 за собес); нативно: контекст 1M,
 лимит выходных токенов 128K, шкала thinking off…max, $4/$20 за 1M</td>
@@ -4767,29 +4767,29 @@ judge_tier3.py — тот же код, что в бою):</div>
 <td>рекорд цены/качества открытых китайских весов, без накладных расходов агрегатора</td>
 <td>effort low и max · снапшот -1017 — интервью этапа 1 гонялось на базовом V4.1 Flash</td></tr>
 <tr><td><b><a href="https://developers.sber.ru/docs/ru/gigachat/models/gigachat-3-ultra">GigaChat 3 Ultra</a></b> <span class="badge g">облако</span>
-<div class=sub style="margin-top:2px"><code>gigachat-3-ultra</code> · <code>GigaChat-3-Ultra</code></div></td>
+<div class=sub style="margin-top:2px"><code>gigachat-3-ultra</code></div></td>
 <td>родной API Сбер · мост gigachat_proxy</td>
 <td>флагман российских облаков: 702B MoE (36B активных) на архитектуре DeepSeek V3,
 freemium физлиц (50M токенов)</td>
 <td>управления размышлениями нет · API говорит только легаси-форматом
 функций — подключена через локальный мост tools↔functions с OAuth-рефрешем</td></tr>
 <tr><td><b><a href="https://developers.sber.ru/docs/ru/gigachat/models/gigachat-2-max">GigaChat 2 Max</a></b> <span class="badge g">облако</span>
-<div class=sub style="margin-top:2px"><code>gigachat</code> · <code>GigaChat-2-Max</code></div></td>
+<div class=sub style="margin-top:2px"><code>gigachat</code></div></td>
 <td>родной API Сбер · мост gigachat_proxy</td>
 <td>рабочая модель Сбера из интервью этапа 1 (clef 2.60): как та же модель ведёт себя
 в агентном харнесе</td>
 <td>управления размышлениями нет</td></tr>
 <tr><td><b>huihui</b> (<a href="https://ollama.com/huihui_ai/Qwen3.8-abliterated">huihui_ai/Qwen3.8-abliterated</a> 27B) <span class="badge b">локально</span>
-<div class=sub style="margin-top:2px"><code>huihui-ai-pi-100k</code> · <code>huihui-ai:pi-100k</code></div></td><td>локально · ollama (27.3B, Q4_K_M)</td>
+<div class=sub style="margin-top:2px"><code>huihui-ai-pi-100k</code></div></td><td>локально · ollama (27.3B, Q4_K_M)</td>
 <td>локальный кандидат семейства qwen35</td>
 <td>thinking off, low, medium и max · 14 прогонов (2 вне метрик — конкуренция
 за GPU). MTP включён во всех прогонах (родная конфигурация тега)</td></tr>
 <tr><td><b><a href="https://ollama.com/library/qwen3.8">qwen3.8</a></b> 27B <span class="badge b">локально</span>
-<div class=sub style="margin-top:2px"><code>qwen3.8-27b-pi-100k</code> · <code>qwen3.8:27b-pi-100k</code></div></td><td>локально · ollama (27.3B, Q4_K_M)</td>
+<div class=sub style="margin-top:2px"><code>qwen3.8-27b-pi-100k</code></div></td><td>локально · ollama (27.3B, Q4_K_M)</td>
 <td>главный локальный кандидат набора</td>
 <td>thinking off, low, medium и max · 14 прогонов (2 вне метрик — конкуренция за GPU)</td></tr>
 <tr><td><b>orca</b> (<a href="https://ollama.com/orcarouter/Qwen3.8-27B-Uncensored">orcarouter/Qwen3.8-27B-Uncensored</a> 27B) <span class="badge b">локально</span>
-<div class=sub style="margin-top:2px"><code>orcarouter-Qwen3.8-27B-Uncensored-latest</code> · <code>orcarouter/Qwen3.8-27B-Uncensored:ctx100k</code></div></td>
+<div class=sub style="margin-top:2px"><code>orcarouter-Qwen3.8-27B-Uncensored-latest</code></div></td>
 <td>локально · ollama (27.3B) · одни веса в двух квантованиях: Q4_K_M и IQ4_XS</td>
 <td>uncensored-файнтюн qwen3.8: что даёт снятие фильтров безопасности в агентной работе;
 попутно — квант-эксперимент и включённый/выключенный MTP
@@ -4798,30 +4798,30 @@ freemium физлиц (50M токенов)</td>
 Серии MTP — прогоны под ретаг-тегами qwen3.8-unc*, веса идентичны родным
 (сверка блобов 2026-10-21; ретаг пересоздан 2026-10-27)</td></tr>
 <tr><td><b><a href="https://ollama.com/library/ornith-1.5">ornith-1.5</a></b> 35B <span class="badge b">локально</span>
-<div class=sub style="margin-top:2px"><code>ornith-1.5-35b</code> · <code>ornith-1.5:35b-ctx100k</code></div></td><td>локально · ollama (35.5B, Q4_K_M, MoE)</td>
+<div class=sub style="margin-top:2px"><code>ornith-1.5-35b</code></div></td><td>локально · ollama (35.5B, Q4_K_M, MoE)</td>
 <td>флагман открытых весов в MoE-формате, локальный потолок интервью</td>
 <td>thinking на серверном дефолте — ручки уровня в API нет (шаблон поддерживает
 enable_thinking, но /api/show шкалу не отдаёт) · 3 прогона; проверен и отвергнут
 вариант с карточным сэмплингом</td></tr>
 <tr><td><b><a href="https://ollama.com/library/muse-glimmer">muse-glimmer</a></b> 28B <span class="badge b">локально</span>
-<div class=sub style="margin-top:2px"><code>muse-glimmer</code> · <code>muse-glimmer:ctx100k</code></div></td><td>локально · ollama (27.9B, Q4_K_M)</td>
+<div class=sub style="margin-top:2px"><code>muse-glimmer</code></div></td><td>локально · ollama (27.9B, Q4_K_M)</td>
 <td>малоизвестное семейство агентов-дистиллятов; лучшая локальная по интервью</td>
 <td>thinking low, medium и max · 9 прогонов</td></tr>
 <tr><td><b><a href="https://ollama.com/library/gemma4">gemma4:31b</a></b> QAT <span class="badge b">локально</span>
-<div class=sub style="margin-top:2px"><code>gemma4-31b-it-qat-pi-100k</code> · <code>gemma4:31b-it-qat-pi-100k</code></div></td><td>локально · ollama (30.7B, Q4_0)</td>
+<div class=sub style="margin-top:2px"><code>gemma4-31b-it-qat-pi-100k</code></div></td><td>локально · ollama (30.7B, Q4_0)</td>
 <td>старшая gemma4 в QAT-квантовании — вторая точка среди локальных</td>
 <td>thinking on и off · 6 прогонов</td></tr>
 <tr><td><b><a href="https://ollama.com/library/gemma4">gemma4:26b</a></b> <span class="badge b">локально</span>
-<div class=sub style="margin-top:2px"><code>gemma4-26b-pi-100k</code> · <code>gemma4:26b-pi-100k</code></div></td><td>локально · ollama (25.2B, Q4_K_M)</td>
+<div class=sub style="margin-top:2px"><code>gemma4-26b-pi-100k</code></div></td><td>локально · ollama (25.2B, Q4_K_M)</td>
 <td>младшая gemma4, проба</td>
 <td>thinking on · 3 прогона</td></tr>
 <tr><td><b><a href="https://ollama.com/library/bonsai-2">bonsai-2</a></b> 27B <span class="badge b">локально</span>
-<div class=sub style="margin-top:2px"><code>bonsai-2-27b</code> · <code>bonsai-2:27b</code></div></td>
+<div class=sub style="margin-top:2px"><code>bonsai-2-27b</code></div></td>
 <td>локально · ollama (26.9B, Q2_0, тернарные веса)</td>
 <td>новинка Prism ML: тернарный дистиллят Qwen3.8, анонс обещает 98.2% бенчмарков базы</td>
 <td>thinking off, low, medium и xhigh · 8 прогонов</td></tr>
 </tbody></table>
-<p class=sub>У каждой модели под именем — папка в <code>models/</code> и тег; условия каждого прогона — thinking и контекст 102400; детали и артефакты — в разделе 6.</p>
+<p class=sub>У каждой модели под именем — её папка в <code>models/</code>; условия каждого прогона — thinking и контекст 102400; детали и артефакты — в разделе 6.</p>
 
 <h2 id=results><span class=no>4.</span>Результаты моделей</h2>
 {results_table(DATA)}{quality_price_map(results_agg(DATA))}{quality_speed_map(results_agg(DATA))}{quality_triangle_map(results_agg(DATA))}
