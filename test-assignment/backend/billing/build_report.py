@@ -460,6 +460,7 @@ header.hero p{margin:15px 0;opacity:.93;max-width:74ch;font-size:15px;line-heigh
 header.hero p:first-child{font-size:15.5px;opacity:1;margin-top:0}
 header.hero p:last-child{margin-bottom:0}
 header.hero b{color:#fff;font-weight:700}
+header.hero a{color:#fff;text-decoration:underline;text-underline-offset:2px}
 .note p{margin:0 0 9px}
 .note p:last-child{margin:0}
 .infobox{background:#eef3fa;border:1px solid #cfdeef;border-left:3px solid #315f9e;border-radius:12px;padding:13px 17px;font-size:14.5px;margin:14px 0}
@@ -4381,6 +4382,8 @@ HTML = f"""<!DOCTYPE html>
 <p class=sub style="margin:-6px 4px 14px">Отчёт подготовлен {RANGE_HUMAN} в ZCode при содействии моделей GLM-5.3 и GLM-5.3-Flash.</p>
 
 <header class=hero id=intro>
+<p>На первом этапе мы проверяли знания модели — <a href="https://prikotov.pro/raw/llm-hiring-20261014/report.html">техническое
+собеседование</a>; здесь проверяем умение — как модель применяет эти знания на практическом задании.</p>
 <p><b>Методологический каркас отчёта — принцип «всё познаётся в сравнении».</b>
 Оценка современных LLM в агентской среде давно вышла за рамки бинарных метрик
 «выполнил/не выполнил»: на длинной многошаговой задаче результат модели — баланс
