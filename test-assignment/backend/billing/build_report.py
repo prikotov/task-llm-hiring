@@ -3909,7 +3909,8 @@ def level_pairs(data: list[dict]):
             if len(runs) > 1:
                 dc = (' style="color:var(--good);font-weight:600"'
                       if delta < DELTA_GOOD else "")
-                rng_el = f'<span class=pairrng><span{dc}>Δ {fnum(delta)}</span></span>'
+                rng_el = (f'<span class=pairrng>{fnum(total)} ± '
+                          f'<span{dc}>Δ {fnum(delta)}</span></span>')
             else:
                 rng_el = ""
             rows.append(
