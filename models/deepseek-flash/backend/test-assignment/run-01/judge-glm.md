@@ -1,17 +1,17 @@
-# Ярус 4: GLM-5.3-Flash (pi, thinking=low, 10.2с, 37,713 ток.)
+# Ярус 4: GLM-5.3-Flash (pi, thinking=low, 17.1с, 47,930 ток.)
 
-- **Ось A (судья яруса 4): 3.5**
-  - цитата: `final readonly class Decimal { public const int CALC_SCALE = 30; ... floats are never used`
-  - цитата: `return $cost->roundHalfUp(self::EVENT_COST_SCALE); // единственное округление HALF_UP до 6 знаков`
-  - цитата: `return $minute >= $this->startMinute || $minute < $this->endMinute; // окно через полночь`
-  - цитата: `ON CONFLICT (provider_code, provider_request_id) DO NOTHING // идемпотентность приёма`
-  - цитата: `' ORDER BY user_id COLLATE "C", provider_code COLLATE "C", model_code COLLATE "C"'`
-- заметка: Сильная работа: чёткое разделение Domain/Application/Infrastructure/UI, собственный точный Decimal на bcmath без float, единственное округление HALF_UP до 6 знаков в CostCalculator, корректное окно через полночь в UTC, идемпотентность через уникальный индекс + ON CONFLICT, репрайс с журналом, 25 тестов и byte-в-byte сверка с эталоном. Мелкие придирки: дублирование rateStrings и логики upsert цен между PriceImportService и RepriceService, сущности лежат в Infrastructure и хранят Decimal как строки, unrated-события с неизвестным провайдером тихо сохраняются — решение чуть чутьсловнее необходимого, но читается хорошо.
+- **Ось A (судья яруса 4): 4**
+  - цитата: `Деньги и тарифы считаются только через App\Domain\Money\Decimal (bcmath, внутренний масштаб 30). Float для денег не используется`
+  - цитата: `Округление одно — HALF_UP до 6 знаков для стоимости события; отчёт суммирует уже округлённые стоимости`
+  - цитата: `The start is inclusive, the end is exclusive; windows may cross midnight`
+  - цитата: `unique constraint plus ON CONFLICT DO NOTHING implements idempotent delivery semantics`
+  - цитата: `Rounding first would have produced 7.131250, so this assertion guards the required order`
+- заметка: Сильное решение: чистое разделение домен/приложение/инфраструктура/UI, точная десятичная арифметика через собственный Decimal на bcmath, аккуратные edge-cases (переход окна через полночь, пустое окно [x,x), valid_from включительно, сортировка с COLLATE C, дубли через ON CONFLICT). Реализован бонус reprice с журналом аудита и защитный тест на порядок округления (скидка до округления). Из мелочей: повторное округление в format() для уже округлённых стоимостей безвредно; итоговый CSV собирается в памяти (не потоково), но это оправдано объёмами задачи.
 
 <details><summary>сырой ответ</summary>
 
 ```
-{"axis_a": 3.5, "quotes": ["final readonly class Decimal { public const int CALC_SCALE = 30; ... floats are never used", "return $cost->roundHalfUp(self::EVENT_COST_SCALE); // единственное округление HALF_UP до 6 знаков", "return $minute >= $this->startMinute || $minute < $this->endMinute; // окно через полночь", "ON CONFLICT (provider_code, provider_request_id) DO NOTHING // идемпотентность приёма", "' ORDER BY user_id COLLATE \"C\", provider_code COLLATE \"C\", model_code COLLATE \"C\"'"], "note": "Сильная работа: чёткое разделение Domain/Application/Infrastructure/UI, собственный точный Decimal на bcmath без float, единственное округление HALF_UP до 6 знаков в CostCalculator, корректное окно через полночь в UTC, идемпотентность через уникальный индекс + ON CONFLICT, репрайс с журналом, 25 тестов и byte-в-byte сверка с эталоном. Мелкие придирки: дублирование rateStrings и логики upsert цен между PriceImportService и RepriceService, сущности лежат в Infrastructure и хранят Decimal как строки, unrated-события с неизвестным провайдером тихо сохраняются — решение чуть чутьсловнее необходимого, но читается хорошо."}
+{"axis_a": 4, "quotes": ["Деньги и тарифы считаются только через App\\Domain\\Money\\Decimal (bcmath, внутренний масштаб 30). Float для денег не используется", "Округление одно — HALF_UP до 6 знаков для стоимости события; отчёт суммирует уже округлённые стоимости", "The start is inclusive, the end is exclusive; windows may cross midnight", "unique constraint plus ON CONFLICT DO NOTHING implements idempotent delivery semantics", "Rounding first would have produced 7.131250, so this assertion guards the required order"], "note": "Сильное решение: чистое разделение домен/приложение/инфраструктура/UI, точная десятичная арифметика через собственный Decimal на bcmath, аккуратные edge-cases (переход окна через полночь, пустое окно [x,x), valid_from включительно, сортировка с COLLATE C, дубли через ON CONFLICT). Реализован бонус reprice с журналом аудита и защитный тест на порядок округления (скидка до округления). Из мелочей: повторное округление в format() для уже округлённых стоимостей безвредно; итоговый CSV собирается в памяти (не потоково), но это оправдано объёмами задачи."}
 ```
 
 </details>
