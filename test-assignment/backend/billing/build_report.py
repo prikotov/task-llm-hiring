@@ -2562,6 +2562,15 @@ def code_quality_section(data: list[dict]) -> str:
             locs.setdefault(k, []).append((cl["metrics"].get("loc") or 0,
                                            cl["name"].split("\\")[-1]))
 
+    # лучший LOC класса (по прогонам режима) — второй ключ сортировки топ-5
+    # при равных значениях метрики: наверху крупнейшие классы
+    loc_best: dict = {}
+    for kk, lst in locs.items():
+        for v, name in lst:
+            key = (kk, name)
+            if loc_best.get(key, -1) < v:
+                loc_best[key] = v
+
     F_ORDER = ["openai-gpt-6.1-sol", "openai-gpt-6-luna", "anthropic-claude-haiku-5.5",
                "anthropic-claude-opus-5.5", "deepseek-flash", "huihui-ai-pi-100k",
                "qwen3.8-27b-pi-100k", "orcarouter-Qwen3.8-27B-Uncensored-latest",
@@ -2677,7 +2686,8 @@ def code_quality_section(data: list[dict]) -> str:
                 if best.get(key, -1) < v:
                     best[key] = v
         ranked = sorted(((v, kk, name) for (kk, name), v in best.items()),
-                        key=lambda x: (-x[0], m_rank(x[1]), x[2]))
+                        key=lambda x: (-x[0], -loc_best.get((x[1], x[2]), 0),
+                                       m_rank(x[1]), x[2]))
         top = ranked[:5]
         ties = sum(1 for v, _, _ in ranked[5:] if v == top[-1][0])
         def name_cell(kk, name):
@@ -2920,8 +2930,9 @@ def code_quality_section(data: list[dict]) -> str:
             f'50 строк.</p>'
             f'<p><b>Кто создаёт хвосты.</b> Верхние точки тех же распределений '
             f'по всем {n_runs} хорошим прогонам: у класса берётся максимум '
-            f'по прогонам режима, при равных значениях режимы идут '
-            f'в порядке раздела 3. Верхушка I многолюдна — максимальную '
+            f'по прогонам режима, при равных значениях выше класс '
+            f'с большим LOC, далее режимы в порядке раздела 3. '
+            f'Верхушка I многолюдна — максимальную '
             f'нестабильность делят в основном console-команды.</p>'
             f'<div style="display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start">'
             f'<div><div style="font-weight:600;margin-bottom:4px">Топ-5 · '
