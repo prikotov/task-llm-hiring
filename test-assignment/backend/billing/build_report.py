@@ -4619,7 +4619,7 @@ functions, авторизация — OAuth с регулярным обновл
 
 <h3><span class=no>2.5</span>Конвейер оценки: пять ярусов</h3>
 <div class=flow>
-<div class=step><b>1 · Чекер</b>детерминированный: golden-эталоны, чистая БД в docker</div>
+<div class=step><b>1 · Чекер</b>детерминированный: эталоны вывода, чистая БД в docker</div>
 <div class=arrow>→</div>
 <div class=step><b>2 · Метрики</b>phpcs / psalm / phpstan + phpunit + AST; phpmd — наблюдение</div>
 <div class=arrow>→</div>
@@ -4637,7 +4637,8 @@ functions, авторизация — OAuth с регулярным обновл
 <div><pre class=req>python3 test-assignment/backend/billing/checker/check.py --repo &lt;репозиторий кандидата&gt;</pre></div>
 <div>Чекер поднимает чистую базу PostgreSQL в docker
 на свободном порту, фиксирует способ разворота схемы (миграции или
-schema:update), гоняет команды кандидата и сравнивает вывод с golden-эталонами.
+schema:update), гоняет команды кандидата и сравнивает вывод с эталонами —
+заранее посчитанным и сохранённым в файлы ожидаемым выводом (fixtures/golden/).
 Эталоны посчитаны дважды независимо — Python Decimal и PHP-референс судьи,
 совпадение байт-в-байт.</div>
 <div>11 обязательных сценариев: создание БД, разворот схемы, импорт цен,
