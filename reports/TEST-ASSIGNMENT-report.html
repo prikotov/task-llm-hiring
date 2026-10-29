@@ -586,10 +586,10 @@ AST: cc_max 12, lcom4&gt;1: 13, превышения порогов {&#x27;metho
 <th>Детали</th></tr></thead><tbody>
 <tr><td><b><a href="https://openrouter.ai/openai/gpt-6.1-sol">Sol 6.1</a></b> <span class="badge g">облако</span></td><td>OpenAI · OpenRouter</td>
 <td>главный SOTA-бенчмарк: как выглядит потолок чистых способностей в агентной работе</td>
-<td>effort low и max; лучший прогон этапа — 13/13, обе судейские оси A 4.0, 54 теста, чистый аудит</td></tr>
+<td>effort low и max</td></tr>
 <tr><td><b><a href="https://openrouter.ai/openai/gpt-6-luna">Luna 6</a></b> <span class="badge g">облако</span></td><td>OpenAI · OpenRouter</td>
 <td>дешёвая модель топ-вендора: ценовой пол «умных»</td>
-<td>effort low и max; полный зачёт на max за $0.06 — самый дешёвый полный зачёт этапа</td></tr>
+<td>effort low и max</td></tr>
 <tr><td><b><a href="https://openrouter.ai/anthropic/claude-haiku-5.5">Haiku 5.5</a></b> <span class="badge g">облако</span></td>
 <td>Anthropic · OpenRouter</td>
 <td>дешёвая быстрая модель Anthropic — пара к Luna от другого вендора; нативно: контекст 1M,
@@ -601,90 +601,55 @@ AST: cc_max 12, lcom4&gt;1: 13, превышения порогов {&#x27;metho
 <td>Anthropic · OpenRouter + OrcaRouter</td>
 <td>флагман Anthropic, самая дорогая модель интервью ($5.82 за собес); нативно: контекст 1M,
 лимит выходных токенов 128K, шкала thinking off…max, $4/$20 за 1M</td>
-<td>4 прогона: low и max через OpenRouter (low — полный зачёт $1.24; max оборван 402 —
-баланс исчерпан) + low и max через OrcaRouter (нативный /v1/messages; low оборван 403 —
-лимит ключа; max — полный зачёт в бюджетном режиме мышления, $9.34, судьи 3.5/3.5)</td></tr>
+<td>4 прогона: low и max через OpenRouter + low и max через OrcaRouter (нативный /v1/messages)</td></tr>
 <tr><td><b><a href="https://api-docs.deepseek.com/">DeepSeek V4.1 Flash-1017</a></b> <span class="badge g">облако</span></td>
 <td>родной API DeepSeek</td>
 <td>рекорд цены/качества открытых китайских весов, без накладных расходов агрегатора</td>
-<td>effort low и max; единственная модель этапа с нулём нарушений phpcs (на max);
-снапшот -1017 — интервью этапа 1 гонялось на базовом V4.1 Flash</td></tr>
+<td>effort low и max · снапшот -1017 — интервью этапа 1 гонялось на базовом V4.1 Flash</td></tr>
 <tr><td><b><a href="https://developers.sber.ru/docs/ru/gigachat/models/gigachat-3-ultra">GigaChat 3 Ultra</a></b> <span class="badge g">облако</span></td>
 <td>родной API Сбер · мост gigachat_proxy</td>
 <td>флагман российских облаков: 702B MoE (36B активных) на архитектуре DeepSeek V3,
 freemium физлиц (50M токенов)</td>
-<td>управления размышлениями нет · провал (2/11): начала писать сущности, но застряла в
-вырожденном цикле — один и тот же DQL-запрос повторён 448 раз (серия 370 подряд),
-остановлена на 44-й минуте (7.75M токенов);
-в первой попытке — самовыход планом текстом за 5 секунд. API говорит только легаси-форматом
-функций — подключена через локальный мост tools↔functions с OAuth-рефрешем. Цикл воспроизведён
-контрольным реплеем (вся история 86.5K токенов доставлена, модель повторила) и совпадает с
-известным дефектом: <a href="https://github.com/ai-forever/langchain-gigachat/pull/69">PR #69
-langchain-gigachat</a>, вывод и источники — model.md</td></tr>
+<td>управления размышлениями нет · API говорит только легаси-форматом
+функций — подключена через локальный мост tools↔functions с OAuth-рефрешем</td></tr>
 <tr><td><b><a href="https://developers.sber.ru/docs/ru/gigachat/models/gigachat-2-max">GigaChat 2 Max</a></b> <span class="badge g">облако</span></td>
 <td>родной API Сбер · мост gigachat_proxy</td>
 <td>рабочая модель Сбера из интервью этапа 1 (clef 2.60): как та же модель ведёт себя
 в агентном харнесе</td>
-<td>управления размышлениями нет · провал: самовыход за 7 секунд (6.5K токенов) —
-прочла TASK.md, выдала план текстом и завершилась, скелет нетронут</td></tr>
+<td>управления размышлениями нет</td></tr>
 <tr><td><b>huihui</b> (<a href="https://ollama.com/huihui_ai/Qwen3.8-abliterated">huihui_ai/Qwen3.8-abliterated</a> 27B) <span class="badge b">локально</span></td><td>локально · ollama (Q4_K_M)</td>
 <td>локальный кандидат семейства qwen35</td>
 <td>thinking off, low, medium и max · 14 прогонов (2 вне метрик — конкуренция
-за GPU). low/medium/max ровные: 12–13 в каждом прогоне (средний чекер 13 / 12.3 / 12.7);
-off — лотерея 2–13 (средний 9.0, ревью до 1.0): в одной серии и полный зачёт,
-и отказ половины сценариев; у low-прогона run-06 полный зачёт за 4 минуты —
-быстрейший на этапе. MTP включён во всех прогонах
-(родная конфигурация тега)</td></tr>
+за GPU). MTP включён во всех прогонах (родная конфигурация тега)</td></tr>
 <tr><td><b><a href="https://ollama.com/library/qwen3.8">qwen3.8</a></b> 27B <span class="badge b">локально</span></td><td>локально · ollama (Q4_K_M)</td>
 <td>главный локальный кандидат набора</td>
-<td>thinking off, low, medium и max · 14 прогонов (2 вне метрик — конкуренция
-за GPU). Лестница перевёрнута: low — 3/3 полных зачёта (13 из 13, ревью до 4.0),
-medium — 12–13; края слабее: off — ровные 11–12 (средний 11.3 — единственный
-из трёх MTP-носителей, кто без размышлений не разваливается), max — 13 → 11 → 9;
-у max-серии и почти все циклы в архитектуре</td></tr>
+<td>thinking off, low, medium и max · 14 прогонов (2 вне метрик — конкуренция за GPU)</td></tr>
 <tr><td><b>orca</b> (<a href="https://ollama.com/orcarouter/Qwen3.8-27B-Uncensored">orcarouter/Qwen3.8-27B-Uncensored</a> 27B) <span class="badge b">локально</span></td>
 <td>локально · ollama · одни веса в двух квантованиях: Q4_K_M и IQ4_XS</td>
 <td>uncensored-файнтюн qwen3.8: что даёт снятие фильтров безопасности в агентной работе;
 попутно — квант-эксперимент и включённый/выключенный MTP
 на тех же весах</td>
-<td>thinking on (шкала сборки без градаций) и off · 17 прогонов. Q4_K_M: 3 под родным тегом —
-все полные зачёты, лучший локальный код (phpcs 0 в run-03); 3 в режиме MTP — качество
-в пределах шума, генерация ×1.8 (63 → 115 ток/с); 3 чистых в режиме off — развал
-(12, 2, 10 из 13, среднее 8.0, ревью до 1.0; ещё один прогон завис на bash, один исключён
-по конкуренции за GPU). IQ4_XS: 3 родных — 2/3 зачётов
-(ср. 12.3); 3 в режиме MTP — на живых 12–13 из 13, run-06 завис на bash-команде
-(помечен в §6). Серии MTP — прогоны под ретаг-тегами qwen3.8-unc*, веса идентичны
-родным (сверка блобов 2026-10-21; ретаг пересоздан 2026-10-27)</td></tr>
+<td>thinking on (шкала сборки без градаций) и off · 17 прогонов · Q4_K_M и IQ4_XS.
+Серии MTP — прогоны под ретаг-тегами qwen3.8-unc*, веса идентичны родным
+(сверка блобов 2026-10-21; ретаг пересоздан 2026-10-27)</td></tr>
 <tr><td><b><a href="https://ollama.com/library/ornith-1.5">ornith-1.5</a></b> 35B <span class="badge b">локально</span></td><td>локально · ollama (Q4_K_M, MoE)</td>
 <td>флагман открытых весов в MoE-формате, локальный потолок интервью</td>
 <td>thinking на серверном дефолте — ручки уровня в API нет (шаблон поддерживает
-enable_thinking, но /api/show шкалу не отдаёт) · 3 прогона; провал во всех трёх (1–3 из 13) — длинная агентная работа
-не даётся, разброс темпа 0.1M/10M/39M токенов. Публичные бенчмарки хвалят её на эталонном
-vLLM-стеке в bf16, независимые проверки скептичны — наш результат на ollama/llama.cpp
-согласуется со скепсисом (детали в model.md); проверен и отвергнут вариант с карточным сэмплингом</td></tr>
+enable_thinking, но /api/show шкалу не отдаёт) · 3 прогона; проверен и отвергнут
+вариант с карточным сэмплингом</td></tr>
 <tr><td><b><a href="https://ollama.com/library/muse-glimmer">muse-glimmer</a></b> 28B <span class="badge b">локально</span></td><td>локально · ollama (Q4_K_M)</td>
 <td>малоизвестное семейство агентов-дистиллятов; лучшая локальная по интервью</td>
-<td>thinking low, medium и max · 9 прогонов; быстрая (2–6 мин) и дешёвая, но только
-обязательное: без тестов (по TASK.md — «плюс, но не обязательны») и без бонусной команды
-reprice («по желанию») во всех девяти — 0/3 зачётов на любом уровне; уровень безразличен:
-low 10.0 ≈ max 10.3, medium проседает (8.0)</td></tr>
+<td>thinking low, medium и max · 9 прогонов</td></tr>
 <tr><td><b><a href="https://ollama.com/library/gemma4">gemma4:31b</a></b> QAT <span class="badge b">локально</span></td><td>локально · ollama (Q4_0)</td>
 <td>старшая gemma4 в QAT-квантовании — вторая точка среди локальных</td>
-<td>thinking on и off · 6 прогонов; на вкл 8–11 из 13 (единственный провал
-обязательного сценария этапа — run-02: 8 из 11); off — лотерея: 6/13 и 11/13
-у живых (средний 8.5 против 9.7 на вкл) плюс самовыход за 24 секунды
-с нетронутым скелетом (∅, вне метрик)</td></tr>
+<td>thinking on и off · 6 прогонов</td></tr>
 <tr><td><b><a href="https://ollama.com/library/gemma4">gemma4:26b</a></b> <span class="badge b">локально</span></td><td>локально · ollama (Q4_K_M)</td>
 <td>младшая gemma4, проба</td>
-<td>thinking on · 3 прогона; бимодальна: два самовыхода за ~1 мин (провал 2/11)
-и одна полноценная работа до 10/11; разбор раннего exit — в model.md</td></tr>
+<td>thinking on · 3 прогона</td></tr>
 <tr><td><b><a href="https://ollama.com/library/bonsai-2">bonsai-2</a></b> 27B <span class="badge b">локально</span></td>
 <td>локально · ollama (Q2_0, тернарные веса)</td>
 <td>новинка Prism ML: тернарный дистиллят Qwen3.8, анонс обещает 98.2% бенчмарков базы</td>
-<td>thinking off, low, medium и xhigh · 8 прогонов; на thinking-уровнях паралич —
-ни одной строки кода (13 ходов только чтение на xhigh, съеденный лимит выходных токенов
-на medium, три нулевых диффа на low); только на off пишет код (314–1091 строк) —
-но решения неработоспособны (0–2 из 13, ревью до 1.0); разбор — model.md</td></tr>
+<td>thinking off, low, medium и xhigh · 8 прогонов</td></tr>
 </tbody></table>
 
 <h3>Окружение и условия</h3>
