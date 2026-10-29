@@ -478,9 +478,6 @@ header.hero a{color:#fff;text-decoration:underline;text-underline-offset:2px}
 .pairtitle{font-size:15px;font-weight:600;margin-bottom:6px}
 .pairrow{display:flex;align-items:center;gap:10px;margin:8px 0}
 .pairrng{display:flex;align-items:center;gap:6px;flex:none;font-size:12px;color:var(--mut)}
-.pairrng .rtrack{position:relative;width:64px;height:10px;background:#eef0f4;border-radius:5px}
-.pairrng .rband{position:absolute;top:0;bottom:0;border-radius:5px;min-width:3px;opacity:.5}
-.pairrng .rtick{position:absolute;top:-1px;bottom:-1px;width:2px;border-radius:1px}
 .pairlbl{width:72px;font-size:12px;color:var(--mut);text-align:right;flex:none}
 .pairmeta{font-size:12px;color:var(--mut);white-space:nowrap}
 .badge{display:inline-block;border-radius:5px;padding:1px 8px;font-size:12px;font-weight:600}
@@ -3893,9 +3890,6 @@ def level_pairs(data: list[dict]):
             total = (r["mand"] or 0) + (r["bonus"] or 0)
             hue = KIND_HUE[r["worst"]]
             runs = sorted(totals.get((r["folder"], r["note"], r["ctx"], r["tuned"], r["retag"]), []))
-            lo, hi = (runs[0], runs[-1]) if runs else (total, total)
-            lo_w, hi_w = lo / 13 * 100, hi / 13 * 100
-            avg_w = max(total / 13 * 100, 1.2)
             w = max(3, total / 13 * 100)
             chk = fnum(r["mand"]) + (f'<span class=star>★</span>{fnum(r["bonus"])}' if r["bonus"] else "")
             rc = (' color:var(--good);font-weight:600' if r["a1"] is not None and r["a1"] >= REVIEW_GOOD
@@ -3908,18 +3902,9 @@ def level_pairs(data: list[dict]):
             tests = "—" if r["tests"] is None else fnum(r["tests"])
             rev = "—" if r["a1"] is None else fnum(r["a1"])
             rev = f'<span{rcattr}>{rev}</span>' if rcattr else rev
-            # распределение прогонов — отдельный элемент строки: мини-трек
-            # с лентой худший–лучший и меткой среднего
-            if len(runs) > 1:
-                rng_el = (f'<span class=pairrng><span class=rtrack>'
-                          f'<span class=rband style="left:{lo_w:.0f}%;'
-                          f'width:{max(hi_w - lo_w, 2):.0f}%;background:{hue}"></span>'
-                          f'<span class=rtick style="left:calc({avg_w:.0f}% - 1px);'
-                          f'background:{hue}"></span></span>{lo:g}–{hi:g}</span>')
-            else:
-                rng_el = (f'<span class=pairrng><span class=rtrack>'
-                          f'<span class=rtick style="left:calc({avg_w:.0f}% - 1px);'
-                          f'background:{hue}"></span></span>{lo:g}</span>')
+            # постоянство серии текстом: средняя сумма ± максимальное отклонение прогона
+            delta = max((abs(x - total) for x in runs), default=0)
+            rng_el = f'<span class=pairrng>{fnum(total)} ± {fnum(delta)}</span>' if len(runs) > 1 else ""
             rows.append(
                 f'<div class=pairrow><span class=pairlbl{rcattr}>{lbl}</span>'
                 f'<div class=barwrap style="flex:0 1 420px"><div class=bar style="width:{w:.0f}%;'
@@ -3932,10 +3917,10 @@ def level_pairs(data: list[dict]):
     if not blocks:
         return ""
     return (f'<div class=pairs>{"".join(blocks)}</div>'
-            '<p class=sub>Полоса — средняя сумма сценариев чекера из 13 (★ — бонусные), '
-            'мини-трек рядом — распределение прогонов уровня (лента худший–лучший, метка — '
-            'среднее); справа — средний балл ревью (ось A), тестов написано и стоимость '
-            'прогона. У облачных уровни low/max, '
+            '<p class=sub>Полоса — средняя сумма сценариев чекера из 13 (★ — бонусные); '
+            '«± дельта» — максимальное отклонение прогона от среднего по сумме чекера, '
+            'мера постоянства серии; справа — средний балл ревью (ось A), тестов написано '
+            'и стоимость прогона. У облачных уровни low/max, '
             'у локальных off/low/medium/max; « · MTP» — ретаг-серия тех же весов, '
             '« · tuned» — файнтюн-вариант ornith, « · orca» — прогон через OrcaRouter; '
             'уровни без живых прогонов не показаны (у Haiku max — вне метрик).</p>')
