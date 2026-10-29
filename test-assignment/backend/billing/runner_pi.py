@@ -486,10 +486,13 @@ def main() -> int:
         if not args.smoke:
             # errors="replace": модели иногда пишут файлы в не-UTF-8
             # (ornith: git-объекты .git/ в диффе уронили decode);
-            # .git исключаем — дифф про код решения, не про VCS-внутренности
+            # .git исключаем — дифф про код решения, не про VCS-внутренности;
+            # vendor — если агент сделал composer install, вендорское дерево
+            # раздувает дифф до десятков тысяч строк мусора
             diff = subprocess.run(
                 ["diff", "-ruN",
                  "-x", "var", "-x", ".env", "-x", "__pycache__", "-x", ".git",
+                 "-x", "vendor",
                  str(BILLING / "skeleton"), str(repo)],
                 capture_output=True, text=True,
                 encoding="utf-8", errors="replace",
