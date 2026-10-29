@@ -2162,7 +2162,10 @@ def tools_section(data: list[dict]) -> str:
         for w in shown:
             share = mix.get(w, 0) / tot
             alpha = min(0.85, share * 1.7)
-            val = f"{round(100 * share)}%" if mix.get(w) else "—"
+            pct = round(100 * share)
+            # «—» — утилита не вызывалась ни разу; «<1%» — вызовы были, но доля
+            # меньше полпроцента и округляется в ноль
+            val = "—" if not mix.get(w) else ("<1%" if pct < 1 else f"{pct}%")
             cells.append(f'<td class=narrow style="background:rgba(49,95,158,{alpha:.2f})">{val}</td>')
         ms = mix_sims(rs)
         if ms:
