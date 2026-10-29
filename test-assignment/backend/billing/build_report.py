@@ -553,7 +553,9 @@ def results_agg(data: list[dict]) -> list[dict]:
             "n_total": n_total, "n_dead": n_dead, "deadkinds": deadkinds,
             "prov": allrs[0]["prov"],
             "note": note, "n": n, "kinds": kinds,
-            "worst": min(kinds, key=lambda k: order[k]) if kinds else NA,
+            # категория худшего прогона группы (max ранга: full 0 < part 1 < fail 2);
+            # именно она красит полосы чекера в таблице и карточках уровней
+            "worst": max(kinds, key=lambda k: order[k]) if kinds else NA,
             "n_full": kinds.count(FULL),
             "mand": mean(rs, "mand"), "bonus": mean(rs, "bonus"),
             "total": (mean(rs, "mand") or 0) + (mean(rs, "bonus") or 0),
