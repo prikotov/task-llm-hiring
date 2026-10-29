@@ -4483,7 +4483,7 @@ Prism: на уровнях с размышлением живых прогоно
 «уровня Claude Opus 4.8»); независимые прогоны сообщества (Hacker News, r/LocalLLaMA) дают другую
 картину. Разбор источников — <a href="../models/ornith-1.5-35b/model.md">model.md ornith</a>.</div>
 <div class="card bad"><b>GigaChat: цикл из одинаковых запросов</b>На собеседовании Ultra показала себя
-удивительно сильно — <a href="https://prikotov.pro/raw/llm-hiring-20261014/report.html">результаты первого этапа</a>.
+удивительно сильно — <a href="https://prikotov.pro/raw/llm-hiring-20261014/report.html#results">результаты первого этапа</a>.
 Здесь же решение не завершилось: Ultra зациклилась на одном DQL-запросе — 448 повторов
 (44 минуты, 7.75M токенов ради 2 из 11 обязательных), Max вышла за 7 секунд — обе строки в таблице не ранжируются,
 решения не написаны; известный дефект семейства (<a href="https://github.com/ai-forever/langchain-gigachat/pull/69">PR #69</a>).
