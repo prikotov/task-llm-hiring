@@ -660,29 +660,27 @@ def results_table(data: list[dict]):
             f'<td class="narrow">{bar}</td>'
             f'<td class="narrow">{cell(r["a1"])} / {cell(r["b1"])}</td>'
             f'<td class="narrow">{cell(r["a2"])}</td>'
-            f'<td class="narrow">{fmt_mn(r["phpcs"])}</td><td class="narrow">{fmt_mn(r["psalm"])}</td>'
-            f'<td class="narrow">{fmt_mn(r["phpstan"])}</td><td class="narrow">{fmt_mn(r["phpmd"])}</td>'
+            f'<td class="narrow">{fmt_mn(r["phpcs"])} · {fmt_mn(r["psalm"])} · '
+            f'{fmt_mn(r["phpstan"])} · {fmt_mn(r["phpmd"])}</td>'
             f'<td class="narrow">{tests}</td>'
             f'<td class="narrow">{loc_cell}</td>'
             f'<td class="narrow">{toks}</td>'
             f'<td class="narrow">{fmt_dur(r["dur"])}</td>'
             f'<td class="narrow">{cost}</td><td class="narrow">{price}</td></tr>')
     return ('<div style="overflow-x:auto"><table><thead><tr>'
-            '<th rowspan=2 class=narrow>№</th>'
-            "<th rowspan=2>Модель<sup>1</sup></th><th rowspan=2 class=narrow>Мышл.</th>"
-            "<th rowspan=2 class=narrow>Про&shy;гоны<sup>1</sup></th>"
-            "<th rowspan=2 class=narrow>Чекер<sup>2</sup></th>"
-            "<th rowspan=2 class=narrow>Ревью<br>A/B<sup>3</sup></th>"
-            "<th rowspan=2 class=narrow>Слепое<br>ревью<sup>3</sup></th>"
-            '<th colspan=4>Качество кода<sup>4</sup></th>'
-            "<th rowspan=2 class=narrow>Покр.<br>тест.<sup>5</sup></th>"
-            "<th rowspan=2 class=narrow>LOC<sup>6</sup></th>"
-            "<th rowspan=2 class=narrow>Токены<sup>7</sup></th>"
-            "<th rowspan=2 class=narrow>Время<sup>8</sup></th>"
-            "<th rowspan=2 class=narrow>Стои&shy;мость<sup>9</sup></th>"
-            "<th rowspan=2 class=narrow>Цена<br>1000 строк<sup>10</sup></th></tr>"
-            "<tr><th class=\"narrow sub\">phpcs</th><th class=\"narrow sub\">psalm</th>"
-            "<th class=\"narrow sub\">phpstan</th><th class=\"narrow sub\">phpmd</th></tr></thead><tbody>"
+            '<th class=narrow>№</th>'
+            "<th>Модель<sup>1</sup></th><th class=narrow>Мышл.</th>"
+            "<th class=narrow>Про&shy;гоны<sup>1</sup></th>"
+            "<th class=narrow>Чекер<sup>2</sup></th>"
+            "<th class=narrow>Ревью<br>A/B<sup>3</sup></th>"
+            "<th class=narrow>Слепое<br>ревью<sup>3</sup></th>"
+            '<th class=narrow>Качество кода<sup>4</sup></th>'
+            "<th class=narrow>Покр.<br>тест.<sup>5</sup></th>"
+            "<th class=narrow>LOC<sup>6</sup></th>"
+            "<th class=narrow>Токены<sup>7</sup></th>"
+            "<th class=narrow>Время<sup>8</sup></th>"
+            "<th class=narrow>Стои&shy;мость<sup>9</sup></th>"
+            "<th class=narrow>Цена<br>1000 строк<sup>10</sup></th></tr></thead><tbody>"
             + "".join(trs) + "</tbody></table></div>"
             '<div class=note><sup>1</sup> Прогоны одинаковых условий свёрнуты в одну строку, '
             "числовые колонки такой строки — <b>среднее по прогонам</b>. № — позиция строки "
@@ -711,7 +709,8 @@ def results_table(data: list[dict]):
             "того же GLM-5.3-Flash, видит только TASK.md и дифф — без чекера, метрик и сессии — "
             "и оценивает только ось A. Расхождения ярусов между собой — раздел 5.<br>"
             "<sup>4</sup> Качество кода — нарушения, найденные утилитами, штук, меньше "
-            "лучше: phpcs PSR12 — стиль; "
+            "лучше; в ячейке — через « · » в порядке phpcs · psalm · phpstan · phpmd: "
+            "phpcs PSR12 — стиль; "
             "psalm 6 (errorLevel 1) и phpstan (level 8) — типы и логика; их сумма — тай-брейк "
             "сортировки. phpmd — превышения порогов сложности и чистоты, наблюдение: в сравнение "
             "моделей не входит.<br>"
