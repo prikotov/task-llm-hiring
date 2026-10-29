@@ -3879,17 +3879,18 @@ def level_pairs(data: list[dict]):
             total = (r["mand"] or 0) + (r["bonus"] or 0)
             w = max(3, total / 13 * 100)
             chk = fnum(r["mand"]) + (f'<span class=star>★</span>{fnum(r["bonus"])}' if r["bonus"] else "")
+            rc = (' color:var(--good);font-weight:600' if r["a1"] is not None and r["a1"] >= REVIEW_GOOD
+                  else ' color:var(--bad);font-weight:600' if r["a1"] is not None and r["a1"] <= 1
+                  else "")
+            rcattr = f' style="{rc.strip()}"' if rc else ""
             lbl = _h.escape(r["note"] + (" · MTP" if r["retag"] else "")
                             + (" · tuned" if r["tuned"] else "")
                             + (" · orca" if r["prov"] == "orcarouter" else ""))
             tests = "—" if r["tests"] is None else fnum(r["tests"])
             rev = "—" if r["a1"] is None else fnum(r["a1"])
-            rc = (' style="color:var(--good);font-weight:600"' if r["a1"] is not None and r["a1"] >= REVIEW_GOOD
-                  else ' style="color:var(--bad);font-weight:600"' if r["a1"] is not None and r["a1"] <= 1
-                  else "")
-            rev = f'<span{rc}>{rev}</span>' if rc else rev
+            rev = f'<span{rcattr}>{rev}</span>' if rcattr else rev
             rows.append(
-                f'<div class=pairrow><span class=pairlbl>{lbl}</span>'
+                f'<div class=pairrow><span class=pairlbl{rcattr}>{lbl}</span>'
                 f'<div class=barwrap style="flex:0 1 420px"><div class=bar style="width:{w:.0f}%;'
                 f'background:{KIND_HUE[r["worst"]]}"></div><span>{chk}</span></div>'
                 f'<span class=pairmeta>ревью {rev} · тесты {tests} · ${r["cost"]:.3f}</span></div>')
