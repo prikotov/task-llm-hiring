@@ -3974,30 +3974,53 @@ def _int_sp(v) -> str:
 
 
 def tier_costs() -> str:
-    """Стоимость конвейера по ярусам: медианы из CSV сетки."""
-    names = {"agent": "агент (решение)", "check": "чекер (ярус 1)",
-             "metrics": "метрики (ярус 2)", "tier3": "ревью (ярус 3)",
-             "tier4": "судья (ярус 4)"}
-    trs = []
-    for tier in ("agent", "check", "metrics", "tier3", "tier4"):
-        m = TMEDS.get(tier)
-        if not m:
-            continue
-        trs.append(f"<tr><td>{names[tier]}</td><td class=narrow>{m['n']}</td>"
-                   f'<td class="narrow">{fmt_dur(m["dur"] / 60)}</td>'
-                   f'<td class="narrow">{_int_sp(m["tok"])}</td>'
-                   f'<td class="narrow">{("$%.4f" % m["cost"]) if m["cost"] is not None else "—"}</td></tr>')
-    if not trs:
+    """Стоимость этапа: реализация (агент-кандидат) отдельно от оценки
+    (конвейер проверки). Смешивать нельзя: цена решения — предмет измерения,
+    у каждой модели своя; оценка — конвейерная константа, одна для всех.
+    Как в §8 «Экономика собеса» отчёта интервью."""
+    names = {"check": "чекер (ярус 1)", "metrics": "метрики (ярус 2)",
+             "tier3": "ревью (ярус 3)", "tier4": "судья (ярус 4)"}
+
+    def _tbl(rows):
+        return ('<table style="width:auto;max-width:640px"><thead><tr><th>Ярус</th>'
+                '<th class=narrow>запусков</th><th class=narrow>медиана времени</th>'
+                '<th class=narrow>медиана токенов</th><th class=narrow>$ / запуск</th></tr></thead>'
+                f"<tbody>{''.join(rows)}</tbody></table>")
+
+    def _row(label, m):
+        return (f"<tr><td>{label}</td><td class=narrow>{m['n']}</td>"
+                f'<td class="narrow">{fmt_dur(m["dur"] / 60)}</td>'
+                f'<td class="narrow">{_int_sp(m["tok"])}</td>'
+                f'<td class="narrow">{("$%.4f" % m["cost"]) if m["cost"] is not None else "—"}</td></tr>')
+
+    if not TMEDS:
         return ""
-    return ('<h3>Стоимость конвейера по ярусам</h3>'
-            '<table style="width:auto;max-width:640px"><thead><tr><th>Ярус</th>'
-            '<th class=narrow>запусков</th><th class=narrow>медиана времени</th>'
-            '<th class=narrow>медиана токенов</th><th class=narrow>$ / запуск</th></tr></thead>'
-            + f"<tbody>{''.join(trs)}</tbody></table>"
-            '<p class=sub>Из reports/test-assignment-tier-timing.csv (медианы; время — на прогон, '
-            "токены/цена — на запуск судьи). Медианы устойчивы к дублям строк при перегонах; "
-            "время агента писалось не у всех ранних прогонов, поэтому у первой строки "
-            "запусков меньше, чем у остальных.</p>")
+    parts = []
+    if "agent" in TMEDS:
+        parts.append('<h3>Реализация: агент решает задание</h3>'
+                     '<p>Работа кандидата — предмет измерения, а не накладной расход '
+                     'конвейера: у каждой модели своя цена решения (реальные траты '
+                     'облаков — в таблице ниже).</p>'
+                     + _tbl([_row("агент — решение задания", TMEDS["agent"])]))
+    ev = [_row(names[t], TMEDS[t]) for t in ("check", "metrics", "tier3", "tier4")
+          if t in TMEDS]
+    if ev:
+        mc, mm = TMEDS.get("check"), TMEDS.get("metrics")
+        local = (mc["dur"] + mm["dur"]) / 60 if mc and mm else None
+        t34 = ((TMEDS.get("tier3") or {}).get("cost") or 0) \
+            + ((TMEDS.get("tier4") or {}).get("cost") or 0)
+        parts.append('<h3>Оценка: конвейер проверки</h3>'
+                     '<p>Одна и та же для всех моделей: чекер и метрики — локальные '
+                     'скрипты без LLM, платим только машинным временем '
+                     f'({fmt_dur(local)} на прогон); ревью и судья — GLM-5.3-Flash '
+                     f'по подписке Z.AI, суммарно ~${t34:.3f} за прогон '
+                     'в ценах API.</p>'
+                     + _tbl(ev))
+    return ("".join(parts)
+            + '<p class=sub>Из reports/test-assignment-tier-timing.csv (медианы '
+            'на один запуск соответствующего яруса). Медианы устойчивы к дублям строк '
+            'при перегонах; время агента писалось не у всех ранних прогонов, '
+            'поэтому у реализации запусков меньше.</p>')
 
 
 def api_spend() -> str:
