@@ -4925,7 +4925,7 @@ Luna добирает её только на max. DeepSeek на max пишет �
 {audit_section(DATA)}
 {missed_local_section(DATA)}
 
-<h2 id=judges><span class=no>5.</span>Ревью против судьи: согласие ярусов 3 и 4</h2>
+<h2 id=judges><span class=no>5.</span>Судьи: согласие ярусов 3 и 4</h2>
 <p class=excap>Оба судьи — GLM-5.3-Flash в изолированных pi-сессиях, но ревью яруса 3 знает
 результат чекера и метрик, слепой судья яруса 4 видит только TASK.md и дифф. В {N_HALF / N_PAIRS * 100:.0f}%
 прогонов расхождение оси A — не более полбалла (ровно совпали — в {N_EXACT / N_PAIRS * 100:.0f}%),
