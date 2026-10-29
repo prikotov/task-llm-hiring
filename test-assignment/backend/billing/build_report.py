@@ -477,7 +477,7 @@ header.hero a{color:#fff;text-decoration:underline;text-underline-offset:2px}
 .pairblock{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 16px}
 .pairtitle{font-size:15px;font-weight:600;margin-bottom:6px}
 .pairrow{display:flex;align-items:center;gap:10px;margin:8px 0}
-.pairlbl{width:32px;font-size:12px;color:var(--mut);text-align:right;flex:none}
+.pairlbl{width:56px;font-size:12px;color:var(--mut);text-align:right;flex:none}
 .pairmeta{font-size:12px;color:var(--mut);white-space:nowrap}
 .badge{display:inline-block;border-radius:5px;padding:1px 8px;font-size:12px;font-weight:600}
 .badge.b{background:#e9f1ec;color:var(--good)}.badge.r{background:#f8ebe7;color:var(--bad)}.badge.g{background:#edf1f7;color:var(--acc)}
@@ -3884,6 +3884,10 @@ def level_pairs(data: list[dict]):
                             + (" · orca" if r["prov"] == "orcarouter" else ""))
             tests = "—" if r["tests"] is None else fnum(r["tests"])
             rev = "—" if r["a1"] is None else fnum(r["a1"])
+            rc = (' style="color:var(--good);font-weight:600"' if r["a1"] is not None and r["a1"] >= REVIEW_GOOD
+                  else ' style="color:var(--bad);font-weight:600"' if r["a1"] is not None and r["a1"] <= 1
+                  else "")
+            rev = f'<span{rc}>{rev}</span>' if rc else rev
             rows.append(
                 f'<div class=pairrow><span class=pairlbl>{lbl}</span>'
                 f'<div class=barwrap style="flex:0 1 420px"><div class=bar style="width:{w:.0f}%;'
