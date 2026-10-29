@@ -4673,24 +4673,28 @@ WMC, cyclomatic complexity, LCOM4, afferent/efferent coupling и превыше�
 <div class=scalebox><b>Ярус 3 — ревью: изолированная pi-сессия.</b>
 <div><pre class=req>python3 test-assignment/backend/billing/checker/judge_tier3.py \\
   --run models/&lt;модель&gt;/backend/test-assignment/run-XX --thinking low</pre></div>
-<div>Отдельный запуск <code>pi -p --no-session --model zai/glm-5.3-flash</code>, thinking low (паттерн judge_glm.py,
-подписка Z.AI; сабагенты Agent tool и OpenRouter запрещены правилами
-репозитория). Ревьюер знает результат чекера и метрик, оценивает две оси
-рубрики <a href="https://github.com/prikotov/task-llm-hiring/blob/main/test-assignment/backend/billing/RUBRIC.md">RUBRIC.md</a>:
-A «код и архитектура» и B «процесс и коммуникация», 0–4.</div>
-<div>Системный промпт ревьюера — дословно (SYSTEM в
-<code>checker/judge_tier3.py</code>; на вход подаются TASK.md, дифф
-решения и факты ярусов 1–2):</div>
+<div><b>Вход.</b> Один изолированный вызов <code>pi -p --no-session --model
+zai/glm-5.3-flash</code>, thinking low (паттерн judge_glm.py, подписка Z.AI;
+сабагенты Agent tool и OpenRouter запрещены правилами репозитория). Промпт —
+три текста: TASK.md целиком; дифф решения против каркаса (тот же diff.patch,
+потолок 2600 строк — хвост обрезан с маркером); блок <b>ФАКТЫ</b> — выжимка
+ярусов 1–2. От слепого судьи яруса 4 отличается именно этим: ревьюер знает
+результат чекера и метрик. Оценивает две оси рубрики
+<a href="https://github.com/prikotov/task-llm-hiring/blob/main/test-assignment/backend/billing/RUBRIC.md">RUBRIC.md</a>:
+A «код и архитектура» и B «процесс и коммуникация», 0–4. Bash включён —
+для проверочных вычислений, не для блуждания по репозиторию.</div>
+<div>ФАКТЫ в промпте: счёт чекера (обязательные/бонусные; упавшие сценарии —
+с деталями) и агрегаты метрик — phpcs/psalm/phpstan, LOC, AST-сводка
+и превышения порогов; сырые выводы инструментов не подаются, phpmd не
+сообщается сознательно — наблюдение, в оценку не входит. Системный промпт —
+дословно (SYSTEM в <code>checker/judge_tier3.py</code>):</div>
 <pre class=req>TIER3_SYSTEM_PLACEHOLDER</pre>
-<div>Что подаётся ревьюеру, кроме TASK.md и диффа (обрезается до 2600 строк —
-первые строки несут сущности и домен): блок <b>ФАКТЫ</b> — выжимка ярусов 1–2.
-Метрики идут агрегатами (phpstan/phpmd/phppcs/LOC + AST-сводка и превышения
-порогов), сырые выводы инструментов — нет; упавшие сценарии чекера —
-с деталями. Вот ФАКТЫ дословно для первого прогона этапа
-(строит build_facts() из judge_tier3.py — тот же код, что в бою):</div>
+<div>ФАКТЫ дословно для первого прогона этапа (строит build_facts() из
+judge_tier3.py — тот же код, что в бою):</div>
 <pre class=req>TIER3_FACTS_PLACEHOLDER</pre>
-<div>Время, токены и стоимость каждого вердикта пишутся рядом с прогоном
-(<code>tier3.json</code>), свод по этапу — в разделе 7.</div></div>
+<div>Ответ — JSON: оси A и B (0–4, шаг 0.5) и заметка с цитатами из диффа;
+пишется в &lt;run&gt;/review-zcode.md, время/токены/стоимость вердикта — рядом,
+в &lt;run&gt;/tier3.json; свод по этапу — в разделе 7.</div></div>
 
 <div class=scalebox><b>Ярус 4 — судья: слепое второе мнение.</b>
 <div><b>Зачем.</b> Ревьюер яруса 3 знает результат чекера и волей-неволей
