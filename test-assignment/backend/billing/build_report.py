@@ -308,6 +308,7 @@ def scan_runs() -> list[dict]:
 KIND_HUE = {FULL: "#2f7d54", PART: "#315f9e", FAIL: "#b3543f", NA: "#98a4b3"}
 KIND_NAME = {FULL: "база 11/11", PART: "база 9–10", FAIL: "база <9", NA: "n/a"}
 REVIEW_GOOD = 3.0   # порог квадрантов «хорошо…» на картах §4: ревью, ось A
+DELTA_GOOD = 1.0     # постоянство серии: дельта чекера меньше сценария — зелёная
 
 CSS = """
 :root{--ink:#1d2433;--mut:#66707f;--line:#e4e7ec;--bg:#fafbfc;--acc:#315f9e;--good:#2f7d54;--bad:#b3543f}
@@ -3902,9 +3903,15 @@ def level_pairs(data: list[dict]):
             tests = "—" if r["tests"] is None else fnum(r["tests"])
             rev = "—" if r["a1"] is None else fnum(r["a1"])
             rev = f'<span{rcattr}>{rev}</span>' if rcattr else rev
-            # постоянство серии текстом: средняя сумма ± максимальное отклонение прогона
+            # постоянство серии текстом: Δ — максимальное отклонение прогона от среднего;
+            # дельта меньше сценария — зелёная (серия ровная)
             delta = max((abs(x - total) for x in runs), default=0)
-            rng_el = f'<span class=pairrng>{fnum(total)} ± {fnum(delta)}</span>' if len(runs) > 1 else ""
+            if len(runs) > 1:
+                dc = (' style="color:var(--good);font-weight:600"'
+                      if delta < DELTA_GOOD else "")
+                rng_el = f'<span class=pairrng><span{dc}>Δ {fnum(delta)}</span></span>'
+            else:
+                rng_el = ""
             rows.append(
                 f'<div class=pairrow><span class=pairlbl{rcattr}>{lbl}</span>'
                 f'<div class=barwrap style="flex:0 1 420px"><div class=bar style="width:{w:.0f}%;'
@@ -3918,8 +3925,8 @@ def level_pairs(data: list[dict]):
         return ""
     return (f'<div class=pairs>{"".join(blocks)}</div>'
             '<p class=sub>Полоса — средняя сумма сценариев чекера из 13 (★ — бонусные); '
-            '«± дельта» — максимальное отклонение прогона от среднего по сумме чекера, '
-            'мера постоянства серии; справа — средний балл ревью (ось A), тестов написано '
+            'Δ — максимальное отклонение прогона от среднего по сумме чекера, '
+            'мера постоянства серии (зелёная — меньше одного сценария); справа — средний балл ревью (ось A), тестов написано '
             'и стоимость прогона. У облачных уровни low/max, '
             'у локальных off/low/medium/max; « · MTP» — ретаг-серия тех же весов, '
             '« · tuned» — файнтюн-вариант ornith, « · orca» — прогон через OrcaRouter; '
