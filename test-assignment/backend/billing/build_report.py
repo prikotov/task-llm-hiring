@@ -675,7 +675,7 @@ def results_table(data: list[dict]):
             "<th class=narrow>Ревью<br>A/B<sup>3</sup></th>"
             "<th class=narrow>Слепое<br>ревью<sup>3</sup></th>"
             '<th class=narrow>Качество кода<sup>4</sup><div class=sub '
-            'style="font-size:10.5px;font-weight:400;line-height:1.3;margin-top:2px">'
+            'style="font-size:11px;font-weight:600;color:#66707f;line-height:1.3;margin-top:2px">'
             'phpcs · psalm · phpstan · phpmd</div></th>'
             "<th class=narrow>Покр.<br>тест.<sup>5</sup></th>"
             "<th class=narrow>LOC<sup>6</sup></th>"
