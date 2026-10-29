@@ -3937,41 +3937,67 @@ def level_pairs(data: list[dict]):
             'уровни без живых прогонов не показаны (у Haiku max — вне метрик).</p>')
 
 
-def tier_costs() -> str:
-    """Стоимость конвейера по ярусам: медианы из CSV сетки."""
+def tier_meds() -> dict:
+    """Медианы по ярусам из reports/test-assignment-tier-timing.csv —
+    общий источник для таблицы «Стоимость конвейера по ярусам» и заметки
+    «Оптимизации конвейера», чтобы числа в них не расходились."""
     import csv
     import statistics as st
     from collections import defaultdict
 
     csv_path = ROOT / "reports" / "test-assignment-tier-timing.csv"
     if not csv_path.is_file():
-        return ""
+        return {}
     by = defaultdict(list)
     for r in csv.DictReader(csv_path.open()):
         by[r["tier"]].append(r)
+    out = {}
+    for tier, rs in by.items():
+        toks = [int(r["tokens_total"]) for r in rs if r["tokens_total"]]
+        cost = [float(r["cost_usd"]) for r in rs if r["cost_usd"]]
+        out[tier] = {"n": len(rs),
+                     "dur": st.median(float(r["duration_s"]) for r in rs),
+                     "tok": st.median(toks) if toks else None,
+                     "cost": st.median(cost) if cost else None}
+    return out
+
+
+TMEDS = tier_meds()
+_T3M, _T4M, _CKM = (TMEDS.get("tier3") or {}, TMEDS.get("tier4") or {},
+                    TMEDS.get("check") or {})
+
+
+def _int_sp(v) -> str:
+    """Целое с пробельным разделителем тысяч (запятая в русском тексте
+    читается как десятичный разделитель)."""
+    return f"{v:,.0f}".replace(",", " ") if v is not None else "—"
+
+
+def tier_costs() -> str:
+    """Стоимость конвейера по ярусам: медианы из CSV сетки."""
     names = {"agent": "агент (решение)", "check": "чекер (ярус 1)",
              "metrics": "метрики (ярус 2)", "tier3": "ревью (ярус 3)",
              "tier4": "судья (ярус 4)"}
     trs = []
     for tier in ("agent", "check", "metrics", "tier3", "tier4"):
-        rs = by.get(tier) or []
-        if not rs:
+        m = TMEDS.get(tier)
+        if not m:
             continue
-        durs = [float(r["duration_s"]) for r in rs]
-        toks = [int(r["tokens_total"]) for r in rs if r["tokens_total"]]
-        cost = [float(r["cost_usd"]) for r in rs if r["cost_usd"]]
-        med = lambda v: f"{st.median(v):,.0f}" if v else "—"  # noqa: E731
-        trs.append(f"<tr><td>{names[tier]}</td><td class=narrow>{len(rs)}</td>"
-                   f'<td class="narrow">{fmt_dur(st.median(durs) / 60)}</td>'
-                   f'<td class="narrow">{med(toks)}</td>'
-                   f'<td class="narrow">{("$%.4f" % st.median(cost)) if cost else "—"}</td></tr>')
+        trs.append(f"<tr><td>{names[tier]}</td><td class=narrow>{m['n']}</td>"
+                   f'<td class="narrow">{fmt_dur(m["dur"] / 60)}</td>'
+                   f'<td class="narrow">{_int_sp(m["tok"])}</td>'
+                   f'<td class="narrow">{("$%.4f" % m["cost"]) if m["cost"] is not None else "—"}</td></tr>')
+    if not trs:
+        return ""
     return ('<h3>Стоимость конвейера по ярусам</h3>'
             '<table style="width:auto;max-width:640px"><thead><tr><th>Ярус</th>'
             '<th class=narrow>запусков</th><th class=narrow>медиана времени</th>'
             '<th class=narrow>медиана токенов</th><th class=narrow>$ / запуск</th></tr></thead>'
             + f"<tbody>{''.join(trs)}</tbody></table>"
             '<p class=sub>Из reports/test-assignment-tier-timing.csv (медианы; время — на прогон, '
-            "токены/цена — на запуск судьи). Медианы устойчивы к дублям строк при перегонах.</p>")
+            "токены/цена — на запуск судьи). Медианы устойчивы к дублям строк при перегонах; "
+            "время агента писалось не у всех ранних прогонов, поэтому у первой строки "
+            "запусков меньше, чем у остальных.</p>")
 
 
 def api_spend() -> str:
@@ -4941,15 +4967,17 @@ Luna добирает её только на max. DeepSeek на max пишет �
 дефектов, не итоговый балл нерабочих решений.</div>
 
 {runs_inventory()}<h2 id=next><span class=no>7.</span>Стоимость конвейера и что дальше</h2>
-<div class=scalebox id=econ><b>Цены и курс.</b> Все цены отчёта — в рублях по фиксированному курсу <b>₽85.15/$</b> (задан владельцем 2026-10-09 и не пересчитывается). Облачные прогоны — токены по тарифам провайдеров (таблица реальных трат ниже). Локальные — <b>электричество и амортизация</b> железа: 550 Вт в момент генерации при ₽7.07/кВт·ч (тариф с 01.10.2026) плюс амортизация (₽600 000 минус остаточные 30% за 13 140 часов работы) = <b>₽35.85/ч чистой генерации</b>. Методика перенесена из §8 «Экономика собеса» отчёта интервью (interview/build_report.py).</div>
+<div class=scalebox id=econ><b>Цены и курс.</b><div>Все цены отчёта — в рублях по фиксированному курсу <b>₽85.15/$</b> (задан владельцем 2026-10-09 и не пересчитывается). Облачные прогоны — токены по тарифам провайдеров (таблица реальных трат ниже). Локальные — <b>электричество и амортизация</b> железа: 550 Вт в момент генерации при ₽7.07/кВт·ч (тариф с 01.10.2026) плюс амортизация (₽600 000 минус остаточные 30% за 13 140 часов работы) = <b>₽35.85/ч чистой генерации</b>. Методика перенесена из §8 «Экономика собеса» отчёта интервью (interview/build_report.py).</div></div>
 {tier_costs()}
 {api_spend()}
 <div class=note><b>Оптимизации конвейера.</b> Судейские ярусы копеечные
-(медианы: ревью 22 с / $0.0055, судья 18 с / $0.0054, суммарно ~$0.011
-за прогон по подписке) — перевод яруса 4 на локальную decision-модель
+(медианы: ревью {_T3M.get("dur", 0):.0f} с / ${_T3M.get("cost", 0):.4f},
+судья {_T4M.get("dur", 0):.0f} с / ${_T4M.get("cost", 0):.4f}, суммарно
+~${(_T3M.get("cost") or 0) + (_T4M.get("cost") or 0):.3f} за прогон
+по подписке) — перевод яруса 4 на локальную decision-модель
 clef (паттерн интервью) возможен, но экономит ~$0.005 за вердикт:
 имеет смысл только при упоре в квоту подписки. Реальный резерв — чекер:
-медиана 92 с, но первый прогон решения с рассинхроном composer.json/lock
+медиана {_CKM.get("dur", 0):.0f} с, но первый прогон решения с рассинхроном composer.json/lock
 платит composer update (~380 с) — лечится кэшированием собранного vendor
 по хэшу composer.json. Ассистентные токены (8–9M за прогон) — предмет
 измерения, не оптимизации.</div>
