@@ -4530,9 +4530,8 @@ doctrine/migrations 3.3, PHP ≥ 8.4; docker-compose с PostgreSQL 17; заго�
   "Прочитай TASK.md в корне репозитория и выполни задание."</pre>
 <p>System prompt у сессии есть — типовой, от pi: простой, ~1.8 тыс. символов
 (<a href="https://github.com/earendil-works/pi/blob/main/packages/coding-agent/src/core/system-prompt.ts">исходники</a>);
-одинаковый для всех моделей. Облачная модель — тот же
-раннер с провайдером (ключи и прокси — из env, в git не хранятся; thinking —
-уровень шкалы провайдера):</p>
+одинаковый для всех моделей.</p>
+<p>Облачная модель запускается через тот же раннер с провайдером:</p>
 <pre class=req>python3 test-assignment/backend/billing/runner_pi.py \\
   --model openai/gpt-6.1-sol --provider openrouter \\
   --results models/openai-gpt-6.1-sol/backend/test-assignment/run-02 \\
