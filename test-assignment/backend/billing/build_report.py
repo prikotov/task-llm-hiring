@@ -4536,7 +4536,8 @@ doctrine/migrations 3.3, PHP ≥ 8.4; docker-compose с PostgreSQL 17; заго�
   --model openai/gpt-6.1-sol --provider openrouter \\
   --results models/openai-gpt-6.1-sol/backend/test-assignment/run-02 \\
   --thinking max</pre>
-<p><b>Окружение.</b> cwd (current working directory — рабочая папка запускаемого pi) —
+<h3>Окружение</h3>
+<p>cwd (current working directory — рабочая папка запускаемого pi) —
 свежая копия скелета. Поведение pi настраивают переменные окружения (документированы в pi):
 PI_CODING_AGENT_DIR переносит каталог конфигурации pi (~/.pi/agent — настройки, сессии,
 пакеты) в одноразовую папку, чтобы прогон не читал и не оставлял следов в глобальном
@@ -4544,7 +4545,8 @@ PI_CODING_AGENT_DIR переносит каталог конфигурации p
 (обновления каталога моделей и подобные фоновые запросы). CLI-параметров у обеих нет —
 в pi это заведомо переменные окружения: они настраивают сам процесс, а не задание;
 раннер проставляет их на каждый запуск.</p>
-<p><b>Генерация.</b> Провайдер — ollama /v1 (openai-completions) внутреннего сервера.
+<h3>Генерация</h3>
+<p>Провайдер — ollama /v1 (openai-completions) внутреннего сервера.
 models.json раннера задаёт:</p>
 <ul>
 <li>окно контекста (contextWindow) — 102400;</li>
