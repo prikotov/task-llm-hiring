@@ -3864,15 +3864,20 @@ def level_pairs(data: list[dict]):
         if len(rs) < 2:
             continue
         rows = []
+
+        def fnum(v):  # один знак после точки, хвост «.0» не пишем
+            s = f"{v:.1f}"
+            return s[:-2] if s.endswith(".0") else s
+
         for r in rs:
             total = (r["mand"] or 0) + (r["bonus"] or 0)
             w = max(3, total / 13 * 100)
-            chk = f'{r["mand"]:g}' + (f'<span class=star>★</span>{r["bonus"]:g}' if r["bonus"] else "")
+            chk = fnum(r["mand"]) + (f'<span class=star>★</span>{fnum(r["bonus"])}' if r["bonus"] else "")
             lbl = _h.escape(r["note"] + (" · MTP" if r["retag"] else "")
                             + (" · tuned" if r["tuned"] else "")
                             + (" · orca" if r["prov"] == "orcarouter" else ""))
-            tests = "—" if r["tests"] is None else f'{r["tests"]:g}'
-            rev = "—" if r["a1"] is None else f'{r["a1"]:g}'
+            tests = "—" if r["tests"] is None else fnum(r["tests"])
+            rev = "—" if r["a1"] is None else fnum(r["a1"])
             rows.append(
                 f'<div class=pairrow><span class=pairlbl>{lbl}</span>'
                 f'<div class=barwrap style="flex:0 1 420px"><div class=bar style="width:{w:.0f}%;'
