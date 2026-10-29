@@ -4707,9 +4707,17 @@ A «код и архитектура» и B «процесс и коммуник
 мнение, не истина.</div>
 <div><pre class=req>python3 test-assignment/backend/billing/checker/judge_tier2.py \\
   --run models/&lt;модель&gt;/backend/test-assignment/run-XX --thinking low</pre></div>
-<div>Pi-сессия с GLM-5.3-Flash (thinking low, изолированный запуск).
-Системный промпт судьи — дословно (SYSTEM в
-<code>checker/judge_tier2.py</code>):</div>
+<div><b>Вход.</b> Один изолированный вызов GLM-5.3-Flash (thinking low, как у
+ревьюера). Промпт — ровно два текста: TASK.md целиком и дифф решения против
+каркаса (тот же diff.patch с потолком 2600 строк и маркером обрезки). Чекер,
+метрики, ревью яруса 3 и прочие артефакты прогона не подаются — в этом
+слепота. Рубрика — шкала оси A и список опасных мест (округление HALF_UP,
+выбор цены по valid_from, оф-пик через полночь, идемпотентность дублей,
+запрет float для денег) — входит в системный промпт ниже. Ответ — JSON:
+axis_a (0–4, шаг 0.5), цитаты из диффа как доказательства, короткая заметка;
+пишется в &lt;run&gt;/judge-glm.md. Bash у судьи включён — для проверочных
+вычислений, не для блуждания по репозиторию. Системный промпт — дословно
+(SYSTEM в <code>checker/judge_tier2.py</code>):</div>
 <pre class=req>TIER4_SYSTEM_PLACEHOLDER</pre></div>
 
 <div class=scalebox><b>Ярус 5 — аудит безопасности: детектор кодом, классификация судьёй.</b>
