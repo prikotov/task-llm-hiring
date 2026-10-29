@@ -500,6 +500,18 @@ def fnum1(v):
     return s[:-2] if s.endswith(".0") else s
 
 
+def jspan(v):
+    """Балл ревью (ось A) с подсветкой качества: ≥3 зелёный, ≤2 красный."""
+    if v is None:
+        return "—"
+    s = f"{v:.1f}"
+    if v >= REVIEW_GOOD:
+        return f'<span style="color:var(--good);font-weight:600">{s}</span>'
+    if v <= 2:
+        return f'<span style="color:var(--bad);font-weight:600">{s}</span>'
+    return s
+
+
 def fmt_dur(v):
     # U+00A0 между числом и единицей — не переносится в узких колонках
     if v is None:
@@ -669,8 +681,8 @@ def results_table(data: list[dict]):
             f'<td class="narrow">{r["note"]}</td>'
             f'<td class="narrow">{run_badges(r)}</td>'
             f'<td class="narrow">{bar}</td>'
-            f'<td class="narrow">{cell(r["a1"])} / {cell(r["b1"])}</td>'
-            f'<td class="narrow">{cell(r["a2"])}</td>'
+            f'<td class="narrow">{jspan(r["a1"])} / {cell(r["b1"])}</td>'
+            f'<td class="narrow">{jspan(r["a2"])}</td>'
             f'<td class="narrow">{fmt_mn(r["phpcs"])} · {fmt_mn(r["psalm"])} · '
             f'{fmt_mn(r["phpstan"])} · {fmt_mn(r["phpmd"])}</td>'
             f'<td class="narrow">{tests}</td>'
@@ -3885,7 +3897,7 @@ def level_pairs(data: list[dict]):
             w = max(3, total / 13 * 100)
             chk = fnum(r["mand"]) + (f'<span class=star>★</span>{fnum(r["bonus"])}' if r["bonus"] else "")
             rc = (' color:var(--good);font-weight:600' if r["a1"] is not None and r["a1"] >= REVIEW_GOOD
-                  else ' color:var(--bad);font-weight:600' if r["a1"] is not None and r["a1"] <= 1
+                  else ' color:var(--bad);font-weight:600' if r["a1"] is not None and r["a1"] <= 2
                   else "")
             rcattr = f' style="{rc.strip()}"' if rc else ""
             lbl = _h.escape(r["note"] + (" · MTP" if r["retag"] else "")
