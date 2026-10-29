@@ -3855,8 +3855,7 @@ def level_pairs(data: list[dict]):
     """Серии уровней размышлений по всем моделям этапа: полоса на уровень
     (div-бары) — средние по прогонам уровня: чекер, ревью, тесты, цена."""
     import html as _h
-    all_rows = results_agg(data)
-    agg = [r for r in all_rows if r["n"] and r["mand"] is not None]
+    agg = [r for r in results_agg(data) if r["n"] and r["mand"] is not None]
     NOTE_O = {"off": 0, "нет": 1, "low": 2, "medium": 3,
               "high": 4, "xhigh": 5, "on": 6, "max": 7}
     order = ["openai-gpt-6-luna", "openai-gpt-6.1-sol", "anthropic-claude-haiku-5.5",
@@ -3895,12 +3894,8 @@ def level_pairs(data: list[dict]):
                 f'<div class=barwrap style="flex:0 1 420px"><div class=bar style="width:{w:.0f}%;'
                 f'background:{KIND_HUE[r["worst"]]}"></div><span>{chk}</span></div>'
                 f'<span class=pairmeta>ревью {rev} · тесты {tests} · ${r["cost"]:.3f}</span></div>')
-        # сигнал таблицы результатов о провале вне метрик — и здесь (‡, как в §6)
-        fail = any(FAIL in r["kinds"] for r in all_rows if r["folder"] == folder)
-        mark = (' <span title="у модели есть прогон вне метрик (провал) — '
-                'детали в разделе 6" style="color:var(--bad)">‡</span>' if fail else "")
         blocks.append(f'<div class=pairblock><div class=pairtitle>'
-                      f'{_h.escape(TITLE.get(folder, rs[0]["short"]))}{mark}</div>'
+                      f'{_h.escape(TITLE.get(folder, rs[0]["short"]))}</div>'
                       + "".join(rows) + "</div>")
     if not blocks:
         return ""
