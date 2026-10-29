@@ -74,6 +74,9 @@ tr.top td{background:#eef6ef}
 .chartbox.full svg{width:100%;height:100%;max-width:none;flex:1}
 .chartbox.full .chint{margin:2px 6px 0}
 .chartbox svg{touch-action:none}
+/* 3D-треугольник: тот же полноэкранный механизм, что у карт */
+#tri3dbox.full{display:flex;flex-direction:column}
+#tri3dbox.full #tri3d{flex:1;height:auto !important}
 .dsym.hang{color:#6b5b9e}.dsym.blank{color:#66707f}
 .ptag{color:#66707f;font-size:10.5px;font-weight:600;cursor:help}
 .provchip{display:inline-block;margin-top:2px;padding:0 5px;border-radius:7px;
@@ -685,10 +688,14 @@ enable_thinking, но /api/show шкалу не отдаёт) · 3 прогон�
 Сцену можно вращать мышью и приближать колесом; золотой каркасный октандр у
 вершины качества — маркер недостижимого идеала (максимально дёшево + быстро +
 качественно), вокруг него пусто.</p>
+<div class=chartbox id=tri3dbox>
+<div class=ctbar><button class=fsb type=button>⛶ во весь экран</button></div>
 <div id="tri3d" style="position:relative;height:700px;border:1px solid var(--line);border-radius:12px;background:#fff">
   <div id="tri3d-fallback" style="padding:24px;color:#66707f;font-size:14px">
     3D-сцена не загрузилась: для неё нужен интернет (three.js с CDN).
   </div>
+</div>
+<div class=chint>вращение — мышь · масштаб — колесо · наведение на шарик — карточка · ⛶ — во весь экран (Esc — выйти)</div>
 </div>
 <p class=sub>Цвета повторяют группы карт выше: синие облака, голубые российские,
 зелёные локальные. Наведите курсор на шарик — карточка с ревью, чекером, ценой,
@@ -701,7 +708,7 @@ enable_thinking, но /api/show шкалу не отдаёт) · 3 прогон�
   var host = document.getElementById('tri3d');
   host.innerHTML = '';
   var DATA = [{"name": "Haiku 5.5", "score": 4.0, "cost": 0.0778, "dur": 11.3, "tok": 135286, "chk": "чекер 11★2 из 13", "price": "$0.078 · ≈₽7", "color": "#315f9e"}, {"name": "Opus 5.5·low", "score": 4.0, "cost": 1.1045, "dur": 7.3, "tok": 45581, "chk": "чекер 11★2 из 13", "price": "$1.105 · ≈₽94", "color": "#315f9e"}, {"name": "Opus 5.5·max", "score": 3.5, "cost": 9.1817, "dur": 43.1, "tok": 185630, "chk": "чекер 11★1 из 13", "price": "$9.182 · ≈₽782", "color": "#315f9e"}, {"name": "bonsai-2", "score": 1.0, "cost": 0.0383, "dur": 6.9, "tok": 28850, "chk": "чекер 0 из 13", "price": "$0.038 · ≈₽3", "color": "#2f7d54"}, {"name": "DeepSeek·max", "score": 4.0, "cost": 0.1989, "dur": 10.3, "tok": 100629, "chk": "чекер 11★2 из 13", "price": "$0.199 · ≈₽17", "color": "#315f9e"}, {"name": "DeepSeek·low", "score": 4.0, "cost": 0.0614, "dur": 3.6, "tok": 38651, "chk": "чекер 11★2 из 13", "price": "$0.061 · ≈₽5", "color": "#315f9e"}, {"name": "gemma4:26b", "score": 1.5, "cost": 0.01, "dur": 1.3, "tok": 18429, "chk": "чекер 4.66667 из 13", "price": "$0.008 · ≈₽1", "color": "#2f7d54"}, {"name": "gemma4:31b·max", "score": 2.3333333333333335, "cost": 0.0503, "dur": 7.3, "tok": 21482, "chk": "чекер 9.33333★0.333333 из 13", "price": "$0.050 · ≈₽4", "color": "#2f7d54"}, {"name": "gemma4:31b·off", "score": 2.0, "cost": 0.0387, "dur": 5.7, "tok": 17693, "chk": "чекер 8★0.5 из 13", "price": "$0.039 · ≈₽3", "color": "#2f7d54"}, {"name": "huihui·max", "score": 3.5, "cost": 0.2466, "dur": 40.7, "tok": 198650, "chk": "чекер 11★1.66667 из 13", "price": "$0.247 · ≈₽21", "color": "#2f7d54"}, {"name": "huihui·low", "score": 3.6666666666666665, "cost": 0.104, "dur": 16.0, "tok": 105434, "chk": "чекер 11★2 из 13", "price": "$0.104 · ≈₽9", "color": "#2f7d54"}, {"name": "huihui·medium", "score": 3.5, "cost": 0.1016, "dur": 16.0, "tok": 101518, "chk": "чекер 10.6667★1.66667 из 13", "price": "$0.102 · ≈₽9", "color": "#2f7d54"}, {"name": "huihui·off", "score": 2.3333333333333335, "cost": 0.0591, "dur": 9.3, "tok": 66210, "chk": "чекер 7.66667★1.33333 из 13", "price": "$0.059 · ≈₽5", "color": "#2f7d54"}, {"name": "muse·max", "score": 2.6666666666666665, "cost": 0.0384, "dur": 5.7, "tok": 22120, "chk": "чекер 10.3333 из 13", "price": "$0.038 · ≈₽3", "color": "#2f7d54"}, {"name": "muse·low", "score": 2.5, "cost": 0.0189, "dur": 2.8, "tok": 11446, "chk": "чекер 10 из 13", "price": "$0.019 · ≈₽2", "color": "#2f7d54"}, {"name": "muse·medium", "score": 2.0, "cost": 0.0271, "dur": 4.0, "tok": 16455, "chk": "чекер 8 из 13", "price": "$0.027 · ≈₽2", "color": "#2f7d54"}, {"name": "Luna 6·low", "score": 2.5, "cost": 0.01, "dur": 1.9, "tok": 5893, "chk": "чекер 10 из 13", "price": "$0.006 · ≈₽0", "color": "#315f9e"}, {"name": "Luna 6·max", "score": 3.5, "cost": 0.0549, "dur": 12.0, "tok": 43467, "chk": "чекер 11★2 из 13", "price": "$0.055 · ≈₽5", "color": "#315f9e"}, {"name": "Sol 6.1·low", "score": 3.5, "cost": 0.2051, "dur": 6.5, "tok": 15480, "chk": "чекер 11 из 13", "price": "$0.205 · ≈₽17", "color": "#315f9e"}, {"name": "Sol 6.1·max", "score": 4.0, "cost": 0.6314, "dur": 17.0, "tok": 41171, "chk": "чекер 11★2 из 13", "price": "$0.631 · ≈₽54", "color": "#315f9e"}, {"name": "orca · IQ4_XS", "score": 3.3333333333333335, "cost": 0.1924, "dur": 28.3, "tok": 76755, "chk": "чекер 10.6667★1.66667 из 13", "price": "$0.192 · ≈₽16", "color": "#2f7d54"}, {"name": "orca · IQ4_XS · MTP", "score": 3.75, "cost": 0.0939, "dur": 14.4, "tok": 93202, "chk": "чекер 11★1.5 из 13", "price": "$0.094 · ≈₽8", "color": "#2f7d54"}, {"name": "orca", "score": 3.6666666666666665, "cost": 0.2164, "dur": 32.7, "tok": 116962, "chk": "чекер 11★2 из 13", "price": "$0.216 · ≈₽18", "color": "#2f7d54"}, {"name": "orca · MTP·max", "score": 3.5, "cost": 0.072, "dur": 11.1, "tok": 70561, "chk": "чекер 11★1.33333 из 13", "price": "$0.072 · ≈₽6", "color": "#2f7d54"}, {"name": "orca · MTP·off", "score": 2.1666666666666665, "cost": 0.0951, "dur": 16.5, "tok": 97227, "chk": "чекер 7.33333★0.666667 из 13", "price": "$0.095 · ≈₽8", "color": "#2f7d54"}, {"name": "ornith", "score": 1.25, "cost": 0.1458, "dur": 23.6, "tok": 239626, "chk": "чекер 2 из 13", "price": "$0.146 · ≈₽12", "color": "#2f7d54"}, {"name": "ornith · tuned", "score": 1.0, "cost": 0.0241, "dur": 3.5, "tok": 44294, "chk": "чекер 2 из 13", "price": "$0.024 · ≈₽2", "color": "#2f7d54"}, {"name": "qwen3.8·max", "score": 3.0, "cost": 0.1757, "dur": 28.6, "tok": 160433, "chk": "чекер 10.3333★0.666667 из 13", "price": "$0.176 · ≈₽15", "color": "#2f7d54"}, {"name": "qwen3.8·medium", "score": 3.3333333333333335, "cost": 0.1124, "dur": 17.4, "tok": 113882, "chk": "чекер 10.3333★2 из 13", "price": "$0.112 · ≈₽10", "color": "#2f7d54"}, {"name": "qwen3.8·low", "score": 3.8333333333333335, "cost": 0.1679, "dur": 25.2, "tok": 136321, "chk": "чекер 11★2 из 13", "price": "$0.168 · ≈₽14", "color": "#2f7d54"}, {"name": "qwen3.8·off", "score": 2.5, "cost": 0.1045, "dur": 17.0, "tok": 118515, "chk": "чекер 10.3333★1 из 13", "price": "$0.104 · ≈₽9", "color": "#2f7d54"}];
-  var W = host.clientWidth || 920, H = 700;
+  var W = host.clientWidth || 920, H = host.clientHeight || 700;
   var scene = new THREE.Scene();
   scene.background = new THREE.Color(0xffffff);
   var FR = 11;
@@ -712,6 +719,19 @@ enable_thinking, но /api/show шкалу не отдаёт) · 3 прогон�
   renderer.setSize(W, H);
   renderer.setPixelRatio(window.devicePixelRatio || 1);
   host.appendChild(renderer.domElement);
+  // «во весь экран»: класс .full вешает общий обработчик .fsb (и сброс по Esc),
+  // размер сцены подгоняет ResizeObserver — он же покрывает ресайз окна
+  function fit() {
+    var w = host.clientWidth, h = host.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h);
+    var a = w / h;
+    camera.left = -FR * a; camera.right = FR * a;
+    camera.top = FR; camera.bottom = -FR;
+    camera.updateProjectionMatrix();
+  }
+  if (window.ResizeObserver) new ResizeObserver(fit).observe(host);
+  else window.addEventListener('resize', fit);
   var controls = new THREE.OrbitControls(camera, renderer.domElement);
   controls.target.set(4.5, 5.5, 3.5);
   controls.enableDamping = true;

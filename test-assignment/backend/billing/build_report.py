@@ -381,6 +381,9 @@ tr.top td{background:#eef6ef}
 .chartbox.full svg{width:100%;height:100%;max-width:none;flex:1}
 .chartbox.full .chint{margin:2px 6px 0}
 .chartbox svg{touch-action:none}
+/* 3D-треугольник: тот же полноэкранный механизм, что у карт */
+#tri3dbox.full{display:flex;flex-direction:column}
+#tri3dbox.full #tri3d{flex:1;height:auto !important}
 .dsym.hang{color:#6b5b9e}.dsym.blank{color:#66707f}
 .ptag{color:#66707f;font-size:10.5px;font-weight:600;cursor:help}
 .provchip{display:inline-block;margin-top:2px;padding:0 5px;border-radius:7px;
@@ -1227,10 +1230,14 @@ def quality_triangle_map(agg: list[dict]) -> str:
 Сцену можно вращать мышью и приближать колесом; золотой каркасный октандр у
 вершины качества — маркер недостижимого идеала (максимально дёшево + быстро +
 качественно), вокруг него пусто.</p>
+<div class=chartbox id=tri3dbox>
+<div class=ctbar><button class=fsb type=button>⛶ во весь экран</button></div>
 <div id="tri3d" style="position:relative;height:700px;border:1px solid var(--line);border-radius:12px;background:#fff">
   <div id="tri3d-fallback" style="padding:24px;color:#66707f;font-size:14px">
     3D-сцена не загрузилась: для неё нужен интернет (three.js с CDN).
   </div>
+</div>
+<div class=chint>вращение — мышь · масштаб — колесо · наведение на шарик — карточка · ⛶ — во весь экран (Esc — выйти)</div>
 </div>
 <p class=sub>Цвета повторяют группы карт выше: синие облака, голубые российские,
 зелёные локальные. Наведите курсор на шарик — карточка с ревью, чекером, ценой,
@@ -1243,7 +1250,7 @@ def quality_triangle_map(agg: list[dict]) -> str:
   var host = document.getElementById('tri3d');
   host.innerHTML = '';
   var DATA = __DATA__;
-  var W = host.clientWidth || 920, H = 700;
+  var W = host.clientWidth || 920, H = host.clientHeight || 700;
   var scene = new THREE.Scene();
   scene.background = new THREE.Color(0xffffff);
   var FR = 11;
@@ -1254,6 +1261,19 @@ def quality_triangle_map(agg: list[dict]) -> str:
   renderer.setSize(W, H);
   renderer.setPixelRatio(window.devicePixelRatio || 1);
   host.appendChild(renderer.domElement);
+  // «во весь экран»: класс .full вешает общий обработчик .fsb (и сброс по Esc),
+  // размер сцены подгоняет ResizeObserver — он же покрывает ресайз окна
+  function fit() {
+    var w = host.clientWidth, h = host.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h);
+    var a = w / h;
+    camera.left = -FR * a; camera.right = FR * a;
+    camera.top = FR; camera.bottom = -FR;
+    camera.updateProjectionMatrix();
+  }
+  if (window.ResizeObserver) new ResizeObserver(fit).observe(host);
+  else window.addEventListener('resize', fit);
   var controls = new THREE.OrbitControls(camera, renderer.domElement);
   controls.target.set(4.5, 5.5, 3.5);
   controls.enableDamping = true;
