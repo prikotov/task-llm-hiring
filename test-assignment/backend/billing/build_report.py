@@ -435,6 +435,7 @@ tr.top td{background:#eef6ef}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(295px,1fr));gap:13px;margin:16px 0}
 .card{background:#fff;border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:12px;padding:15px 17px;font-size:14.5px}
 .card b{display:block;margin-bottom:5px;font-size:15px;min-height:2.8em}
+.card.bad{border-left-color:var(--bad)}
 .quote{background:#fff;border:1px solid var(--line);border-radius:12px;padding:15px 19px;margin:13px 0;font-size:14.5px}
 .quote .who{font-size:12.5px;color:var(--mut);margin-bottom:7px;text-transform:uppercase;letter-spacing:.03em}
 .quote.bad{border-left:4px solid var(--bad)}.quote.good{border-left:4px solid var(--good)}
@@ -4469,23 +4470,23 @@ V4.1 Flash взял 1-е и 3-е места таблицы при $0.06–0.20 �
 </div>
 <p class="excap sb">Главные разочарования</p>
 <div class=cards>
-<div class=card><b>bonsai-2: 98.2% бенчмарков не переносятся на агентную работу</b>Тернарный дистиллят
+<div class="card bad"><b>bonsai-2: 98.2% бенчмарков не переносятся на агентную работу</b>Тернарный дистиллят
 Prism: на уровнях с размышлением живых прогонов нет вовсе — нулевой дифф или обрыв сессии, такие строки
 в таблице не ранжируются. Единственный зачтённый прогон (off) — 0 из 11 обязательных сценариев,
 последнее ({POS[("bonsai-2-27b", "off", False, False)]}-е) место из {max(POS.values())} ранжированных строк.
 Разбор — <a href="../models/bonsai-2-27b/model.md">model.md bonsai-2</a>, уровни — <a href="#s46">раздел 4.6</a>.</div>
-<div class=card><b>ornith-1.5: токены в никуда</b>Обе строки в самом низу таблицы — 29-е и 30-е из 31 —
+<div class="card bad"><b>ornith-1.5: токены в никуда</b>Обе строки в самом низу таблицы — 29-е и 30-е из 31 —
 при разбросе темпа 0.06M / 10M / 39M токенов за прогон; бенчмарки хвалят её на vLLM/bf16 — наш результат на
 ollama согласуется со скепсисом. Разбор — <a href="../models/ornith-1.5-35b/model.md">model.md ornith</a>.</div>
-<div class=card><b>GigaChat: цикл из одинаковых запросов</b>Ultra повторила один DQL-запрос
+<div class="card bad"><b>GigaChat: цикл из одинаковых запросов</b>Ultra повторила один DQL-запрос
 448 раз (44 минуты, 7.75M токенов ради 2 из 11 обязательных), Max вышла за 7 секунд —
 обе строки в таблице не ранжируются, решения не написаны; известный дефект
 семейства (<a href="https://github.com/ai-forever/langchain-gigachat/pull/69">PR #69</a>).
 Разбор — <a href="../models/gigachat-3-ultra/model.md">model.md GigaChat 3 Ultra</a>.</div>
-<div class=card><b>gemma4:31b QAT: ни одного зачёта</b>23-е место на родном thinking-уровне и 25-е на off
+<div class="card bad"><b>gemma4:31b QAT: ни одного зачёта</b>23-е место на родном thinking-уровне и 25-е на off
 из 31; в одном off-прогоне — самовыход за 24 секунды.
 Разбор — <a href="../models/gemma4-31b-it-qat-pi-100k/model.md">model.md gemma4:31b</a>, уровни — <a href="#s46">раздел 4.6</a>.</div>
-<div class=card><b>muse: строго обязательное</b>Быстро и дёшево на любом уровне (2–6 мин), но ни тестов,
+<div class="card bad"><b>muse: строго обязательное</b>Быстро и дёшево на любом уровне (2–6 мин), но ни тестов,
 ни бонусной команды во всех девяти прогонах: строки уровней — 20-е, 21-е и 27-е места из 31.
 Разбор — <a href="../models/muse-glimmer/model.md">model.md muse</a>, уровни — <a href="#s46">раздел 4.6</a>.</div>
 </div>
