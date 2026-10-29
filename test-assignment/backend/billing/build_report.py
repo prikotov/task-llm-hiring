@@ -1513,45 +1513,74 @@ def ctx_chart(data: list[dict]):
     return '<svg width="%d" height="%d" viewBox="0 0 %d %d" style="max-width:100%%">%s</svg>' % (W, H, W, H, "".join(svg))
 
 
-def dumbbell(rows, vmax, ticks, xtitle, w=620, row_h=34, fmt="{:g}", ref_lines=()):
-    """rows: (label, v1, v2, name1, name2). Общий паттерн: было → стало."""
-    H = len(rows) * row_h + 64
-    ML, MR, MT = 118, 46, 16
+def dumbbell(rows, vmax, ticks, xtitle, w=620, row_h=34, fmt=fnum1, ref_lines=(),
+             foot=""):
+    """rows: (label, v1, v2, name1, name2[, tip]). Общий паттерн: было → стало."""
+    # поле слева — по самой длинной подписи (приб. 7.2 px/символ при 12 px),
+    # иначе длинные имена уходят в отрицательный X и обрезаются краем SVG
+    ML = min(max(118, max(len(r[0]) for r in rows) * 72 // 10 + 16), 330)
+    MR, MT = 46, 16
     PW = w - ML - MR
+    H = len(rows) * row_h + 64
 
     def px(v):
         return ML + v / vmax * PW
 
+    fv = fmt if callable(fmt) else (lambda v: fmt.format(v))
     svg = []
     for t in ticks:
         svg.append(f'<line x1={px(t):.0f} y1={MT} x2={px(t):.0f} y2={MT + len(rows) * row_h + 4:.0f} stroke="#e4e7ec"/>'
-                   f'<text x={px(t):.0f} y={MT + len(rows) * row_h + 22:.0f} text-anchor=middle font-size=12 fill=#66707f>{fmt.format(t)}</text>')
+                   f'<text x={px(t):.0f} y={MT + len(rows) * row_h + 22:.0f} text-anchor=middle font-size=12 fill=#66707f>{fv(t)}</text>')
     for k, (v, txt) in enumerate(ref_lines):
         svg.append(f'<line x1={px(v):.0f} y1={MT} x2={px(v):.0f} y2={MT + len(rows) * row_h + 4:.0f} '
                    f'stroke="#aab3bf" stroke-dasharray="6,4"/>')
-    for i, (label, v1, v2, name1, name2) in enumerate(rows):
+    for i, row in enumerate(rows):
+        label, v1, v2, name1, name2 = row[:5]
+        tip = f'<title>{row[5]}</title>' if len(row) > 5 else ""
         y = MT + i * row_h + row_h / 2
-        svg.append(f'<line x1={px(v1):.0f} y1={y:.0f} x2={px(v2):.0f} y2={y:.0f} stroke="#c3cad4" stroke-width="2.5"/>'
-                   f'<circle cx={px(v1):.0f} cy={y:.0f} r=5 fill="#5b9bd5"/>'
-                   f'<circle cx={px(v2):.0f} cy={y:.0f} r=5 fill="#315f9e"/>'
-                   f'<text x={ML - 10:.0f} y={y + 4:.0f} text-anchor=end font-size=12 fill=#1d2433>{label}</text>'
-                   f'<text x={px(v2) + 9:.0f} y={y + 4:.0f} font-size=12 font-weight=600 fill=#1d2433>{fmt.format(v2)}</text>')
+        svg.append(f'<line x1={px(v1):.0f} y1={y:.0f} x2={px(v2):.0f} y2={y:.0f} stroke="#c3cad4" stroke-width="2.5"/>')
+        if abs(v1 - v2) < 1e-9:   # значения совпали: тёмная точка на светлом кольце
+            svg.append(f'<circle cx={px(v1):.0f} cy={y:.0f} r=8 fill="#5b9bd5" fill-opacity=.55>{tip}</circle>'
+                       f'<circle cx={px(v1):.0f} cy={y:.0f} r=4.5 fill="#315f9e">{tip}</circle>')
+        else:
+            svg.append(f'<circle cx={px(v1):.0f} cy={y:.0f} r=5 fill="#5b9bd5">{tip}</circle>'
+                       f'<circle cx={px(v2):.0f} cy={y:.0f} r=5 fill="#315f9e">{tip}</circle>')
+        svg.append(f'<text x={ML - 10:.0f} y={y + 4:.0f} text-anchor=end font-size=12 fill=#1d2433>{label}</text>'
+                   f'<text x={px(v2) + 9:.0f} y={y + 4:.0f} font-size=12 font-weight=600 fill=#1d2433>{fv(v2)}</text>')
     svg.append(f'<text x={ML + PW / 2:.0f} y={H - 6:.0f} text-anchor=middle font-size=12.5 fill=#66707f>{xtitle}</text>')
+    extra = f' &nbsp; пунктир: {" / ".join(txt for _, txt in ref_lines)}' if ref_lines else ""
+    if foot:
+        extra += f' &nbsp;·&nbsp; {foot}'
     return ('<svg width="%d" height="%d" viewBox="0 0 %d %d" style="max-width:100%%">%s</svg>'
             '<p class=sub><span style="color:#5b9bd5">●</span> %s &nbsp; <span style="color:#315f9e">●</span> %s'
             "%s</p>"
-            % (w, H, w, H, "".join(svg), rows[0][3], rows[0][4],
-               f' &nbsp; пунктир: {" / ".join(txt for _, txt in ref_lines)}' if ref_lines else ""))
+            % (w, H, w, H, "".join(svg), rows[0][3], rows[0][4], extra))
 
 
 def judges_dumbbell(data: list[dict]):
-    rows = [(f"{r['short']} · {r['run'].removeprefix('run-')}", r["a2"], r["a1"],
-             "слепое ревью, ярус 4 (GLM-флеш)", "ревью, ярус 3 (GLM-флеш)")
-            for r in data
-            if not r["dead"] and r["a1"] is not None and r["a2"] is not None]
+    """Согласие ярусов 3/4: по строке на «модель в одном режиме» — те же
+    группы и порядок, что в таблице результатов; точки — средние оси A
+    группы. Прогоны по отдельности — в разделе 6; выходы за ±1 — в цитате
+    под диаграммой."""
+    rows = []
+    for a in sorted(results_agg(data), key=table_sort_key):
+        if not (a["n"] and a["a1"] is not None and a["a2"] is not None):
+            continue
+        short, sfx = a["short"], ""
+        if short.endswith(" · MTP"):
+            short, sfx = short[:-6], " · MTP"
+        lbl = f"{short} {a['note']}{sfx}"
+        tip = (f'{lbl}: слепой {fnum1(a["a2"])} / ревью {fnum1(a["a1"])} '
+               f'— прогонов: {a["n"]}')
+        rows.append((lbl, a["a2"], a["a1"],
+                     "слепой судья (ярус 4) — среднее по режиму",
+                     "ревью (ярус 3) — среднее по режиму", tip))
     if not rows:
         return ""
-    return dumbbell(rows, 4, (0, 1, 2, 3, 4), "ось A: что сделано (0–4)", fmt="{:g}")
+    return dumbbell(rows, 4, (0, 1, 2, 3, 4), "ось A: что сделано (0–4)",
+                    row_h=28,
+                    foot="совпавшие средние — тёмная точка на светлом кольце; "
+                         "наведение на точку — значения и число прогонов")
 
 
 def structure_scan(data: list[dict]) -> list[dict]:
