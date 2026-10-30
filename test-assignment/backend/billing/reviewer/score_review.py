@@ -51,15 +51,21 @@ def score_run(run_arg: str) -> dict | None:
 
     deltas = {}
     for axis, ref_key in zip(AXES, ("axis_a", "axis_b", "functional")):
-        got, expected = verdict.get(ref_key), ref["expected"][ref_key] if verdict else None
+        got = verdict.get(ref_key) if verdict else None
+        expected = ref["expected"][ref_key]
         deltas[axis] = None if got is None else round(abs(float(got) - float(expected)), 2)
 
+    tool_calls = meta.get("tool_calls", 0)
+    invalid = meta.get("invalid_reason") or (
+        None if tool_calls > 0 else "ни одного tool-call: вердикт без чтения кода")
     score = {
         "run": run_arg,
         "reviewer": meta.get("model"),
         "solution_slug": slug,
         "integrity": meta.get("integrity", {}).get("status"),
         "parse_ok": meta.get("parse_ok"),
+        "tool_calls": tool_calls,
+        "invalid_reason": invalid,
         "got": {a: verdict.get(a) for a in AXES} if verdict else None,
         "expected": ref["expected"],
         "deltas": deltas,
@@ -79,7 +85,7 @@ def main() -> int:
         sys.exit(__doc__)
     rows = []
     for arg in sys.argv[1:]:
-        scored = score_run(Path(arg))
+        scored = score_run(arg)
         if scored is None:
             continue
         score, ref, verdict = scored
@@ -88,7 +94,9 @@ def main() -> int:
         print("=" * 100)
         print(f"{score['run']}  [{score['solution_slug']}]  "
               f"ревьюер {score['reviewer']}, целостность: {score['integrity']}, "
-              f"parse_ok: {score['parse_ok']}")
+              f"parse_ok: {score['parse_ok']}, tool-calls: {score['tool_calls']}")
+        if score["invalid_reason"]:
+            print(f"  ⚠ НЕ ЗАСЧИТАНО: {score['invalid_reason']}")
         for axis, title in zip(AXES, ("A", "B", "F")):
             got, d = score["got"][axis], score["deltas"][axis]
             v = score["verdicts"][axis]

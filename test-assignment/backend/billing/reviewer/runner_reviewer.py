@@ -194,10 +194,14 @@ def build_workspace(ws: Path, target: Path) -> None:
     )
 
 
-def final_reply_and_usage(sess_dir: Path) -> tuple[str | None, dict]:
-    """Последний текст ассистента + суммарные токены из сессии JSONL."""
+def final_reply_and_usage(sess_dir: Path) -> tuple[str | None, dict, int]:
+    """Последний текст ассистента, суммарные токены и число tool-calls.
+
+    Число tool-calls — гейт валидности: вердикт без единого чтения —
+    вербальная выдумка, не ревью (так ведёт себя e2b на пилоте)."""
     reply: str | None = None
     usage = {"input": 0, "output": 0, "totalTokens": 0}
+    tool_calls = 0
     for f in sorted(sess_dir.glob("*.jsonl")) if sess_dir.is_dir() else []:
         for line in f.read_text(encoding="utf-8", errors="replace").splitlines():
             try:
@@ -210,10 +214,13 @@ def final_reply_and_usage(sess_dir: Path) -> tuple[str | None, dict]:
             content = m.get("content")
             text = ""
             if isinstance(content, list):
-                text = "".join(
-                    p.get("text", "") for p in content
-                    if isinstance(p, dict) and p.get("type") == "text"
-                )
+                for p in content:
+                    if not isinstance(p, dict):
+                        continue
+                    if p.get("type") == "toolCall":
+                        tool_calls += 1
+                    elif p.get("type") == "text":
+                        text += p.get("text", "")
             elif isinstance(content, str):
                 text = content
             if text.strip():
@@ -223,24 +230,54 @@ def final_reply_and_usage(sess_dir: Path) -> tuple[str | None, dict]:
                 usage["input"] += int(u.get("input") or 0)
                 usage["output"] += int(u.get("output") or 0)
                 usage["totalTokens"] += int(u.get("totalTokens") or 0)
-    return reply, usage
+    return reply, usage, tool_calls
+
+
+def _repair_escapes(s: str) -> str:
+    """Ремонт невалидных \\-эскейпов в JSON-строке модели (посимвольно,
+    с учётом уже-валидных пар: '\\\\T' не превращается в '\\\\\\T')."""
+    valid = set('"\\/bfnrtu')
+    out: list[str] = []
+    i = 0
+    while i < len(s):
+        c = s[i]
+        if c == "\\":
+            nxt = s[i + 1] if i + 1 < len(s) else ""
+            if nxt in valid:
+                out.append(s[i:i + 2])
+            else:
+                out.append("\\\\" + nxt)
+            i += 2 if nxt else 1
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
 
 
 def extract_verdict(text: str) -> dict | None:
-    """JSON-вердикт из финального сообщения (устойчиво к обрамлению)."""
+    """JSON-вердикт из финального сообщения (устойчиво к обрамлению).
+
+    Модели ломают JSON типовыми способами: невалидный \\-escape в строке
+    (qwen: «...\\Что-то»), markdown-обрамление, проза до/после. Порядок
+    попыток: прямой парс спана {..}, ремонт эскейпов, перебор вложенных
+    спанов от первой '{' к последней '}'."""
     start, end = text.find("{"), text.rfind("}")
-    if start != -1 and end > start:
+    if start == -1 or end <= start:
+        return None
+    candidates = [text[start:end + 1]]
+    repaired = _repair_escapes(text[start:end + 1])
+    if repaired != candidates[0]:
+        candidates.append(repaired)
+    candidates.extend(repaired[i:repaired.rfind('}') + 1]
+                      for i in range(len(repaired))
+                      if repaired[i] == "{")  # вложенные/частичные спаны
+    for cand in candidates:
         try:
-            return json.loads(text[start:end + 1])
+            verdict = json.loads(cand)
         except json.JSONDecodeError:
-            pass
-    for line in reversed(text.splitlines()):  # иногда JSON на своей строке
-        s = line.find("{")
-        if s != -1:
-            try:
-                return json.loads(line[s:])
-            except json.JSONDecodeError:
-                continue
+            continue
+        if isinstance(verdict, dict):
+            return verdict
     return None
 
 
@@ -365,9 +402,14 @@ def main() -> int:
         if changed:
             print(f"ЦЕЛОСТНОСТЬ НАРУШЕНА: {len(changed)} файл(ов) изменены — прогон compromised")
 
-        reply, usage = final_reply_and_usage(results / "pi-session")
+        reply, usage, tool_calls = final_reply_and_usage(results / "pi-session")
         meta["tokens"] = usage
+        meta["tool_calls"] = tool_calls
         verdict = extract_verdict(reply) if reply and not args.smoke else None
+        meta["parse_ok"] = verdict is not None
+        if tool_calls == 0 and not args.smoke:
+            meta["invalid_reason"] = "ни одного tool-call: вердикт без чтения кода"
+            print("ВЕРДИКТ БЕЗ ЧТЕНИЯ: ни одного tool-call — прогон не засчитывается")
         meta["parse_ok"] = verdict is not None
         (results / "review.md").write_text(
             "# Ревью этапа 3 — сырой финальный ответ\n\n"
