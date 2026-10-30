@@ -367,7 +367,7 @@ def main() -> int:
 
         reply, usage = final_reply_and_usage(results / "pi-session")
         meta["tokens"] = usage
-        verdict = extract_verdict(reply) if reply else None
+        verdict = extract_verdict(reply) if reply and not args.smoke else None
         meta["parse_ok"] = verdict is not None
         (results / "review.md").write_text(
             "# Ревью этапа 3 — сырой финальный ответ\n\n"
