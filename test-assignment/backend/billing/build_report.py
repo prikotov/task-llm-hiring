@@ -4178,6 +4178,47 @@ def tier_costs() -> str:
             'машина, токены и $ судей — в ценах API (по подписке Z.AI списаний нет).</p>')
 
 
+def repo_layout() -> str:
+    """«Состав данных репозитория» — как в §9 отчёта интервью: что где
+    лежит, чтобы из отчёта можно было добраться до сырых данных."""
+    n_dirs = len(list((ROOT / "models").iterdir()))
+    n_stage = len({r["folder"] for r in DATA_ALL})
+    rows = [
+        ("Папки моделей", '<a href="../models/">models/</a>',
+         f'{n_stage} папок с прогонами этапа (в наборе {n_dirs}); всё по модели — '
+         'карточка и прогоны — лежит внутри её папки'),
+        ("Карточки моделей",
+         '<code>models/&lt;модель&gt;/model.md</code>',
+         'характеристики, квант, статус и наблюдения по каждой модели'),
+        ("Прогоны",
+         '<code>models/&lt;модель&gt;/backend/test-assignment/run-XX/</code>',
+         f'{len(DATA_ALL)} прогонов: run.json — условия; pi-session/ — JSONL-'
+         'история агентной сессии; pi-run.log; solution/ — код решения; '
+         'diff.patch — дифф против каркаса; check.json — вердикт чекера; '
+         'metrics.json + metrics-raw/ — статанализ; session-profile.md, '
+         'summary.md, report.html — профиль сессии, сводка и дашборд прогона'),
+        ("Вердикты судей и аудит", '<code>там же, в run-XX/</code>',
+         'review-zcode.md + tier3.json — ревью яруса 3; judge-glm.md + '
+         'tier4.json — слепой судья яруса 4; security.json, audit.json + '
+         'audit-verdict.md — аудит безопасности'),
+        ("Кросс-модельные агрегаты", '<code>reports/</code>',
+         'этот отчёт (TEST-ASSIGNMENT-report.html); TEST-ASSIGNMENT-judges.md — '
+         'сводка судей текстом; test-assignment-tier-timing.csv — время, токены '
+         'и цена запусков ярусов; openrouter-spend.csv — траты API'),
+        ("Задание и конвейер",
+         '<a href="../test-assignment/backend/billing/">test-assignment/backend/billing/</a>',
+         'skeleton/ — каркас решения с заданием (TASK.md); fixtures/ — входные '
+         'данные и golden-эталоны чекера; checker/ — чекер и скрипты судей; '
+         'runner_pi.py, run_grid.py — раннеры; build_run_report.py — отчёт '
+         'прогона, build_report.py — этот отчёт'),
+    ]
+    trs = "".join(f"<tr><td><b>{a}</b></td><td>{b}</td><td>{c}</td></tr>"
+                  for a, b, c in rows)
+    return ('<h3>Состав данных репозитория</h3>'
+            '<table><thead><tr><th>Данные</th><th>Где</th><th>Что внутри</th>'
+            '</tr></thead><tbody>' + trs + '</tbody></table>')
+
+
 PROV_NAME = {"openrouter": "OpenRouter", "orcarouter": "OrcaRouter",
              "deepseek": "родной API DeepSeek",
              "gigachat": "родной API Сбер · мост gigachat_proxy"}
@@ -4412,6 +4453,7 @@ def runs_inventory() -> str:
             "(чип провайдера — в группах с несколькими провайдерами). "
             "Наведение на значок — короткая причина, детали исключений — в сносках "
             "под таблицей группы.</p>"
+            + repo_layout()
             + "".join(groups)
             + '<p class=sub>Артефакты: визуальный отчёт (дашборд показателей — сценарии чекера, метрики, '
             "сессия, вердикты), код решения целиком, scorecard, ревью яруса 3, вердикт судьи "
