@@ -3989,8 +3989,18 @@ def solution_costs() -> str:
             continue
         key = (r["folder"], r["note"], r["ctx"], "-tuned" in r["tag"], r["retag"])
         groups.setdefault(key, []).append(r)
+    # порядок строк — как в разделе 6: облака (SOTA, DeepSeek, российские),
+    # затем локальные по семействам; внутри модели — уровни от off к max
+    note_o = {"off": 0, "нет": 1, "low": 2, "medium": 3,
+              "high": 4, "xhigh": 5, "on": 6, "max": 7}
+
+    def _order(a):
+        gi, mi = run_group_of(a["folder"])
+        return (gi, mi, note_o.get(a["note"], 9), a["retag"], a["tuned"],
+                a["ctx"] or 0)
+
     trs, med_by_variant = [], []
-    for a in sorted(results_agg(DATA), key=table_sort_key):
+    for a in sorted(results_agg(DATA), key=_order):
         rs = groups.get((a["folder"], a["note"], a["ctx"], a["tuned"], a["retag"]))
         if not rs:
             continue
@@ -4037,8 +4047,10 @@ def solution_costs() -> str:
             + (f'<p>{insight}</p>' if insight else "")
             + '<p class=sub>Цена — медиана по живым прогонам варианта: локальные — '
             'модель стоимости (электричество + амортизация по времени чистой генерации), '
-            'облачные — фактическое списание API. Прогоны вне метрик не дают решения '
-            'и цены не имеют; их фактические траты — в таблице API ниже.</p>')
+            'облачные — фактическое списание API. Варианты — в порядке раздела 6: '
+            'облачные, затем локальные по семействам, у каждой модели уровни от off '
+            'к max. Прогоны вне метрик не дают решения и цены не имеют; их фактические '
+            'траты — в таблице API ниже.</p>')
 
 
 def tier_costs() -> str:
