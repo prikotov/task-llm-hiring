@@ -4184,7 +4184,8 @@ def repo_layout() -> str:
     n_dirs = len(list((ROOT / "models").iterdir()))
     n_stage = len({r["folder"] for r in DATA_ALL})
     rows = [
-        ("Папки моделей", '<a href="../models/">models/</a>',
+        ("Папки моделей",
+         '<a href="https://github.com/prikotov/task-llm-hiring/tree/main/models">models/</a>',
          f'{n_stage} папок с прогонами этапа (в наборе {n_dirs}); всё по модели — '
          'карточка и прогоны — лежит внутри её папки'),
         ("Карточки моделей",
@@ -4206,7 +4207,7 @@ def repo_layout() -> str:
          'сводка судей текстом; test-assignment-tier-timing.csv — время, токены '
          'и цена запусков ярусов; openrouter-spend.csv — траты API'),
         ("Задание и конвейер",
-         '<a href="../test-assignment/backend/billing/">test-assignment/backend/billing/</a>',
+         '<a href="https://github.com/prikotov/task-llm-hiring/tree/main/test-assignment/backend/billing">test-assignment/backend/billing/</a>',
          'skeleton/ — каркас решения с заданием (TASK.md); fixtures/ — входные '
          'данные и golden-эталоны чекера; checker/ — чекер и скрипты судей; '
          'runner_pi.py, run_grid.py — раннеры; build_run_report.py — отчёт '
@@ -4458,8 +4459,8 @@ def runs_inventory() -> str:
             + '<p class=sub>Артефакты: визуальный отчёт (дашборд показателей — сценарии чекера, метрики, '
             "сессия, вердикты), код решения целиком, scorecard, ревью яруса 3, вердикт судьи "
             "яруса 4, аудит безопасности. Всё закоммичено в ветке "
-            "<a href=\"https://github.com/prikotov/task-llm-hiring/tree/feat/billing-test-assignment\">feat/billing-test-assignment</a> — "
-            "ссылки работают локально и на GitHub. Сводка судей текстом: "
+            "<a href=\"https://github.com/prikotov/task-llm-hiring/tree/main\">main</a> — "
+            "ссылки на прогоны относительные и работают локально, на GitHub и в блоге. Сводка судей текстом: "
             "<code>reports/TEST-ASSIGNMENT-judges.md</code>.</p>")
 
 
@@ -4755,17 +4756,17 @@ V4.1 Flash взял 1-е и 3-е места таблицы при $0.06–0.20 �
 Prism: на уровнях с размышлением живых прогонов нет вовсе — нулевой дифф или обрыв сессии, такие строки
 в таблице не ранжируются. Единственный зачтённый прогон (off) — ни один из обязательных сценариев не выполнен,
 последнее ({POS[("bonsai-2-27b", "off", False, False)]}-е) место из {max(POS.values())} ранжированных строк.
-Разбор — <a href="../models/bonsai-2-27b/model.md">model.md bonsai-2</a>, уровни — <a href="#s46">раздел 4.6</a>.</div>
+Разбор — <a href="https://github.com/prikotov/task-llm-hiring/blob/main/models/bonsai-2-27b/model.md">model.md bonsai-2</a>, уровни — <a href="#s46">раздел 4.6</a>.</div>
 <div class="card bad"><b>ornith-1.5: токены в никуда</b>Обе строки в самом низу таблицы — 29-е и 30-е из 31 —
 при разбросе темпа 0.06M / 10M / 39M токенов за прогон. Похвала — self-published бенчмарки (DeepSWE,
 «уровня Claude Opus 4.8»); независимые прогоны сообщества (Hacker News, r/LocalLLaMA) дают другую
-картину. Разбор источников — <a href="../models/ornith-1.5-35b/model.md">model.md ornith</a>.</div>
+картину. Разбор источников — <a href="https://github.com/prikotov/task-llm-hiring/blob/main/models/ornith-1.5-35b/model.md">model.md ornith</a>.</div>
 <div class="card bad"><b>GigaChat: цикл из одинаковых запросов</b>На собеседовании Ultra показала себя
 удивительно сильно — <a href="https://prikotov.pro/raw/llm-hiring-20261014/report.html#results">результаты первого этапа</a>.
 Здесь же решение не завершилось: Ultra зациклилась на одном DQL-запросе — 448 повторов
 (44 минуты, 7.75M токенов ради 2 из 11 обязательных), Max прекратила работу через 7 секунд — обе строки в таблице не ранжируются,
 решения не написаны; известный дефект семейства (<a href="https://github.com/ai-forever/langchain-gigachat/pull/69">PR #69</a>).
-Разбор — <a href="../models/gigachat-3-ultra/model.md">model.md GigaChat 3 Ultra</a>.</div>
+Разбор — <a href="https://github.com/prikotov/task-llm-hiring/blob/main/models/gigachat-3-ultra/model.md">model.md GigaChat 3 Ultra</a>.</div>
 </div>
 
 <h2 id=method><span class=no>2.</span>Методика этапа</h2>

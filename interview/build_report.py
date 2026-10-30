@@ -1848,6 +1848,7 @@ clef, с прежней формулировкой need_review, а судья я
 <ul style="list-style:none;margin:0;padding:0">
 <li><b>Сборка этого отчёта.</b> Скрипт собирает отчёт из сырых данных репозитория: сессии (session.json), вердикты судей, CSV-агрегаты.</li>
 <li><b>Независимость.</b> Автор не аффилирован с упомянутыми компаниями.</li>
+<li><b>Лидерборды.</b> Все лидерборды моделей — рейтинги на собственных тестах Дмитрия.</li>
 <li><b>Сессия подготовки.</b> ZCode, id сессии sess_ba5167d4-12bc-452c-afbe-3d117b4d1667.</li>
 </ul>
 </footer>
@@ -2611,7 +2612,7 @@ def build(models, sessions, primer, low_json=None):
         total += len(runs)
         links = []
         for s in runs:
-            href = f"../models/{folder}/backend/{s['run']}/transcript.md"
+            href = f"../models/{folder}/backend/interview/{s['run']}/transcript.md"
             parts_link = f'<a href="{href}">{s["run"]}</a>'
             cache_cell = s.get("cache_cell", "н/д")
             if s.get("rub") is not None:
