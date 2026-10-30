@@ -4832,7 +4832,9 @@ ollama, драйвер NVIDIA с CUDA и ядро сервера; железо �
 style="width:100%;border-radius:10px;border:1px solid var(--line);display:block">
 <div class=sub style="margin-top:6px">Мой nserv (нейроша) — сервер локальных
 моделей; дисплей на корпусе показывает телеметрию: CPU и GPU (ватты,
-температуры), VRAM, RAM, нагрузка, помпа.</div>
+температуры), VRAM, RAM, нагрузка, помпа; в кружке — дисплей крупно
+в простое (13 Вт на CPU, 21 Вт на GPU). Код для отображения телеметрии
+написал агент по моей просьбе.</div>
 </div>
 <table style="flex:1">
 <tr><th>Компонент</th><th>Версия / модель</th><th>Ключевое</th></tr>
@@ -4852,8 +4854,7 @@ style="width:100%;border-radius:10px;border:1px solid var(--line);display:block"
 style="width:100%;border-radius:10px;border:1px solid var(--line);display:block">
 <div class=sub style="margin-top:6px">Общий кадр: 5090, белые кабели
 в разъёме видюхи; в кружке — дисплей телеметрии крупно (GPU 599 Вт —
-впритык к лимиту 600, 82 °C). Код для отображения телеметрии написал
-агент по моей просьбе.</div>
+впритык к лимиту 600, 82 °C).</div>
 </div>
 <div style="flex:0 0 320px">
 <img src="assets/nserv-ir-gpu.webp" alt="тепловизор: максимум 86.8 °C на 5090 под нагрузкой"
