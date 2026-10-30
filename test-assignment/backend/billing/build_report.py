@@ -117,6 +117,7 @@ def api_cost(provider: str, model: str, u_in: int, u_out: int, u_cache: int):
 # остаточные 30% за 13 140 часов работы) — итого ₽35.85/ч чистой генерации;
 # курс ₽85.15/$ от владельца (2026-10-09)
 LOCAL_RUB_H = 0.55 * 7.07 + (600_000 * 0.70) / (3 * 365 * 12)   # ₽35.85/ч
+ELEC_RUB_H = 0.55 * 7.07   # только электричество (нижняя граница, без амортизации)
 RUB_USD = 85.15
 
 
@@ -3973,11 +3974,76 @@ def _int_sp(v) -> str:
     return f"{v:,.0f}".replace(",", " ") if v is not None else "—"
 
 
+def solution_costs() -> str:
+    """Стоимость одного решения тестового задания по всем протестированным
+    вариантам — таблица как «Стоимость одной сессии по всем протестированным
+    вариантам» в §8 отчёта интервью. Локальные варианты — модель стоимости
+    из «Цен и курса» (электричество + амортизация по времени чистой
+    генерации), облачные — фактическое списание API. Прогоны вне метрик
+    не дают решения, у них нет цены решения; их фактические траты —
+    в таблице API ниже."""
+    import statistics as st
+    groups: dict[tuple, list] = {}
+    for r in DATA:
+        if r["dead"] or r["contention"]:
+            continue
+        key = (r["folder"], r["note"], r["ctx"], "-tuned" in r["tag"], r["retag"])
+        groups.setdefault(key, []).append(r)
+    trs, med_by_variant = [], []
+    for a in sorted(results_agg(DATA), key=table_sort_key):
+        rs = groups.get((a["folder"], a["note"], a["ctx"], a["tuned"], a["retag"]))
+        if not rs:
+            continue
+        short = a["short"].removesuffix(" · MTP").removesuffix(" · tuned")
+        sfx = a["short"][len(short):]          # « · MTP» / « · tuned» / ""
+        think = a["note"] + sfx
+        name = f"{short} {think}"
+        cloud = rs[0]["prov"] != "ollama"
+        badge = ('<span class="badge g">облако</span>' if cloud
+                 else '<span class="badge b">локально</span>')
+        c = st.median([r["cost"] for r in rs])
+        med_by_variant.append((c, name))
+        rub = f"₽{c * RUB_USD:,.2f}".replace(",", " ")
+        if cloud:
+            price = f'${c:.3f}<div class=sub>{rub}</div>'
+            elec = "—"
+        else:
+            e = st.median([r["gen"] for r in rs]) / 60 * ELEC_RUB_H
+            price = f'${c:.3f}<div class=sub>{rub}</div>'
+            elec = f'${e / RUB_USD:.3f}<div class=sub>₽{e:.2f}</div>'
+        trs.append(f'<tr><td><b>{short}</b><div class=sub>{badge}</div></td>'
+                   f'<td>{think}</td>'
+                   f'<td class=narrow>{len(rs)}</td>'
+                   f'<td class=narrow>{fmt_dur(st.median([r["dur"] for r in rs]))}</td>'
+                   f'<td class=narrow>{price}</td>'
+                   f'<td class=narrow>{elec}</td></tr>')
+    if not trs:
+        return ""
+    cmin, cmax = min(med_by_variant), max(med_by_variant)
+    ratio = cmax[0] / cmin[0] if cmin[0] else 0
+    insight = (f'Цена решения различается в {_int_sp(ratio)} раз: '
+               f'от ${cmin[0]:.3f} ({cmin[1]}) до ${cmax[0]:.3f} ({cmax[1]}). '
+               'Колонка «без амортизации» — нижняя граница локального инференса, '
+               'только электричество; локальный инференс окупается приватностью '
+               'и отсутствием лимитов, а не ценой за решение.') if ratio >= 100 else ""
+    return ('<h3>Реализация: агент решает задание</h3>'
+            '<p>Работа кандидата — предмет измерения, а не накладной расход конвейера. '
+            'Стоимость одного решения тестового задания по всем протестированным '
+            'вариантам:</p>'
+            '<table style="width:auto;max-width:760px"><thead><tr><th>Модель</th>'
+            '<th>Мышление</th><th class=narrow>прогонов</th><th class=narrow>время</th>'
+            '<th class=narrow>цена</th><th class=narrow>цена без амортизации</th>'
+            '</tr></thead><tbody>' + "".join(trs) + "</tbody></table>"
+            + (f'<p>{insight}</p>' if insight else "")
+            + '<p class=sub>Цена — медиана по живым прогонам варианта: локальные — '
+            'модель стоимости (электричество + амортизация по времени чистой генерации), '
+            'облачные — фактическое списание API. Прогоны вне метрик не дают решения '
+            'и цены не имеют; их фактические траты — в таблице API ниже.</p>')
+
+
 def tier_costs() -> str:
-    """Стоимость этапа: реализация (агент-кандидат) отдельно от оценки
-    (конвейер проверки). Смешивать нельзя: цена решения — предмет измерения,
-    у каждой модели своя; оценка — конвейерная константа, одна для всех.
-    Как в §8 «Экономика собеса» отчёта интервью."""
+    """Стоимость оценки: четыре яруса конвейера проверки — константа,
+    одна для всех моделей (реализация — отдельно, solution_costs)."""
     names = {"check": "чекер (ярус 1)", "metrics": "метрики (ярус 2)",
              "tier3": "ревью (ярус 3)", "tier4": "судья (ярус 4)"}
 
@@ -3995,32 +4061,24 @@ def tier_costs() -> str:
 
     if not TMEDS:
         return ""
-    parts = []
-    if "agent" in TMEDS:
-        parts.append('<h3>Реализация: агент решает задание</h3>'
-                     '<p>Работа кандидата — предмет измерения, а не накладной расход '
-                     'конвейера: у каждой модели своя цена решения (реальные траты '
-                     'облаков — в таблице ниже).</p>'
-                     + _tbl([_row("агент — решение задания", TMEDS["agent"])]))
     ev = [_row(names[t], TMEDS[t]) for t in ("check", "metrics", "tier3", "tier4")
           if t in TMEDS]
-    if ev:
-        mc, mm = TMEDS.get("check"), TMEDS.get("metrics")
-        local = (mc["dur"] + mm["dur"]) / 60 if mc and mm else None
-        t34 = ((TMEDS.get("tier3") or {}).get("cost") or 0) \
-            + ((TMEDS.get("tier4") or {}).get("cost") or 0)
-        parts.append('<h3>Оценка: конвейер проверки</h3>'
-                     '<p>Одна и та же для всех моделей: чекер и метрики — локальные '
-                     'скрипты без LLM, платим только машинным временем '
-                     f'({fmt_dur(local)} на прогон); ревью и судья — GLM-5.3-Flash '
-                     f'по подписке Z.AI, суммарно ~${t34:.3f} за прогон '
-                     'в ценах API.</p>'
-                     + _tbl(ev))
-    return ("".join(parts)
+    if not ev:
+        return ""
+    mc, mm = TMEDS.get("check"), TMEDS.get("metrics")
+    local = (mc["dur"] + mm["dur"]) / 60 if mc and mm else None
+    t34 = ((TMEDS.get("tier3") or {}).get("cost") or 0) \
+        + ((TMEDS.get("tier4") or {}).get("cost") or 0)
+    return ('<h3>Оценка: конвейер проверки</h3>'
+            '<p>Одна и та же для всех моделей: чекер и метрики — локальные '
+            'скрипты без LLM, платим только машинным временем '
+            f'({fmt_dur(local)} на прогон); ревью и судья — GLM-5.3-Flash '
+            f'по подписке Z.AI, суммарно ~${t34:.3f} за прогон '
+            'в ценах API.</p>'
+            + _tbl(ev)
             + '<p class=sub>Из reports/test-assignment-tier-timing.csv (медианы '
-            'на один запуск соответствующего яруса). Медианы устойчивы к дублям строк '
-            'при перегонах; время агента писалось не у всех ранних прогонов, '
-            'поэтому у реализации запусков меньше.</p>')
+            'на один запуск яруса оценки). Медианы устойчивы к дублям строк '
+            'при перегонах.</p>')
 
 
 def api_spend() -> str:
@@ -4991,6 +5049,7 @@ Luna добирает её только на max. DeepSeek на max пишет �
 
 {runs_inventory()}<h2 id=next><span class=no>7.</span>Стоимость конвейера и что дальше</h2>
 <div class=scalebox id=econ><b>Цены и курс.</b><div>Все цены отчёта — в рублях по фиксированному курсу <b>₽85.15/$</b> (задан владельцем 2026-10-09 и не пересчитывается). Облачные прогоны — токены по тарифам провайдеров (таблица реальных трат ниже). Локальные — <b>электричество и амортизация</b> железа: 550 Вт в момент генерации при ₽7.07/кВт·ч (тариф с 01.10.2026) плюс амортизация (₽600 000 минус остаточные 30% за 13 140 часов работы) = <b>₽35.85/ч чистой генерации</b>. Методика перенесена из §8 «Экономика собеса» отчёта интервью (interview/build_report.py).</div></div>
+{solution_costs()}
 {tier_costs()}
 {api_spend()}
 <div class=note><b>Оптимизации конвейера.</b> Судейские ярусы копеечные
