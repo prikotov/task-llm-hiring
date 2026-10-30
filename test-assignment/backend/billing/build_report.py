@@ -4845,6 +4845,30 @@ style="width:100%;border-radius:10px;border:1px solid var(--line);display:block"
 <tr><td>KV-кэш</td><td>OLLAMA_KV_CACHE_TYPE=q8_0</td><td>единственный нестандартный env демона, как и в интервью</td></tr>
 </table>
 </div>
+<p style="margin:16px 0 6px">Нейроша под нагрузкой, 27 октября 2026:</p>
+<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
+<div style="flex:0 0 250px">
+<img src="assets/nserv-load.webp" alt="нейроша под нагрузкой: RTX 5090 GameRock в риге, дисплей телеметрии на помпе"
+style="width:100%;border-radius:10px;border:1px solid var(--line);display:block">
+<div class=sub style="margin-top:6px">Общий кадр: 5090 в риге, дисплей телеметрии
+на помпе, белые кабели 12V-2x6 в разъёме видюхи.</div>
+</div>
+<div style="flex:0 0 320px">
+<img src="assets/nserv-ir-gpu.webp" alt="тепловизор: максимум 86.8 °C на 5090 под нагрузкой"
+style="width:100%;border-radius:10px;border:1px solid var(--line);display:block">
+<div class=sub style="margin-top:6px">Тепловизор: максимум 86.8 °C — на карте
+под нагрузкой.</div>
+</div>
+<div style="flex:0 0 240px">
+<img src="assets/nserv-ir-power.webp" alt="тепловизор: 93.7 °C у разъёма питания 12V-2x6"
+style="width:100%;border-radius:10px;border:1px solid var(--line);display:block">
+<div class=sub style="margin-top:6px">Самое горячее место — 93.7 °C у разъёма
+питания 12V-2x6: через него идут все 600 Вт, и это известное больное место
+топовых GeForce — расплавы разъёма на 4090/5090 задокументированы
+(<a href="https://www.tomshardware.com/pc-components/gpus/melting-power-connectors-and-how-to-safeguard-against-them">разбор
+Tom&#8217;s Hardware</a>), поэтому разъём — на контроле.</div>
+</div>
+</div>
 <p>nserv считает только инференс (адрес сервера — env <code>OLLAMA_BASE_URL</code>,
 в git не хранится); раннер, чекер и судьи крутятся на рабочей
 машине: Python 3.14.8; харнес pi 1.4.0 (@earendil-works/pi-coding-agent);
