@@ -4028,6 +4028,8 @@ def solution_costs() -> str:
             "short": short, "think": think, "badge": badge, "trcls": trcls,
             "n": len(rs), "dur": st.median([r["dur"] for r in rs]),
             "c": c, "e": e,
+            # № — позиция варианта в рейтинге таблицы «Результаты моделей»
+            "pos": POS.get((a["folder"], a["note"], a["retag"], a["tuned"])),
         })
     if not variants:
         return ""
@@ -4054,7 +4056,8 @@ def solution_costs() -> str:
                 ecls = "p-good"
             elif v["e"] >= WARN_X * med_elec:
                 ecls = "p-warn"
-        trs.append(f'<tr{v["trcls"]}><td><b>{v["short"]}</b>'
+        trs.append(f'<tr{v["trcls"]}><td class=narrow>{v["pos"] or "—"}</td>'
+                   f'<td><b>{v["short"]}</b>'
                    f'<div class=sub>{v["badge"]}</div></td>'
                    f'<td>{v["think"]}</td>'
                    f'<td class=narrow>{v["n"]}</td>'
@@ -4072,7 +4075,8 @@ def solution_costs() -> str:
             '<p>Работа кандидата — предмет измерения, а не накладной расход конвейера. '
             'Стоимость одного решения тестового задания по всем протестированным '
             'вариантам:</p>'
-            '<table style="width:auto;max-width:760px"><thead><tr><th>Модель</th>'
+            '<table style="width:auto;max-width:760px"><thead><tr><th class=narrow>№</th>'
+            '<th>Модель</th>'
             '<th>Мышление</th><th class=narrow>прогонов</th><th class=narrow>время</th>'
             '<th class=narrow>цена</th><th class=narrow>цена без амортизации</th>'
             '</tr></thead><tbody>' + "".join(trs) + "</tbody></table>"
@@ -4081,7 +4085,8 @@ def solution_costs() -> str:
             'модель стоимости (электричество + амортизация по времени чистой генерации), '
             'облачные — фактическое списание API. Варианты — в порядке раздела 6: '
             'облачные, затем локальные по семействам, у каждой модели уровни от off '
-            'к max. Подсветка цены (вместе с рублями): зелёная — «интересная» цена '
+            'к max. № — место варианта в рейтинге таблицы «Результаты моделей» '
+            '(раздел 4). Подсветка цены (вместе с рублями): зелёная — «интересная» цена '
             'хорошего решения (вся база у всех прогонов, не дороже медианы этапа — '
             f'сейчас ${med_price:.2f}); янтарная — дорогое решение '
             f'(от {WARN_X} медиан — сейчас от ${WARN_X * med_price:.2f}); то же — '
