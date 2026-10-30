@@ -4392,7 +4392,7 @@ def runs_inventory() -> str:
                 f'<td class="narrow">{toks}</td>'
                 f'<td class="narrow">{dur}</td>'
                 f'<td>{rel("report.html", "отчёт")} · {rel("solution", "код")} · '
-                f'{rel("report.html#quality", "метрики")} · {rel("review-zcode.md", "ревью яруса 3")} · '
+                f'{rel("metrics.json", "метрики")} · {rel("review-zcode.md", "ревью яруса 3")} · '
                 f'{rel("judge-glm.md", "судья яруса 4")} · {rel("audit-verdict.md", "аудит")}</td></tr>')
         if not runs:
             continue
@@ -4459,8 +4459,8 @@ def runs_inventory() -> str:
             "под таблицей группы.</p>"
             + "".join(groups)
             + '<p class=sub>Артефакты: визуальный отчёт (дашборд показателей — сценарии чекера, метрики, '
-            "сессия, вердикты), код решения целиком, метрики качества кода (ссылка «метрики» "
-            "ведёт в раздел метрик отчёта прогона), ревью яруса 3, вердикт судьи "
+            "сессия, вердикты), код решения целиком, метрики качества кода (файл metrics.json "
+            "прогона: Ce, Ca, LCOM4, WMC и выводы статанализаторов), ревью яруса 3, вердикт судьи "
             "яруса 4, аудит безопасности. Всё закоммичено в ветке "
             "<a href=\"https://github.com/prikotov/task-llm-hiring/tree/main\">main</a> — "
             "ссылки на прогоны относительные и работают локально, на GitHub и в блоге. Сводка судей текстом: "
