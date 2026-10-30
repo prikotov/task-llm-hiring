@@ -4284,9 +4284,11 @@ def runs_inventory() -> str:
                         last_stop = m.get("stopReason")
 
             def rel(name, title):
-                f = r / name
+                base, _, anchor = name.partition("#")
+                f = r / base
                 if f.exists():
-                    return f'<a href="../{f.relative_to(ROOT)}">{title}</a>'
+                    href = f"../{f.relative_to(ROOT)}" + (f"#{anchor}" if anchor else "")
+                    return f'<a href="{href}">{title}</a>'
                 return f'<span class=sub>{title}</span>'
 
             foreign = run.get("ollama_foreign_models") or []
@@ -4390,7 +4392,7 @@ def runs_inventory() -> str:
                 f'<td class="narrow">{toks}</td>'
                 f'<td class="narrow">{dur}</td>'
                 f'<td>{rel("report.html", "отчёт")} · {rel("solution", "код")} · '
-                f'{rel("scorecard.md", "scorecard")} · {rel("review-zcode.md", "ревью яруса 3")} · '
+                f'{rel("report.html#quality", "метрики")} · {rel("review-zcode.md", "ревью яруса 3")} · '
                 f'{rel("judge-glm.md", "судья яруса 4")} · {rel("audit-verdict.md", "аудит")}</td></tr>')
         if not runs:
             continue
@@ -4457,7 +4459,8 @@ def runs_inventory() -> str:
             "под таблицей группы.</p>"
             + "".join(groups)
             + '<p class=sub>Артефакты: визуальный отчёт (дашборд показателей — сценарии чекера, метрики, '
-            "сессия, вердикты), код решения целиком, scorecard, ревью яруса 3, вердикт судьи "
+            "сессия, вердикты), код решения целиком, метрики качества кода (ссылка «метрики» "
+            "ведёт в раздел метрик отчёта прогона), ревью яруса 3, вердикт судьи "
             "яруса 4, аудит безопасности. Всё закоммичено в ветке "
             "<a href=\"https://github.com/prikotov/task-llm-hiring/tree/main\">main</a> — "
             "ссылки на прогоны относительные и работают локально, на GitHub и в блоге. Сводка судей текстом: "
