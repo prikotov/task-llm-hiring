@@ -4856,18 +4856,18 @@ style="width:100%;border-radius:10px;border:1px solid var(--line);display:block"
 в разъёме видюхи; в кружке — дисплей телеметрии крупно (GPU 599 Вт —
 впритык к лимиту 600, 82 °C).</div>
 </div>
-<div style="flex:0 0 320px">
-<img src="assets/nserv-ir-gpu.webp" alt="тепловизор: максимум 86.8 °C на 5090 под нагрузкой"
-style="width:100%;border-radius:10px;border:1px solid var(--line);display:block">
-<div class=sub style="margin-top:6px">Тепловизор: максимум 86.8 °C — на карте
-под нагрузкой.</div>
+<div style="flex:0 0 auto">
+<img src="assets/nserv-ir-gpu.webp" alt="тепловизор: весь корпус, максимум 86.8 °C на 5090 под нагрузкой"
+style="height:300px;width:auto;max-width:100%;border-radius:10px;border:1px solid var(--line);display:block">
+<div class=sub style="margin-top:6px">Тепловизор, весь корпус — распределение
+температур: максимум 86.8 °C на карте под нагрузкой.</div>
 </div>
-<div style="flex:0 0 240px">
+<div style="flex:0 0 auto">
 <img src="assets/nserv-ir-power.webp" alt="тепловизор: 93.7 °C у разъёма питания 12V-2x6"
-style="width:100%;border-radius:10px;border:1px solid var(--line);display:block">
-<div class=sub style="margin-top:6px">Самое горячее место — 93.7 °C у разъёма
-питания 12V-2x6: через него идут все 600 Вт, и это известное больное место
-топовых GeForce — расплавы разъёма на 4090/5090 задокументированы
+style="height:300px;width:auto;max-width:100%;border-radius:10px;border:1px solid var(--line);display:block">
+<div class=sub style="margin-top:6px">Разъём крупно: самое горячее место —
+93.7 °C у разъёма питания 12V-2x6: через него идут все 600 Вт, и это известное
+больное место топовых GeForce — расплавы разъёма на 4090/5090 задокументированы
 (<a href="https://www.tomshardware.com/pc-components/gpus/melting-power-connectors-and-how-to-safeguard-against-them">разбор
 Tom&#8217;s Hardware</a>), поэтому разъём — на контроле.</div>
 </div>
