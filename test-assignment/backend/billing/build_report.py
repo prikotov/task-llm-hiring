@@ -353,6 +353,9 @@ td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top;font-
 tr:last-child td{border-bottom:none}
 tr.neg td{background:#fdf6f4}
 tr.top td{background:#eef6ef}
+/* ячейка цены поверх подсветки строки (те же 0,1,2 — но объявлены позже) */
+tr td.p-good{background:#d7ecdd;font-weight:600}
+tr td.p-warn{background:#fcecd2;font-weight:600}
 .barwrap{position:relative;background:#eef0f4;border-radius:6px;min-width:92px;max-width:110px;height:21px}
 .barwrap .bar{position:absolute;left:0;top:3px;bottom:3px;border-radius:5px;min-width:3px;opacity:.3}
 .barwrap>span{position:absolute;left:7px;top:0;font-size:12.5px;line-height:21px;font-weight:600;color:var(--ink)}
@@ -3999,7 +4002,7 @@ def solution_costs() -> str:
         return (gi, mi, note_o.get(a["note"], 9), a["retag"], a["tuned"],
                 a["ctx"] or 0)
 
-    trs, med_by_variant = [], []
+    variants, med_by_variant = [], []
     for a in sorted(results_agg(DATA), key=_order):
         rs = groups.get((a["folder"], a["note"], a["ctx"], a["tuned"], a["retag"]))
         if not rs:
@@ -4018,22 +4021,37 @@ def solution_costs() -> str:
                  else ' class="neg"' if FAIL in a["kinds"] else "")
         c = st.median([r["cost"] for r in rs])
         med_by_variant.append((c, name))
-        rub = f"₽{c * RUB_USD:,.2f}".replace(",", " ")
-        if cloud:
-            price = f'${c:.3f}<div class=sub>{rub}</div>'
-            elec = "—"
-        else:
-            e = st.median([r["gen"] for r in rs]) / 60 * ELEC_RUB_H
-            price = f'${c:.3f}<div class=sub>{rub}</div>'
-            elec = f'${e / RUB_USD:.3f}<div class=sub>₽{e:.2f}</div>'
-        trs.append(f'<tr{trcls}><td><b>{short}</b><div class=sub>{badge}</div></td>'
-                   f'<td>{think}</td>'
-                   f'<td class=narrow>{len(rs)}</td>'
-                   f'<td class=narrow>{fmt_dur(st.median([r["dur"] for r in rs]))}</td>'
-                   f'<td class=narrow>{price}</td>'
-                   f'<td class=narrow>{elec}</td></tr>')
-    if not trs:
+        e = (None if cloud else
+             st.median([r["gen"] for r in rs]) / 60 * ELEC_RUB_H)
+        variants.append({
+            "short": short, "think": think, "badge": badge, "trcls": trcls,
+            "n": len(rs), "dur": st.median([r["dur"] for r in rs]),
+            "c": c, "e": e,
+        })
+    if not variants:
         return ""
+    # интересная цена — у хорошего решения (вся база) не дороже медианы
+    # по этапу; дорогая — от пяти медиан (пороги живут вместе с данными)
+    med_price = st.median([v["c"] for v in variants])
+    WARN_X = 5
+    trs = []
+    for v in variants:
+        rub = f"₽{v['c'] * RUB_USD:,.2f}".replace(",", " ")
+        price = f'${v["c"]:.3f}<div class=sub>{rub}</div>'
+        elec = ("—" if v["e"] is None else
+                f'${v["e"] / RUB_USD:.3f}<div class=sub>₽{v["e"]:.2f}</div>')
+        pcls = ""
+        if v["trcls"] == ' class="top"' and v["c"] <= med_price:
+            pcls = "p-good"
+        elif v["c"] >= WARN_X * med_price:
+            pcls = "p-warn"
+        trs.append(f'<tr{v["trcls"]}><td><b>{v["short"]}</b>'
+                   f'<div class=sub>{v["badge"]}</div></td>'
+                   f'<td>{v["think"]}</td>'
+                   f'<td class=narrow>{v["n"]}</td>'
+                   f'<td class=narrow>{fmt_dur(v["dur"])}</td>'
+                   f'<td class="narrow {pcls}">{price}</td>'
+                   f'<td class=narrow>{elec}</td></tr>')
     cmin, cmax = min(med_by_variant), max(med_by_variant)
     ratio = cmax[0] / cmin[0] if cmin[0] else 0
     insight = (f'Цена решения различается в {_int_sp(ratio)} раз: '
@@ -4054,7 +4072,10 @@ def solution_costs() -> str:
             'модель стоимости (электричество + амортизация по времени чистой генерации), '
             'облачные — фактическое списание API. Варианты — в порядке раздела 6: '
             'облачные, затем локальные по семействам, у каждой модели уровни от off '
-            'к max. Прогоны вне метрик не дают решения и цены не имеют; их фактические '
+            'к max. Подсветка цены: зелёная — «интересная» цена хорошего решения '
+            f'(вся база у всех прогонов, не дороже медианы этапа — сейчас ${med_price:.2f}); '
+            f'янтарная — дорогое решение (от {WARN_X} медиан — сейчас от ${WARN_X * med_price:.2f}). '
+            'Прогоны вне метрик не дают решения и цены не имеют; их фактические '
             'траты — в таблице API ниже.</p>')
 
 
