@@ -2611,7 +2611,7 @@ def build(models, sessions, primer, low_json=None):
         total += len(runs)
         links = []
         for s in runs:
-            href = f"../models/{folder}/backend/{s['run']}/transcript.md"
+            href = f"../models/{folder}/backend/interview/{s['run']}/transcript.md"
             parts_link = f'<a href="{href}">{s["run"]}</a>'
             cache_cell = s.get("cache_cell", "н/д")
             if s.get("rub") is not None:
