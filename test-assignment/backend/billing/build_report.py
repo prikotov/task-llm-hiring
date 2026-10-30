@@ -4845,13 +4845,14 @@ style="width:100%;border-radius:10px;border:1px solid var(--line);display:block"
 <tr><td>KV-кэш</td><td>OLLAMA_KV_CACHE_TYPE=q8_0</td><td>единственный нестандартный env демона, как и в интервью</td></tr>
 </table>
 </div>
-<p style="margin:16px 0 6px">Нейроша под нагрузкой, 27 октября 2026:</p>
+<p style="margin:16px 0 6px">Нейроша под нагрузкой:</p>
 <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
 <div style="flex:0 0 250px">
 <img src="assets/nserv-load.webp" alt="нейроша под нагрузкой: RTX 5090 GameRock в риге, дисплей телеметрии на помпе"
 style="width:100%;border-radius:10px;border:1px solid var(--line);display:block">
-<div class=sub style="margin-top:6px">Общий кадр: 5090 в риге, дисплей телеметрии
-на помпе, белые кабели 12V-2x6 в разъёме видюхи.</div>
+<div class=sub style="margin-top:6px">Общий кадр: 5090 в риге, белые кабели
+12V-2x6 в разъёме видюхи; в кружке — дисплей телеметрии крупно
+(GPU 599 Вт — впритык к лимиту 600).</div>
 </div>
 <div style="flex:0 0 320px">
 <img src="assets/nserv-ir-gpu.webp" alt="тепловизор: максимум 86.8 °C на 5090 под нагрузкой"
