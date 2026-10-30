@@ -3988,7 +3988,7 @@ def solution_costs() -> str:
     из «Цен и курса» (электричество + амортизация по времени чистой
     генерации), облачные — фактическое списание API. Прогоны вне метрик
     не дают решения, у них нет цены решения; их фактические траты —
-    в таблице API ниже."""
+    в журнале reports/openrouter-spend.csv."""
     import statistics as st
     groups: dict[tuple, list] = {}
     for r in DATA:
@@ -4120,7 +4120,7 @@ def solution_costs() -> str:
             f'локальным вариантам (сейчас '
             f'{"₽" + f"{med_elec:.2f}" if med_elec else "нет данных"}). '
             'Прогоны вне метрик не дают решения и цены не имеют; их фактические '
-            'траты — в таблице API ниже.</p>')
+            'траты — в журнале reports/openrouter-spend.csv.</p>')
 
 
 def tier_costs() -> str:
@@ -4176,39 +4176,6 @@ def tier_costs() -> str:
             'на один запуск яруса оценки). Медианы устойчивы к дублям строк '
             'при перегонах. Итого — суммы по всем запускам: время — локальная '
             'машина, токены и $ судей — в ценах API (по подписке Z.AI списаний нет).</p>')
-
-
-def api_spend() -> str:
-    """Реальные траты API за облачные прогоны."""
-    rows = [r for r in DATA if r["prov"] in ("openrouter", "orcarouter", "deepseek", "gigachat")]
-    if not rows:
-        return ""
-    total = sum(r["cost"] for r in rows)
-    src = {k: v for k, v in API_TARIFFS.items()}
-    def tariff_note(model, prov):
-        if prov == "gigachat":
-            return ("freemium физлица (Ultra 50M / Max 25M токенов на 12 мес); "
-                    "бизнес-тариф Max — ₽650/1M")
-        pin, pout, pc = src[model]
-        return f"${pin * 1e6:g}/$1M вход · ${pout * 1e6:g}/$1M выход · кэш ${pc * 1e6:g}/$1M" \
-            if model != "deepseek-flash" else \
-            f"${pin * 1e6:g}/$1M вход · ${pout * 1e6:g}/$1M выход · кэш-хит ${pc * 1e6:.3g}/$1M (пик)"
-    trs = "".join(
-        f"<tr><td><b>{r['short']}</b> · {r['run'].removeprefix('run-')} <span class=sub>{r['note']}</span></td>"
-        f'<td class=narrow>{fmt_dur(r["dur"])}</td>'
-        f'<td class=narrow>{r["tok"]:.2f}M</td>'
-        f'<td class=narrow><b>${r["cost"]:.3f}</b></td>'
-        f'<td>{tariff_note(r["tag"], r["prov"])}</td></tr>'
-        for r in sorted(rows, key=lambda r: r["cost"]))
-    return ('<h3>Реальные траты API: облачные прогоны</h3>'
-            '<table style="width:auto;max-width:820px"><thead><tr><th>Прогон</th>'
-            '<th class=narrow>время</th><th class=narrow>токены</th><th class=narrow>$</th>'
-            '<th>тариф</th></tr></thead><tbody>' + trs + "</tbody></table>"
-            f'<p class=sub>Вся облачная часть этапа — <b>${total:.2f}</b>. OpenRouter: сверено с журналом '
-            "reports/openrouter-spend.csv; DeepSeek: расчёт по usage сессии и пик-тарифу родного API; "
-            "GigaChat — freemium для физлиц (квота на 12 мес, списаний нет), через мост "
-            "gigachat_proxy. Судейские ярусы (3–4) идут по подписке Z.AI вне этого счётчика; "
-            "локальные прогоны — собственный ollama-сервер.</p>")
 
 
 PROV_NAME = {"openrouter": "OpenRouter", "orcarouter": "OrcaRouter",
@@ -4574,6 +4541,8 @@ DATA = scan_runs()
 # факт их существования показывается в разделе 6
 DATA_ALL = DATA
 DATA = [r for r in DATA if not r["contention"]]
+# вся облачная часть этапа — для плашки «Цены и курса» в §7
+CLOUD_TOTAL = sum(r["cost"] for r in DATA if r["prov"] != "ollama")
 _dates = sorted(r.get("started_at", "")[:10] for r in
                 (json.loads((ROOT / "models" / r["folder"] / "backend" / "test-assignment"
                              / r["run"] / "run.json").read_text()) for r in DATA)) if DATA else []
@@ -5146,10 +5115,9 @@ Luna добирает её только на max. DeepSeek на max пишет �
 дефектов, не итоговый балл нерабочих решений.</div>
 
 {runs_inventory()}<h2 id=costs><span class=no>7.</span>Стоимость конвейера</h2>
-<div class=scalebox id=econ><b>Цены и курс.</b><div>Все цены отчёта — в рублях по фиксированному курсу <b>₽85.15/$</b> (задан владельцем 2026-10-09 и не пересчитывается). Облачные прогоны — токены по тарифам провайдеров (таблица реальных трат ниже). Локальные — <b>электричество и амортизация</b> железа: 550 Вт в момент генерации при ₽7.07/кВт·ч (тариф с 01.10.2026) плюс амортизация (₽600 000 минус остаточные 30% за 13 140 часов работы) = <b>₽35.85/ч чистой генерации</b>. Методика перенесена из §8 «Экономика собеса» отчёта интервью (interview/build_report.py).</div></div>
+<div class=scalebox id=econ><b>Цены и курс.</b><div>Все цены отчёта — в рублях по фиксированному курсу <b>₽85.15/$</b> (задан владельцем 2026-10-09 и не пересчитывается). Облачные прогоны — токены по тарифам провайдеров, вся облачная часть этапа — <b>${CLOUD_TOTAL:.2f}</b> (журнал reports/openrouter-spend.csv; DeepSeek — по usage сессии и пик-тарифу родного API; GigaChat — freemium для физлиц, списаний нет). Локальные — <b>электричество и амортизация</b> железа: 550 Вт в момент генерации при ₽7.07/кВт·ч (тариф с 01.10.2026) плюс амортизация (₽600 000 минус остаточные 30% за 13 140 часов работы) = <b>₽35.85/ч чистой генерации</b>. Методика перенесена из §8 «Экономика собеса» отчёта интервью (interview/build_report.py).</div></div>
 {solution_costs()}
 {tier_costs()}
-{api_spend()}
 <div class=note><b>Оптимизации конвейера.</b> Судейские ярусы копеечные
 (медианы: ревью {_T3M.get("dur", 0):.0f} с / ${_T3M.get("cost", 0):.4f},
 судья {_T4M.get("dur", 0):.0f} с / ${_T4M.get("cost", 0):.4f}, суммарно
