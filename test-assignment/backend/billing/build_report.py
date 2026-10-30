@@ -4003,7 +4003,7 @@ def solution_costs() -> str:
         return (gi, mi, note_o.get(a["note"], 9), a["retag"], a["tuned"],
                 a["ctx"] or 0)
 
-    variants, med_by_variant = [], []
+    variants = []
     for a in sorted(results_agg(DATA), key=_order):
         rs = groups.get((a["folder"], a["note"], a["ctx"], a["tuned"], a["retag"]))
         if not rs:
@@ -4011,7 +4011,6 @@ def solution_costs() -> str:
         short = a["short"].removesuffix(" · MTP").removesuffix(" · tuned")
         sfx = a["short"][len(short):]          # « · MTP» / « · tuned» / ""
         think = a["note"] + sfx
-        name = f"{short} {think}"
         cloud = rs[0]["prov"] != "ollama"
         badge = ('<span class="badge g">облако</span>' if cloud
                  else '<span class="badge b">локально</span>')
@@ -4021,7 +4020,6 @@ def solution_costs() -> str:
         trcls = (' class="top"' if a["n"] and a["n_full"] == a["n"]
                  else ' class="neg"' if FAIL in a["kinds"] else "")
         c = st.median([r["cost"] for r in rs])
-        med_by_variant.append((c, name))
         e = (None if cloud else
              st.median([r["gen"] for r in rs]) / 60 * ELEC_RUB_H)
         variants.append({
@@ -4064,13 +4062,18 @@ def solution_costs() -> str:
                    f'<td class=narrow>{fmt_dur(v["dur"])}</td>'
                    f'<td class="narrow {pcls}">{price}</td>'
                    f'<td class="narrow {ecls}">{elec}</td></tr>')
-    cmin, cmax = min(med_by_variant), max(med_by_variant)
-    ratio = cmax[0] / cmin[0] if cmin[0] else 0
-    insight = (f'Цена решения различается в {_int_sp(ratio)} раз: '
-               f'от ${cmin[0]:.3f} ({cmin[1]}) до ${cmax[0]:.3f} ({cmax[1]}). '
+    # разброс цены — только по хорошим решениям (полная база у всех прогонов):
+    # дешёвое неработающее решение не конкурент, сравнивать с ним нечестно
+    good = [(v["c"], f'{v["short"]} {v["think"]}')
+            for v in variants if v["trcls"] == ' class="top"']
+    gmin, gmax = (min(good), max(good)) if good else (None, None)
+    ratio = (gmax[0] / gmin[0]) if good and gmin[0] else 0
+    insight = (f'Среди хороших решений — с полной базой у всех прогонов — цена '
+               f'различается в {_int_sp(ratio)} раз: от ${gmin[0]:.3f} ({gmin[1]}) '
+               f'до ${gmax[0]:.3f} ({gmax[1]}). '
                'Колонка «без амортизации» — нижняя граница локального инференса, '
                'только электричество; локальный инференс окупается приватностью '
-               'и отсутствием лимитов, а не ценой за решение.') if ratio >= 100 else ""
+               'и отсутствием лимитов, а не ценой за решение.') if ratio >= 3 else ""
     return ('<h3>Реализация: агент решает задание</h3>'
             '<p>Работа кандидата — предмет измерения, а не накладной расход конвейера. '
             'Стоимость одного решения тестового задания по всем протестированным '
