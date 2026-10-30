@@ -514,9 +514,12 @@ def dep_matrix(collector: dict) -> str:
     n = len(order)
     cell = 13 if n <= 45 else 9
     pad = 4
-    ML, MT = 176, 176
+    # поля — по фактической длине подписей (≤20 символов × ~5.5 px при font 10),
+    # а не фикс: при малом числе классов пустые поля делали матрицу гигантской
+    longest = max(len(c.split("\\")[-1]) for c in order)
+    ML = MT = min(176, max(96, int(min(longest, 20) * 5.5) + 18))
     W = ML + (n + 1) * (cell + pad) + 8   # +1 столбец «внеш.»
-    H = MT + n * (cell + pad) + 34
+    H = MT + n * (cell + pad) + 8
     mx = max(counts.values())
     hue = lambda k: "#%02x%02x%02x" % tuple(  # noqa: E731
         round(a + (b - a) * min(k / mx, 1)) for a, b in zip((221, 230, 242), (49, 95, 158)))
@@ -591,12 +594,15 @@ def dep_matrix(collector: dict) -> str:
         cy = yi[order[i0]] + size / 2
         svg.append(f'<text x={cx:.0f} y={cy:.0f} font-size=11 fill=#9aa3ad font-style=italic '
                    f'text-anchor=middle transform="rotate(-90 {cx:.0f} {cy:.0f})">{g}</text>')
-    svg.append(f'<text x={ML} y={H - 14} font-size=12.5 fill=#66707f>строки — источник, столбцы — получатель; насыщенность — число зависимостей</text>')
-    return ('<svg class="scatter" width="%d" height="%d" viewBox="0 0 %d %d" style="max-width:100%%">%s<g class="tip-layer"></g></svg>'
-            '<p class=sub>Классы отсортированы по неймспейсам: слои подписаны на диагонали, жирные линии их разделяют; '
-            "жёлтый столбец «внеш.» — исходящие связи к типам вне решения (DTO времени, коллекции). "
-            "Наведите на закрашенную ячейку — кто на кого и сколько раз.</p>"
-            % (W, H, W, H, "".join(svg)))
+    # легенда — не внутри SVG (viewBox узкой матрицы её обрезал), а в подписи ниже
+    return ('<svg class="scatter" width="%d" height="%d" viewBox="0 0 %d %d" '
+            'style="width:%dpx;max-width:100%%">%s<g class="tip-layer"></g></svg>'
+            '<p class=sub><b>Строки — источник, столбцы — получатель</b>; насыщенность — '
+            'число зависимостей. Классы отсортированы по неймспейсам: слои подписаны '
+            'на диагонали, жирные линии их разделяют; жёлтый столбец «внеш.» — исходящие '
+            'связи к типам вне решения (DTO времени, коллекции). Наведите на закрашенную '
+            'ячейку — кто на кого и сколько раз.</p>'
+            % (W, H, W, H, W, "".join(svg)))
 
 
 def coupling_table(collector: dict, run_dir: Path | None = None) -> str:
