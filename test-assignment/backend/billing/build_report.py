@@ -4830,8 +4830,9 @@ ollama, драйвер NVIDIA с CUDA и ядро сервера; железо �
 <div style="flex:0 0 290px">
 <img src="assets/nserv-rig.webp" alt="nserv — сервер локальных моделей: RTX 5090, СЖО, дисплей телеметрии на корпусе"
 style="width:100%;border-radius:10px;border:1px solid var(--line);display:block">
-<div class=sub style="margin-top:6px">nserv — сервер локальных моделей; дисплей на корпусе
-показывает телеметрию: CPU и GPU (ватты, температуры), VRAM, RAM, нагрузка, помпа.</div>
+<div class=sub style="margin-top:6px">Мой nserv — сервер локальных моделей; дисплей на корпусе
+показывает телеметрию: CPU и GPU (ватты, температуры), VRAM, RAM, нагрузка, помпа.
+Дома зову его нейроша.</div>
 </div>
 <table style="flex:1">
 <tr><th>Компонент</th><th>Версия / модель</th><th>Ключевое</th></tr>
