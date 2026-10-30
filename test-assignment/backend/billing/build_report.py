@@ -353,9 +353,10 @@ td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top;font-
 tr:last-child td{border-bottom:none}
 tr.neg td{background:#fdf6f4}
 tr.top td{background:#eef6ef}
-/* цена — цветом шрифта поверх любой подсветки строки */
+/* цена — цветом шрифта поверх любой подсветки строки; рубли внутри — наследуют */
 tr td.p-good{color:#2f7d54;font-weight:600}
 tr td.p-warn{color:#a15c00;font-weight:600}
+tr td.p-good .sub,tr td.p-warn .sub{color:inherit;font-weight:400}
 .barwrap{position:relative;background:#eef0f4;border-radius:6px;min-width:92px;max-width:110px;height:21px}
 .barwrap .bar{position:absolute;left:0;top:3px;bottom:3px;border-radius:5px;min-width:3px;opacity:.3}
 .barwrap>span{position:absolute;left:7px;top:0;font-size:12.5px;line-height:21px;font-weight:600;color:var(--ink)}
@@ -4031,8 +4032,11 @@ def solution_costs() -> str:
     if not variants:
         return ""
     # интересная цена — у хорошего решения (вся база) не дороже медианы
-    # по этапу; дорогая — от пяти медиан (пороги живут вместе с данными)
+    # по этапу; дорогая — от пяти медиан (пороги живут вместе с данными).
+    # То же для «цены без амортизации» — от медианы по локальным вариантам
     med_price = st.median([v["c"] for v in variants])
+    elec_vals = [v["e"] for v in variants if v["e"] is not None]
+    med_elec = st.median(elec_vals) if elec_vals else None
     WARN_X = 5
     trs = []
     for v in variants:
@@ -4040,18 +4044,23 @@ def solution_costs() -> str:
         price = f'${v["c"]:.3f}<div class=sub>{rub}</div>'
         elec = ("—" if v["e"] is None else
                 f'${v["e"] / RUB_USD:.3f}<div class=sub>₽{v["e"]:.2f}</div>')
-        pcls = ""
+        pcls = ecls = ""
         if v["trcls"] == ' class="top"' and v["c"] <= med_price:
             pcls = "p-good"
         elif v["c"] >= WARN_X * med_price:
             pcls = "p-warn"
+        if v["e"] is not None and med_elec:
+            if v["trcls"] == ' class="top"' and v["e"] <= med_elec:
+                ecls = "p-good"
+            elif v["e"] >= WARN_X * med_elec:
+                ecls = "p-warn"
         trs.append(f'<tr{v["trcls"]}><td><b>{v["short"]}</b>'
                    f'<div class=sub>{v["badge"]}</div></td>'
                    f'<td>{v["think"]}</td>'
                    f'<td class=narrow>{v["n"]}</td>'
                    f'<td class=narrow>{fmt_dur(v["dur"])}</td>'
                    f'<td class="narrow {pcls}">{price}</td>'
-                   f'<td class=narrow>{elec}</td></tr>')
+                   f'<td class="narrow {ecls}">{elec}</td></tr>')
     cmin, cmax = min(med_by_variant), max(med_by_variant)
     ratio = cmax[0] / cmin[0] if cmin[0] else 0
     insight = (f'Цена решения различается в {_int_sp(ratio)} раз: '
@@ -4072,9 +4081,12 @@ def solution_costs() -> str:
             'модель стоимости (электричество + амортизация по времени чистой генерации), '
             'облачные — фактическое списание API. Варианты — в порядке раздела 6: '
             'облачные, затем локальные по семействам, у каждой модели уровни от off '
-            'к max. Подсветка цены: зелёная — «интересная» цена хорошего решения '
-            f'(вся база у всех прогонов, не дороже медианы этапа — сейчас ${med_price:.2f}); '
-            f'янтарная — дорогое решение (от {WARN_X} медиан — сейчас от ${WARN_X * med_price:.2f}). '
+            'к max. Подсветка цены (вместе с рублями): зелёная — «интересная» цена '
+            'хорошего решения (вся база у всех прогонов, не дороже медианы этапа — '
+            f'сейчас ${med_price:.2f}); янтарная — дорогое решение '
+            f'(от {WARN_X} медиан — сейчас от ${WARN_X * med_price:.2f}); то же — '
+            f'для «цены без амортизации», от медианы по локальным вариантам '
+            f'(сейчас ₽{med_elec:.2f}). '
             'Прогоны вне метрик не дают решения и цены не имеют; их фактические '
             'траты — в таблице API ниже.</p>')
 
