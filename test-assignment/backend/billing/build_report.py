@@ -4850,9 +4850,10 @@ style="width:100%;border-radius:10px;border:1px solid var(--line);display:block"
 <div style="flex:0 0 250px">
 <img src="assets/nserv-load.webp" alt="нейроша под нагрузкой: RTX 5090 GameRock в риге, дисплей телеметрии на помпе"
 style="width:100%;border-radius:10px;border:1px solid var(--line);display:block">
-<div class=sub style="margin-top:6px">Общий кадр: 5090 в риге, белые кабели
-12V-2x6 в разъёме видюхи; в кружке — дисплей телеметрии крупно
-(GPU 599 Вт — впритык к лимиту 600).</div>
+<div class=sub style="margin-top:6px">Общий кадр: 5090, белые кабели
+в разъёме видюхи; в кружке — дисплей телеметрии крупно (GPU 599 Вт —
+впритык к лимиту 600, 82 °C). Код для отображения телеметрии написал
+агент по моей просьбе.</div>
 </div>
 <div style="flex:0 0 320px">
 <img src="assets/nserv-ir-gpu.webp" alt="тепловизор: максимум 86.8 °C на 5090 под нагрузкой"
