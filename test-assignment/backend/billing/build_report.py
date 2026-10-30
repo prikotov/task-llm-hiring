@@ -3962,8 +3962,11 @@ def tier_meds() -> dict:
         cost = [float(r["cost_usd"]) for r in rs if r["cost_usd"]]
         out[tier] = {"n": len(rs),
                      "dur": st.median(float(r["duration_s"]) for r in rs),
+                     "sum_dur": sum(float(r["duration_s"]) for r in rs),
                      "tok": st.median(toks) if toks else None,
-                     "cost": st.median(cost) if cost else None}
+                     "sum_tok": sum(toks) if toks else None,
+                     "cost": st.median(cost) if cost else None,
+                     "sum_cost": sum(cost) if cost else None}
     return out
 
 
@@ -4144,6 +4147,20 @@ def tier_costs() -> str:
           if t in TMEDS]
     if not ev:
         return ""
+    # полная стоимость проверок решений: суммы по всем запускам ярусов
+    # оценки за этап (время локальной машины, токены и $ судей — в ценах API)
+    tiers = [TMEDS[t] for t in ("check", "metrics", "tier3", "tier4") if t in TMEDS]
+    n_sum = sum(m["n"] for m in tiers)
+    dur_min = sum(m["sum_dur"] for m in tiers) / 60
+    dur_txt = (f"{dur_min / 60:.1f}\u00a0ч" if dur_min >= 120
+               else fmt_dur(dur_min))
+    tok_sum = sum(m["sum_tok"] for m in tiers if m["sum_tok"])
+    cost_sum = sum(m["sum_cost"] for m in tiers if m["sum_cost"])
+    ev.append(f'<tr><td><b>итого — все проверки этапа</b></td>'
+              f'<td class=narrow>{n_sum}</td>'
+              f'<td class="narrow">{dur_txt}</td>'
+              f'<td class="narrow">{_int_sp(tok_sum) if tok_sum else "—"}</td>'
+              f'<td class="narrow">{f"${cost_sum:.2f}" if cost_sum else "—"}</td></tr>')
     mc, mm = TMEDS.get("check"), TMEDS.get("metrics")
     local = (mc["dur"] + mm["dur"]) / 60 if mc and mm else None
     t34 = ((TMEDS.get("tier3") or {}).get("cost") or 0) \
@@ -4157,7 +4174,8 @@ def tier_costs() -> str:
             + _tbl(ev)
             + '<p class=sub>Из reports/test-assignment-tier-timing.csv (медианы '
             'на один запуск яруса оценки). Медианы устойчивы к дублям строк '
-            'при перегонах.</p>')
+            'при перегонах. Итого — суммы по всем запускам: время — локальная '
+            'машина, токены и $ судей — в ценах API (по подписке Z.AI списаний нет).</p>')
 
 
 def api_spend() -> str:
