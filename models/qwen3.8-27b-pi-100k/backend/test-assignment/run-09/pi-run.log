@@ -1,0 +1,27 @@
+Готово. Всё реализовано и проверено на чистой базе.
+
+## Что сделано
+
+**Команды** (все через `bin/console`):
+- `app:prices:import` — идемпотентный upsert провайдеров/моделей/строк цен
+- `app:usage:import` — импорт событий, дедупликация по `(provider, provider_request_id)`
+- `app:billing:rate` — тарификация по цене, действовавшей в `ts`, со retry; `RATED=<n> UNRATED=<m>` в stdout
+- `app:billing:report` — CSV (user, model, токены, cost), сортировка, строка TOTAL, `--from`/`--to`
+- `app:billing:reprice` *(бонус)* — ретро-коррекция цены и пересчёт затронутых событий без задвоения
+
+**Архитектура (DDD):** чистое ядро `App\Domain\Billing` (bcmath-арифметика, `Money`, `Unit`, `OffPeakWindow` с окном через полночь, `RateCalculator`) → сущности `App\Entity` → слой приложения `App\Service` → `App\Command`.
+
+**Точность:** только десятичные строки + bcmath (float для денег запрещён); единственное округление — HALF_UP до 6 знаков на итоговой стоимости события; отчёт суммирует уже округлённые стоимости.
+
+## Проверено
+- Чистая база → `make db-up` / `make migrate` → схема разворачивается (`doctrine:schema:validate` — sync OK)
+- Приёмка: `app:prices:import` → `app:usage:import` → `app:billing:rate` → `app:billing:report` — **сверился с примером из TASK.md байт-в-байт**
+- Идемпотентность: повторный импорт + rate + report — «дубли пропущено 3», результат не меняется
+- `reprice`: изменение `output`-ставки `lumen-8` → `REPRICED_EVENTS=1`, `REPRICE_DELTA_USD=-2.400000`; отчёт обновляется (14.262499→11.862499), остальные строки не трогаются; возврат → `+2.400000`
+- `unrated`: `RATED=0 UNRATED=1`, stderr `UNRATED prism/REQ-9 2026-07-01T00:00:00Z no_price`
+- Тесты: `make test` → `OK (17 tests, 48 assertions)`; `php -l` — без ошибок
+
+## Артефакты
+- `COMMIT_MESSAGE.md` и `PR_DESCRIPTION.md` (на русском) созданы; каркас не тронут (добавлены только код/миграция/тесты + `phpunit.xml`, что объяснено в описании).
+
+Попутно нашёл и починил реальные баги: прямой доступ к приватным свойствам сущностей (должен быть через геттеры), незаполненное `updated_at`, нарушение уникальности `(price_row_id, kind)` при повторном импорте (переписал `replaceRates` в «update-on-place по kind»), и уточнил формат строки `UNRATED` под `TASK.md`.

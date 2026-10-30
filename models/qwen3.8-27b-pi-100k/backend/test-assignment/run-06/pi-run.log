@@ -1,0 +1,16 @@
+Задание выполнено полностью. Итог:
+
+**Реализация** (всё в `src/`, психраф PSR-4 `App\`):
+- `app:prices:import` — upsert провайдеров/моделей/строк цен, off-peak-окна у провайдера, атомарность файла, `currency` опционален (по умолч. USD)
+- `app:usage:import` — JSONL, дедупликация по `(provider, provider_request_id)`, вывод `inserted=/duplicates_skipped=`, откат невалидного файла
+- `app:billing:rate` — последняя цена `valid_from <= ts`, окно off-peak `[start,end)` (включая переход через полночь), обе схемы тарифа, **только bcmath** (шкала 24, одно HALF_UP до 6 знаков на событие, float не используется), событие без цены → `unrated` (повторно пробует следующий проход)
+- `app:billing:report` — CSV `(user, model)` + `TOTAL`, интервал `[from, to)`
+- **Бонус** `app:billing:reprice` — upsert исправленных строк (секции providers/models не обязательны), пересчёт затронутых событий, stdout ровно `REPRICED_EVENTS=` / `REPRICE_DELTA_USD=`
+- Миграция схемы (колонка `user_login` — `user` зарезервировано в PostgreSQL), репозитории, доменная логика (`PricingCalculator`, `OffPeakWindow`, `UtcInstant`, `Decimals`, `PriceUnit`)
+
+**Проверки**:
+- `make test` → **OK (30 тестов, 105 ассерций)**: доменные + интеграционные (приёмочный сценарий, идемпотентность, границы off-peak, unrated→rated, reprice с дельтой, дедупликация, отвалы битых вводов, фильтры отчёта)
+- Приёмка TASK.md на чистой базе: отчёт **байт-в-байт** соответствует примеру; повторные импорты не меняют результат
+- `php -l` — все файлы чистые
+
+**Документы**: `COMMIT_MESSAGE.md`, `PR_DESCRIPTION.md` (решения, допущения, отступления от каркаса с обоснованием), `README.md` обновлён, добавлен `fixtures/reprice-correction-example.json` для проверки бонуса.

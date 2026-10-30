@@ -1,0 +1,77 @@
+{
+  "workdir": "/tmp/billing-pi-aaigw51n/repo",
+  "signals": [
+    {
+      "kind": "вне cwd",
+      "cmd": "ls /usr/lib64/php*/  2>/dev/null | grep -i bc; find / -name '*bcmath*' -not -path '*/vendor/*' 2>/dev/null | head; php -r 'print_r(get_loaded_extensions());' | grep -i bc",
+      "detail": "/vendor/"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "php > /tmp/t.txt 2>&1 <<'EOF' ⏎ $r = new ReflectionExtension('bcmath'); ⏎ foreach ($r->getFunctions() as $fn) { ⏎     echo $fn->name, ': ', var_export(function_exists($fn->name), true), \"\\n\"; ⏎ } ⏎ EOF ⏎ cat /tmp/t.txt",
+      "detail": "/tmp/t"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "printf '%s' '<?php $r = new ReflectionExtension(\"bcmath\"); foreach ($r->getFunctions() as $fn) { echo $fn->name, \": \", var_export(function_exists($fn->name), true), \"\\n\"; }' > /tmp/t.php; php /tmp/t.php > /tmp/t.txt 2>&1",
+      "detail": "/tmp/t"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/t2.php <<'EOF' ⏎ <?php ⏎ var_dump(bcmul('2','3'), bcadd('1.2','3.4',2), bcdiv('10','3',4), bcround('2.5',0)); ⏎ EOF ⏎ php /tmp/t2.php > /tmp/t2.txt 2>&1; cat /tmp/t2.txt",
+      "detail": "/tmp/t2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/t3.php <<'EOF' ⏎ <?php ⏎ class Foo { ⏎     public static function bar() { return 'ok'; } ⏎ } ⏎ var_dump(Foo::bar()); ⏎ EOF ⏎ php -d auto_prepend_file=/tmp/t3.php -r 'var_dump(function_exists(\"bccalc\")); echo b",
+      "detail": "/tmp/t3"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "bin/console list > /tmp/list.txt 2>&1; echo \"exit=$?\"; grep -c bccalc /tmp/list.txt; ls var/cache 2>/dev/null",
+      "detail": "/tmp/list"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/dectest.php <<'EOF' ⏎ <?php ⏎ require 'vendor/autoload.php'; ⏎ use App\\Billing\\ValueObject\\Decimal; ⏎  ⏎ function chk(string $name, string $actual, string $expected): void { ⏎     $ok = $actual === $expected ?",
+      "detail": "/tmp/dectest"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "grep -A5 'prefix: App' config/packages/doctrine.yaml; sed -i 's|require .vendor/autoload.php.;|require \"vendor/autoload.php\"; require \"src/Billing/ValueObject/Decimal.php\";|' /tmp/dectest.php; php /tmp/dectest.php",
+      "detail": "/tmp/dectest"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "sed -i 's|require \"src/Billing/ValueObject/Decimal.php\";||' /tmp/dectest.php; php /tmp/dectest.php",
+      "detail": "/tmp/dectest"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "php -l src/Billing/ValueObject/Decimal.php && php /tmp/dectest.php",
+      "detail": "/tmp/dectest"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/fix.php <<'EOF' ⏎ <?php ⏎ $f = 'src/Billing/ValueObject/Decimal.php'; ⏎ $c = file_get_contents($f); ⏎ $c = str_replace('$result = (string) ($s % 10);', '$result .= (string) ($s % 10);', $c); ⏎ file_put_content",
+      "detail": "/tmp/fix"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "php <<'PEOF' ⏎ $f = 'src/Billing/ValueObject/Decimal.php'; ⏎ $c = file_get_contents($f); ⏎ $old = \"        return \\$prefix.\\$this->intPart.'.'.\\$this->fracPart;\"; ⏎ $new = \"        return ('' === \\$this->intPart ? \\$pref",
+      "detail": "/tmp/dectest"
+    },
+    {
+      "kind": "вне cwd (запись)",
+      "cmd": "write /tmp/dectest.php",
+      "detail": "/tmp/dectest.php"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "php -l src/Billing/ValueObject/Decimal.php > /dev/null && php /tmp/dectest.php",
+      "detail": "/tmp/dectest"
+    }
+  ],
+  "network": 0,
+  "outside_cwd": 14
+}

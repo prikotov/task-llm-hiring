@@ -1,0 +1,23 @@
+I've been deep in the debugging weeds. Let me pause and give you a clear status, then take the most direct path forward.
+
+## Где я сейчас
+
+**Заблокирован на:** `app:billing:rate` → `RATED=0 UNRATED=0`, хотя в БД есть 3 события с `rated=false`.
+
+## Что установлено (гroud-триут)
+
+1. **`usage_events`**: 3 строки, все `rated=false` — проверено прямым `psql`.
+2. **Соединение Doctrine работает**: INSERT событий прошёл, `SELECT` из полной таблицы вернул строки, `search_path = "$user", public`.
+3. **`findUnrated()` вернул 0 БЕЗ ошибки.** Query-строка правильная: `WHERE u0_."rated" = ?`.
+4. **Драйвер**: `pdo_pgsql` доступен, Doctrine его и использует (driver middleware → PgSQL).
+5. **Раньше ловил ошибку** `invalid input syntax for type boolean: ""` — значит Doctrine пытался биндить пустую строку для boolean (бага в `pdo_pgsql` statement), но `findUnrated` её, кажется, ловит и не бросает (поэтому и 0).
+
+## Ключевая загадка
+
+Прямой `SELECT ... WHERE rated = 'f'` из psql = 3, из `findUnrated` (та же `pg_prepare/pg_execute`) = 0 без исключения. Разница только в том, как Doctrine конвертирует PHP `false` → параметр и как `pdo_pgsql` его шлёт.
+
+## Мой план действий (следующий шаг)
+
+Я хочу сделать один чёткий шаг, чтобы выйти из цикла догадок: **добавить в Doctrine `LoggerInterface`, чтобы увидеть фактически отправленный SQL с бинDED параметрами** — это даст мне точное значение параметра, доходящего до `pg_execute`. Сейчас логгер Symfony (`DebugMiddleware`) перехватывает `execute()`, а мой кастомный `$conn->getConfiguration()->setLogger()` не вызывается — поэтому я и не вижу реальный параметр.
+
+Хотите, я сделаю это прямо сейчас (подключаю логгер и ловлю реальный `params`/`types`), или вам удобнее, чтобы я сначала проверил версию Doctrine/DBAL и погуглил конкретную багу биндинга boolean в `pgsql` для этих версий? Оба пути рабочи — я предлагаю сначала **шаг 1 (логгер)**, так как он даёт прямой ответ без предположений.

@@ -1,0 +1,82 @@
+{
+  "workdir": "/tmp/billing-pi-bcyrx7ru/repo",
+  "signals": [
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-bcyrx7ru/repo && bin/console app:billing:report --from=2026-09-01T00:00:00Z --to=2026-10-01T00:00:00Z 2>/dev/null > /tmp/report1.csv && printf 'user,model,tokens_input,tokens_output,tokens_cache_read,t",
+      "detail": "/tmp/report1"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-bcyrx7ru/repo && echo '{ bad json' > /tmp/bad.json && bin/console app:prices:import /tmp/bad.json; echo \"exit=$?\" ⏎ echo '{\"provider\": \"x\"' > /tmp/bad.jsonl && bin/console app:usage:import /tmp/bad.jso",
+      "detail": "/tmp/bad"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-bcyrx7ru/repo && bin/console app:billing:reprice /tmp/reprice1.json; echo \"exit=$?\"; bin/console app:billing:report --from=2026-09-01T00:00:00Z --to=2026-10-01T00:00:00Z",
+      "detail": "/tmp/reprice1"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-bcyrx7ru/repo && docker compose exec -T db psql -U app -d app -c \"TRUNCATE usage_events, price_rows, models, providers RESTART IDENTITY CASCADE;\" ⏎ cat > /tmp/providers2.json <<'EOF' ⏎ { ⏎   \"providers",
+      "detail": "/tmp/providers2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-bcyrx7ru/repo && bin/console app:prices:import fixtures/prices.json && bin/console app:usage:import fixtures/usage.jsonl && bin/console app:billing:rate; echo \"RATE_EXIT=$?\"; echo ---; bin/console app:",
+      "detail": "/tmp/report_a"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-bcyrx7ru/repo && printf 'user,model,tokens_input,tokens_output,tokens_cache_read,tokens_cache_write,cost_usd\\nu-alice,prism/lumen-8,1200000,800000,2500000,83333,14.262499\\nu-alice,sfera/gyro-pro,300000",
+      "detail": "/tmp/expected"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-bcyrx7ru/repo && bin/console app:billing:reprice fixtures/reprice.json > /tmp/rp.txt 2>/tmp/rp.err; echo \"EXIT=$?\"; cat /tmp/rp.txt; bin/console app:billing:report --from=2026-09-01T00:00:00Z --to=2026",
+      "detail": "/tmp/rp"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-bcyrx7ru/repo && bin/console app:prices:import fixtures/prices.json && bin/console app:billing:reprice fixtures/prices.json > /tmp/restore.txt 2>&1; echo \"EXIT=$?\"; cat /tmp/restore.txt; bin/console ap",
+      "detail": "/tmp/restore"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-bcyrx7ru/repo && cat config/services.yaml && sed -n '/usage_events/,$p' migrations/Version20261027000001.php | head -50",
+      "detail": "/usage_events/"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-bcyrx7ru/repo && cat > /tmp/dbg.php <<'PHP' ⏎ <?php ⏎ putenv('APP_ENV=test'); ⏎ $_SERVER['APP_ENV']='test'; $_ENV['APP_ENV']='test'; ⏎ require 'vendor/autoload.php'; ⏎ $k = new \\App\\Kernel(); ⏎ $k->boo",
+      "detail": "/tmp/dbg"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-bcyrx7ru/repo && head -30 src/Kernel.php && sed -i \"s|new \\\\\\\\App\\\\\\\\Kernel();|new \\\\\\\\App\\\\\\\\Kernel('test', true);|\" /tmp/dbg.php && php /tmp/dbg.php",
+      "detail": "/tmp/dbg"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-bcyrx7ru/repo && rm -rf var/cache && APP_ENV=test APP_DEBUG=1 php /tmp/dbg.php 2>&1 | grep -E \"^DB|^providers\"",
+      "detail": "/tmp/dbg"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-bcyrx7ru/repo && APP_ENV=test APP_DEBUG=1 php /tmp/dbg.php 2>&1 | tail -15",
+      "detail": "/tmp/dbg"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-bcyrx7ru/repo && rm -rf var/cache && APP_ENV=test APP_DEBUG=1 php /tmp/dbg.php 2>&1 | tail -3 && echo === && rm -rf var/cache && vendor/bin/phpunit 2>&1 | tail -4",
+      "detail": "/tmp/dbg"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-bcyrx7ru/repo && bin/console app:prices:import fixtures/prices.json && bin/console app:usage:import fixtures/usage.jsonl && bin/console app:billing:rate && bin/console app:billing:report --from=2026-09",
+      "detail": "/tmp/expected"
+    }
+  ],
+  "network": 0,
+  "outside_cwd": 15
+}

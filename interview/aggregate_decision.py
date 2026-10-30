@@ -25,7 +25,7 @@ SERIES = {
 
 def main():
     rows = []
-    for f in sorted(glob.glob(str(ROOT / '*' / 'backend' / 'judgments' / 'decision-*.csv'))):
+    for f in sorted(glob.glob(str(ROOT / '*' / 'backend' / 'interview' / 'judgments' / 'decision-*.csv'))):
         m = re.match(r'decision-(clef(?:-flash)?)-(run-\d+)\.csv$', Path(f).name)
         if not m:
             continue

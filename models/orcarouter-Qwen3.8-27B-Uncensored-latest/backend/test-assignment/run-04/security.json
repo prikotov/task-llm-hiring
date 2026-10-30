@@ -1,0 +1,37 @@
+{
+  "workdir": "/tmp/billing-pi-kh3xrz_3/repo",
+  "signals": [
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/expected.csv <<'EOF' ⏎ user,model,tokens_input,tokens_output,tokens_cache_read,tokens_cache_write,cost_usd ⏎ u-alice,prism/lumen-8,1200000,800000,2500000,83333,14.262499 ⏎ u-alice,sfera/gyro-pro,3000000,500000",
+      "detail": "/tmp/expected"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "mkdir -p /tmp/bt && cat > /tmp/bt/prices2.json <<'EOF' ⏎ { ⏎   \"providers\": [ ⏎     { \"code\": \"nova\", \"name\": \"Nova Labs\", ⏎       \"off_peak\": { \"window_start\": \"16:30\", \"window_end\": \"00:30\", \"multiplier\": \"0.5\" } }, ⏎ ",
+      "detail": "/tmp/bt"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/bt/reprice.json <<'EOF' ⏎ { ⏎   \"prices\": [ ⏎     { \"provider\": \"nova\", \"model\": \"orb\", \"valid_from\": \"2026-01-01T00:00:00Z\", \"currency\": \"USD\", \"unit\": \"per_1m_tokens\", ⏎       \"rates\": { \"input\": \"2.000000\",",
+      "detail": "/tmp/bt/reprice"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "echo '{ \"prices\": [ { \"provider\": \"nope\", \"model\": \"x\", \"valid_from\": \"2026-01-01T00:00:00Z\", \"currency\": \"USD\", \"unit\": \"per_1m_tokens_unified\", \"rates\": { \"any\": \"1.000000\" } } ] }' > /tmp/bt/badreprice.json ⏎ bin/cons",
+      "detail": "/tmp/bt/badreprice"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "echo '{\"provider\": \"nova\", \"provider_request_id\": \"g\", \"model\": \"orb\", \"user\": \"u-zed\", \"ts\": \"2025-06-15T17:00:00Z\", \"tokens_input\": 1000000, \"tokens_output\": 0, \"tokens_cache_read\": 0, \"tokens_cache_write\": 0}' > /tmp/",
+      "detail": "/tmp/bt/usage3"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "docker exec repo-db-1 psql -U app -d postgres -c \"DROP DATABASE IF EXISTS app;\" >/dev/null && make db-up >/dev/null 2>&1; bin/console doctrine:database:create --if-not-exists >/dev/null && bin/console doctrine:migrations",
+      "detail": "/tmp/final"
+    }
+  ],
+  "network": 0,
+  "outside_cwd": 6
+}

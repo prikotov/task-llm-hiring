@@ -1,0 +1,22 @@
+Всё готово и проверено от и до. Итог:
+
+## ✅ Приёмка (на чистой БД, последовательно)
+1. **Чистая база** — `DROP/CREATE DATABASE app` + `make migrate` (миграция `Version20260801000000`, 4 таблицы) — schema разворачивается
+2. **`app:prices:import`** — 2 провайдера, 3 модели, 4 строки цен; повторный запуск — тот же upsert
+3. **`app:usage:import`** — 3 события; повторно — «0 принятых, 3 дубля», код 0
+4. **`app:billing:rate`** — `RATED=3 UNRATED=0`; повторно — `RATED=0`
+5. **`app:billing:report --from=2026-09-01T00:00:00Z --to=2026-10-01T00:00:00Z`** — байт-в-байт совпадает с примером из TASK.md (e1 `14.262499` c HALF_UP-округлением, e2 по новой строке 12:00, e3 unified `8.400000`, `TOTAL 33.662499`)
+6. **идемпотентность** (A5) — повторный импорт+rate+report → идентичный отчёт
+7. **unrated** — событие до цены: `UNRATED <provider>/<id> <ts> no_price` в stderr, не в отчёте; после появления цены добирается повторным `rate`
+8. **off-peak** — `16:29:59→пик, 16:30→×0.5, 23:59:59→×0.5, 00:29:59→×0.5, 00:30:00→пик` (проверено юнит-тестами, CLI и интеграцией)
+9. **бонус `app:billing:reprice`** — `REPRICED_EVENTS=1 / REPRICE_DELTA_USD=9.600000`, повторный запуск → `0 / 0.000000`, отчёт показывает пересчитанную сумму без дублей
+
+## 🧪 Тесты
+`vendor/bin/phpunit` → **OK (49 tests, 92 assertions)**, 0 ошибок/депрекейшнов:
+- юнит: `Decimal` (bcmath-арифметика, HALF_UP-округление в т.ч. переносы), `OffPeak` (границы окна), `RateCalculator` (пример e1 из ТЗ), парсеры JSON/JSONL (валидные и битые данные)
+- интеграция: полный поток импорт→rate→report→reprice на реальной PostgreSQL (`billing_test`), дедупликация, retry unrated
+
+Важный найденный и исправленный попутно дефект: тесты писали в **рабочую** БД (каркасный `bin/console` не грузит Dotenv, а дефолт `DATABASE_URL` указывает на `app`) — добавлен `tests/bootstrap.php` (`Dotenv::bootEnv` → `.env.test`), теперь интеграционные тесты изолированы и `phpunit` не трогает базу приложения (проверено).
+
+## 📄 Артефакты
+- `COMMIT_MESSAGE.md`, `PR_DESCRIPTION.md` — на русском; в PR описаны архитектура (`src/Billing/`: ValueObject/Import/Entity/Repository/Pricing/Service/Command), ключевые решения (bcmath-только, одно округление, natural-key дедупликация, reprice через `price_row_id`-ссылку) и **все отступления от каркаса**: `KERNEL_CLASS` в `phpunit.xml.dist`, `when@test` в `framework.yaml`, UTC-фиксация в `Kernel::boot()`, новые `.env.test` и `tests/bootstrap.php`. Новых зависимостей нет.

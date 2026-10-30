@@ -1,0 +1,26 @@
+Готово. Финальное состояние:
+
+## Что завершено в этом раунде
+
+**1. Тесты (PHPUnit, 76 тестов / 106 ассерций — все зелёные):**
+- `tests/DecimalTest.php` — normalize, HALF_UP, format6, точность bcmath-арифметики
+- `tests/OffPeakPolicyTest.php` — окно `[start, end)` через полночь, включённость границ, парсинг `HH:MM`
+- `tests/RateCalculatorTest.php` — точные сценарии фикстуры (e1 → `14.262499`, e3 → `8.400000`), нулевые токены, оф-пик, HALF_UP
+- `tests/PriceFileParserTest.php`, `tests/UsageFileParserTest.php` — валидные/невалидные входы
+
+**2. Найденные и исправленные баги:**
+- `RateCalculator::eventCost` теперь возвращает ровно формат 6 знаков (`Decimal::format6`) — согласован с хранением `numeric(20,6)` и отчётом
+- `ReportCommand::parseRangeOption()` — возвращаемый тип был `DateTimeImmutable|false`, но при отсутствии `--from/--to` возвращался `null` → тип исправлен на `null|DateTimeImmutable|false`
+- Рефакторинг `RepriceService`: flush перенесён из цикла на один вызов
+
+**3. Проверки на чистой базе (все пройдены):**
+- `make migrate` → схема на чистой базе; идемпотентна при повторе
+- Импорт цен/событий → идемпотентный повтор без изменений
+- Отчёт за сентябрь — **байт-в-байт** с эталоном (и после повтора)
+- `reprice` → `REPRICED_EVENTS=1`, дельта точная; повторная reprice → `REPRICE_DELTA_USD=0.000000` (без `-0.000000`); журнал `price_corrections` — старые/новые стоимости
+- Ошибочные пути reprice (неизвестный провайдер/модель, пустой `prices`, нет файла) — exit 1, stdout пуст, детали в stderr
+- База оставлена в чистом состоянии (схема развёрнута, данных нет)
+
+**4. Артефакты (на русском):**
+- `COMMIT_MESSAGE.md` — commit message
+- `PR_DESCRIPTION.md` — что сделано, архитектура, ключевые решения и допущения (`--to` exclusive, `user`-колонка и `UserQuotedQuoteStrategy`, семантика reprice, журнал `price_corrections`), перечень изменённых/добавленных файлов, воспроизведение приёмки

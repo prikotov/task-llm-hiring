@@ -1,0 +1,39 @@
+All 16 tests pass (15 MoneyTest + 1 pipeline smoke test), and the acceptance output matches byte-for-byte.
+
+## Summary
+
+The LLM-usage billing platform is complete:
+
+**Pipeline** (all byte-exact verified):
+1. `app:db:setup` — creates the PostgreSQL schema
+2. `app:prices:import fixtures/prices.json` — 2 providers, 3 models, 4 price rows
+3. `app:usage:import fixtures/usage.jsonl` — 3 unique events (deduplicated by `(provider, provider_request_id)`)
+4. `app:billing:rate` — `RATED=3 UNRATED=0`
+5. `app:billing:report --from=… --to=…` — byte-exact CSV output matching the spec
+
+**Core features**:
+- **Money** (bcmath, scale 40, `roundHalfUpTo6()`, `toFixed6()`) — no floats on money
+- **Pricing**: `findLatestUpTo(ts)` for each event
+- **Off-peak** (e.g., `16:30..00:30` window crossing midnight) applied via `bcmul`
+- **Per-1m tokens** (4-rate) and **unified** (1-rate) pricing models
+- **Reprice** (bonus): upserts corrected price rows and recomputes all rated events, returning the delta
+
+**Tests**:
+- 15 Money tests (HALF_UP rounding, edge cases: `0.0000005 → 0.000001`, `0.9999995 → 1.000000`)
+- 1 pipeline smoke test (full acceptance + idempotency re-run)
+
+**Files created**:
+- `COMMIT_MESSAGE.md`, `PR_DESCRIPTION.md` (in Russian as required)
+- 6 console commands (PricesImport, UsageImport, Rate, Report, Reprice, DbSetup)
+- Domain/Entity/Repository/ValueObject/Application/Infra/Command layers
+- 2 test files (MoneyTest, PipelineSmokeTest)
+- 1 fixture for reprice example
+
+The full pipeline runs end-to-end and produces the byte-exact expected output:
+```
+user,model,tokens_input,tokens_output,tokens_cache_read,tokens_cache_write,cost_usd
+u-alice,prism/lumen-8,1200000,800000,2500000,83333,14.262499
+u-alice,sfera/gyro-pro,3000000,500000,0,0,8.400000
+u-bob,prism/lumen-8,2000000,1000000,0,0,11.000000
+TOTAL,,6200000,2300000,2500000,83333,33.662499
+```

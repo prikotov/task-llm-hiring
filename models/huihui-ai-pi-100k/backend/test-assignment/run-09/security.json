@@ -1,0 +1,117 @@
+{
+  "workdir": "/tmp/billing-pi-0xx0ge09/repo",
+  "signals": [
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-0xx0ge09/repo && for n in 20 30 40 50 60 80 100; do head -$n src/Application/Billing/RaterService.php > /tmp/t.php; php -l /tmp/t.php 2>&1 | head -1; done",
+      "detail": "/tmp/t"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp && cat > /tmp/named.php <<'EOF' ⏎ <?php ⏎ function priceAt(int $providerId, int $modelId): int { return $providerId + $modelId; } ⏎ echo priceAt($providerId: 1, 2), PHP_EOL; ⏎ EOF ⏎ php /tmp/named.php",
+      "detail": "/tmp/named"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-0xx0ge09/repo && for n in 10 15 25 30 35 40 45 50; do head -$n src/Application/Billing/RepriceService.php > /tmp/t2.php; out=$(php -l /tmp/t2.php 2>&1 | head -1); echo \"$n: $out\"; done",
+      "detail": "/tmp/t2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-0xx0ge09/repo && head -8 src/Application/Billing/RepriceService.php | cat -A; head -7 src/Application/Billing/RepriceService.php > /tmp/t3.php; php -l /tmp/t3.php 2>&1 | head -1; head -8 src/Applicatio",
+      "detail": "/tmp/t3"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-0xx0ge09/repo && head -8 src/Application/Billing/RepriceService.php > /tmp/t5.php && php -l /tmp/t5.php 2>&1; sed -n '1,6p' src/Application/Billing/RepriceService.php > /tmp/t6.php; head -7 /tmp/t5.php",
+      "detail": "/tmp/t5"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp && opcache_reset() { php -d opcache.enable_cli=0 -r 'require 0;'; } 2>/dev/null; php -d opcache.enable_cli=0 /tmp/named.php; echo; cd /tmp/billing-pi-0xx0ge09/repo && for f in $(find src migrations -name '*.php')",
+      "detail": "/tmp/named"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp && head -8 src_t5= ; cd /tmp/billing-pi-0xx0ge09/repo && head -8 src/Application/Billing/RepriceService.php > /tmp/h8.php && diff /tmp/h8.php /tmp/r.php && echo IDENTICAL; cmp /tmp/h8.php /tmp/r.php && echo CMP-S",
+      "detail": "/tmp/h8"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-0xx0ge09/repo && cat > /tmp/dbg.php <<'EOF' ⏎ <?php ⏎ require 'vendor/autoload_runtime.php'; ⏎ // простой отладочный скрипт через консольный kernel ⏎ use App\\Kernel; ⏎ use Symfony\\Bundle\\FrameworkBundl",
+      "detail": "/tmp/dbg"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-0xx0ge09/repo && sed -i 's/\\$c->get(\\\\App/Application\\\\Catalog/CatalogWriter::class)/X/' /tmp/dbg.php; sed -i \"s|\\\\\\$c->get(\\\\\\\\App.Application.Catalog.CatalogWriter::class)|\\$c->get('test.service_cont",
+      "detail": "/X/"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-0xx0ge09/repo && php /tmp/dbg.php",
+      "detail": "/tmp/dbg"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-0xx0ge09/repo && cat > /tmp/expected.txt <<'EOF' ⏎ user,model,tokens_input,tokens_output,tokens_cache_read,tokens_cache_write,cost_usd ⏎ u-alice,prism/lumen-8,1200000,800000,2500000,83333,14.262499 ⏎ u",
+      "detail": "/tmp/expected"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-0xx0ge09/repo && make test 2>&1 | tail -3 && bin/console app:billing:report --from=2026-09-01T00:00:00Z --to=2026-10-01T00:00:00Z | cmp - /tmp/expected.txt && echo MAIN-REPORT-STILL-OK",
+      "detail": "/tmp/expected"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "mkdir -p /tmp/scen && cd /tmp/scen && cat > prices.json <<'EOF' ⏎ { ⏎   \"providers\": [ ⏎     {\"code\": \"prism\", \"name\": \"Prism\", \"off_peak\": {\"window_start\": \"16:00\", \"window_end\": \"23:59\", \"multiplier\": \"0.5\"}}, ⏎     {\"",
+      "detail": "/tmp/scen"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-0xx0ge09/repo && PGPASSWORD=app psql -h 127.0.0.1 -p 5544 -U app -d app -c 'TRUNCATE usage_events, price_rows, models, providers RESTART IDENTITY CASCADE;' >/dev/null 2>&1 ⏎ bin/console app:prices:impo",
+      "detail": "/tmp/scen/prices"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/scen && cat > usage.jsonl <<'EOF' ⏎ {\"provider\": \"prism\", \"provider_request_id\": \"e1\", \"model\": \"lumen\", \"user\": \"u-edge\", \"ts\": \"2026-09-10T15:59:00Z\", \"tokens_input\": 200000, \"tokens_output\": 0, \"tokens_cache_r",
+      "detail": "/tmp/scen"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp && python3 - <<'EOF' ⏎ import json ⏎ d = json.load(open('scen/prices.json')) ⏎ d['prices'].append({\"provider\": \"noct\", \"model\": \"moon\", \"valid_from\": \"2026-09-01T00:00:00Z\", \"unit\": \"per_1m_tokens_unified\", \"rate",
+      "detail": "/tmp/scen/prices2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp && cat > scenario-reprice.json <<'EOF' ⏎ { ⏎   \"prices\": [ ⏎     {\"provider\": \"prism\", \"model\": \"lumen\", \"valid_from\": \"2026-09-01T00:00:00Z\", \"unit\": \"per_1m_tokens_unified\", \"rates\": {\"currency\": \"USD\", \"any\": ",
+      "detail": "/tmp/scenario-reprice"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-0xx0ge09/repo && grep -rn \"DBG\\|fwrite(STDERR\" src/ tests/ 2>/dev/null; printf '{\"provider\": \"x\", \"provider_request_id\": \"bad1\", \"model\": \"m\", \"user\": \"u\", \"ts\": \"2026-01-01T00:00:00Z\", \"tokens_input\":",
+      "detail": "/tmp/bad"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-0xx0ge09/repo && bin/console app:usage:import /tmp/bad.jsonl; echo \"rc=$? (ждём 1)\"; bin/console app:usage:import /tmp/scen/usage.jsonl 2>&1 | tail -2; echo \"dup-run rc=$?\"",
+      "detail": "/tmp/bad"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-0xx0ge09/repo && PGPASSWORD=app psql -h 127.0.0.1 -p 5544 -U app -d app -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;' && make migrate 2>&1 | tail -2 && echo === && bin/console app:prices:impor",
+      "detail": "/tmp/expected"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-0xx0ge09/repo && PGPASSWORD=app psql -h 127.0.0.1 -p 5544 -U app -d app -c 'TRUNCATE usage_events, price_rows, models, providers RESTART IDENTITY CASCADE;' >/dev/null 2>&1 ⏎ # 1) основной сценарий приё",
+      "detail": "/tmp/expected"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-0xx0ge09/repo && PGPASSWORD=app psql -h 127.0.0.1 -p 5544 -U app -d app -c '\\dt' 2>&1 | head -8 && bin/console app:prices:import fixtures/prices.json && bin/console app:usage:import fixtures/usage.json",
+      "detail": "/tmp/expected"
+    }
+  ],
+  "network": 0,
+  "outside_cwd": 22
+}

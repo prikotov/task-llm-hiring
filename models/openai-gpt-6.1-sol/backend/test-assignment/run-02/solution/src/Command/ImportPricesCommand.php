@@ -1,0 +1,30 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Command;
+
+use App\Application\ImportPrices;
+use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Input\InputArgument;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Output\OutputInterface;
+
+#[AsCommand(name: 'app:prices:import', description: 'Загрузить справочник и историю цен.')]
+final class ImportPricesCommand extends BillingCommand
+{
+    public function __construct(private ImportPrices $import)
+    {
+        parent::__construct();
+    }
+
+    protected function configure(): void
+    {
+        $this->addArgument('file', InputArgument::REQUIRED, 'JSON-файл цен');
+    }
+
+    protected function perform(InputInterface $input, OutputInterface $output): void
+    {
+        $this->import->run($input->getArgument('file'));
+    }
+}

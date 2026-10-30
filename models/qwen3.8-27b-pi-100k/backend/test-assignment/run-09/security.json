@@ -1,0 +1,77 @@
+{
+  "workdir": "/tmp/billing-pi-k0gcfkz9/repo",
+  "signals": [
+    {
+      "kind": "сеть",
+      "cmd": "cd /tmp/billing-pi-k0gcfkz9/repo && echo \"=== docker ===\" && docker compose version 2>&1 | head -3; echo \"=== db status ===\" && docker compose ps 2>&1 | head -10; echo \"=== pg port check ===\" && (nc -z 127.0.0.1 5544 && ",
+      "detail": "nc"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-k0gcfkz9/repo && grep -rln \"console.command\" vendor/symfony/*/DependencyInjection/*.php vendor/symfony/*/DependencyInjection/Compiler/*.php 2>/dev/null | head; echo \"=== how framework processes console",
+      "detail": "/DependencyInjection/"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-k0gcfkz9/repo && make --version | head -1 && cat > /tmp/tst.mk <<'EOF' ⏎ console: ⏎ \t@echo \"ARGS=[$(filter-out $@,$(MAKECMDGOALS))]\" ⏎ EOF ⏎ printf 'include /tmp/tst.mk\\n' > /tmp/Mkfile ⏎ cd /tmp && ma",
+      "detail": "/tmp/tst"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-k0gcfkz9/repo && php bin/console doctrine:schema:validate -v 2>&1 | grep -v \"^\\s*$\" | sed -n '/Database/,$p'",
+      "detail": "/Database/"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-k0gcfkz9/repo && grep -rnE '\\->[a-z][a-zA-Z]+' src/ > /tmp/scan.txt 2>/dev/null; php -r ' ⏎ $allowed = [\"get\",\"set\",\"has\",\"mark\",\"upsert\",\"import\",\"report\",\"calculate\",\"reprice\",\"rateFor\",\"find\",\"repla",
+      "detail": "/tmp/scan"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-k0gcfkz9/repo && echo \"=== rate ===\" && bin/console app:billing:rate; echo \"exit=$?\"; echo \"=== report ===\" && bin/console app:billing:report --from=2026-09-01T00:00:00Z --to=2026-10-01T00:00:00Z | tee",
+      "detail": "/tmp/out"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-k0gcfkz9/repo && echo \"=== step5: repeat import + rate + report ===\" && bin/console app:prices:import fixtures/prices.json && bin/console app:usage:import fixtures/usage.jsonl && bin/console app:billin",
+      "detail": "/tmp/out2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-k0gcfkz9/repo && cat > /tmp/reprice.json <<'EOF' ⏎ {\"prices\":[ ⏎   {\"provider\":\"prism\",\"model\":\"lumen-8\",\"valid_from\":\"2026-08-01T00:00:00Z\",\"currency\":\"USD\",\"unit\":\"per_1m_tokens\",\"rates\":{\"input\":\"3.",
+      "detail": "/tmp/reprice"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-k0gcfkz9/repo && cat > /tmp/usage_unrated.jsonl <<'EOF' ⏎ {\"provider\": \"prism\", \"provider_request_id\": \"u9\", \"model\": \"lumen-mini\", \"user\": \"u-ann\", \"ts\": \"2026-07-01T10:00:00Z\", \"tokens_input\": 100, \"",
+      "detail": "/tmp/usage_unrated"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-k0gcfkz9/repo && echo \"=== drop + create DB ===\" && bin/console doctrine:database:drop --force --if-exists && bin/console doctrine:database:create --if-not-exists && echo \"=== migrate from scratch ===\"",
+      "detail": "/tmp/final"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-k0gcfkz9/repo && bin/console app:prices:import fixtures/prices.json && bin/console app:usage:import fixtures/usage.jsonl && bin/console app:billing:rate && bin/console app:billing:report --from=2026-09",
+      "detail": "/tmp/final2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-k0gcfkz9/repo && echo \"=== ACCEPTANCE ===\" && bin/console app:prices:import fixtures/prices.json && bin/console app:usage:import fixtures/usage.jsonl && bin/console app:billing:rate && bin/console app:",
+      "detail": "/tmp/acc"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-k0gcfkz9/repo && cat > /tmp/ur.jsonl <<'EOF' ⏎ {\"provider\": \"prism\", \"provider_request_id\": \"REQ-9\", \"model\": \"lumen-mini\", \"user\": \"u-x\", \"ts\": \"2026-07-01T00:00:00Z\", \"tokens_input\": 1, \"tokens_outpu",
+      "detail": "/tmp/ur"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-k0gcfkz9/repo && echo \"### 1. make db-up\" && make db-up 2>&1 | tail -1 && echo \"### 2. clean deploy via make\" && bin/console doctrine:database:drop --force --if-exists >/dev/null 2>&1 && bin/console do",
+      "detail": "/tmp/f"
+    }
+  ],
+  "network": 1,
+  "outside_cwd": 13
+}

@@ -12,7 +12,7 @@
 | `qwen3.8:27b` = `:latest`, `qwen3.8:27b-pi-100k` | false / low / medium / xhigh | medium | temp 1, top_k 20, top_p 0.95, min_p 0, presence_penalty 0, repeat_penalty 1, draft_num_predict 4 |
 | `huihui-ai:pi-100k` | false / low / medium / xhigh | medium | то же + num_ctx 102400 |
 | `huihui_ai/Qwen3.8-abliterated:latest` | false / low / medium / xhigh | medium | то же, без num_ctx |
-| `qwen3.8-unc:pi-100k`, `qwen3.8-unc-iq4xs:pi-100k` | только false / true | **включено** | temp 1, top_k 20, top_p 0.95, draft 4, num_ctx 102400 |
+| `qwen3.8-unc:pi-100k`, `qwen3.8-unc-iq4xs:pi-100k` — теги удалены 2026-10-21 (ретаг весов orcarouter, см. model.md orca) | только false / true | **включено** | temp 1, top_k 20, top_p 0.95, draft 4, num_ctx 102400 |
 | `orcarouter/Qwen3.8-27B-Uncensored:latest`, `:iq4_xs` | только false / true | **включено** | temp 1, top_k 20, top_p 0.95 |
 | `gemma4:26b` (+`-pi-100k`), `gemma4:31b-it-qat` (+`-pi-100k`), `gemma4:e2b` | только false / true | **включено** | temp 1, top_k 64, top_p 0.95, draft 3 |
 | `qwen3-vl:8b` (+`-pi-100k`), `qwen3-vl:30b-a3b` (+`-pi-100k`) | только false / true | **включено** | temp 1, top_k 20, top_p 0.95 |

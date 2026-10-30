@@ -1,0 +1,22 @@
+parameters:
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    App\:
+        resource: '../src/'
+        exclude:
+            - '../src/Kernel.php'
+
+    # Реестры — по явным типам (по наследованию ServiceEntityRepository
+    # автоинжект не работает, т.к. нет одного «конкретного» типа).
+    App\Repository\ProviderRepository:
+        arguments: ['@doctrine']
+    App\Repository\ModelRepository:
+        arguments: ['@doctrine']
+    App\Repository\PriceRepository:
+        arguments: ['@doctrine']
+    App\Repository\UsageEventRepository:
+        arguments: ['@doctrine']

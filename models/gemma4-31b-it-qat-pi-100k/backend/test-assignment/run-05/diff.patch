@@ -1,0 +1,1008 @@
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/COMMIT_MESSAGE.md /tmp/billing-pi-lcin93y7/repo/COMMIT_MESSAGE.md
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/COMMIT_MESSAGE.md	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-lcin93y7/repo/COMMIT_MESSAGE.md	2026-10-27 23:29:42.547462027 +0700
+@@ -0,0 +1,16 @@
++Implemented an LLM token billing system.
++
++Key features:
++- High-precision decimal arithmetic using bcmath for costs.
++- Support for different pricing models (per-token and unified).
++- Time-weighted pricing based on the event timestamp.
++- Off-peak discount windows with midnight-crossing support.
++- Idempotent imports for prices and usage events.
++- Billing report generation with aggregation by user and model.
++- Bonus: Retrospective price correction (reprice) functionality.
++
++Detailed implementation:
++- Domain entities for Provider, Model, Price, and UsageEvent.
++- Dedicated BillingRateCalculator service for pricing logic to ensure consistency.
++- Console commands for data import, rating, and reporting.
++- Database schema managed via Doctrine ORM.
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/PR_DESCRIPTION.md /tmp/billing-pi-lcin93y7/repo/PR_DESCRIPTION.md
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/PR_DESCRIPTION.md	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-lcin93y7/repo/PR_DESCRIPTION.md	2026-10-27 23:29:56.493198297 +0700
+@@ -0,0 +1,46 @@
++# PR Description: LLM Token Billing System
++
++## Implementation Details
++
++I have implemented a billing system for LLM tokens that handles complex pricing rules, including time-based rates and off-peak discounts.
++
++### Key Technical Decisions
++
++1.  **Precision Arithmetic**: Used `bcmath` for all financial calculations to avoid floating-point inaccuracies. The scale was set to 16 for intermediate calculations, and the final event cost was rounded to 6 decimal places using the HALF_UP rule as required.
++2.  **Data Model**:
++    *   `Provider`: Stores provider info and off-peak windows.
++    *   `Model`: Links models to providers.
++    *   `Price`: Stores time-valid rates for each model.
++    *   `UsageEvent`: Stores actual usage. I renamed the `user` column to `username` because `user` is a reserved keyword in PostgreSQL.
++3.  **Pricing Logic**:
++    *   The system finds the most recent price valid at the time of the event.
++    *   It calculates cost based on the specified unit (`per_1m_tokens` or `per_1m_tokens_unified`).
++    *   Applies the provider's off-peak multiplier if the event timestamp falls within the specified UTC window (including windows that cross midnight).
++4.  **Idempotency**:
++    *   `app:prices:import`: Uses upsert logic.
++    *   `app:usage:import`: Checks for the existence of the `(provider, provider_request_id)` pair before inserting.
++5.  **Performance**:
++    *   Used Doctrine ORM for database interactions.
++    *   Billing rating is done in a single batch per run for unrated events.
++
++### Bonus: Repricing
++
++I implemented the `app:billing:reprice` command. It updates existing price records and recalculates costs for all rated events that were previously billed using those specific price records, providing the total number of affected events and the financial delta.
++
++### Verification Steps
++
++1.  **Startup**: `make db-up` and `bin/console doctrine:schema:update --force`.
++2.  **Import and Rate**:
++    `bin/console app:prices:import fixtures/prices.json`
++    `bin/console app:usage:import fixtures/usage.jsonl`
++    `bin/console app:billing:rate`
++3.  **Report**:
++    `bin/console app:billing:report --from=2026-09-01T00:00:00Z --to=2026-10-01T00:00:00Z`
++    The output matches the example in `TASK.md` byte-for-byte.
++4.  **Idempotency**: Repeated the steps above and confirmed that results remain identical.
++
++### Deviations from Framework
++
++*   Renamed `user` field to `username` in `UsageEvent` entity to avoid PostgreSQL reserved keyword error.
++*   Used `#[AsCommand]` attribute for command naming as `static $defaultName` is deprecated/removed in newer Symfony versions.
++*   Used `doctrine:schema:update --force` instead of migrations for simplified deployment in this test task.
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/BillingRateCommand.php /tmp/billing-pi-lcin93y7/repo/src/Command/BillingRateCommand.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/BillingRateCommand.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-lcin93y7/repo/src/Command/BillingRateCommand.php	2026-10-27 23:28:06.081286312 +0700
+@@ -0,0 +1,75 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Command;
++
++use App\Entity\Price;
++use App\Entity\Provider;
++use App\Entity\UsageEvent;
++use App\Service\BillingRateCalculator;
++use Doctrine\ORM\EntityManagerInterface;
++use Symfony\Component\Console\Attribute\AsCommand;
++use Symfony\Component\Console\Command\Command;
++use Symfony\Component\Console\Input\InputInterface;
++use Symfony\Component\Console\Output\OutputInterface;
++
++#[AsCommand(name: 'app:billing:rate')]
++class BillingRateCommand extends Command
++{
++    public function __construct(
++        private EntityManagerInterface $entityManager,
++        private BillingRateCalculator $calculator
++    ) {
++        parent::__construct();
++    }
++
++    protected function configure(): void
++    {
++        $this->setDescription('Rates unrated usage events');
++    }
++
++    protected function execute(InputInterface $input, OutputInterface $output): int
++    {
++        $unratedEvents = $this->entityManager->getRepository(UsageEvent::class)->findBy([], ['ts' => 'ASC']);
++        $unratedEvents = array_filter($unratedEvents, fn($e) => !$e->isRated());
++
++        $ratedCount = 0;
++        $unratedCount = 0;
++
++        foreach ($unratedEvents as $event) {
++            $provider = $this->entityManager->getRepository(Provider::class)->findOneBy(['code' => $event->getProvider()]);
++            
++            $query = $this->entityManager->createQuery(
++                'SELECT p FROM App\Entity\Price p 
++                 WHERE p.providerCode = :provider 
++                 AND p.modelCode = :model 
++                 AND p.validFrom <= :ts 
++                 ORDER BY p.validFrom DESC'
++            )->setParameters([
++                'provider' => $event->getProvider(),
++                'model' => $event->getModel(),
++                'ts' => $event->getTs(),
++            ]);
++            
++            $price = $query->setMaxResults(1)->getOneOrNullResult();
++
++            if (!$price) {
++                fwrite(STDERR, sprintf("UNRATED %s/%s %s no_price\n", $event->getProvider(), $event->getProviderRequestId(), $event->getTs()->format(\DateTimeInterface::ATOM)));
++                $unratedCount++;
++                continue;
++            }
++
++            $cost = $this->calculator->calculateCost($event, $price, $provider);
++            $event->setCost($cost);
++            $event->setRated(true);
++            $ratedCount++;
++        }
++
++        $this->entityManager->flush();
++        
++        $output->writeln(sprintf("RATED=%d UNRATED=%d", $ratedCount, $unratedCount));
++
++        return Command::SUCCESS;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/BillingReportCommand.php /tmp/billing-pi-lcin93y7/repo/src/Command/BillingReportCommand.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/BillingReportCommand.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-lcin93y7/repo/src/Command/BillingReportCommand.php	2026-10-27 23:27:27.869008950 +0700
+@@ -0,0 +1,117 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Command;
++
++use App\Entity\UsageEvent;
++use Doctrine\ORM\EntityManagerInterface;
++use Symfony\Component\Console\Attribute\AsCommand;
++use Symfony\Component\Console\Command\Command;
++use Symfony\Component\Console\Input\InputInterface;
++use Symfony\Component\Console\Input\InputOption;
++use Symfony\Component\Console\Output\OutputInterface;
++
++#[AsCommand(name: 'app:billing:report')]
++class BillingReportCommand extends Command
++{
++    public function __construct(private EntityManagerInterface $entityManager)
++    {
++        parent::__construct();
++    }
++
++    protected function configure(): void
++    {
++        $this->setDescription('Generates billing report')
++            ->addOption('from', null, InputOption::VALUE_REQUIRED, 'Start date (ISO-8601)')
++            ->addOption('to', null, InputOption::VALUE_REQUIRED, 'End date (ISO-8601)');
++    }
++
++    protected function execute(InputInterface $input, OutputInterface $output): int
++    {
++        $from = $input->getOption('from') ? new \DateTimeImmutable($input->getOption('from')) : null;
++        $to = $input->getOption('to') ? new \DateTimeImmutable($input->getOption('to')) : null;
++
++        $qb = $this->entityManager->createQueryBuilder()
++            ->select('e')
++            ->from(UsageEvent::class, 'e')
++            ->where('e.isRated = true');
++
++        if ($from) {
++            $qb->andWhere('e.ts >= :from')->setParameter('from', $from);
++        }
++        if ($to) {
++            $qb->andWhere('e.ts < :to')->setParameter('to', $to);
++        }
++
++        $events = $qb->getQuery()->getResult();
++
++        $groups = [];
++        $totals = [
++            'tokens_input' => 0,
++            'tokens_output' => 0,
++            'tokens_cache_read' => 0,
++            'tokens_cache_write' => 0,
++            'cost_usd' => '0',
++        ];
++
++        foreach ($events as $event) {
++            $groupKey = $event->getUser() . '||' . $event->getProvider() . '/' . $event->getModel();
++            if (!isset($groups[$groupKey])) {
++                $groups[$groupKey] = [
++                    'user' => $event->getUser(),
++                    'model' => $event->getProvider() . '/' . $event->getModel(),
++                    'tokens_input' => 0,
++                    'tokens_output' => 0,
++                    'tokens_cache_read' => 0,
++                    'tokens_cache_write' => 0,
++                    'cost_usd' => '0',
++                ];
++            }
++
++            $groups[$groupKey]['tokens_input'] += $event->getTokensInput();
++            $groups[$groupKey]['tokens_output'] += $event->getTokensOutput();
++            $groups[$groupKey]['tokens_cache_read'] += $event->getTokensCacheRead();
++            $groups[$groupKey]['tokens_cache_write'] += $event->getTokensCacheWrite();
++            $groups[$groupKey]['cost_usd'] = bcadd($groups[$groupKey]['cost_usd'], $event->getCost() ?? '0', 6);
++
++            $totals['tokens_input'] += $event->getTokensInput();
++            $totals['tokens_output'] += $event->getTokensOutput();
++            $totals['tokens_cache_read'] += $event->getTokensCacheRead();
++            $totals['tokens_cache_write'] += $event->getTokensCacheWrite();
++            $totals['cost_usd'] = bcadd($totals['cost_usd'], $event->getCost() ?? '0', 6);
++        }
++
++        usort($groups, function ($a, $b) {
++            if ($a['user'] === $b['user']) {
++                return strcmp($a['model'], $b['model']);
++            }
++            return strcmp($a['user'], $b['user']);
++        });
++
++        $output->writeln('user,model,tokens_input,tokens_output,tokens_cache_read,tokens_cache_write,cost_usd');
++        foreach ($groups as $group) {
++            $output->writeln(sprintf(
++                '%s,%s,%d,%d,%d,%d,%s',
++                $group['user'],
++                $group['model'],
++                $group['tokens_input'],
++                $group['tokens_output'],
++                $group['tokens_cache_read'],
++                $group['tokens_cache_write'],
++                number_format((float)$group['cost_usd'], 6, '.', '')
++            ));
++        }
++        
++        $output->writeln(sprintf(
++            'TOTAL,,%d,%d,%d,%d,%s',
++            $totals['tokens_input'],
++            $totals['tokens_output'],
++            $totals['tokens_cache_read'],
++            $totals['tokens_cache_write'],
++            number_format((float)$totals['cost_usd'], 6, '.', '')
++        ));
++
++        return Command::SUCCESS;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/PricesImportCommand.php /tmp/billing-pi-lcin93y7/repo/src/Command/PricesImportCommand.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/PricesImportCommand.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-lcin93y7/repo/src/Command/PricesImportCommand.php	2026-10-27 23:26:43.273852294 +0700
+@@ -0,0 +1,103 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Command;
++
++use App\Entity\Provider;
++use App\Entity\Model;
++use App\Entity\Price;
++use Doctrine\ORM\EntityManagerInterface;
++use Symfony\Component\Console\Attribute\AsCommand;
++use Symfony\Component\Console\Command\Command;
++use Symfony\Component\Console\Input\InputArgument;
++use Symfony\Component\Console\Input\InputInterface;
++use Symfony\Component\Console\Output\OutputInterface;
++
++#[AsCommand(name: 'app:prices:import')]
++class PricesImportCommand extends Command
++{
++    public function __construct(private EntityManagerInterface $entityManager)
++    {
++        parent::__construct();
++    }
++
++    protected function configure(): void
++    {
++        $this->setDescription('Imports providers, models and prices from JSON file')
++            ->addArgument('file', InputArgument::REQUIRED, 'Path to the prices JSON file');
++    }
++
++    protected function execute(InputInterface $input, OutputInterface $output): int
++    {
++        $filePath = $input->getArgument('file');
++        if (!file_exists($filePath)) {
++            $output->writeln("File not found: $filePath", OutputInterface::VERBOSITY_VERBOSE);
++            return Command::FAILURE;
++        }
++
++        $content = file_get_contents($filePath);
++        $data = json_decode($content, true);
++
++        if (json_last_error() !== JSON_ERROR_NONE) {
++            return Command::FAILURE;
++        }
++
++        $this->entityManager->beginTransaction();
++        try {
++            foreach ($data['providers'] ?? [] as $pData) {
++                $provider = $this->entityManager->getRepository(Provider::class)->findOneBy(['code' => $pData['code']]);
++                if (!$provider) {
++                    $provider = new Provider($pData['code'], $pData['name'], $pData['off_peak']);
++                    $this->entityManager->persist($provider);
++                } else {
++                    $provider->setName($pData['name']);
++                    $provider->setOffPeak($pData['off_peak']);
++                }
++            }
++
++            foreach ($data['models'] ?? [] as $mData) {
++                $model = $this->entityManager->getRepository(Model::class)->findOneBy([
++                    'providerCode' => $mData['provider'],
++                    'code' => $mData['code']
++                ]);
++                if (!$model) {
++                    $model = new Model($mData['provider'], $mData['code']);
++                    $this->entityManager->persist($model);
++                }
++            }
++
++            foreach ($data['prices'] ?? [] as $prData) {
++                $validFrom = new \DateTimeImmutable($prData['valid_from']);
++                $price = $this->entityManager->getRepository(Price::class)->findOneBy([
++                    'providerCode' => $prData['provider'],
++                    'modelCode' => $prData['model'],
++                    'validFrom' => $validFrom
++                ]);
++
++                if (!$price) {
++                    $price = new Price(
++                        $prData['provider'],
++                        $prData['model'],
++                        $validFrom,
++                        $prData['currency'],
++                        $prData['unit'],
++                        $prData['rates']
++                    );
++                    $this->entityManager->persist($price);
++                } else {
++                    $price->setRates($prData['rates']);
++                }
++            }
++
++            $this->entityManager->flush();
++            $this->entityManager->commit();
++        } catch (\Exception $e) {
++            $this->entityManager->rollback();
++            $output->writeln("Error importing prices: " . $e->getMessage(), OutputInterface::VERBOSITY_VERBOSE);
++            return Command::FAILURE;
++        }
++
++        return Command::SUCCESS;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/RepriceCommand.php /tmp/billing-pi-lcin93y7/repo/src/Command/RepriceCommand.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/RepriceCommand.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-lcin93y7/repo/src/Command/RepriceCommand.php	2026-10-27 23:27:45.490675704 +0700
+@@ -0,0 +1,109 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Command;
++
++use App\Entity\Price;
++use App\Entity\UsageEvent;
++use App\Service\BillingRateCalculator;
++use Doctrine\ORM\EntityManagerInterface;
++use Symfony\Component\Console\Attribute\AsCommand;
++use Symfony\Component\Console\Command\Command;
++use Symfony\Component\Console\Input\InputArgument;
++use Symfony\Component\Console\Input\InputInterface;
++use Symfony\Component\Console\Output\OutputInterface;
++use App\Entity\Provider;
++
++#[AsCommand(name: 'app:billing:reprice')]
++class RepriceCommand extends Command
++{
++    public function __construct(
++        private EntityManagerInterface $entityManager, 
++        private BillingRateCalculator $calculator
++    ) {
++        parent::__construct();
++    }
++
++    protected function configure(): void
++    {
++        $this->setDescription('Reprices events based on corrected price file')
++            ->addArgument('file', InputArgument::REQUIRED, 'Path to the correction JSON file');
++    }
++
++    protected function execute(InputInterface $input, OutputInterface $output): int
++    {
++        $filePath = $input->getArgument('file');
++        if (!file_exists($filePath)) {
++            return Command::FAILURE;
++        }
++
++        $content = file_get_contents($filePath);
++        $data = json_decode($content, true);
++        if (!$data) return Command::FAILURE;
++
++        $this->entityManager->beginTransaction();
++        try {
++            $repricedEventsCount = 0;
++            $oldTotalCost = '0';
++            $newTotalCost = '0';
++
++            foreach ($data['prices'] ?? [] as $prData) {
++                $validFrom = new \DateTimeImmutable($prData['valid_from']);
++                $price = $this->entityManager->getRepository(Price::class)->findOneBy([
++                    'providerCode' => $prData['provider'],
++                    'modelCode' => $prData['model'],
++                    'validFrom' => $validFrom
++                ]);
++
++                if (!$price) {
++                    continue;
++                }
++
++                $price->setRates($prData['rates']);
++                $this->entityManager->flush();
++
++                $events = $this->entityManager->getRepository(UsageEvent::class)->findBy(['isRated' => true]);
++                foreach ($events as $event) {
++                    if ($event->getProvider() === $price->getProviderCode() && $event->getModel() === $price->getModelCode()) {
++                        $query = $this->entityManager->createQuery(
++                            'SELECT p FROM App\Entity\Price p 
++                             WHERE p.providerCode = :provider 
++                             AND p.modelCode = :model 
++                             AND p.validFrom <= :ts 
++                             ORDER BY p.validFrom DESC'
++                        )->setParameters([
++                            'provider' => $event->getProvider(),
++                            'model' => $event->getModel(),
++                            'ts' => $event->getTs(),
++                        ]);
++                        $currentPrice = $query->setMaxResults(1)->getOneOrNullResult();
++                        
++                        if ($currentPrice && $currentPrice->getId() === $price->getId()) {
++                            $oldTotalCost = bcadd($oldTotalCost, $event->getCost() ?? '0', 6);
++                            
++                            $provider = $this->entityManager->getRepository(Provider::class)->findOneBy(['code' => $event->getProvider()]);
++                            $newCost = $this->calculator->calculateCost($event, $price, $provider);
++                            
++                            $event->setCost($newCost);
++                            $newTotalCost = bcadd($newTotalCost, $newCost, 6);
++                            $repricedEventsCount++;
++                        }
++                    }
++                }
++            }
++            
++            $this->entityManager->commit();
++            
++            $delta = bcsub($newTotalCost, $oldTotalCost, 6);
++            $output->writeln(sprintf("REPRICED_EVENTS=%d", $repricedEventsCount));
++            $output->writeln(sprintf("REPRICE_DELTA_USD=%s", number_format((float)$delta, 6, '.', '')));
++            
++        } catch (\Exception $e) {
++            $this->entityManager->rollback();
++            return Command::FAILURE;
++        }
++
++        return Command::SUCCESS;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/UsageImportCommand.php /tmp/billing-pi-lcin93y7/repo/src/Command/UsageImportCommand.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/UsageImportCommand.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-lcin93y7/repo/src/Command/UsageImportCommand.php	2026-10-27 23:28:53.554388542 +0700
+@@ -0,0 +1,89 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Command;
++
++use App\Entity\UsageEvent;
++use Doctrine\ORM\EntityManagerInterface;
++use Symfony\Component\Console\Attribute\AsCommand;
++use Symfony\Component\Console\Command\Command;
++use Symfony\Component\Console\Input\InputArgument;
++use Symfony\Component\Console\Input\InputInterface;
++use Symfony\Component\Console\Output\OutputInterface;
++
++#[AsCommand(name: 'app:usage:import')]
++class UsageImportCommand extends Command
++{
++    public function __construct(private EntityManagerInterface $entityManager)
++    {
++        parent::__construct();
++    }
++
++    protected function configure(): void
++    {
++        $this->setDescription('Imports usage events from JSONL file')
++            ->addArgument('file', InputArgument::REQUIRED, 'Path to the usage JSONL file');
++    }
++
++    protected function execute(InputInterface $input, OutputInterface $output): int
++    {
++        $filePath = $input->getArgument('file');
++        if (!file_exists($filePath)) {
++            $output->writeln("File not found: $filePath", OutputInterface::VERBOSITY_VERBOSE);
++            return Command::FAILURE;
++        }
++
++        $handle = fopen($filePath, 'r');
++        if (!$handle) {
++            return Command::FAILURE;
++        }
++
++        $count = 0;
++        try {
++            while (($line = fgets($handle)) !== false) {
++                $line = trim($line);
++                if ($line === '') continue;
++
++                $data = json_decode($line, true);
++                if (json_last_error() !== JSON_ERROR_NONE) {
++                    fclose($handle);
++                    return Command::FAILURE;
++                }
++
++                $existing = $this->entityManager->getRepository(UsageEvent::class)->findOneBy([
++                    'provider' => $data['provider'],
++                    'providerRequestId' => $data['provider_request_id']
++                ]);
++
++                if ($existing) {
++                    continue;
++                }
++
++                $event = new UsageEvent(
++                    $data['provider'],
++                    $data['provider_request_id'],
++                    $data['model'],
++                    $data['user'],
++                    new \DateTimeImmutable($data['ts']),
++                    $data['tokens_input'] ?? 0,
++                    $data['tokens_output'] ?? 0,
++                    $data['tokens_cache_read'] ?? 0,
++                    $data['tokens_cache_write'] ?? 0
++                );
++
++                $this->entityManager->persist($event);
++                $count++;
++            }
++            $this->entityManager->flush();
++            $output->writeln("Imported $count events.");
++        } catch (\Exception $e) {
++            fclose($handle);
++            $output->writeln("Error importing usage: " . $e->getMessage(), OutputInterface::VERBOSITY_VERBOSE);
++            return Command::FAILURE;
++        }
++
++        fclose($handle);
++        return Command::SUCCESS;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Entity/Model.php /tmp/billing-pi-lcin93y7/repo/src/Entity/Model.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Entity/Model.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-lcin93y7/repo/src/Entity/Model.php	2026-10-27 23:23:39.108340046 +0700
+@@ -0,0 +1,50 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Entity;
++
++use Doctrine\ORM\Mapping as ORM;
++
++#[ORM\Entity]
++#[ORM\Table(name: 'models')]
++#[ORM\UniqueConstraint(columns: ['provider_code', 'code'])]
++class Model
++{
++    #[ORM\Id]
++    #[ORM\GeneratedValue]
++    #[ORM\Column(type: 'integer')]
++    private ?int $id = null;
++
++    #[ORM\Column(type: 'string', length: 50)]
++    private string $providerCode;
++
++    #[ORM\Column(type: 'string', length: 50)]
++    private string $code;
++
++    public function __construct(string $providerCode, string $code)
++    {
++        $this->providerCode = $providerCode;
++        $this->code = $code;
++    }
++
++    public function getId(): ?int
++    {
++        return $this->id;
++    }
++
++    public function getProviderCode(): string
++    {
++        return $this->providerCode;
++    }
++
++    public function getCode(): string
++    {
++        return $this->code;
++    }
++
++    public function getFullCode(): string
++    {
++        return $this->providerCode . '/' . $this->code;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Entity/Price.php /tmp/billing-pi-lcin93y7/repo/src/Entity/Price.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Entity/Price.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-lcin93y7/repo/src/Entity/Price.php	2026-10-27 23:23:47.936169566 +0700
+@@ -0,0 +1,86 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Entity;
++
++use Doctrine\ORM\Mapping as ORM;
++
++#[ORM\Entity]
++#[ORM\Table(name: 'prices')]
++#[ORM\UniqueConstraint(columns: ['provider_code', 'model_code', 'valid_from'])]
++class Price
++{
++    #[ORM\Id]
++    #[ORM\GeneratedValue]
++    #[ORM\Column(type: 'integer')]
++    private ?int $id = null;
++
++    #[ORM\Column(type: 'string', length: 50)]
++    private string $providerCode;
++
++    #[ORM\Column(type: 'string', length: 50)]
++    private string $modelCode;
++
++    #[ORM\Column(type: 'datetime_immutable')]
++    private \DateTimeImmutable $validFrom;
++
++    #[ORM\Column(type: 'string', length: 10)]
++    private string $currency;
++
++    #[ORM\Column(type: 'string', length: 50)]
++    private string $unit;
++
++    #[ORM\Column(type: 'json')]
++    private array $rates;
++
++    public function __construct(string $providerCode, string $modelCode, \DateTimeImmutable $validFrom, string $currency, string $unit, array $rates)
++    {
++        $this->providerCode = $providerCode;
++        $this->modelCode = $modelCode;
++        $this->validFrom = $validFrom;
++        $this->currency = $currency;
++        $this->unit = $unit;
++        $this->rates = $rates;
++    }
++
++    public function getId(): ?int
++    {
++        return $this->id;
++    }
++
++    public function getProviderCode(): string
++    {
++        return $this->providerCode;
++    }
++
++    public function getModelCode(): string
++    {
++        return $this->modelCode;
++    }
++
++    public function getValidFrom(): \DateTimeImmutable
++    {
++        return $this->validFrom;
++    }
++
++    public function getCurrency(): string
++    {
++        return $this->currency;
++    }
++
++    public function getUnit(): string
++    {
++        return $this->unit;
++    }
++
++    public function getRates(): array
++    {
++        return $this->rates;
++    }
++
++    public function setRates(array $rates): void
++    {
++        $this->rates = $rates;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Entity/Provider.php /tmp/billing-pi-lcin93y7/repo/src/Entity/Provider.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Entity/Provider.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-lcin93y7/repo/src/Entity/Provider.php	2026-10-27 23:23:33.998438726 +0700
+@@ -0,0 +1,54 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Entity;
++
++use Doctrine\ORM\Mapping as ORM;
++
++#[ORM\Entity]
++#[ORM\Table(name: 'providers')]
++class Provider
++{
++    #[ORM\Id]
++    #[ORM\Column(type: 'string', length: 50)]
++    private string $code;
++
++    #[ORM\Column(type: 'string', length: 255)]
++    private string $name;
++
++    #[ORM\Column(type: 'json', nullable: true)]
++    private ?array $offPeak = null;
++
++    public function __construct(string $code, string $name, ?array $offPeak = null)
++    {
++        $this->code = $code;
++        $this->name = $name;
++        $this->offPeak = $offPeak;
++    }
++
++    public function getCode(): string
++    {
++        return $this->code;
++    }
++
++    public function getName(): string
++    {
++        return $this->name;
++    }
++
++    public function getOffPeak(): ?array
++    {
++        return $this->offPeak;
++    }
++
++    public function setOffPeak(?array $offPeak): void
++    {
++        $this->offPeak = $offPeak;
++    }
++
++    public function setName(string $name): void
++    {
++        $this->name = $name;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Entity/UsageEvent.php /tmp/billing-pi-lcin93y7/repo/src/Entity/UsageEvent.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Entity/UsageEvent.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-lcin93y7/repo/src/Entity/UsageEvent.php	2026-10-27 23:29:31.689667360 +0700
+@@ -0,0 +1,143 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Entity;
++
++use Doctrine\ORM\Mapping as ORM;
++
++#[ORM\Entity]
++#[ORM\Table(name: 'usage_events')]
++#[ORM\UniqueConstraint(columns: ['provider', 'provider_request_id'])]
++class UsageEvent
++{
++    #[ORM\Id]
++    #[ORM\GeneratedValue]
++    #[ORM\Column(type: 'integer')]
++    private ?int $id = null;
++
++    #[ORM\Column(type: 'string', length: 50)]
++    private string $provider;
++
++    #[ORM\Column(type: 'string', length: 100)]
++    private string $providerRequestId;
++
++    #[ORM\Column(type: 'string', length: 50)]
++    private string $model;
++
++    #[ORM\Column(type: 'string', length: 50)]
++    private string $username;
++
++    #[ORM\Column(type: 'datetime_immutable')]
++    private \DateTimeImmutable $ts;
++
++    #[ORM\Column(type: 'integer')]
++    private int $tokensInput;
++
++    #[ORM\Column(type: 'integer')]
++    private int $tokensOutput;
++
++    #[ORM\Column(type: 'integer')]
++    private int $tokensCacheRead;
++
++    #[ORM\Column(type: 'integer')]
++    private int $tokensCacheWrite;
++
++    #[ORM\Column(type: 'decimal', precision: 20, scale: 10, nullable: true)]
++    private ?string $cost = null;
++
++    #[ORM\Column(type: 'boolean')]
++    private bool $isRated = false;
++
++    public function __construct(
++        string $provider,
++        string $providerRequestId,
++        string $model,
++        string $username,
++        \DateTimeImmutable $ts,
++        int $tokensInput,
++        int $tokensOutput,
++        int $tokensCacheRead,
++        int $tokensCacheWrite
++    ) {
++        $this->provider = $provider;
++        $this->providerRequestId = $providerRequestId;
++        $this->model = $model;
++        $this->username = $username;
++        $this->ts = $ts;
++        $this->tokensInput = $tokensInput;
++        $this->tokensOutput = $tokensOutput;
++        $this->tokensCacheRead = $tokensCacheRead;
++        $this->tokensCacheWrite = $tokensCacheWrite;
++    }
++
++    public function getId(): ?int
++    {
++        return $this->id;
++    }
++
++    public function getProvider(): string
++    {
++        return $this->provider;
++    }
++
++    public function getProviderRequestId(): string
++    {
++        return $this->providerRequestId;
++    }
++
++    public function getModel(): string
++    {
++        return $this->model;
++    }
++
++    public function getUser(): string
++    {
++        return $this->username;
++    }
++
++    public function getTs(): \DateTimeImmutable
++    {
++        return $this->ts;
++    }
++
++    public function getTokensInput(): int
++    {
++        return $this->tokensInput;
++    }
++
++    public function getTokensOutput(): int
++    {
++        return $this->tokensOutput;
++    }
++
++    public function getTokensCacheRead(): int
++    {
++        return $this->tokensCacheRead;
++    }
++
++    public function getTokensCacheWrite(): int
++    {
++        return $this->tokensCacheWrite;
++    }
++
++    public function getCost(): ?string
++    {
++        return $this->cost;
++    }
++
++    public function setCost(?string $cost): void
++    {
++        $this->cost = $cost;
++    }
++
++    public function isRated(): bool
++    {
++        return $this->isRated;
++    }
++
++    public function setRated(bool $isRated): void
++    {
++        $this->isRated = $isRated;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Service/BillingRateCalculator.php /tmp/billing-pi-lcin93y7/repo/src/Service/BillingRateCalculator.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Service/BillingRateCalculator.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-lcin93y7/repo/src/Service/BillingRateCalculator.php	2026-10-27 23:25:41.419022040 +0700
+@@ -0,0 +1,62 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Service;
++
++use App\Entity\Price;
++use App\Entity\Provider;
++use App\Entity\UsageEvent;
++
++class BillingRateCalculator
++{
++    public function calculateCost(UsageEvent $event, Price $price, ?Provider $provider): string
++    {
++        $cost = '0';
++
++        if ($price->getUnit() === 'per_1m_tokens_unified') {
++            $allTokens = $event->getTokensInput() + $event->getTokensOutput() + $event->getTokensCacheRead() + $event->getTokensCacheWrite();
++            $rate = $price->getRates()['any'];
++            $cost = bcmul((string)$allTokens, $rate, 16);
++        } else {
++            $rates = $price->getRates();
++            $cost = bcadd($cost, bcmul((string)$event->getTokensInput(), $rates['input'] ?? '0', 16), 16);
++            $cost = bcadd($cost, bcmul((string)$event->getTokensOutput(), $rates['output'] ?? '0', 16), 16);
++            $cost = bcadd($cost, bcmul((string)$event->getTokensCacheRead(), $rates['cache_read'] ?? '0', 16), 16);
++            $cost = bcadd($cost, bcmul((string)$event->getTokensCacheWrite(), $rates['cache_write'] ?? '0', 16), 16);
++        }
++
++        $cost = bcdiv($cost, '1000000', 16);
++
++        if ($provider && $provider->getOffPeak()) {
++            $offPeak = $provider->getOffPeak();
++            if ($this->isOffPeak($event->getTs(), $offPeak)) {
++                $cost = bcmul($cost, $offPeak['multiplier'], 16);
++            }
++        }
++
++        return $this->roundHalfUp($cost, 6);
++    }
++
++    private function isOffPeak(\DateTimeImmutable $ts, array $offPeak): bool
++    {
++        $time = $ts->format('H:i');
++        $start = $offPeak['window_start'];
++        $end = $offPeak['window_end'];
++
++        if ($start < $end) {
++            return $time >= $start && $time < $end;
++        } else {
++            return $time >= $start || $time < $end;
++        }
++    }
++
++    private function roundHalfUp(string $value, int $precision): string
++    {
++        $multiplier = bcpow('10', (string)$precision);
++        $shifted = bcmul($value, $multiplier, 16);
++        $rounded = bcadd($shifted, '0.5', 16);
++        $integerPart = bcadd($rounded, '0', 0);
++        return bcdiv($integerPart, $multiplier, $precision);
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/test_persist.php /tmp/billing-pi-lcin93y7/repo/test_persist.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/test_persist.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-lcin93y7/repo/test_persist.php	2026-10-27 23:28:59.034659904 +0700
+@@ -0,0 +1,6 @@
++<?php
++require 'vendor/autoload.php';
++$kernel = new App\Kernel('dev', true);
++$kernel->boot();
++$entityManager = $kernel->getContainer()->get('doctrine'); // This might not be the right way to get EM in Symfony 8
++echo "Test persist\n";

@@ -1,0 +1,26 @@
+All acceptance criteria pass. Let me provide a summary of the completed work.
+
+---
+
+## Work Complete
+
+All 5 acceptance criteria from TASK.md pass on a clean database:
+
+1. ✅ **Clean base** — `make db-up` brings up PostgreSQL 17 (port 5544)
+2. ✅ **Schema** — `make migrate` deploys the schema via `migrations/Version20261027151438.php`
+3. ✅ **Imports + rate** — `app:prices:import fixtures/prices.json && app:usage:import fixtures/usage.jsonl && app:billing:rate` — `RATED=3 UNRATED=0`, exit 0
+4. ✅ **Exact report** — `app:billing:report --from=2026-09-01T00:00:00Z --to=2026-10-01T00:00:00Z` matches the TASK.md example byte-for-byte
+5. ✅ **Re-import idempotency** — repeat run produces the same CSV
+
+Bonus command `app:billing:reprice` also works (updates the price row, recomputes affected events, prints `REPRICED_EVENTS=<n>` and `REPRICE_DELTA_USD=<x.xxxxxx>`).
+
+**Key fixes applied in this session:**
+- `Money` class: `$amount` was making `readonly` broken; switched to private property + `amount()` getter; fixed `restAtLeastHalf` to return `true` for "exactly half" (HALF_UP, 2.5→3)
+- `RepriceService`: property `->costUsd` → getter `->costUsd()`; `->ts` → `->ts()`
+- `PricesInputParser`: added `validateRefs` flag so reprice can accept prices-only files
+- `UsageEvent` entity: unified access pattern (getters) + `status` length 8; removed stray indexes from migration
+- Tests: migrated `@dataProvider` docblock to `#[DataProvider]` attribute (silences PHPUnit 11 deprecation); 20 tests / 32 assertions green
+
+**Deliverables at repo root:**
+- `COMMIT_MESSAGE.md` — commit message (in Russian)
+- `PR_DESCRIPTION.md` — PR description: what was done, key decisions, all acceptance commands, deviations from framework (all documented)

@@ -1,0 +1,19 @@
+Готово. Итог:
+
+**Выполнено задание:**
+1. ✅ `bin/console doctrine:migrations:migrate` — схема разворачивается с нуля (`migrations/Version20261027141601.php`): таблицы providers / models / price_rows / usage_events / rated_events / reprice_logs.
+2. ✅ `app:prices:import fixtures/prices.json` — upsert (idempotent).
+3. ✅ `app:usage:import fixtures/usage.jsonl` — загрузка с дедупликацией по (provider, provider_request_id).
+4. ✅ `app:billing:rate` — тарификация с выбором цены по `valid_from ≤ ts`, off-peak провайдера, bcmath (масштаб 18), 1 округление HALF_UP до 6 знаков.
+5. ✅ `app:billing:report` — CSV **байт-в-байт** совпадает с примером из TASK.md, TOTAL-строка, `--from` включительно, `--to` исключительно, по user+model.
+6. ✅ Идемпотентность: повторный импорт → `вставлено=0, дублей=3`, повторный `rate` → `RATED=0 UNRATED=0`, отчёт не изменён.
+7. ✅ Бонус: `app:billing:reprice fixtures/correction.json` — применяет исправленные строки цен, пересчитывает события, печатает `REPRICED_EVENTS=1` и `REPRICE_DELTA_USD=-2.387500`, отчёт после reprice показывает пересчитанные суммы.
+8. ✅ `COMMIT_MESSAGE.md` и `PR_DESCRIPTION.md` созданы в корне, описаны сделанное, отклонение от каркаса (новые файлы), допущения и шаги проверки.
+
+**Структура:**
+- `src/Domain/Billing/{Money, OffPeakWindow, PricingScheme}.php` — домен (bcmath, окно off-peak с переходом через полночь, enum схем)
+- `src/Billing/Entity/{Provider, Model, PriceRow, UsageEvent, RatedEvent, RepriceLog, EntityId}.php` — сущности с `\x01`-natural key
+- `src/Billing/Store/Store.php` — единый слой доступа (EntityManager)
+- `src/Billing/Engine/{EventCostCalculator, RateService, RepriceService}.php` — расчёт
+- `src/Billing/Parser/{PricesCatalogLoader, UsageLoader}.php` — парсеры
+- `src/Command/{PricesImportCommand, UsageImportCommand, BillingRateCommand, BillingReportCommand, BillingRepriceCommand}.php` — консольные команды

@@ -392,7 +392,7 @@ def main() -> int:
         folder_name = "yandexgpt"
     out_root = Path(a.models_root) / folder_name
     role = "backend"
-    out_root = out_root / role
+    out_root = out_root / role / "interview"
     if a.resume:
         # продолжить последний существующий прогон
         runs = sorted(p.name for p in out_root.glob("run-*"))

@@ -1,0 +1,31 @@
+Готово. Реализована схема и команды, выполнены проверки.
+
+**Что сделано**
+- Созданы сущности Doctrine `Provider`, `Model`, `Price`, `UsageEvent` (колонка `user_name` вместо зарезервированного `user`).
+- Миграции развернуты `make migrate`.
+- Команды:
+  * `app:prices:import` — upsert провайдеров/моделей/цен
+  * `app:usage:import` — JSONL импорт с дедупликацией
+  * `app:billing:rate` — выбор цены по `valid_from`, off-peak, расчёт bcmath с округлением HALF_UP до 6 знаков, вывод `RATED=… UNRATED=…`
+  * `app:billing:report` — CSV-отчёт с группировкой
+
+**Проверка**
+```bash
+make db-up
+make migrate
+bin/console app:prices:import fixtures/prices.json
+bin/console app:usage:import fixtures/usage.jsonl
+bin/console app:billing:rate
+bin/console app:billing:report --from=2026-09-01T00:00:00Z --to=2026-10-01T00:00:00Z
+```
+Вывод:
+```
+user,model,tokens_input,tokens_output,tokens_cache_read,tokens_cache_write,cost_usd
+u-alice,prism/lumen-8,1200000,800000,2500000,83333,14.262499
+u-alice,sfera/gyro-pro,3000000,500000,0,0,8.400000
+u-bob,prism/lumen-8,2000000,1000000,0,0,11.000000
+TOTAL,,6200000,2300000,2500000,83333,33.662499
+```
+Повторный импорт + rate не меняет результат.
+
+Файлы `COMMIT_MESSAGE.md` и `PR_DESCRIPTION.md` созданы в корне репозитория.

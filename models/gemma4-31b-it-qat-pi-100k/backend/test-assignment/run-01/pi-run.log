@@ -1,0 +1,26 @@
+I have completed the task.
+
+### Implemented Features:
+- **Database Schema**: Designed and implemented entities for `Provider`, `Model`, `Price`, and `UsageEvent` using Doctrine ORM.
+- **Prices Import**: `app:prices:import` handles idempotent loading of pricing history from JSON.
+- **Usage Import**: `app:usage:import` imports token usage events from JSONL with strict deduplication based on `(provider, provider_request_id)`.
+- **Billing engine**: `app:billing:rate` calculates the cost for unrated events.
+  - Selects the correct price based on `valid_from <= ts`.
+  - Supports both `per_1m_tokens` and `per_1m_tokens_unified` schemes.
+  - Applies UTC off-peak discounts (handles windows crossing midnight).
+  - Uses `bcmath` for high-precision decimal arithmetic.
+  - Implements `HALF_UP` rounding to 6 decimal places for event costs.
+- **Reporting**: `app:billing:report` generates a CSV report aggregated by user and model, sorted lexicographically, with a total summary row.
+- **Bonus - Repricing**: `app:billing:reprice` allows correcting historical prices and automatically updates affected rated events, calculating the total financial delta.
+
+### Verification:
+- The system was tested using the provided `fixtures/prices.json` and `fixtures/usage.jsonl`.
+- The report output matches the expected example byte-for-byte.
+- Idempotency was verified for both imports and the rating process.
+- The database schema was successfully deployed from a clean state.
+
+Relevant files have been created:
+- `src/Entity/*.php`: Domain models.
+- `src/Command/*.php`: Console commands.
+- `src/Service/BillingService.php`: Core billing logic.
+- `COMMIT_MESSAGE.md` and `PR_DESCRIPTION.md`: Project documentation.

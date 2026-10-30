@@ -1,0 +1,1091 @@
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Billing/Math/MoneyMath.php /tmp/billing-pi-gpucut6x/repo/src/Billing/Math/MoneyMath.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Billing/Math/MoneyMath.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-gpucut6x/repo/src/Billing/Math/MoneyMath.php	2026-10-28 00:13:10.068633720 +0700
+@@ -0,0 +1,63 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Billing\Math;
++
++/**
++ * Точная десятичная арифметика на bcmath: float для денег запрещён.
++ * Масштаб промежуточных вычислений — 16 знаков (требование ≥ 16).
++ */
++final class MoneyMath
++{
++    public const SCALE = 16;
++
++    /** Разность двух десятичных строк. */
++    public static function sub(string $a, string $b): string
++    {
++        return bcsub($a, $b, 0);
++    }
++
++    /**
++     * Округление HALF_UP до 6 знаков (bcround с round=1).
++     */
++    public static function roundHalfUp6(string $value): string
++    {
++        return (string) bcround($value, 6, 1);
++    }
++
++    /** Сопоставление строк численно. */
++    public static function cmp(string $a, string $b): int
++    {
++        return bccomp($a, $b, 0);
++    }
++
++    /** Перемножение. */
++    public static function mul(string $a, string $b): string
++    {
++        return bcmul($a, $b, self::SCALE);
++    }
++
++    /** Деление. */
++    public static function div(string $a, string $b): string
++    {
++        return bcdiv($a, $b, self::SCALE);
++    }
++
++    /** Формат: ровно 6 знаков после точки (для вывода). */
++    public static function format6(string $value): string
++    {
++        // Если уже 6 знаков — как есть; если меньше — дописать нули.
++        $parts = explode('.', $value);
++        $integerPart = $parts[0];
++        $fractionPart = $parts[1] ?? '0';
++        while (strlen($fractionPart) < 6) {
++            $fractionPart .= '0';
++        }
++        if (strlen($fractionPart) > 6) {
++            // Не должно происходить после roundHalfUp6.
++            $fractionPart = substr($fractionPart, 0, 6);
++        }
++        return $integerPart . '.' . $fractionPart;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Billing/Math/PricingEngine.php /tmp/billing-pi-gpucut6x/repo/src/Billing/Math/PricingEngine.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Billing/Math/PricingEngine.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-gpucut6x/repo/src/Billing/Math/PricingEngine.php	2026-10-28 00:13:01.616792793 +0700
+@@ -0,0 +1,109 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Billing\Math;
++
++use App\Entity\Model;
++use App\Entity\Price;
++use App\Entity\Provider;
++use App\Entity\UsageEvent;
++
++/**
++ * Вычисление стоимости одного события по текущим справочным данным
++ * (выбранный price + off-peak провайдера).
++ */
++final class PricingEngine
++{
++    /**
++     * Выбрать стоимость события:
++     *   1) найти max(valid_from <= ts),
++     *   2) применить схему unit,
++     *   3) применить off-peak провайдера,
++     *   4) округлить HALF_UP до 6 знаков.
++     *
++     * @param \App\Entity\Provider[] $providersByCode
++     * @param \App\Entity\Model[] $modelsByProviderCodeModelCode  ключ "provider|model"
++     * @param \App\Entity\Price[] $pricesByModelCode  ключ "provider|model" -> список Price
++     * @return array{cost: string|null, price: \App\Entity\Price|null, model: \App\Entity\Model|null}
++     */
++    public function priceEvent(
++        UsageEvent $event,
++        array $pricesByProviderCode,
++        array $modelsByProviderCodeModelCode,
++        array $providersByCode
++    ): array {
++        $provider = $providersByCode[$event->getProviderCode()] ?? null;
++        if ($provider === null) {
++            return ['cost' => null, 'price' => null, 'model' => null];
++        }
++
++        $modelKey = $event->getProviderCode() . '|' . $event->getModelCode();
++        $model = $modelsByProviderCodeModelCode[$modelKey] ?? null;
++        if ($model === null) {
++            return ['cost' => null, 'price' => null, 'model' => null];
++        }
++
++        $prices = $pricesByProviderCode[$event->getProviderCode()] ?? [];
++        $ts = $event->getTs();
++
++        // Найти max(valid_from <= ts)
++        $chosenPrice = null;
++        $bestFrom = null;
++        foreach ($prices as $price) {
++            $vf = $price->getValidFrom();
++            if ($vf <= $ts) {
++                if ($bestFrom === null || $vf > $bestFrom) {
++                    $chosenPrice = $price;
++                    $bestFrom = $vf;
++                }
++            }
++        }
++
++        if ($chosenPrice === null) {
++            return ['cost' => null, 'price' => null, 'model' => $model];
++        }
++
++        $cost = $this->computeCost($event, $chosenPrice);
++
++        if ($provider->hasOffPeak()) {
++            $cost = $this->applyOffPeak($provider, $ts, $cost);
++        }
++
++        $cost = MoneyMath::roundHalfUp6($cost);
++
++        return ['cost' => $cost, 'price' => $chosenPrice, 'model' => $model];
++    }
++
++    private function computeCost(UsageEvent $event, Price $price): string
++    {
++        if ($price->getUnit() === 'per_1m_tokens_unified') {
++            $anyRate = $price->getRateAny();
++            $tokensTotal = (string) ($event->getTokensInput() + $event->getTokensOutput()
++                + $event->getTokensCacheRead() + $event->getTokensCacheWrite());
++            return MoneyMath::div(MoneyMath::mul($tokensTotal, $anyRate ?? '0'), '1000000');
++        }
++
++        $ri = $price->getRateInput() ?? '0';
++        $ro = $price->getRateOutput() ?? '0';
++        $rcr = $price->getRateCacheRead() ?? '0';
++        $rcw = $price->getRateCacheWrite() ?? '0';
++
++        $sum = '0';
++        $sum = bcadd($sum, MoneyMath::div(MoneyMath::mul((string) $event->getTokensInput(), $ri), '1000000'), MoneyMath::SCALE);
++        $sum = bcadd($sum, MoneyMath::div(MoneyMath::mul((string) $event->getTokensOutput(), $ro), '1000000'), MoneyMath::SCALE);
++        $sum = bcadd($sum, MoneyMath::div(MoneyMath::mul((string) $event->getTokensCacheRead(), $rcr), '1000000'), MoneyMath::SCALE);
++        $sum = bcadd($sum, MoneyMath::div(MoneyMath::mul((string) $event->getTokensCacheWrite(), $rcw), '1000000'), MoneyMath::SCALE);
++
++        return $sum;
++    }
++
++    private function applyOffPeak(Provider $provider, string $ts, string $cost): string
++    {
++        $timePart = substr($ts, 11, 5);
++        if (!$provider->isOffPeak($timePart)) {
++            return $cost;
++        }
++        return MoneyMath::mul($cost, $provider->getOffPeakMultiplier());
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Billing/PricesImporter.php /tmp/billing-pi-gpucut6x/repo/src/Billing/PricesImporter.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Billing/PricesImporter.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-gpucut6x/repo/src/Billing/PricesImporter.php	2026-10-28 00:13:27.519305277 +0700
+@@ -0,0 +1,198 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Billing;
++
++use Doctrine\ORM\EntityManagerInterface;
++use Doctrine\DBAL\Exception\QueryException;
++use Doctrine\Persistence\Exception\PersistentObjectsException;
++use Symfony\Component\Console\Output\ConsoleOutputInterface;
++
++use App\Entity\Provider;
++use App\Entity\OffPeak;
++use App\Entity\Model;
++use App\Entity\Price;
++use App\Entity\UsageEvent;
++use App\Billing\Math\PricingEngine;
++use App\Billing\Math\MoneyMath;
++use Symfony\Component\Console\Output\OutputInterface;
++use Symfony\Component\Console\Output\Style;
++use App\Billing\Exception\ImportException;
++use App\Billing\Exception\ImportException as ImportException;
++
++/**
++ * Конвейер импорта JSON-файла цен: providers, models, prices.
++ *
++ * Идемпотентный upsert по:
++ *   - provider: code
++ *   - model: (provider, code)
++ *   - price: (provider, model, valid_from)
++ */
++final class PricesImporter
++{
++    public function __construct(
++        private readonly \App\Entity\Repository\RepositoryFactory $factory,
++        private readonly PricingEngine $engine,
++    ) {
++    }
++
++    /**
++     * @throws ImportException
++     */
++    public function import(string $json): array
++    {
++        $data = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
++        $providers = $data['providers'] ?? [];
++        $models = $data['models'] ?? [];
++        $prices = $data['prices'] ?? [];
++
++        // 1. Providers
++        foreach ($providers as $p) {
++            $this->upsertProvider($p);
++        }
++
++        // 2. Models
++        foreach ($models as $m) {
++            $this->upsertModel($m);
++        }
++
++        // 3. Prices
++        foreach ($prices as $pr) {
++            $this->upsertPrice($pr);
++        }
++
++        return ['providers' => count($providers), 'models' => count($models), 'prices' => count($prices)];
++    }
++
++    private function upsertProvider(array $p): void
++    {
++        $code = trim((string) ($p['code'] ?? ''));
++        if ($code === '') {
++            throw new ImportException("Provider: код пуст");
++        }
++
++        $provider = $this->em()->getRepository(Provider::class)
++            ->findOne(['code' => $code]);
++
++        if ($provider !== null) {
++            $provider->setName((string) ($p['name'] ?? $provider->getName()));
++            $this->applyOffPeak($provider, $p['off_peak'] ?? null);
++        } else {
++            $provider = new Provider();
++            $provider->setCode($code);
++            $provider->setName((string) ($p['name'] ?? 'Unknown'));
++            $this->applyOffPeak($provider, $p['off_peak'] ?? null);
++            $this->em()->persist($provider);
++        }
++
++        $this->em()->flush();
++    }
++
++    private function applyOffPeak(Provider $provider, ?array $offPeak): void
++    {
++        if ($offPeak === null) {
++            $provider->setOffPeak(null);
++            return;
++        }
++
++        $windowStart = $offPeak['window_start'] ?? null;
++        $windowEnd = $offPeak['window_end'] ?? null;
++        $multiplier = $offPeak['multiplier'] ?? null;
++
++        if ($windowStart === null || $windowEnd === null) {
++            $provider->setOffPeak(null);
++            return;
++        }
++
++        $multiplier = $multiplier !== null ? $multiplier : '1.000000';
++        $provider->setOffPeak(new OffPeak(
++            $windowStart,
++            $windowEnd,
++            $multiplier
++        ));
++    }
++
++    private function upsertModel(array $m): void
++    {
++        $providerCode = trim((string) ($m['provider'] ?? ''));
++        $code = trim((string) ($m['code'] ?? ''));
++        if ($providerCode === '' || $code === '') {
++            throw new ImportException("Model: код провайдера или модели пуст");
++        }
++
++        $provider = $this->em()->getRepository(Provider::class)
++            ->findOne(['code' => $providerCode]);
++        if ($provider === null) {
++            throw new ImportException("Model: провайдер $providerCode не найден");
++        }
++
++        $model = $this->em()->getRepository(Model::class)
++            ->findOne([
++                'providerCode' => $providerCode,
++                'code' => $code,
++            ]);
++
++        if ($model === null) {
++            $model = new Model($provider, $code);
++            $this->em()->persist($model);
++        }
++
++        $this->em()->flush();
++    }
++
++    private function upsertPrice(array $pr): void
++    {
++        $providerCode = trim((string) ($pr['provider'] ?? ''));
++        $modelCode = trim((string) ($pr['model'] ?? ''));
++        $validFrom = trim((string) ($pr['valid_from'] ?? ''));
++        if ($providerCode === '' || $modelCode === '' || $validFrom === '') {
++            throw new ImportException("Price: поля provider/model/valid_from обязательны");
++        }
++
++        $provider = $this->em()->getRepository(Provider::class)
++            ->findOne(['code' => $providerCode]);
++        if ($provider === null) {
++            throw new ImportException("Price: провайдер $providerCode не найден");
++        }
++
++        $model = $this->em()->getRepository(Model::class)
++            ->findOne([
++                'providerCode' => $providerCode,
++                'code' => $modelCode,
++            ]);
++        if ($model === null) {
++            throw new ImportException("Price: модель $modelCode не найдена");
++        }
++
++        $price = $this->em()->getRepository(Price::class)
++            ->findOne([
++                'providerCode' => $providerCode,
++                'modelCode' => $modelCode,
++                'validFrom' => $validFrom,
++            ]);
++
++        $currency = (string) ($pr['currency'] ?? 'USD');
++        $unit = (string) ($pr['unit'] ?? '');
++        $rates = $pr['rates'] ?? [];
++
++        if ($unit === '') {
++            throw new ImportException("Price: unit обязателен");
++        }
++
++        if ($price === null) {
++            $price = new Price();
++            $this->em()->persist($price);
++        }
++
++        $price->setProviderCode($providerCode);
++        $price->setModelCode($modelCode);
++        $price->setValidFrom($validFrom);
++        $price->setCurrency($currency);
++        $price->setUnit($unit);
++        $price->setModel($model);
++        $price->setRates($rates);
++
++        $this->em()->flush();
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Billing/Repository/ProviderRepository.php /tmp/billing-pi-gpucut6x/repo/src/Billing/Repository/ProviderRepository.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Billing/Repository/ProviderRepository.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-gpucut6x/repo/src/Billing/Repository/ProviderRepository.php	2026-10-28 00:13:11.816600821 +0700
+@@ -0,0 +1,20 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Billing\Repository;
++
++use App\Entity\Provider;
++
++/**
++ * Справочник провайдеров.
++ */
++final class ProviderRepository
++{
++    private readonly \App\Entity\Repository\RepositoryFactory $factory;
++
++    public function __construct(\App\Entity\Repository\RepositoryFactory $factory)
++    {
++        $this->factory = $factory;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Entity/Model.php /tmp/billing-pi-gpucut6x/repo/src/Entity/Model.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Entity/Model.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-gpucut6x/repo/src/Entity/Model.php	2026-10-28 00:11:48.613166808 +0700
+@@ -0,0 +1,83 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Entity;
++
++use Doctrine\ORM\Mapping as ORM;
++
++/**
++ * @ORM\Entity
++ * @ORM\Table(
++ *     name="model",
++ *     uniqueConstraints=[
++ *         new ORM\UniqueConstraint(['provider_code', 'code'], 'uq_model_provider_code'),
++ *     ],
++ * )
++ */
++final class Model
++{
++    /** @ORM\Id @ORM\Column(type="integer", autoIncrement=true) */
++    private ?int $id = null;
++
++    /**
++     * Дублируемый код провайдера — индекс, позволяет искать без join.
++     * Сохраняется синхронно с provider.
++     */
++    /** @ORM\Column(name="provider_code", type="string", length=64, index=true) */
++    private string $providerCode;
++
++    /** @ORM\Column(name="code", type="string", length=64) */
++    private string $code;
++
++    public function __construct(Provider $provider, string $code)
++    {
++        $this->provider = $provider;
++        $this->providerCode = $provider->getCode();
++        $this->code = $code;
++    }
++
++    /** @ORM\ManyToOne(targetEntity: Provider::class, cascade: ["remove"], onDelete: "CASCADE", fetch="EAGER") */
++    private Provider $provider;
++
++    public function getId(): ?int
++    {
++        return $this->id;
++    }
++
++    public function setProvider(Provider $provider): self
++    {
++        $this->provider = $provider;
++        $this->providerCode = $provider->getCode();
++
++        return $this;
++    }
++
++    public function getProvider(): Provider
++    {
++        return $this->provider;
++    }
++
++    public function getProviderCode(): string
++    {
++        return $this->providerCode;
++    }
++
++    public function setCode(string $code): self
++    {
++        $this->code = $code;
++
++        return $this;
++    }
++
++    public function getCode(): string
++    {
++        return $this->code;
++    }
++
++    /** Формат "providerCode/modelCode". */
++    public function getFullCode(): string
++    {
++        return $this->providerCode . '/' . $this->code;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Entity/OffPeak.php /tmp/billing-pi-gpucut6x/repo/src/Entity/OffPeak.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Entity/OffPeak.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-gpucut6x/repo/src/Entity/OffPeak.php	2026-10-28 00:11:29.831520300 +0700
+@@ -0,0 +1,18 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Entity;
++
++final class OffPeak
++{
++    public function __construct(
++        /** Часы:минуты, строка "HH:MM". */
++        public readonly string $start,
++        /** Часы:минуты, строка "HH:MM". */
++        public readonly string $end,
++        /** Множитель — десятичная строка. */
++        public readonly string $multiplier
++    ) {
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Entity/Price.php /tmp/billing-pi-gpucut6x/repo/src/Entity/Price.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Entity/Price.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-gpucut6x/repo/src/Entity/Price.php	2026-10-28 00:12:13.265702817 +0700
+@@ -0,0 +1,185 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Entity;
++
++use Doctrine\ORM\Mapping as ORM;
++
++/**
++ * Строка истории цен: цена модели провайдера, действующая с valid_from
++ * (включительно) до вступления следующей строки той же модели.
++ *
++ * @ORM\Entity
++ * @ORM\Table(
++ *     name="price",
++ *     uniqueConstraints=[
++ *         new ORM\UniqueConstraint(['provider_code', 'model_code', 'valid_from'], 'uq_price_key'),
++ *     ],
++ *     indexes=[
++ *         new ORM\Index(['model_code', 'valid_from'], 'idx_price_lookup'),
++ *     ]
++ * )
++ */
++final class Price
++{
++    /** @ORM\Id @ORM\Column(type="integer", autoIncrement=true) */
++    private ?int $id = null;
++
++    /**
++     * Дублируемый код провайдера — индекс для быстрого поиска.
++     */
++    /** @ORM\Column(name="provider_code", type="string", length=64, index=true) */
++    private string $providerCode;
++
++    /**
++     * Дублируемый код модели — индекс для быстрого поиска.
++     */
++    /** @ORM\Column(name="model_code", type="string", length=64, index=true) */
++    private string $modelCode;
++
++    /**
++     * ISO-8601 UTC, строка.
++     */
++    /** @ORM\Column(name="valid_from", type="string", length=32) */
++    private string $validFrom;
++
++    /** @ORM\Column(name="currency", type="string", length=16) */
++    private string $currency;
++
++    /** per_1m_tokens | per_1m_tokens_unified */
++    /** @ORM\Column(name="unit", type="string", length=32) */
++    private string $unit;
++
++    /** @ORM\Column(name="rate_input", type="string", length=32, nullable=true) */
++    private ?string $rateInput = null;
++
++    /** @ORM\Column(name="rate_output", type="string", length=32, nullable=true) */
++    private ?string $rateOutput = null;
++
++    /** @ORM\Column(name="rate_cache_read", type="string", length=32, nullable=true) */
++    private ?string $rateCacheRead = null;
++
++    /** @ORM\Column(name="rate_cache_write", type="string", length=32, nullable=true) */
++    private ?string $rateCacheWrite = null;
++
++    /** @ORM\Column(name="rate_any", type="string", length=32, nullable=true) */
++    private ?string $rateAny = null;
++
++    /**
++     * Ссылка на модель (для инварианта: provider/model должны существовать).
++     * @ORM\ManyToOne(targetEntity: Model::class, cascade: ["remove"], onDelete: "CASCADE")
++     * @ORM\JoinColumn(name="model_id", type="integer")
++     */
++    private ?Model $model = null;
++
++    public function setModel(Model $model): self
++    {
++        $this->model = $model;
++        $this->providerCode = $model->getProviderCode();
++        $this->modelCode = $model->getCode();
++
++        return $this;
++    }
++
++    public function getModel(): ?Model
++    {
++        return $this->model;
++    }
++
++    public function setProviderCode(string $code): self
++    {
++        $this->providerCode = $code;
++
++        return $this;
++    }
++
++    public function setModelCode(string $code): self
++    {
++        $this->modelCode = $code;
++
++        return $this;
++    }
++
++    public function setValidFrom(string $validFrom): self
++    {
++        $this->validFrom = $validFrom;
++
++        return $this;
++    }
++
++    public function setCurrency(string $currency): self
++    {
++        $this->currency = $currency;
++
++        return $this;
++    }
++
++    public function setUnit(string $unit): self
++    {
++        $this->unit = $unit;
++
++        return $this;
++    }
++
++    public function setRates(array $rates): self
++    {
++        $this->rateInput = $rates['input'] ?? null;
++        $this->rateOutput = $rates['output'] ?? null;
++        $this->rateCacheRead = $rates['cache_read'] ?? null;
++        $this->rateCacheWrite = $rates['cache_write'] ?? null;
++        $this->rateAny = $rates['any'] ?? null;
++
++        return $this;
++    }
++
++    public function getProviderCode(): string
++    {
++        return $this->providerCode;
++    }
++
++    public function getModelCode(): string
++    {
++        return $this->modelCode;
++    }
++
++    public function getValidFrom(): string
++    {
++        return $this->validFrom;
++    }
++
++    public function getCurrency(): string
++    {
++        return $this->currency;
++    }
++
++    public function getUnit(): string
++    {
++        return $this->unit;
++    }
++
++    public function getRateInput(): ?string
++    {
++        return $this->rateInput;
++    }
++
++    public function getRateOutput(): ?string
++    {
++        return $this->rateOutput;
++    }
++
++    public function getRateCacheRead(): ?string
++    {
++        return $this->rateCacheRead;
++    }
++
++    public function getRateCacheWrite(): ?string
++    {
++        return $this->rateCacheWrite;
++    }
++
++    public function getRateAny(): ?string
++    {
++        return $this->rateAny;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Entity/Provider.php /tmp/billing-pi-gpucut6x/repo/src/Entity/Provider.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Entity/Provider.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-gpucut6x/repo/src/Entity/Provider.php	2026-10-28 00:11:28.353548118 +0700
+@@ -0,0 +1,122 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Entity;
++
++use Doctrine\ORM\Mapping as ORM;
++
++/**
++ * @ORM\Entity
++ * @ORM\Table(name="provider")
++ */
++final class Provider
++{
++    /** @ORM\Column(name="code", type="string", length=64, unique=true, index=true) */
++    private string $code;
++
++    /** @ORM\Column(name="name", type="string", length=255) */
++    private string $name;
++
++    /**
++     * Оф-пиковая скидка: окно [window_start, window_end) (HH:MM, UTC),
++     * окно может переходить через полночь. multiplier — строка, десятичная.
++     * null — скидки нет.
++     */
++    /** @ORM\Column(name="off_peak_window_start", type="string", length=5, nullable=true) */
++    private ?string $offPeakWindowStart = null;
++
++    /** @ORM\Column(name="off_peak_window_end", type="string", length=5, nullable=true) */
++    private ?string $offPeakWindowEnd = null;
++
++    /** @ORM\Column(name="off_peak_multiplier", type="string", length=32, nullable=true) */
++    private ?string $offPeakMultiplier = null;
++
++    public function setCode(string $code): self
++    {
++        $this->code = $code;
++
++        return $this;
++    }
++
++    public function setCodeFromRaw(string $code): self
++    {
++        $this->code = trim($code);
++
++        return $this;
++    }
++
++    public function getCode(): string
++    {
++        return $this->code;
++    }
++
++    public function setName(string $name): self
++    {
++        $this->name = $name;
++
++        return $this;
++    }
++
++    public function getName(): string
++    {
++        return $this->name;
++    }
++
++    public function setOffPeak(?OffPeak $offPeak): self
++    {
++        $this->offPeakWindowStart = $offPeak->start;
++        $this->offPeakWindowEnd = $offPeak->end;
++        $this->offPeakMultiplier = $offPeak->multiplier;
++
++        return $this;
++    }
++
++    public function hasOffPeak(): bool
++    {
++        return $this->offPeakWindowStart !== null
++            && $this->offPeakWindowEnd !== null
++            && $this->offPeakMultiplier !== null;
++    }
++
++    public function getOffPeakWindowStart(): ?string
++    {
++        return $this->offPeakWindowStart;
++    }
++
++    public function getOffPeakWindowEnd(): ?string
++    {
++        return $this->offPeakWindowEnd;
++    }
++
++    /** Множитель скидки в точном формате bcmath, или null. */
++    public function getOffPeakMultiplier(): ?string
++    {
++        return $this->offPeakMultiplier;
++    }
++
++    /**
++     * Падает ли момент времени суток (HH:MM UTC) в окно оф-пик
++     * [window_start, window_end). Окно может переходить через полночь.
++     */
++    public function isOffPeak(string $hourMinute): bool
++    {
++        if (!$this->hasOffPeak()) {
++            return false;
++        }
++
++        $start = $this->offPeakWindowStart;
++        $end = $this->offPeakWindowEnd;
++
++        if ($start === $end) {
++            return $hourMinute === $start;
++        }
++
++        if ($start < $end) {
++            return $hourMinute >= $start && $hourMinute < $end;
++        }
++
++        // Окно через полночь: [16:30, 00:30)
++        return $hourMinute >= $start || $hourMinute < $end;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Entity/UsageEvent.php /tmp/billing-pi-gpucut6x/repo/src/Entity/UsageEvent.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Entity/UsageEvent.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-gpucut6x/repo/src/Entity/UsageEvent.php	2026-10-28 00:12:28.677412751 +0700
+@@ -0,0 +1,257 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Entity;
++
++use Doctrine\ORM\Mapping as ORM;
++use Symfony\Component\VarExporter\Attribute\VarExporter\Exported;
++
++/**
++ * Событие использования: один запрос к модели.
++ *
++ * @ORM\Entity
++ * @ORM\Table(
++ *     name="usage_event",
++ *     uniqueConstraints=[
++ *         new ORM\UniqueConstraint(['provider_code', 'provider_request_id'], 'uq_event_key'),
++ *     ],
++ *     indexes=[
++ *         new ORM\Index(['provider_code', 'provider_request_id'], 'idx_event_key'),
++ *     ]
++ * )
++ */
++final class UsageEvent
++{
++    /** @ORM\Id @ORM\Column(type="integer", autoIncrement=true) */
++    private ?int $id = null;
++
++    /**
++     * Связь с провайдером: provider_code дублируется для поиска.
++     */
++    /** @ORM\Column(name="provider_code", type="string", length=64, index=true) */
++    private string $providerCode;
++
++    /**
++     * Идентификатор запроса у провайдера.
++     */
++    /** @ORM\Column(name="provider_request_id", type="string", length=128) */
++    private string $providerRequestId;
++
++    /**
++     * Дублируемый код модели: provider_code/model_code.
++     */
++    /** @ORM\Column(name="model_code", type="string", length=128, index=true) */
++    private string $modelCode;
++
++    /**
++     * @ORM\ManyToOne(targetEntity: Provider::class, cascade: ["remove"], onDelete: "CASCADE", fetch="EAGER")
++     */
++    private ?Provider $provider = null;
++
++    /**
++     * @ORM\ManyToOne(targetEntity: Model::class, cascade: ["remove"], onDelete: "CASCADE")
++     */
++    private ?Model $model = null;
++
++    /** Идентификатор пользователя. */
++    /** @ORM\Column(name="user", type="string", length=128, index=true) */
++    private string $user;
++
++    /** ISO-8601 UTC. */
++    /** @ORM\Column(name="ts", type="string", length=32, index=true) */
++    private string $ts;
++
++    /** @ORM\Column(name="tokens_input", type="integer") */
++    private int $tokensInput;
++
++    /** @ORM\Column(name="tokens_output", type="integer") */
++    private int $tokensOutput;
++
++    /** @ORM\Column(name="tokens_cache_read", type="integer") */
++    private int $tokensCacheRead;
++
++    /** @ORM\Column(name="tokens_cache_write", type="integer") */
++    private int $tokensCacheWrite;
++
++    /**
++     * Итоговая стоимость события (USD), округлённая до 6 знаков (HALF_UP).
++     * null — событие ещё не рассчитано или unrated.
++     */
++    /** @ORM\Column(name="cost_usd", type="string", length=32, nullable=true) */
++    private ?string $costUsd = null;
++
++    /**
++     * Динамика стоимости при пересчёте (reprice). null — не пересчитывалось.
++     */
++    /** @ORM\Column(name="reprice_delta_usd", type="string", length=32, nullable=true) */
++    private ?string $repriceDeltaUsd = null;
++
++    /**
++     * Ссылка на цену, по которой тарифицировано (если рассчитано).
++     */
++    /** @ORM\ManyToOne(targetEntity: Price::class, cascade: ["remove"], onDelete: "SET NULL") */
++    private ?Price $appliedPrice = null;
++
++    public function setProviderCode(string $code): self
++    {
++        $this->providerCode = $code;
++
++        return $this;
++    }
++
++    public function setProviderRequestId(string $id): self
++    {
++        $this->providerRequestId = $id;
++
++        return $this;
++    }
++
++    public function setModelCode(string $code): self
++    {
++        $this->modelCode = $code;
++
++        return $this;
++    }
++
++    /** @ORM\ManyToOne(targetEntity: Provider::class, cascade: ["remove"], onDelete: "CASCADE", fetch="EAGER") */
++    public function setProvider(Provider $provider): self
++    {
++        $this->provider = $provider;
++        $this->providerCode = $provider->getCode();
++
++        return $this;
++    }
++
++    public function getProvider(): ?Provider
++    {
++        return $this->provider;
++    }
++
++    /** @ORM\ManyToOne(targetEntity: Model::class, cascade: ["remove"], onDelete: "CASCADE") */
++    public function setModel(Model $model): self
++    {
++        $this->model = $model;
++        $this->modelCode = $model->getFullCode();
++
++        return $this;
++    }
++
++    public function getModel(): ?Model
++    {
++        return $this->model;
++    }
++
++    public function setUser(string $user): self
++    {
++        $this->user = $user;
++
++        return $this;
++    }
++
++    public function getUser(): string
++    {
++        return $this->user;
++    }
++
++    public function setTs(string $ts): self
++    {
++        $this->ts = $ts;
++
++        return $this;
++    }
++
++    public function getTs(): string
++    {
++        return $this->ts;
++    }
++
++    public function setTokensInput(int $n): self
++    {
++        $this->tokensInput = $n;
++
++        return $this;
++    }
++
++    public function setTokensOutput(int $n): self
++    {
++        $this->tokensOutput = $n;
++
++        return $this;
++    }
++
++    public function setTokensCacheRead(int $n): self
++    {
++        $this->tokensCacheRead = $n;
++
++        return $this;
++    }
++
++    public function setTokensCacheWrite(int $n): self
++    {
++        $this->tokensCacheWrite = $n;
++
++        return $this;
++    }
++
++    public function getTokensInput(): int
++    {
++        return $this->tokensInput;
++    }
++
++    public function getTokensOutput(): int
++    {
++        return $this->tokensOutput;
++    }
++
++    public function getTokensCacheRead(): int
++    {
++        return $this->tokensCacheRead;
++    }
++
++    public function getTokensCacheWrite(): int
++    {
++        return $this->tokensCacheWrite;
++    }
++
++    public function setCostUsd(string $cost): self
++    {
++        $this->costUsd = $cost;
++
++        return $this;
++    }
++
++    public function getCostUsd(): ?string
++    {
++        return $this->costUsd;
++    }
++
++    public function isRated(): bool
++    {
++        return $this->costUsd !== null;
++    }
++
++    public function setRepriceDeltaUsd(?string $delta): self
++    {
++        $this->repriceDeltaUsd = $delta;
++
++        return $this;
++    }
++
++    public function getRepriceDeltaUsd(): ?string
++    {
++        return $this->repriceDeltaUsd;
++    }
++
++    public function setAppliedPrice(Price $price): self
++    {
++        $this->appliedPrice = $price;
++
++        return $this;
++    }
++
++    public function getAppliedPrice(): ?Price
++    {
++        return $this->appliedPrice;
++    }
++}

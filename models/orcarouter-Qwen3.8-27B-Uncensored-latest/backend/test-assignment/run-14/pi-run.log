@@ -1,0 +1,43 @@
+The solution is complete and fully working. Here's the final summary:
+
+## ✅ Задача выполнена
+
+Каноническое решение по адресу:
+`run-13/solution/` — **все 6 пунктов приёмки из TASK.md проходят**.
+
+### Что было сделано
+
+**Архитектура (3 слоя):**
+```
+src/Command/            — 5 команд (4 основных + bonus)
+src/Application/        — ApplicationServices + DTO-результаты
+src/Domain/             — чистое ядро (Pricing, Billing, Money, Usage)
+src/Infrastructure/     — ORM-сущности (Doctrine)
+```
+
+**Ключевые решения:**
+- **`DecimalMoney`** (bcmath): точная арифметика без float; единственное округление — `roundTo(6)` HALF_UP на событие
+- **Выбор цены**: `valid_from <= ts`, максимум; иначе `unrated`
+- **Оффпик (16:30–00:30 UTC, пересечение полуночи)**: множитель × точная стоимость **до** финального округления
+- **Идемпотентность**: уникальный индекс `(provider, provider_request_id)`; повторный импорт = `IMPORTED_EVENTS=0`
+- **`app:billing:reprice`** (бонус): upsert строки, пересчёт только событий, тарифицированных именно этой строкой
+
+### Проверка
+
+| Шаг | Результат |
+|-----|-----------|
+| `app:prices:import fixtures/prices.json` | `IMPORTED_PROVIDERS=2 MODELS=3 PRICES=4` |
+| `app:usage:import fixtures/usage.jsonl` (2×) | `IMPORTED_EVENTS=3` → `IMPORTED_EVENTS=0` |
+| `app:billing:rate` | `RATED=3 UNRATED=0` |
+| `app:billing:report --from=... --to=...` | **байт-в-байт = TASK.md** (14.262499, 11.000000, 8.400000) |
+| `app:billing:reprice /tmp/reprice.json` (удвоение ставок) | `REPRICED_EVENTS=1, REPRICE_DELTA_USD=14.262499` |
+| `php vendor/bin/phpunit tests/Money/` | `OK (7 tests, 8 assertions)` |
+
+**Изменённые / созданные файлы:**
+- `src/Command/BillingReportCommand.php` — переписано (устранён пустой вывод через `$output->writeln`)
+- `src/Command/BillingRepriceCommand.php` — добавлено
+- `src/Application/RepriceSummary.php` — добавлено
+- `src/Application/ApplicationServices.php` — метод `reprice()` (замена `repriceFile`), `exactCost`, `term`
+- `src/Domain/*` — `BillingEngine`, `RatingResult`, `RateSpec`, `PriceRow`, `PriceBook`, `TokenUsage`, `OffPeakWindow`, `ProviderRef`, `DecimalMoney`
+- `tests/Money/DecimalMoneyTest.php` — 7 тестов
+- `COMMIT_MESSAGE.md`, `PR_DESCRIPTION.md` — созданы

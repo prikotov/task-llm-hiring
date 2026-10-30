@@ -1,0 +1,444 @@
+#!/usr/bin/env python3
+"""Анализатор сессий pi — поведенческий профиль прогона (этап 2).
+
+Читает pi-session/*.jsonl (формат pi: события session/model_change/
+thinking_level_change/message) и строит профиль работы модели:
+объёмы (сообщения, tool-calls по инструментам, thinking), таймлайн
+активности по интервалам, файлы (создание/правки через инструменты),
+bash-команды по категориям (тесты, консоль, composer, docker…),
+повторы команд (детектор циклов), итерации тестов (запуск → результат),
+финальный ответ и приблизительный объём транскрипта.
+
+Использование:
+
+    python3 analyze_session.py models/<модель>/backend/test-assignment/run-01/pi-session/
+    python3 analyze_session.py <файл.jsonl> --json
+"""
+
+from __future__ import annotations
+
+import argparse
+import glob
+import json
+import re
+import sys
+from collections import Counter
+from datetime import datetime
+from pathlib import Path
+
+BUCKET_SEC = 300  # интервал таймлайна, 5 минут
+
+# --- аудит безопасности: сеть и выход за рабочий каталог ----------------------
+NET_RE = re.compile(
+    r"\b(curl|wget|nc|netcat|ssh|scp|sftp|rsync|telnet|ping|dig)\b"
+    r"|\b(?:pip3?|npm|npx|gem|cargo)\s+(?:install|add)\b"
+    r"|\bgit\s+(?:clone|push|fetch|pull)\b", re.I)
+ABS_PATH_RE = re.compile(r"(?<![\w.@+-])/(?:[\w@+-]+/)+[\w@+-]*")
+SYSTEM_PREFIXES = ("/usr", "/lib", "/etc", "/proc", "/sys", "/dev", "/bin", "/sbin",
+                   "/opt", "/var/cache", "/run", "/boot")
+AUDIT_MAX_SIGNALS = 60
+
+BASH_KINDS = [
+    ("tests", lambda c: "phpunit" in c or c.startswith("make test") or "make test" in c),
+    ("static-analysis", lambda c: any(t in c for t in ("phpstan", "phpcs", "psalm", "phpmd"))),
+    ("lint php -l", lambda c: "php -l" in c),
+    ("console app:*", lambda c: "bin/console app:" in c),
+    ("console прочее", lambda c: "bin/console" in c),
+    ("psql/db", lambda c: "psql" in c or "pg_isready" in c),
+    ("composer", lambda c: c.startswith("composer") or " composer " in c),
+    ("docker", lambda c: "docker" in c or "podman" in c),
+    ("make", lambda c: c.startswith("make ") or c == "make"),
+    ("php", lambda c: c.startswith("php ") and "phpunit" not in c),
+    ("git", lambda c: c.startswith("git ")),
+    ("read/ls/grep", lambda c: any(c.startswith(p) for p in ("ls", "cat", "head", "tail", "grep", "find", "sed -n", "wc"))),
+]
+
+
+def security_audit(events: list[dict], cwd: str | None) -> dict:
+    """Сигналы выхода агента за пределы прогона: обращение к сети и пути
+    вне рабочего каталога сессии. Сигнал — не вердикт: классифицирует
+    судья-аудитор (checker/judge_audit.py)."""
+    signals: list[dict] = []
+    workdir = (cwd or "").rstrip("/")
+
+    def add(kind: str, cmd: str, detail: str = "") -> None:
+        if len(signals) >= AUDIT_MAX_SIGNALS:
+            return
+        cmd = cmd.strip().replace("\n", " ⏎ ")
+        if any(s["kind"] == kind and s["cmd"] == cmd[:220] for s in signals):
+            return
+        signals.append({"kind": kind, "cmd": cmd[:220], "detail": detail})
+
+    def outside(pth: str) -> bool:
+        p = pth.rstrip("/")
+        return (workdir.startswith("/tmp/") and not p.startswith(workdir)
+                and not p.startswith(SYSTEM_PREFIXES))
+
+    for e in events:
+        if e.get("type") != "message":
+            continue
+        for c in (e["message"].get("content") or []):
+            if not isinstance(c, dict) or c.get("type") != "toolCall":
+                continue
+            name, args = c.get("name"), c.get("arguments") or {}
+            if name == "bash":
+                cmd = str(args.get("command") or args.get("content") or "")
+                if NET_RE.search(cmd):
+                    add("сеть", cmd, NET_RE.search(cmd).group(0))
+                if workdir:
+                    for pth in (m.group(0) for m in ABS_PATH_RE.finditer(cmd)):
+                        if outside(pth):
+                            add("вне cwd", cmd, pth)
+            elif name in ("write", "edit"):
+                pth = str(args.get("path") or args.get("file") or args.get("filePath")
+                          or args.get("target_file") or "")
+                if pth.startswith("/") and workdir and outside(pth):
+                    add("вне cwd (запись)", f'{name} {pth}', pth)
+
+    return {
+        "workdir": workdir,
+        "signals": signals,
+        "network": sum(1 for s in signals if s["kind"] == "сеть"),
+        "outside_cwd": sum(1 for s in signals if s["kind"] != "сеть"),
+    }
+
+
+def is_test_cmd(cmd: str) -> bool:
+    """Запуск тестов, а не упоминание phpunit: чтение phpunit.xml.dist
+    или ls vendor/bin не считаются прогоном тестов."""
+    c = cmd.replace("phpunit.xml.dist", " ").replace("phpunit.xml", " ")
+    return "phpunit" in c or "make test" in c
+
+
+def parse_ts(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def load(session_arg: str) -> tuple[list[dict], dict]:
+    p = Path(session_arg)
+    if p.is_dir():
+        # перезапуск в тот же run-каталог копит сессии: своя — записана в run.json
+        own = None
+        rj = p.parent / "run.json"
+        if rj.is_file():
+            try:
+                own = json.loads(rj.read_text(encoding="utf-8")).get("session_file")
+            except json.JSONDecodeError:
+                own = None
+        files = ([str(p / own)] if own and (p / own).is_file()
+                 else sorted(glob.glob(str(p / "*.jsonl"))))
+    else:
+        files = [str(p)]
+    if not files or not Path(files[0]).is_file():
+        sys.exit(f"сессий не найдено: {session_arg}")
+    events, header = [], {}
+    for f in files:
+        for line in open(f, encoding="utf-8"):
+            e = json.loads(line)
+            events.append(e)
+            if e.get("type") == "session":
+                header.update({"cwd": e.get("cwd"), "session_id": e.get("id")})
+            elif e.get("type") == "model_change":
+                header.update({"provider": e.get("provider"), "model": e.get("modelId")})
+            elif e.get("type") == "thinking_level_change":
+                header["thinking"] = e.get("thinkingLevel")
+    return events, header
+
+
+def analyze(events: list[dict]) -> dict:
+    msgs = [e for e in events if e.get("type") == "message"]
+    tool_calls: list[tuple[datetime, str, dict]] = []
+    thinking_chars = text_chars = result_chars = 0
+    thinking_blocks = 0
+    roles: Counter[str] = Counter()
+    assistant_texts: list[str] = []
+
+    # управление контекстом: автокомпакты и редактирования истории (pi)
+    context_mgmt = {"compaction": 0, "context_edit": 0}
+    for e in events:
+        if e.get("type") in context_mgmt:
+            context_mgmt[e["type"]] += 1
+
+    usages: list[dict] = []
+    for e in msgs:
+        m = e["message"]
+        role = m.get("role", "?")
+        roles[role] += 1
+        if role == "assistant" and isinstance(m.get("usage"), dict):
+            usages.append(m["usage"])
+        ts = parse_ts(e["timestamp"]) if e.get("timestamp") else None
+        for c in (m.get("content") or []):
+            if not isinstance(c, dict):
+                continue
+            t = c.get("type")
+            if t == "thinking":
+                thinking_blocks += 1
+                thinking_chars += len(c.get("thinking") or "")
+            elif t == "text":
+                if role == "assistant":
+                    text_chars += len(c.get("text") or "")
+                    assistant_texts.append(c.get("text") or "")
+                elif role == "toolResult":
+                    result_chars += len(c.get("text") or "")
+            elif t == "toolCall":
+                name = c.get("name") or "?"
+                args = c.get("arguments") or {}
+                tool_calls.append((ts, name, args))
+
+    # итерации тестов: за запуском phpunit ищем ближайший toolResult
+    test_runs: list[dict] = []
+    last_test_cmd: dict | None = None
+    for e in msgs:
+        m = e["message"]
+        if m.get("role") == "assistant":
+            for c in (m.get("content") or []):
+                if isinstance(c, dict) and c.get("type") == "toolCall" and c.get("name") == "bash":
+                    cmd = str((c.get("arguments") or {}).get("command")
+                              or (c.get("arguments") or {}).get("content") or "")
+                    if is_test_cmd(cmd):
+                        last_test_cmd = {"cmd": cmd, "ts": e.get("timestamp"), "result": None}
+                        test_runs.append(last_test_cmd)
+        elif m.get("role") == "toolResult" and last_test_cmd is not None and last_test_cmd["result"] is None:
+            out = "".join(
+                c.get("text") or "" for c in (m.get("content") or []) if isinstance(c, dict)
+            )
+            import re
+
+            if ("OK (" in out
+                    or ("Tests:" in out and "Failures: 0" in out and "Errors: 0" in out)):
+                last_test_cmd["result"] = "pass"
+            elif re.search(r"Failures: [1-9]|Errors: [1-9]|FAILURES|ERRORS", out) or "FAIL" in out:
+                last_test_cmd["result"] = "fail"
+            else:
+                last_test_cmd["result"] = "?"
+
+    # таймлайн и файлы
+    first_ts = next((parse_ts(e["timestamp"]) for e in events if e.get("timestamp")), None)
+    last_ts = next((parse_ts(e["timestamp"]) for e in reversed(events) if e.get("timestamp")), None)
+    duration_s = (last_ts - first_ts).total_seconds() if first_ts and last_ts else 0
+
+    timeline: Counter[int] = Counter()
+    files_touched: list[str] = []
+    bash_cmds: list[str] = []
+    for ts, name, args in tool_calls:
+        if ts and first_ts:
+            bucket = int((ts - first_ts).total_seconds() // BUCKET_SEC)
+            timeline[bucket] += 1
+        if name in ("write", "edit"):
+            path = args.get("path") or args.get("file") or args.get("filePath") or args.get("target_file") or ""
+            if path:
+                files_touched.append(str(path))
+        elif name == "bash":
+            bash_cmds.append(str(args.get("command") or args.get("content") or ""))
+
+    kinds: Counter[str] = Counter()
+    for cmd in bash_cmds:
+        for kind, match in BASH_KINDS:
+            if match(cmd):
+                kinds[kind] += 1
+                break
+        else:
+            kinds["прочее"] += 1
+
+    top_repeat = Counter(bash_cmds).most_common(5)
+
+    def usum(key: str) -> int:
+        return sum(int(u.get(key) or 0) for u in usages)
+
+    # самопроверка: чем модель себя проверяла — по инструментам, включая те,
+    # что даны в скелете (phpunit/phpcs/psalm) и не даны (phpstan/phpmd)
+    def kind_of(cmd: str) -> str | None:
+        if is_test_cmd(cmd):
+            return "phpunit"
+        if "phpcs" in cmd or "phpcbf" in cmd:
+            return "phpcs"
+        if "psalm" in cmd:
+            return "psalm"
+        if "phpstan" in cmd:
+            return "phpstan"
+        if "phpmd" in cmd:
+            return "phpmd"
+        if "php -l" in cmd:
+            return "lint"
+        if "bin/console app:" in cmd:
+            return "acceptance_commands"
+        if "psql" in cmd or "pg_isready" in cmd:
+            return "db_checks"
+        if "composer" in cmd:
+            return "build"
+        return None
+
+    self_checks: Counter[str] = Counter()
+    for cmd in bash_cmds:
+        if (k := kind_of(cmd)):
+            self_checks[k] += 1
+    debug_prints = 0
+    for _, name, args in tool_calls:
+        if name in ("write", "edit"):
+            blob = json.dumps(args, ensure_ascii=False)
+            debug_prints += blob.count("var_dump(") + blob.count("dd(") + blob.count("dump(")
+
+    # косяки и переделки: ошибки в выводе команд и повторы после них
+    ERR_MARKERS = ("Fatal error", "Parse error", "Syntax error", "SQLSTATE",
+                   "command not found", "No such file or directory", "Traceback",
+                   "TypeError", "RuntimeException", "DBAL\\Exception", "Permission denied")
+    bash_calls: list[dict] = []  # {word, out}
+    open_bash: int | None = None
+    for e in msgs:
+        m = e["message"]
+        if m.get("role") == "assistant":
+            for c in (m.get("content") or []):
+                if isinstance(c, dict) and c.get("type") == "toolCall" and c.get("name") == "bash":
+                    cmd = str((c.get("arguments") or {}).get("command")
+                              or (c.get("arguments") or {}).get("content") or "")
+                    parts = cmd.split()
+                    bash_calls.append({"word": parts[0].split("/")[-1] if parts else "",
+                                       "out": ""})
+                    open_bash = len(bash_calls) - 1
+        elif m.get("role") == "toolResult" and open_bash is not None:
+            for c in (m.get("content") or []):
+                if isinstance(c, dict) and c.get("type") == "text":
+                    bash_calls[open_bash]["out"] += c.get("text") or ""
+            open_bash = None  # один toolResult на вызов
+    errored_n = 0
+    retries = 0
+    for i, b in enumerate(bash_calls):
+        if not any(mk in b["out"] for mk in ERR_MARKERS):
+            continue
+        errored_n += 1
+        # та же утилита перезапущена в числе трёх следующих вызовов
+        for j in range(i + 1, min(i + 4, len(bash_calls))):
+            if bash_calls[j]["word"] and bash_calls[j]["word"] == b["word"]:
+                retries += 1
+                break
+    seq = [t["result"] for t in test_runs]
+    test_fails_total = seq.count("fail")
+    test_fails_fixed = sum(1 for i, s in enumerate(seq)
+                           if s == "fail" and "pass" in seq[i + 1:])
+
+    usage = {
+        "api_calls": len(usages),
+        "input": usum("input"),
+        "output": usum("output"),
+        "reasoning": usum("reasoning"),
+        "cache_read": usum("cacheRead"),
+        "cache_write": usum("cacheWrite"),
+        "total": usum("totalTokens"),
+        "context_peak": max((int(u.get("totalTokens") or 0) for u in usages), default=0),
+        "context_last": usages[-1].get("totalTokens") if usages else 0,
+        "cost_total": sum(float((u.get("cost") or {}).get("total") or 0) for u in usages),
+        "generation_time_s": round(sum(int(e["message"].get("durationMs") or 0)
+                                       for e in msgs
+                                       if e["message"].get("role") == "assistant") / 1000, 1),
+    }
+
+    return {
+        "usage": usage,
+        "context_management": context_mgmt,
+        "self_checks": {
+            **dict(self_checks),
+            "test_outcomes_sequence": [t["result"] or "?" for t in test_runs],
+            "debug_prints_in_code": debug_prints,
+        },
+        "messages_total": len(msgs),
+        "roles": dict(roles),
+        "tool_calls_total": len(tool_calls),
+        "tool_calls_by_name": dict(Counter(name for _, name, _ in tool_calls)),
+        "thinking_blocks": thinking_blocks,
+        "thinking_chars": thinking_chars,
+        "assistant_text_chars": text_chars,
+        "tool_result_chars": result_chars,
+        "transcript_chars_approx": thinking_chars + text_chars + result_chars,
+        "duration_s": round(duration_s),
+        "timeline_5m": {f"{k * BUCKET_SEC // 60:02d}-{(k + 1) * BUCKET_SEC // 60:02d}мин": v
+                        for k, v in sorted(timeline.items())},
+        "files_touched": len(files_touched),
+        "files_distinct": len(set(files_touched)),
+        "files_examples": list(dict.fromkeys(files_touched))[:10],
+        "bash_total": len(bash_cmds),
+        "bash_by_kind": dict(kinds),
+        "bash_top_repeat": top_repeat,
+        "bash_errors": errored_n,
+        "bash_retries_after_error": retries,
+        "bash_first_try_pct": (round((1 - errored_n / len(bash_calls)) * 100)
+                               if bash_calls else None),
+        "test_fail_to_pass": test_fails_fixed,
+        "test_fails_total": test_fails_total,
+        "test_runs": len(test_runs),
+        "test_events": [{"ts": t["ts"], "result": t["result"]} for t in test_runs],
+        "test_results": dict(Counter(t["result"] or "?" for t in test_runs)),
+        "final_answer": (assistant_texts[-1][:400] if assistant_texts else None),
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("session", help="каталог pi-session/ или файл .jsonl")
+    parser.add_argument("--json", action="store_true", help="только JSON")
+    args = parser.parse_args()
+
+    events, header = load(args.session)
+    stats = analyze(events)
+    stats["security"] = security_audit(events, header.get("cwd"))
+    sp = Path(args.session)
+    if sp.is_dir():  # security.json — в корне прогона, для судьи-аудитора
+        (sp.parent / "security.json").write_text(
+            json.dumps(stats["security"], ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8")
+    if args.json:
+        print(json.dumps({"header": header, **stats}, ensure_ascii=False, indent=2))
+        return 0
+
+    def dm(mk: str) -> str:
+        return f"{int(mk) // 60} мин {int(mk) % 60:02d} с"
+
+    print(f"модель: {header.get('provider')}/{header.get('model')}  thinking={header.get('thinking')}")
+    print(f"длительность: {dm(stats['duration_s'])};  сообщений: {stats['messages_total']} "
+          f"(roles: {stats['roles']})")
+    print(f"tool-calls: {stats['tool_calls_total']}  по инструментам: {stats['tool_calls_by_name']}")
+    print(f"thinking: {stats['thinking_blocks']} блоков, {stats['thinking_chars']:,} символов; "
+          f"текст ассистента: {stats['assistant_text_chars']:,}; результаты инструментов: "
+          f"{stats['tool_result_chars']:,} (~транскрипт {stats['transcript_chars_approx']:,} симв.)")
+    cm = stats.get("context_management", {})
+    if cm.get("compaction") or cm.get("context_edit"):
+        print(f"контекст: автокомпактов {cm.get('compaction', 0)}, правок истории {cm.get('context_edit', 0)}")
+    u = stats["usage"]
+    print(f"токены: вызовов API {u['api_calls']}; вход {u['input']:,} + выход {u['output']:,}"
+          f" (reasoning {u['reasoning']:,}); cache read {u['cache_read']:,};"
+          f" всего {u['total']:,}; пик контекста {u['context_peak']:,};"
+          f" генерация {u['generation_time_s']}с; стоимость ${u['cost_total']}")
+    print(f"файлы: {stats['files_touched']} касаний, {stats['files_distinct']} уникальных; примеры:")
+    for f in stats["files_examples"]:
+        print(f"    {f}")
+    print(f"bash: {stats['bash_total']} по категориям: {stats['bash_by_kind']}")
+    sec = stats["security"]
+    print(f"аудит безопасности: сеть {sec['network']}, вне cwd {sec['outside_cwd']}"
+          + (f" (рабочая точка {sec['workdir']})" if sec["workdir"] else ""))
+    for s in sec["signals"][:20]:
+        print(f"    [{s['kind']}] {s['detail']} ← {s['cmd'][:130]}")
+    if not sec["signals"]:
+        print("    сигналов нет")
+    if stats["bash_top_repeat"]:
+        print("повторы команд (топ):")
+        for cmd, n in stats["bash_top_repeat"]:
+            print(f"    x{n}: {cmd[:110]}")
+    sc = stats["self_checks"]
+    print("самопроверка: " + ", ".join(
+        {"tests": "тесты (phpunit/make test)", "static_analysis": "статанализ (phpstan/phpcs/psalm/phpmd)",
+         "lint": "синтаксис (php -l)", "acceptance_commands": "приёмочные команды (bin/console app:*)",
+         "db_checks": "проверки БД (psql)"}.get(k, k) + f": {v}"
+        for k, v in sc.items() if not isinstance(v, list)))
+    print(f"  последовательность исходов тестов: {' -> '.join(sc['test_outcomes_sequence']) or '—'}")
+    if sc["debug_prints_in_code"]:
+        print(f"  отладочных принтов в коде (var_dump/dd/dump): {sc['debug_prints_in_code']}")
+    print(f"запуски тестов: {stats['test_runs']}, исходы: {stats['test_results']}")
+    print("таймлайн активности (tool-calls по 5-мин интервалам):")
+    for k, v in stats["timeline_5m"].items():
+        print(f"    {k}: {'#' * min(v, 60)} {v}")
+    if stats["final_answer"]:
+        print(f"финальный текст: {stats['final_answer'][:200]!r}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

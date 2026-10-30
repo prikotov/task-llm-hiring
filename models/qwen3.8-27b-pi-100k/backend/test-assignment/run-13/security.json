@@ -1,0 +1,92 @@
+{
+  "workdir": "/tmp/billing-pi-6jkas_y_/repo",
+  "signals": [
+    {
+      "kind": "вне cwd",
+      "cmd": "php -l src/Application/Billing/RepriceService.php 2>&1 ⏎ # Let me try a minimal version ⏎ cat > /tmp/test_ns.php << 'EOF' ⏎ <?php ⏎ declare(strict_types=1); ⏎  ⏎ namespace App\\Application\\Billing; ⏎  ⏎ use App\\Applicatio",
+      "detail": "/tmp/test_ns"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "php -l src/Application/Billing/PricingCalculator.php 2>&1 ⏎ echo \"---\" ⏎ # Try extracting the exact lines 1-30 and linting that ⏎ head -30 src/Application/Billing/RepriceService.php > /tmp/reprice_head.php ⏎ php -l /tmp/",
+      "detail": "/tmp/reprice_head"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "# Test without the use statements ⏎ cat > /tmp/reprice_min.php << 'EOF' ⏎ <?php ⏎ declare(strict_types=1); ⏎ namespace App\\Application\\Billing; ⏎ use Doctrine\\ORM\\EntityManagerInterface; ⏎ final readonly class RepriceSer",
+      "detail": "/tmp/reprice_min"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "# Try the full file with just the head + class body (not the entire body) ⏎ head -20 src/Application/Billing/RepriceService.php > /tmp/h1.php ⏎ php -l /tmp/h1.php 2>&1 ⏎ echo \"===\" ⏎ head -30 src/Application/Billing/Repr",
+      "detail": "/tmp/h1"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat -n /tmp/h1.php",
+      "detail": "/tmp/h1"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "# Try creating the file fresh, character by character ⏎ printf '%s\\n' '<?php' '' 'declare(strict_types=1);' '' 'namespace App\\Application\\Billing;' '' 'use App\\Application\\Import\\PriceImportService;' 'use App.Domain\\Mone",
+      "detail": "/tmp/fresh"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "# The difference: I was using use App.Domain\\Money and use App.Application\\...  ⏎ # In the -r test I only had two use statements, now I have 5+ ⏎ # Let me test with exactly 8 use statements ⏎ php -r 'namespace A; use A.B",
+      "detail": "/tmp/u"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "# I see - it fails with \"use App.Domain.Class1;\" in the file too?? No, the loop worked. ⏎ # The issue must be that the first use statement resolves to a namespace that conflicts. ⏎ # Let me test specifically: ⏎ printf '<",
+      "detail": "/tmp/test_conflict"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "# Wait, this worked fine as a file. So why doesn't the original RepriceService work? ⏎ # Let me try copying the exact failing file and removing lines one by one ⏎ cat -A src/Application/Billing/RepriceService.php | head ",
+      "detail": "/tmp/reprice_c1"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "# Maybe the file was saved in a weird state? Let me rewrite it cleanly ⏎ php -l src/Application/Billing/RepriceService.php 2>&1 ⏎ echo \"---\" ⏎ # Let me create a simple test to check if it's the Cyrillic characters that's",
+      "detail": "/tmp/cyr_test"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "# The cyr_test fails because the comment after namespace is before use - that's fine as a file ⏎ # Let me check line 4: ⏎ cat -n /tmp/cyr_test.php ⏎ echo \"---\" ⏎ # Try without comment ⏎ printf '<?php\\nnamespace App;\\n\\nu",
+      "detail": "/tmp/cyr_test"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "# Maybe \"namespace App\" is not a valid namespace (too short)? ⏎ printf '<?php\\nnamespace A;\\nuse App.Domain\\Money;\\nclass X {}\\n' > /tmp/test_a.php ⏎ php -l /tmp/test_a.php 2>&1 ⏎  ⏎ # Or maybe \"namespace App\" is treated",
+      "detail": "/tmp/test_a"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "# No namespace — works ⏎ printf '<?php\\nuse App.Domain\\Money;\\nclass X {}\\n' > /tmp/test_n1.php ⏎ php -l /tmp/test_n1.php 2>&1 ⏎  ⏎ # With namespace but with double backslash in use ⏎ printf '<?php\\nnamespace A;\\nuse App",
+      "detail": "/tmp/test_n1"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-6jkas_y_/repo ⏎ # Add temporary debug ⏎ cat > /tmp/test_price.php << 'PHPEOF' ⏎ <?php ⏎ require \"vendor/autoload.php\"; ⏎  ⏎ use App\\Application\\Import\\PriceImportService; ⏎ use App\\Domain\\Money; ⏎ use ",
+      "detail": "/tmp/test_price"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-6jkas_y_/repo ⏎ cat > /tmp/test_import.php << 'PHPEOF' ⏎ <?php ⏎ require \"vendor/autoload.php\"; ⏎  ⏎ use App\\Application\\Import\\PriceImportService; ⏎ use App\\Domain\\Money; ⏎ use App\\Domain\\PriceUnit; ⏎",
+      "detail": "/tmp/test_import"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-6jkas_y_/repo ⏎ # Complete fresh run ⏎ bin/console doctrine:database:drop -f 2>&1 ⏎ bin/console doctrine:database:create 2>&1 ⏎ bin/console doctrine:schema:create 2>&1 ⏎  ⏎ echo \"=== 1) Import prices =",
+      "detail": "/tmp/billing-report_"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cd /tmp/billing-pi-6jkas_y_/repo ⏎ # Create a corrected price file for testing ⏎ cat > /tmp/reprice_fix.json <<'EOF' ⏎ { ⏎   \"providers\": [], ⏎   \"models\": [], ⏎   \"prices\": [ ⏎     { ⏎       \"provider\": \"sfera\", ⏎      ",
+      "detail": "/tmp/reprice_fix"
+    }
+  ],
+  "network": 0,
+  "outside_cwd": 17
+}

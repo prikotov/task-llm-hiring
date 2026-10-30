@@ -1,0 +1,2723 @@
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/COMMIT_MESSAGE.md /tmp/billing-pi-v_3ra9n_/repo/COMMIT_MESSAGE.md
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/COMMIT_MESSAGE.md	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/COMMIT_MESSAGE.md	2026-10-21 00:24:16.915888216 +0700
+@@ -0,0 +1,24 @@
++feat(billing): учёт расходов LLM-токенов — импорт, тарификация, CSV-отчёт, retro-коррекция цен
++
++Консольное приложение (Symfony console, Doctrine ORM, PostgreSQL 17):
++- app:prices:import / app:usage:import — идемпотентные импорты
++  справочника и событий (JSONL, ON CONFLICT DO NOTHING), проверка
++  корректности входных файлов, код 1 при ошибках;
++- app:billing:rate — тарификация по времени события с учётом смены цен,
++  двух схем тарификации (per-token / unified) и off-peak-окна в UTC;
++  stdout строго RATED=<n> UNRATED=<m>, unrated-детали в stderr;
++- app:billing:report — CSV по (user, model) + TOTAL, cost_usd с 6
++  знаками, период [from, to); на закреплённом примере — точное
++  совпадение байт-в-байт;
++- app:billing:reprice (бонус) — upsert строк цен и пересчёт событий,
++  тарифицированных затронутыми строками; stdout REPRICED_EVENTS=<n>
++  и REPRICE_DELTA_USD=<x.xxxxxx>.
++
++Деньги — только bcmath-строки (тип float не используется), единственное
++округление — HALF_UP стоимости события до 6 знаков; выбор цены — строка
++с наибольшим valid_from ≤ ts; рассчётанное событие фиксирует ключ
++applied_price_valid_from. Новая схема — миграция Version20261020000001
++(4 таблицы, ограничения, индексы). Файлы каркаса не затрагиваются,
++зависимости не добавлялись; 32 юнит-теста (make test).
++
++Подробности и допущения — в PR_DESCRIPTION.md.
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/migrations/Version20261020000001.php /tmp/billing-pi-v_3ra9n_/repo/migrations/Version20261020000001.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/migrations/Version20261020000001.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/migrations/Version20261020000001.php	2026-10-21 00:19:46.513126824 +0700
+@@ -0,0 +1,92 @@
++<?php
++
++declare(strict_types=1);
++
++namespace DoctrineMigrations;
++
++use Doctrine\DBAL\Schema\Schema;
++
++final class Version20261020000001 extends \Doctrine\Migrations\AbstractMigration
++{
++    public function getDescription(): string
++    {
++        return 'Начальная схема учёта расходов на LLM-токены';
++    }
++
++    public function up(Schema $schema): void
++    {
++        $this->addSql(
++            <<<'SQL'
++            CREATE TABLE IF NOT EXISTS providers (
++                id SERIAL PRIMARY KEY,
++                code VARCHAR(128) NOT NULL,
++                name VARCHAR(255) NOT NULL,
++                off_peak_start VARCHAR(5) DEFAULT NULL,
++                off_peak_end VARCHAR(5) DEFAULT NULL,
++                off_peak_multiplier VARCHAR(32) DEFAULT NULL,
++                CONSTRAINT uniq_providers_code UNIQUE (code)
++            )
++            SQL,
++        );
++        $this->addSql(
++            <<<'SQL'
++            CREATE TABLE IF NOT EXISTS models (
++                id SERIAL PRIMARY KEY,
++                provider VARCHAR(128) NOT NULL,
++                code VARCHAR(128) NOT NULL,
++                CONSTRAINT uniq_models_provider_code UNIQUE (provider, code)
++            )
++            SQL,
++        );
++        $this->addSql(
++            <<<'SQL'
++            CREATE TABLE IF NOT EXISTS price_rows (
++                id SERIAL PRIMARY KEY,
++                provider VARCHAR(128) NOT NULL,
++                model VARCHAR(128) NOT NULL,
++                valid_from TIMESTAMP(6) NOT NULL,
++                currency VARCHAR(3) NOT NULL,
++                unit VARCHAR(32) NOT NULL,
++                rates_json TEXT NOT NULL,
++                CONSTRAINT uniq_price_rows_provider_model_from UNIQUE (provider, model, valid_from)
++            )
++            SQL,
++        );
++        $this->addSql('CREATE INDEX IF NOT EXISTS idx_price_rows_lookup ON price_rows (provider, model, valid_from)');
++        $this->addSql(
++            <<<'SQL'
++            CREATE TABLE IF NOT EXISTS usage_events (
++                id SERIAL PRIMARY KEY,
++                provider VARCHAR(128) NOT NULL,
++                provider_request_id VARCHAR(512) NOT NULL,
++                model VARCHAR(128) NOT NULL,
++                "user" VARCHAR(255) NOT NULL,
++                ts TIMESTAMP(6) NOT NULL,
++                tokens_input BIGINT NOT NULL,
++                tokens_output BIGINT NOT NULL,
++                tokens_cache_read BIGINT NOT NULL,
++                tokens_cache_write BIGINT NOT NULL,
++                rated BOOLEAN NOT NULL DEFAULT FALSE,
++                cost NUMERIC(28, 6) DEFAULT NULL,
++                applied_price_valid_from TIMESTAMP(6) DEFAULT NULL,
++                CONSTRAINT uniq_usage_events_provider_request UNIQUE (provider, provider_request_id),
++                CONSTRAINT ck_usage_events_tokens_nonneg
++                    CHECK (tokens_input >= 0 AND tokens_output >= 0 AND tokens_cache_read >= 0 AND tokens_cache_write >= 0)
++            )
++            SQL,
++        );
++        $this->addSql('CREATE INDEX IF NOT EXISTS idx_usage_events_rated ON usage_events (rated)');
++        $this->addSql('CREATE INDEX IF NOT EXISTS idx_usage_events_ts ON usage_events (ts)');
++        $this->addSql(
++            'CREATE INDEX IF NOT EXISTS idx_usage_events_applied_price ON usage_events (provider, model, applied_price_valid_from)',
++        );
++    }
++
++    public function down(Schema $schema): void
++    {
++        $this->addSql('DROP TABLE IF EXISTS usage_events');
++        $this->addSql('DROP TABLE IF EXISTS price_rows');
++        $this->addSql('DROP TABLE IF EXISTS models');
++        $this->addSql('DROP TABLE IF EXISTS providers');
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/.phpunit.result.cache /tmp/billing-pi-v_3ra9n_/repo/.phpunit.result.cache
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/.phpunit.result.cache	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/.phpunit.result.cache	2026-10-21 00:22:42.655714351 +0700
+@@ -0,0 +1 @@
++{"version":2,"defects":{"App\\Tests\\Domain\\MoneyTest::testRoundHalfUpTo6 with data set \"\u0448\u0435\u0441\u0442\u043e\u0439 \u0437\u043d\u0430\u043a: \u043e\u043a\u0440\u0443\u0433\u043b\u044f\u0435\u043c \u0432\u0432\u0435\u0440\u0445\"":7,"App\\Tests\\Domain\\OffPeakTest::testWindowBounds with data set \"\u043d\u043e\u0447\u044c \u0432\u043d\u0443\u0442\u0440\u0438 \u043e\u043a\u043d\u0430\"":7},"times":{"App\\Tests\\Billing\\CostCalculatorTest::testPerTokenSchemeE1":0.003,"App\\Tests\\Billing\\CostCalculatorTest::testPerTokenSchemeE2":0,"App\\Tests\\Billing\\CostCalculatorTest::testUnifiedSchemaE3":0,"App\\Tests\\Billing\\CostCalculatorTest::testOffPeakMultiplierAppliedToWholeEvent":0,"App\\Tests\\Billing\\CostCalculatorTest::testAllZeroTokensCostZero":0,"App\\Tests\\Billing\\PriceSelectionTest::testLatestRowNotAfterEventTs":0,"App\\Tests\\Billing\\PriceSelectionTest::testNoRowYetMeansUnrated":0,"App\\Tests\\Domain\\MoneyTest::testRoundHalfUpTo6 with data set \"\u043f\u0440\u0438\u043c\u0435\u0440 \u0438\u0437 \u0422\u0417: e1\"":0,"App\\Tests\\Domain\\MoneyTest::testRoundHalfUpTo6 with data set \"\u0442\u043e\u0447\u043a\u0430 \u0440\u043e\u0432\u043d\u043e \u043d\u0430 \u0441\u0435\u0440\u0435\u0434\u0438\u043d\u0435 (2.5 -> 3)\"":0,"App\\Tests\\Domain\\MoneyTest::testRoundHalfUpTo6 with data set \"\u0448\u0435\u0441\u0442\u043e\u0439 \u0437\u043d\u0430\u043a: \u043e\u043a\u0440\u0443\u0433\u043b\u044f\u0435\u043c \u0432\u0432\u0435\u0440\u0445\"":0.005,"App\\Tests\\Domain\\MoneyTest::testRoundHalfUpTo6 with data set \"\u0448\u0435\u0441\u0442\u043e\u0439 \u0437\u043d\u0430\u043a: \u043e\u043a\u0440. \u0434\u043e 10-\u0439\"":0,"App\\Tests\\Domain\\MoneyTest::testRoundHalfUpTo6 with data set \"\u0447\u0443\u0442\u044c \u043d\u0438\u0436\u0435 \u0441\u0435\u0440\u0435\u0434\u0438\u043d\u044b \u2014 \u0432\u043d\u0438\u0437\"":0,"App\\Tests\\Domain\\MoneyTest::testRoundHalfUpTo6 with data set \"\u043d\u0443\u043b\u0435\u0432\u0430\u044f \u0441\u0442\u043e\u0438\u043c\u043e\u0441\u0442\u044c\"":0,"App\\Tests\\Domain\\MoneyTest::testRoundHalfUpTo6 with data set \"\u0446\u0435\u043b\u0430\u044f \u0441\u0443\u043c\u043c\u0430\"":0,"App\\Tests\\Domain\\MoneyTest::testRoundHalfUpTo6 with data set \"\u043a\u0440\u0443\u043f\u043d\u0430\u044f \u0441\u0443\u043c\u043c\u0430 \u0431\u0435\u0437 \u043f\u043e\u0442\u0435\u0440\u0438 \u0442\u043e\u0447\u043d\u043e\u0441\u0442\u0438\"":0,"App\\Tests\\Domain\\MoneyTest::testRoundHalfUpTo6 with data set #99999999":0,"App\\Tests\\Domain\\MoneyTest::testExactAdditionWithoutRounding":0,"App\\Tests\\Domain\\MoneyTest::testMultiplicationByOffPeakMultiplier":0,"App\\Tests\\Domain\\MoneyTest::testDecimalStringValidation":0,"App\\Tests\\Domain\\OffPeakTest::testWindowBounds with data set \"\u043d\u0430\u0447\u0430\u043b\u043e \u043e\u043a\u043d\u0430 \u0432\u043a\u043b\u044e\u0447\u0438\u0442\u0435\u043b\u044c\u043d\u043e\"":0,"App\\Tests\\Domain\\OffPeakTest::testWindowBounds with data set \"\u043e\u043a\u043e\u043d\u0447\u0430\u043d\u0438\u0435 \u043e\u043a\u043d\u0430 \u0438\u0441\u043a\u043b\u044e\u0447\u0438\u0442\u0435\u043b\u044c\u043d\u043e\"":0,"App\\Tests\\Domain\\OffPeakTest::testWindowBounds with data set \"\u0441\u0440\u0430\u0437\u0443 \u043f\u043e\u0441\u043b\u0435 \u043d\u0430\u0447\u0430\u043b\u0430\"":0,"App\\Tests\\Domain\\OffPeakTest::testWindowBounds with data set \"\u0441\u0440\u0430\u0437\u0443 \u0434\u043e \u043d\u0430\u0447\u0430\u043b\u0430\"":0,"App\\Tests\\Domain\\OffPeakTest::testWindowBounds with data set \"\u0441\u0440\u0430\u0437\u0443 \u043f\u043e\u0441\u043b\u0435 \u043e\u043a\u043e\u043d\u0447\u0430\u043d\u0438\u044f\"":0,"App\\Tests\\Domain\\OffPeakTest::testWindowBounds with data set \"\u0441\u0440\u0430\u0437\u0443 \u0434\u043e \u043e\u043a\u043e\u043d\u0447\u0430\u043d\u0438\u044f (\u0447\u0435\u0440\u0435\u0437 \u043f\u043e\u043b\u043d\u043e\u0447\u044c)\"":0,"App\\Tests\\Domain\\OffPeakTest::testWindowBounds with data set \"\u043d\u043e\u0447\u044c \u0432\u043d\u0443\u0442\u0440\u0438 \u043e\u043a\u043d\u0430\"":0,"App\\Tests\\Domain\\OffPeakTest::testWindowBounds with data set \"\u043f\u043e\u043b\u0434\u0435\u043d\u044c \u0432\u043d\u0435 \u043e\u043a\u043d\u0430\"":0,"App\\Tests\\Domain\\OffPeakTest::testWindowBounds with data set \"\u043a\u043e\u043d\u0435\u0446 \u0441\u0443\u0442\u043e\u043a \u2014 \u0432\u043d\u0443\u0442\u0440\u0438 \u043e\u043a\u043d\u0430 \u0447\u0435\u0440\u0435\u0437 \u043f\u043e\u043b\u043d\u043e\u0447\u044c\"":0,"App\\Tests\\Domain\\OffPeakTest::testWindowBounds with data set \"\u043d\u0430\u0447\u0430\u043b\u043e \u0441\u0443\u0442\u043e\u043a \u2014 \u0432\u043d\u0443\u0442\u0440\u0438 \u043e\u043a\u043d\u0430 \u0447\u0435\u0440\u0435\u0437 \u043f\u043e\u043b\u043d\u043e\u0447\u044c\"":0,"App\\Tests\\Domain\\OffPeakTest::testNonMidnightWindow":0,"App\\Tests\\Domain\\OffPeakTest::testDegenerateWindowIsEmpty":0,"App\\Tests\\Domain\\OffPeakTest::testNullSourceMeansNoDiscount":0,"App\\Tests\\Domain\\MoneyTest::testRoundHalfUpTo6 with data set \"\u0448\u0435\u0441\u0442\u043e\u0439 \u0437\u043d\u0430\u043a: \u0440\u043e\u0432\u043d\u043e 5 \u2014 \u0432\u0432\u0435\u0440\u0445\"":0,"App\\Tests\\Domain\\OffPeakTest::testWindowBounds with data set \"\u043d\u043e\u0447\u044c \u0432\u043d\u0435 \u0437\u0430\u0433\u0438\u0431\u043e\u0432 \u043e\u043a\u043d\u0430 (03:00 \u2014 \u043f\u043e\u0441\u043b\u0435 00:30)\"":0}}
+\ В конце файла нет новой строки
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/PR_DESCRIPTION.md /tmp/billing-pi-v_3ra9n_/repo/PR_DESCRIPTION.md
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/PR_DESCRIPTION.md	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/PR_DESCRIPTION.md	2026-10-21 00:24:20.900157783 +0700
+@@ -0,0 +1,161 @@
++# PR: Учёт расходов на LLM-токены — консольное приложение
++
++## Что сделано
++
++Реализовано консольное приложение на PHP 8 + Symfony (console) + Doctrine ORM + PostgreSQL 17:
++
++- **`app:prices:import <file>`** — идемпотентный upsert справочника
++  (провайдеры по `code`, модели по `(provider, code)`, строки цен по
++  `(provider, model, valid_from)`). Некорректный JSON — код 1.
++- **`app:usage:import <file>`** — импорт событий (JSONL) с дедупликацией по
++  `(provider, provider_request_id)` (`INSERT ... ON CONFLICT DO NOTHING`),
++  код 0 даже если все строки — дубли; некорректная строка — код 1.
++- **`app:billing:rate`** — тарификация всех ещё не рассчитанных событий
++  (повторные попытки для unrated), stdout строго `RATED=<n> UNRATED=<m>`,
++  unrated-детали — в stderr.
++- **`app:billing:report [--from] [--to]`** — CSV по (user, model) с TOTAL;
++  на закреплённом примере вывод совпадает байт-в-байт.
++- **`app:billing:reprice <file>`** (бонус) — ретро-коррекция цены: upsert
++  строк цен справочника, пересчёт всех событий, тарифицированных заменёнными
++  строками; stdout ровно `REPRICED_EVENTS=<n>` и `REPRICE_DELTA_USD=<x.xxxxxx>`.
++- 32 юнит-теста (Money/округление HALF_UP, границы off-peak-окна, выбор цены
++  по времени, расчёт стоимости по обеим схемам тарификации): `make test`.
++
++## Ключевые решения
++
++**Слои** (`src/`):
++- `Domain/` — сущности (Provider, Model, PriceRow, UsageEvent) и
++  значения: `Money` (десятичная строка поверх bcmath, масштаб 24),
++  `OffPeak` (окно + множитель), `TokenUsage` (4 вида токенов),
++  `RateUnit` (enum схем тарификации);
++- `Importer/` — разбор/валидация входных файлов и upsert-логика
++  (общий парсер `PriceFile` используется и для импорта, и для коррекции);
++- `Billing/` — `CostCalculator` (формулы обеих схем + off-peak),
++  `PriceCatalog` (выбор действовавшей строки цены), `RaterService`,
++  `ReportService`, `RepriceService`;
++- `Command/` — тонкие консольные команды (парсинг аргументов, вывод, коды
++  выхода); `Support/` — разбор ISO-8601 UTC, валидация/нормализация
++  десятичных строк.
++
++**Деньги — только десятичные строки + bcmath.** Тип `float` не
++используется. Все промежуточные вычисления с масштабом 24 — без округления
++(в наших формулах точность ≥ 6 знаков достаточна для точного представления
++всех промежуточных величин: rate — до 6 знаков, умножение на целые токены,
++деление на 10⁶, множитель — до 6 знаков). Единственное округление — стоимость
++события до 6 знаков, HALF_UP, реализовано как «+ 0.0000005 и отброс хвоста»
++(стоимость всегда ≥ 0). Суммы отчёта/дельты — bcmath-суммы уже округлённых
++стоимостей, без повторного округления.
++
++**Выбор цены** — строка с наибольшим `valid_from ≤ ts` (`valid_from`
++включительно) среди строк модели события; отсутствует — unrated (не ошибка).
++
++**Оф-пик** — окно `[window_start, window_end)` по времени суток UTC,
++поддержка окна через полночь; вырожденное окно `start == end` трактуется как
++пустое; множитель применяется к стоимости всего события.
++
++**Идемпотентность** — справочник: upsert по ключам (повтор той же суммы в
++ДБ не приводит к изменениям); события: уникальное ограничение
++`(provider, provider_request_id)` + `ON CONFLICT DO NOTHING`. Рассчитанное
++событие (`rated = TRUE`) больше rate-командой не трогается.
++
++**Схема БД** — одна ручная миграция `migrations/Version20261020000001.php`
++(разворачивается на чистой базе через `make migrate`):
++`providers`, `models`, `price_rows` (уник. `(provider, model, valid_from)`),
++`usage_events` (уник. `(provider, provider_request_id)`, `cost
++numeric(28,6)`, `applied_price_valid_from`). При каскадном сбросе/повторном
++развёртывании схема чистая; миграция пишется в `up()`/`down()`.
++
++**Отчёт** — выборка рассчитанных событий за период `[from, to)` (включительно/
++исключительно) и агрегация в PHP: суммы токенов — целые, суммы стоимостей —
++bcmath; сортировка строк по (user, model) лексикографически; `model` печатается
++как `<provider>/<code>`; `cost_usd` — ровно 6 знаков; `TOTAL` — по отчёту.
++Unrated-события в отчёт не попадают.
++
++**Реализация бонуса (ретро-коррекция цены)** — при расчёте события
++фиксируется ключ применённой строки цены (`applied_price_valid_from`).
++`app:billing:reprice` (1) проверяет существование провайдера/модели
++**в справочнике БД** (секции providers/models в файле коррекции не нужны),
++(2) upsert-ом подставляет/добавляет строки цен, (3) ищет все `rated`
++события, чей ключ применённой строки совпал с ключами из файла, (4)
++пересчитывает их по актуальной строке цены (в т.ч. с учётом
++off-peak), перезаписывает `cost` и суммирует дельту. Остальные
++рассчитанные события не изменяются. Механизм — прямая перезапись
++стоимости (журнал корректировок/компенсации в задаче не требовался;
++итоговый `report` отражает новые суммы без задвоений). Повторный запуск
++correction файла — не меняет стоимости, дельта 0.000000.
++
++## Допущения (неоговорённые детали)
++
++- Цена: секции `providers`/`models` в файле импорта могут отсутствовать
++  (считаются пустыми); секция `prices` обязательна и непустая. В файле
++  коррекции секция `prices` может быть пустой.
++- Строки цен и `rates`/`multiplier` — десятичные строки ≥ 0, до 6 знаков
++  после точки; при записи нормализуются до ровно 6. `currency` — строка
++  ≤ 3 символов (проверка формата кода значения не выполняется).
++- Строка цены (и модель) в файле импорта могут ссылаться на
++  провайдеров/модели, загруженные ранее (в т.ч. из предыдущих
++  файлов); отсутствие ссылки при полном отсутствии — ошибка импорта (код 1).
++- Событие: все 9 полей обязательны. Пустые строки JSONL (в т.ч.
++  завершающий перенос) игнорируются. `ts` — строго `YYYY-MM-DDTHH:MM:SSZ`
++  (допустимы доли секунды до микросекунд); другие timezone-префиксы
++  считаются некорректными.
++- Событие с неизвестными/ещё не загруженными `provider`/`model` не
++  ошибка импорта, а unrated-событие (ценовой/справочный поток может
++  опережать журнал).
++- `REPRICED_EVENTS` — число всех пересчитанных затронутых событий, в т.ч.
++  тех, чья стоимость не изменилась (дельта по ним 0).
++- Отчёт строится как сумма по группе; `TOTAL` — сумма по всем группам
++  (эквивалентна сумме по всем событиям отчёта).
++- Окно off-peak, задающее `start == end`, трактуется как отсутствие
++  скидки (в спецификации такого случая нет).
++- Время хранится и читается в UTC (колонки `TIMESTAMP`; значения всегда
++  UTC); сравнение `valid_from` и `ts` по наивным timestamp — эквивалентно
++  сравнению UTC-моментов.
++
++## Как проверяли
++
++Чистая база + миграция:
++
++```bash
++make db-up
++make migrate
++```
++
++Приёмка (шаги 3–5 TASK.md, на чистой БД):
++
++```bash
++bin/console app:prices:import fixtures/prices.json
++bin/console app:usage:import fixtures/usage.jsonl
++bin/console app:billing:rate            # RATED=3 UNRATED=0
++bin/console app:billing:report --from=2026-09-01T00:00:00Z --to=2026-10-01T00:00:00Z
++#   вывод сравнен байт-в-байт с примером (cmp) — совпадает
++# повтор той же тройки команд — состояние и отчёт не меняются
++```
++
++Дополнительные проверенные сценарии (вручную, на тестовой копии данных):
++- off-peak: начало окна включительно (16:30 — скидка), окончание
++  исключительно (00:30 — пик), окно через полночь (00:15 — скидка);
++- unrated: событие раньше первой цены — `RATED=… UNRATED=1` + строка в
++  stderr; после импорта пропущенной цены повторный `rate` рассчитал его;
++- смена цены ровно в `valid_from`: e2 тарифицированной новой строкой;
++- дельта репрайсинга: ручные значения (в т.ч. отрицательная);
++  повторный запуск correction файла — дельта 0.000000;
++- коды ошибок (1) и понятные сообщения в stderr: плохой JSON,
++  не-JSONL строка, отсутствующий файл, отрицательные токены,
++  не-UTC `ts`, корректный reprice-файл на отсутствующую модель.
++
++Тесты: `make test` (32/32).
++
++## Отступления от каркаса / изменения
++
++- **Изменённые/добавленные файлы каркаса: нет** (изменения — `src/`,
++  `tests/`, `migrations/`, плюс данные в `var/`).
++- **Зависимости**: не добавлялись — используется только то, что уже в
++  `composer.json` (`doctrine/orm`, `doctrine-migrations-bundle`,
++  `symfony/*`, `ext-bcmath`).
++- В `migrations/` одна миграция `Version20261020000001.php` — полная
++  начальная схема (4 таблицы, ограничения, индексы на все ключи и `ts`),
++  применяется на чистой базе одним `make migrate`.
++- Консольные команды зарегистрированы автоконфигурацией
++  (`#[AsCommand]`, autowire из `config/services.yaml` — файл не переделывался).
++- Управление схемой — штатное: `make migrate` (doctrine-migrations).
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Billing/CostCalculator.php /tmp/billing-pi-v_3ra9n_/repo/src/Billing/CostCalculator.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Billing/CostCalculator.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/src/Billing/CostCalculator.php	2026-10-21 00:18:18.480832305 +0700
+@@ -0,0 +1,53 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Billing;
++
++use App\Domain\Catalog\PriceRow;
++use App\Domain\Catalog\RateUnit;
++use App\Domain\ValueObject\Money;
++use App\Domain\ValueObject\OffPeak;
++use App\Domain\ValueObject\TokenUsage;
++
++/**
++ * Точная десятичная оценка стоимости события (bcmath, масштаб с запасом).
++ *
++ * Порядок: базовая цена по схеме тарификации → off-peak-множитель →
++ * единственное округление итога до 6 знаков (HALF_UP).
++ */
++final class CostCalculator
++{
++    public function compute(
++        PriceRow $price,
++        TokenUsage $tokens,
++        ?OffPeak $offPeak,
++        \DateTimeImmutable $tsUtc,
++    ): Money {
++        $base = $this->baseCost($price, $tokens);
++
++        if ($offPeak !== null && $offPeak->covers($tsUtc)) {
++            $base = $base->multipliedBy($offPeak->multiplier());
++        }
++
++        return $base->roundTo6();
++    }
++
++    private function baseCost(PriceRow $price, TokenUsage $tokens): Money
++    {
++        if ($price->unit() === RateUnit::Per1mTokensUnified) {
++            $totalNumerator = bcmul((string) $tokens->total(), $price->rate('any'), 6);
++
++            return Money::of($totalNumerator)->dividedBy(PriceRow::TOKENS_PER_UNIT);
++        }
++
++        // per_1m_tokens: Σ tokens_вид × rate_вид / 1 000 000
++        $totalNumerator = '0';
++        foreach (TokenUsage::KINDS as $kind) {
++            $term = bcmul((string) $tokens->get($kind), $price->rate($kind), 6);
++            $totalNumerator = bcadd($totalNumerator, $term, 6);
++        }
++
++        return Money::of($totalNumerator)->dividedBy(PriceRow::TOKENS_PER_UNIT);
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Billing/PriceCatalog.php /tmp/billing-pi-v_3ra9n_/repo/src/Billing/PriceCatalog.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Billing/PriceCatalog.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/src/Billing/PriceCatalog.php	2026-10-21 00:22:34.276876678 +0700
+@@ -0,0 +1,91 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Billing;
++
++use App\Domain\Catalog\PriceRow;
++use Doctrine\ORM\EntityManagerInterface;
++
++/**
++ * Справочник цен в памяти на время прогона: выбор «действовавшей» строки цены.
++ *
++ * Строка цены события — строка с наибольшим valid_from, ≤ ts события
++ * (valid_from включительно).
++ */
++final class PriceCatalog
++{
++    /** @var array<string, list<PriceRow>> ключ "provider|model" → строки, отсортированные по validFrom */
++    private array $pricesByModel = [];
++
++    /** @var array<string, ?\App\Domain\ValueObject\OffPeak> code → настройка off-peak провайдера */
++    private array $offPeakByProvider = [];
++
++    private bool $loaded = false;
++
++    public function __construct(
++        private readonly EntityManagerInterface $em,
++    ) {
++    }
++
++    private function load(): void
++    {
++        if ($this->loaded) {
++            return;
++        }
++
++        foreach ($this->em->getRepository(PriceRow::class)->findAll() as $row) {
++            $key = $row->provider().'|'.$row->model();
++            $this->pricesByModel[$key][] = $row;
++        }
++
++        foreach ($this->pricesByModel as $key => $rows) {
++            usort($rows, static fn (PriceRow $a, PriceRow $b) => $a->validFrom() <=> $b->validFrom());
++            $this->pricesByModel[$key] = $rows;
++        }
++
++        $providers = $this->em->getConnection()->executeQuery('SELECT code, off_peak_start, off_peak_end, off_peak_multiplier FROM providers')->fetchAllAssociative();
++        foreach ($providers as $p) {
++            $this->offPeakByProvider[$p['code']] = $p['off_peak_start'] === null
++                ? null
++                : new \App\Domain\ValueObject\OffPeak($p['off_peak_start'], $p['off_peak_end'], $p['off_peak_multiplier']);
++        }
++
++        $this->loaded = true;
++    }
++
++    /** Строка цены, действовавшая в момент ts, или null (событие unrated). */
++    public function findPrice(string $provider, string $model, \DateTimeImmutable $ts): ?PriceRow
++    {
++        $this->load();
++
++        return self::selectFrom($this->pricesByModel["$provider|$model"] ?? [], $ts);
++    }
++
++    /**
++     * Правило выбора цены: строка с наибольшим valid_from ≤ ts
++     * (valid_from включительно). $rows — отсортированы по validFrom по
++     * возрастанию; возвращается null, если такой строки нет.
++     *
++     * @param list<PriceRow> $rows
++     */
++    public static function selectFrom(array $rows, \DateTimeImmutable $ts): ?PriceRow
++    {
++        $found = null;
++        foreach ($rows as $row) {
++            if ($row->validFrom() > $ts) {
++                break;
++            }
++            $found = $row;
++        }
++
++        return $found;
++    }
++
++    public function offPeak(string $provider): ?\App\Domain\ValueObject\OffPeak
++    {
++        $this->load();
++
++        return $this->offPeakByProvider["$provider"] ?? null;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Billing/RaterService.php /tmp/billing-pi-v_3ra9n_/repo/src/Billing/RaterService.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Billing/RaterService.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/src/Billing/RaterService.php	2026-10-21 00:20:01.914575635 +0700
+@@ -0,0 +1,64 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Billing;
++
++use App\Domain\Usage\UsageEvent;
++use Doctrine\ORM\EntityManagerInterface;
++
++/**
++ * Тарификация событий: каждый запуск повторяет попытку для всех ещё не
++ * рассчитанных (в т.ч. ранее unrated) событий. Рассчитанные события больше
++ * не обрабатываются («повторные попытки» касаются только rated = false).
++ */
++final class RaterService
++{
++    private const FLUSH_BATCH = 500;
++
++    public function __construct(
++        private readonly EntityManagerInterface $em,
++        private readonly PriceCatalog $catalog,
++        private readonly CostCalculator $calculator,
++    ) {
++    }
++
++    public function ratePending(): RateRunResult
++    {
++        $unrated = [];
++        $rated = 0;
++
++        $this->em->wrapInTransaction(function () use (&$unrated, &$rated): void {
++            /** @var UsageEvent[] $events */
++            $events = $this->em->getRepository(UsageEvent::class)->findBy(['rated' => false], ['id' => 'ASC']);
++
++            foreach ($events as $event) {
++                $price = $this->catalog->findPrice($event->provider(), $event->model(), $event->ts());
++                if ($price === null) {
++                    $unrated[] = [
++                        'provider' => $event->provider(),
++                        'providerRequestId' => $event->providerRequestId(),
++                        'ts' => $event->ts(),
++                    ];
++                    continue;
++                }
++
++                $cost = $this->calculator->compute(
++                    $price,
++                    $event->tokens(),
++                    $this->catalog->offPeak($event->provider()),
++                    $event->ts(),
++                );
++
++                $event->markRated($cost->format6(), $price->validFrom());
++                $rated++;
++
++                if ($rated % self::FLUSH_BATCH === 0) {
++                    $this->em->flush();
++                }
++            }
++        });
++
++        return new RateRunResult($rated, $unrated);
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Billing/RateRunResult.php /tmp/billing-pi-v_3ra9n_/repo/src/Billing/RateRunResult.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Billing/RateRunResult.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/src/Billing/RateRunResult.php	2026-10-21 00:18:52.465970257 +0700
+@@ -0,0 +1,25 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Billing;
++
++/**
++ * Результат однго прогона app:billing:rate.
++ */
++final class RateRunResult
++{
++    /**
++     * @param list<array{provider: string, providerRequestId: string, ts: \DateTimeImmutable}> $unrated
++     */
++    public function __construct(
++        public readonly int $rated,
++        public readonly array $unrated,
++    ) {
++    }
++
++    public function unratedCount(): int
++    {
++        return \count($this->unrated);
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Billing/ReportService.php /tmp/billing-pi-v_3ra9n_/repo/src/Billing/ReportService.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Billing/ReportService.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/src/Billing/ReportService.php	2026-10-21 00:20:25.091379435 +0700
+@@ -0,0 +1,117 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Billing;
++
++use App\Domain\Usage\UsageEvent;
++use App\Domain\ValueObject\Money;
++use Doctrine\DBAL\Types\Types;
++use Doctrine\ORM\EntityManagerInterface;
++
++/**
++ * Отчёт по расходам (CSV): группировка рассчитанных событий за период
++ * [from, to) по (user, model), суммы токенов и стоимостей, строка TOTAL.
++ *
++ * Стоимости суммируются bcmath по уже округлённым (6 знаков) стоимости
++ * событий — без повторного округления слагаемых.
++ */
++final class ReportService
++{
++    public function __construct(
++        private readonly EntityManagerInterface $em,
++    ) {
++    }
++
++    /**
++     * Строки CSV (без BOM, "\n" в конце каждой строки, включая последнюю).
++     */
++    public function buildReport(?\DateTimeImmutable $from, ?\DateTimeImmutable $to): string
++    {
++        $rows = $this->fetchEvents($from, $to);
++
++        /** @var array<string, array{input: int, output: int, cacheRead: int, cacheWrite: int, cost: string}> $groups */
++        $groups = [];
++        foreach ($rows as $row) {
++            $key = $row['user']."\x00".$row['provider'].'/'.$row['model'];
++            if (!isset($groups[$key])) {
++                $groups[$key] = ['input' => 0, 'output' => 0, 'cacheRead' => 0, 'cacheWrite' => 0, 'cost' => '0'];
++            }
++            $groups[$key]['input'] += $row['tokens_input'];
++            $groups[$key]['output'] += $row['tokens_output'];
++            $groups[$key]['cacheRead'] += $row['tokens_cache_read'];
++            $groups[$key]['cacheWrite'] += $row['tokens_cache_write'];
++            $groups[$key]['cost'] = bcadd($groups[$key]['cost'], $row['cost'], Money::FINAL_SCALE);
++        }
++
++        ksort($groups, SORT_STRING);
++
++        $out = "user,model,tokens_input,tokens_output,tokens_cache_read,tokens_cache_write,cost_usd\n";
++        $total = ['input' => 0, 'output' => 0, 'cacheRead' => 0, 'cacheWrite' => 0, 'cost' => '0'];
++        foreach ($groups as $key => $g) {
++            $pos = strpos($key, "\x00");
++            $user = substr($key, 0, $pos);
++            $model = substr($key, $pos + 1);
++            $out .= sprintf(
++                "%s,%s,%d,%d,%d,%d,%s\n",
++                $user,
++                $model,
++                $g['input'],
++                $g['output'],
++                $g['cacheRead'],
++                $g['cacheWrite'],
++                $g['cost'],
++            );
++            $total['input'] += $g['input'];
++            $total['output'] += $g['output'];
++            $total['cacheRead'] += $g['cacheRead'];
++            $total['cacheWrite'] += $g['cacheWrite'];
++            $total['cost'] = bcadd($total['cost'], $g['cost'], Money::FINAL_SCALE);
++        }
++
++        $out .= sprintf(
++            "TOTAL,,%d,%d,%d,%d,%s\n",
++            $total['input'],
++            $total['output'],
++            $total['cacheRead'],
++            $total['cacheWrite'],
++            $total['cost'],
++        );
++
++        return $out;
++    }
++
++    /**
++     * @return list<array{user: string, provider: string, model: string, tokens_input: int, tokens_output: int, tokens_cache_read: int, tokens_cache_write: int, cost: string}>
++     */
++    private function fetchEvents(?\DateTimeImmutable $from, ?\DateTimeImmutable $to): array
++    {
++        $sql = 'SELECT "user", provider, model, tokens_input, tokens_output, tokens_cache_read, tokens_cache_write, cost'
++             .' FROM usage_events WHERE rated = TRUE AND cost IS NOT NULL';
++        $parameters = [];
++        $types = [];
++
++        if ($from !== null) {
++            $sql .= ' AND ts >= :from';
++            $parameters['from'] = $from;
++            $types['from'] = Types::DATETIME_IMMUTABLE;
++        }
++        if ($to !== null) {
++            $sql .= ' AND ts < :to';
++            $parameters['to'] = $to;
++            $types['to'] = Types::DATETIME_IMMUTABLE;
++        }
++
++        $rows = $this->em->getConnection()->executeQuery($sql, $parameters, $types)->fetchAllAssociative();
++
++        foreach ($rows as $i => $row) {
++            $rows[$i]['tokens_input'] = (int) $row['tokens_input'];
++            $rows[$i]['tokens_output'] = (int) $row['tokens_output'];
++            $rows[$i]['tokens_cache_read'] = (int) $row['tokens_cache_read'];
++            $rows[$i]['tokens_cache_write'] = (int) $row['tokens_cache_write'];
++            $rows[$i]['cost'] = (string) $row['cost'];
++        }
++
++        return $rows;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Billing/RepriceService.php /tmp/billing-pi-v_3ra9n_/repo/src/Billing/RepriceService.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Billing/RepriceService.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/src/Billing/RepriceService.php	2026-10-21 00:21:36.343999032 +0700
+@@ -0,0 +1,149 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Billing;
++
++use App\Domain\Catalog\Model;
++use App\Domain\Catalog\PriceRow;
++use App\Domain\Catalog\Provider;
++use App\Domain\Usage\UsageEvent;
++use App\Domain\ValueObject\OffPeak;
++use App\Importer\ImportException;
++use App\Importer\PriceFile;
++use Doctrine\ORM\EntityManagerInterface;
++
++use function bcsub;
++
++/**
++ * Ретро-коррекция цены (бонус).
++ *
++ * Файл коррекции — тот же формат, что файл цен; секции providers/models
++ * могут отсутствовать или быть пустыми: провайдер и модель должны
++ * существовать в справочнике БД.
++ *
++ * Механизм:
++ *  1) строки цен из файла применяются upsert-ом по (provider, model,
++ *     valid_from) по данным уже загруженного справочника;
++ *  2) события, тарифицировавшиеся именно этими строками (ключ
++ *     применённой строки хранится в applied_price_valid_from),
++ *     пересчитываются по актуальной строке цены;
++ *  3) стоимость события перезаписывается; дельта = новое − старая сумма.
++ * События, рассчитанные по другим строкам, не изменяются.
++ */
++final class RepriceService
++{
++    public function __construct(
++        private readonly EntityManagerInterface $em,
++        private readonly CostCalculator $calculator,
++    ) {
++    }
++
++    /**
++     * @throws ImportException
++     */
++    public function reprice(string $path): array
++    {
++        $file = PriceFile::parse($path, requirePrices: false);
++
++        return $this->em->wrapInTransaction(function () use ($file): array {
++            $conn = $this->em->getConnection();
++            $providerCodes = $conn->executeQuery('SELECT code FROM providers')->fetchFirstColumn();
++            $modelKeys = $conn->executeQuery("SELECT provider || '|' || code FROM models")->fetchFirstColumn();
++
++            $affectedKeys = [];
++            foreach ($file->prices as $spec) {
++                if (!in_array($spec['provider'], $providerCodes, true)) {
++                    throw new ImportException(sprintf('prices: провайдер "%s" не найден в справочнике', $spec['provider']));
++                }
++                if (!in_array($spec['provider'].'|'.$spec['model'], $modelKeys, true)) {
++                    throw new ImportException(sprintf('prices: модель "%s" не найдена в справочнике', $spec['provider'].'/'.$spec['model']));
++                }
++                $this->upsertPrice($spec);
++                $affectedKeys[] = $spec['provider'].'|'.$spec['model'].'|'.$spec['validFrom']->getTimestamp();
++            }
++
++            $recomputed = 0;
++            $delta = '0';
++            foreach ($this->findAffectedEvents($affectedKeys) as $event) {
++                $price = $this->em->getRepository(PriceRow::class)->findOneBy([
++                    'provider' => $event->provider(),
++                    'model' => $event->model(),
++                    'validFrom' => $event->appliedPriceValidFrom(),
++                ]);
++                if ($price === null) {
++                    throw new \LogicException('Заменённая строка цен не найдена после upsert');
++                }
++
++                $newCost = $this->calculator->compute(
++                    $price,
++                    $event->tokens(),
++                    $this->findOffPeak($event->provider()),
++                    $event->ts(),
++                );
++                $old = (string) $event->cost();
++                $new = $newCost->format6();
++                $delta = bcadd($delta, bcsub($new, $old, 24), 24);
++                $event->setCost($new);
++                $recomputed++;
++            }
++
++            return ['events' => $recomputed, 'delta' => bcadd($delta, '0', 6)];
++        });
++    }
++
++    /**
++     * События, рассчитанные по строкам, затронутым коррекцией.
++     *
++     * @param list<string> $affectedKeys "provider|model|unix-ts valid_from"
++     *
++     * @return UsageEvent[]
++     */
++    private function findAffectedEvents(array $affectedKeys): array
++    {
++        if ($affectedKeys === []) {
++            return [];
++        }
++        $affected = array_flip($affectedKeys);
++
++        /** @var UsageEvent[] $events */
++        $events = $this->em->getRepository(UsageEvent::class)->findBy(['rated' => true]);
++
++        return array_values(array_filter($events, static function (UsageEvent $event) use ($affected): bool {
++            $applied = $event->appliedPriceValidFrom();
++            if ($applied === null) {
++                return false;
++            }
++
++            $key = $event->provider().'|'.$event->model().'|'.$applied->getTimestamp();
++
++            return isset($affected[$key]);
++        }));
++    }
++
++    private function findOffPeak(string $provider): ?OffPeak
++    {
++        $provider = $this->em->getRepository(Provider::class)->findOneBy(['code' => $provider]);
++
++        return $provider?->offPeak();
++    }
++
++    private function upsertPrice(array $spec): void
++    {
++        $repository = $this->em->getRepository(PriceRow::class);
++        $row = $repository->findOneBy([
++            'provider' => $spec['provider'],
++            'model' => $spec['model'],
++            'validFrom' => $spec['validFrom'],
++        ]);
++
++        if ($row === null) {
++            $row = new PriceRow();
++            $row->setProvider($spec['provider']);
++            $row->setModel($spec['model']);
++            $row->setValidFrom($spec['validFrom']);
++            $this->em->persist($row);
++        }
++        $row->set($spec['currency'], $spec['unit'], $spec['rates']);
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/BillingRateCommand.php /tmp/billing-pi-v_3ra9n_/repo/src/Command/BillingRateCommand.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/BillingRateCommand.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/src/Command/BillingRateCommand.php	2026-10-21 00:19:43.380187520 +0700
+@@ -0,0 +1,49 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Command;
++
++use App\Billing\RaterService;
++use Symfony\Component\Console\Attribute\AsCommand;
++use Symfony\Component\Console\Command\Command;
++use Symfony\Component\Console\Input\InputInterface;
++use Symfony\Component\Console\Output\OutputInterface;
++
++/**
++ * app:billing:rate
++ *
++ * Тарификарует все ещё не рассчитанные события (включая повторные попытки
++ * для ранее unrated). stdout: строго «RATED=<n> UNRATED=<m>»;
++ * stderr: по строке «UNRATED <provider>/<id> <ts> no_price» на unrated.
++ */
++#[AsCommand(
++    name: 'app:billing:rate',
++    description: 'Тарификация не рассчитанных событий (повторные попытки для unrated)',
++)]
++final class BillingRateCommand extends Command
++{
++    public function __construct(
++        private readonly RaterService $rater,
++    ) {
++        parent::__construct();
++    }
++
++    protected function execute(InputInterface $input, OutputInterface $output): int
++    {
++        $result = $this->rater->ratePending();
++
++        foreach ($result->unrated as $item) {
++            $output->getErrorOutput()->writeln(sprintf(
++                'UNRATED %s/%s %s no_price',
++                $item['provider'],
++                $item['providerRequestId'],
++                $item['ts']->format('Y-m-d\TH:i:s\Z'),
++            ));
++        }
++
++        $output->writeln(sprintf('RATED=%d UNRATED=%d', $result->rated, $result->unratedCount()));
++
++        return Command::SUCCESS;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/BillingReportCommand.php /tmp/billing-pi-v_3ra9n_/repo/src/Command/BillingReportCommand.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/BillingReportCommand.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/src/Command/BillingReportCommand.php	2026-10-21 00:20:28.226318700 +0700
+@@ -0,0 +1,67 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Command;
++
++use App\Billing\ReportService;
++use App\Support\DateTimeParser;
++use Symfony\Component\Console\Attribute\AsCommand;
++use Symfony\Component\Console\Command\Command;
++use Symfony\Component\Console\Input\InputInterface;
++use Symfony\Component\Console\Input\InputOption;
++use Symfony\Component\Console\Output\OutputInterface;
++
++/**
++ * app:billing:report [--from=ISO] [--to=ISO]
++ *
++ * CSV в stdout; сервисные сообщения — в stderr. Период [from, to) — по ts
++ * событий (from включительно, to исключительно).
++ */
++#[AsCommand(
++    name: 'app:billing:report',
++    description: 'Отчёт по расходам (CSV: user, model, токены, cost_usd, TOTAL)',
++)]
++final class BillingReportCommand extends Command
++{
++    public function __construct(
++        private readonly ReportService $reportService,
++    ) {
++        parent::__construct();
++    }
++
++    protected function configure(): void
++    {
++        $this
++            ->addOption('from', null, InputOption::VALUE_OPTIONAL, 'Начало периода (включительно), ISO-8601 UTC', null)
++            ->addOption('to', null, InputOption::VALUE_OPTIONAL, 'Конец периода (исключительно), ISO-8601 UTC', null);
++    }
++
++    protected function execute(InputInterface $input, OutputInterface $output): int
++    {
++        try {
++            $from = $this->parseOption($input, 'from');
++            $to = $this->parseOption($input, 'to');
++        } catch (\DomainException $e) {
++            $output->getErrorOutput()->writeln('ОШИБКА АРГУМЕНТОВ: '.$e->getMessage());
++
++            return Command::FAILURE;
++        }
++
++        $csv = $this->reportService->buildReport($from, $to);
++        // Вывод строго в stdout, байт-в-байт (CSV уже заканчивается "\n").
++        $output->write($csv);
++
++        return Command::SUCCESS;
++    }
++
++    private function parseOption(InputInterface $input, string $name): ?\DateTimeImmutable
++    {
++        $value = $input->getOption($name);
++        if ($value === null || $value === '') {
++            return null;
++        }
++
++        return DateTimeParser::parseUtc("--$name", (string) $value);
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/BillingRepriceCommand.php /tmp/billing-pi-v_3ra9n_/repo/src/Command/BillingRepriceCommand.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/BillingRepriceCommand.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/src/Command/BillingRepriceCommand.php	2026-10-21 00:21:53.397576564 +0700
+@@ -0,0 +1,56 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Command;
++
++use App\Billing\RepriceService;
++use App\Importer\ImportException;
++use Symfony\Component\Console\Attribute\AsCommand;
++use Symfony\Component\Console\Command\Command;
++use Symfony\Component\Console\Input\InputArgument;
++use Symfony\Component\Console\Input\InputInterface;
++use Symfony\Component\Console\Output\OutputInterface;
++
++/**
++ * app:billing:reprice <file> (бонус: ретро-коррекция цены)
++ *
++ * stdout: ровно две строки
++ *   REPRICED_EVENTS=<n>
++ *   REPRICE_DELTA_USD=<x.xxxxxx>
++ */
++#[AsCommand(
++    name: 'app:billing:reprice',
++    description: 'Ретро-коррекция цены: применить исправленные строки цен и пересчитать затронутые события',
++)]
++final class BillingRepriceCommand extends Command
++{
++    public function __construct(
++        private readonly RepriceService $repriceService,
++    ) {
++        parent::__construct();
++    }
++
++    protected function configure(): void
++    {
++        $this->addArgument('file', InputArgument::REQUIRED, 'Путь к JSON-файлу с исправленными строками цен');
++    }
++
++    protected function execute(InputInterface $input, OutputInterface $output): int
++    {
++        $file = (string) $input->getArgument('file');
++
++        try {
++            $result = $this->repriceService->reprice($file);
++        } catch (ImportException|\DomainException $e) {
++            $output->getErrorOutput()->writeln('ОШИБКА КОРРЕКЦИИ: '.$e->getMessage());
++
++            return Command::FAILURE;
++        }
++
++        $output->writeln("REPRICED_EVENTS={$result['events']}");
++        $output->writeln("REPRICE_DELTA_USD={$result['delta']}");
++
++        return Command::SUCCESS;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/PricesImportCommand.php /tmp/billing-pi-v_3ra9n_/repo/src/Command/PricesImportCommand.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/PricesImportCommand.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/src/Command/PricesImportCommand.php	2026-10-21 00:21:53.208656967 +0700
+@@ -0,0 +1,54 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Command;
++
++use App\Importer\ImportException;
++use App\Importer\PriceImporter;
++use Symfony\Component\Console\Attribute\AsCommand;
++use Symfony\Component\Console\Command\Command;
++use Symfony\Component\Console\Input\InputArgument;
++use Symfony\Component\Console\Input\InputInterface;
++use Symfony\Component\Console\Output\OutputInterface;
++
++/**
++ * app:prices:import <file>
++ *
++ * Идемпотентный upsert справочника цен. Служебные сообщения — в stderr;
++ * stdout остаётся чистым. Выход: 0 — успех, 1 — некорректные данные.
++ */
++#[AsCommand(
++    name: 'app:prices:import',
++    description: 'Импорт (upsert) справочника: провайдеры, модели, история цен',
++)]
++final class PricesImportCommand extends Command
++{
++    public function __construct(
++        private readonly PriceImporter $importer,
++    ) {
++        parent::__construct();
++    }
++
++    protected function configure(): void
++    {
++        $this->addArgument('file', InputArgument::REQUIRED, 'Путь к JSON-файлу истории цен');
++    }
++
++    protected function execute(InputInterface $input, OutputInterface $output): int
++    {
++        $file = (string) $input->getArgument('file');
++
++        try {
++            $this->importer->importFile($file);
++        } catch (ImportException|\DomainException $e) {
++            $output->getErrorOutput()->writeln('ОШИБКА ИМПОРТА: '.$e->getMessage());
++
++            return Command::FAILURE;
++        }
++
++        $output->getErrorOutput()->writeln('OK: справочник импортирован ('.$file.')');
++
++        return Command::SUCCESS;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/UsageImportCommand.php /tmp/billing-pi-v_3ra9n_/repo/src/Command/UsageImportCommand.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/UsageImportCommand.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/src/Command/UsageImportCommand.php	2026-10-21 00:21:53.305235604 +0700
+@@ -0,0 +1,54 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Command;
++
++use App\Importer\ImportException;
++use App\Importer\UsageImporter;
++use Symfony\Component\Console\Attribute\AsCommand;
++use Symfony\Component\Console\Command\Command;
++use Symfony\Component\Console\Input\InputArgument;
++use Symfony\Component\Console\Input\InputInterface;
++use Symfony\Component\Console\Output\OutputInterface;
++
++/**
++ * app:usage:import <file>
++ *
++ * Импорт событий использования (JSONL); дубли по (provider,
++ * provider_request_id) игнорируются, код 0 даже если все строки — дубли.
++ */
++#[AsCommand(
++    name: 'app:usage:import',
++    description: 'Импорт событий использования (JSONL, дедупликация по eстественному ключу)',
++)]
++final class UsageImportCommand extends Command
++{
++    public function __construct(
++        private readonly UsageImporter $importer,
++    ) {
++        parent::__construct();
++    }
++
++    protected function configure(): void
++    {
++        $this->addArgument('file', InputArgument::REQUIRED, 'Путь к JSONL-файлу событий');
++    }
++
++    protected function execute(InputInterface $input, OutputInterface $output): int
++    {
++        $file = (string) $input->getArgument('file');
++
++        try {
++            $this->importer->importFile($file);
++        } catch (ImportException|\DomainException $e) {
++            $output->getErrorOutput()->writeln('ОШИБКА ИМПОРТА: '.$e->getMessage());
++
++            return Command::FAILURE;
++        }
++
++        $output->getErrorOutput()->writeln('OK: события импортированы ('.$file.')');
++
++        return Command::SUCCESS;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Catalog/Model.php /tmp/billing-pi-v_3ra9n_/repo/src/Domain/Catalog/Model.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Catalog/Model.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/src/Domain/Catalog/Model.php	2026-10-21 00:17:19.140981917 +0700
+@@ -0,0 +1,55 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Domain\Catalog;
++
++use Doctrine\ORM\Mapping as ORM;
++
++#[ORM\Entity]
++#[ORM\Table(name: 'models')]
++#[ORM\UniqueConstraint(name: 'uniq_models_provider_code', columns: ['provider', 'code'])]
++class Model
++{
++    #[ORM\Id]
++    #[ORM\GeneratedValue]
++    #[ORM\Column(type: 'integer')]
++    private ?int $id = null;
++
++    #[ORM\Column(type: 'string', length: 128)]
++    private string $provider = '';
++
++    #[ORM\Column(type: 'string', length: 128)]
++    private string $code = '';
++
++    public function id(): ?int
++    {
++        return $this->id;
++    }
++
++    public function provider(): string
++    {
++        return $this->provider;
++    }
++
++    public function code(): string
++    {
++        return $this->code;
++    }
++
++    /** Отображаемое имя модели: "<provider>/<code>". */
++    public function fullName(): string
++    {
++        return $this->provider.'/'.$this->code;
++    }
++
++    public function setProvider(string $provider): void
++    {
++        $this->provider = $provider;
++    }
++
++    public function setCode(string $code): void
++    {
++        $this->code = $code;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Catalog/PriceRow.php /tmp/billing-pi-v_3ra9n_/repo/src/Domain/Catalog/PriceRow.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Catalog/PriceRow.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/src/Domain/Catalog/PriceRow.php	2026-10-21 00:17:19.140981917 +0700
+@@ -0,0 +1,131 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Domain\Catalog;
++
++use App\Support\Decimal;
++use Doctrine\ORM\Mapping as ORM;
++
++/**
++ * Строка истории цен: цена модели с момента valid_from (включительно).
++ * Ключ записи — (provider, model, valid_from).
++ */
++#[ORM\Entity]
++#[ORM\Table(name: 'price_rows')]
++#[ORM\UniqueConstraint(name: 'uniq_price_rows_provider_model_from', columns: ['provider', 'model', 'valid_from'])]
++#[ORM\Index(name: 'idx_price_rows_lookup', columns: ['provider', 'model', 'valid_from'])]
++class PriceRow
++{
++    public const TOKENS_PER_UNIT = 1_000_000;
++
++    #[ORM\Id]
++    #[ORM\GeneratedValue]
++    #[ORM\Column(type: 'integer')]
++    private ?int $id = null;
++
++    #[ORM\Column(type: 'string', length: 128)]
++    private string $provider = '';
++
++    #[ORM\Column(type: 'string', length: 128)]
++    private string $model = '';
++
++    #[ORM\Column(name: 'valid_from', type: 'datetime_immutable')]
++    private \DateTimeImmutable $validFrom;
++
++    #[ORM\Column(type: 'string', length: 3)]
++    private string $currency = 'USD';
++
++    #[ORM\Column(type: 'string', length: 32, enumType: RateUnit::class)]
++    private RateUnit $unit;
++
++    /** JSON-строка: ключи вида → десятичная строка с 6 знаками. */
++    #[ORM\Column(name: 'rates_json', type: 'text')]
++    private string $ratesJson = '{}';
++
++    private ?array $rates = null;
++
++    public function __construct()
++    {
++        $this->validFrom = new \DateTimeImmutable('1970-01-01T00:00:00+00:00');
++    }
++
++    public function id(): ?int
++    {
++        return $this->id;
++    }
++
++    public function provider(): string
++    {
++        return $this->provider;
++    }
++
++    public function model(): string
++    {
++        return $this->model;
++    }
++
++    public function validFrom(): \DateTimeImmutable
++    {
++        return $this->validFrom;
++    }
++
++    public function currency(): string
++    {
++        return $this->currency;
++    }
++
++    public function unit(): RateUnit
++    {
++        return $this->unit;
++    }
++
++    /** @return array<string, string> нормализованные ставки (6 знаков) */
++    public function rates(): array
++    {
++        return $this->rates ??= json_decode($this->ratesJson, true);
++    }
++
++    /** Ставка по ключу вида ("input"/"output"/.../"any") как десятичная строка. */
++    public function rate(string $kind): string
++    {
++        return $this->rates()["$kind"];
++    }
++
++    public function setProvider(string $provider): void
++    {
++        $this->provider = $provider;
++    }
++
++    public function setModel(string $model): void
++    {
++        $this->model = $model;
++    }
++
++    public function setValidFrom(\DateTimeImmutable $validFrom): void
++    {
++        $this->validFrom = $validFrom;
++    }
++
++    public function set(string $currency, RateUnit $unit, array $rates): void
++    {
++        $this->currency = $currency;
++        $this->unit = $unit;
++        $this->rates = null;
++        $this->ratesJson = json_encode($this->normalizeRates($unit, $rates), JSON_THROW_ON_ERROR);
++    }
++
++    /** @param array<string, mixed> $rates */
++    private function normalizeRates(RateUnit $unit, array $rates): array
++    {
++        $normalized = [];
++        foreach ($unit->rateKeys() as $kind) {
++            if (!array_key_exists($kind, $rates)) {
++                throw new \DomainException("rates: отсутствует ставка для вида \"$kind\" (схема {$unit->value})");
++            }
++            $normalized[$kind] = Decimal::normalize6(Decimal::validate($kind, $rates[$kind]));
++        }
++
++        return $normalized;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Catalog/Provider.php /tmp/billing-pi-v_3ra9n_/repo/src/Domain/Catalog/Provider.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Catalog/Provider.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/src/Domain/Catalog/Provider.php	2026-10-21 00:17:05.458960639 +0700
+@@ -0,0 +1,83 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Domain\Catalog;
++
++use App\Domain\ValueObject\OffPeak;
++use Doctrine\ORM\Mapping as ORM;
++
++#[ORM\Entity]
++#[ORM\Table(name: 'providers')]
++#[ORM\UniqueConstraint(name: 'uniq_providers_code', columns: ['code'])]
++class Provider
++{
++    #[ORM\Id]
++    #[ORM\GeneratedValue]
++    #[ORM\Column(type: 'integer')]
++    private ?int $id = null;
++
++    #[ORM\Column(type: 'string', length: 128)]
++    private string $code = '';
++
++    #[ORM\Column(type: 'string', length: 255)]
++    private string $name = '';
++
++    #[ORM\Column(name: 'off_peak_start', type: 'string', length: 5, nullable: true)]
++    private ?string $offPeakStart = null;
++
++    #[ORM\Column(name: 'off_peak_end', type: 'string', length: 5, nullable: true)]
++    private ?string $offPeakEnd = null;
++
++    #[ORM\Column(name: 'off_peak_multiplier', type: 'string', length: 32, nullable: true)]
++    private ?string $offPeakMultiplier = null;
++
++    public function id(): ?int
++    {
++        return $this->id;
++    }
++
++    public function code(): string
++    {
++        return $this->code;
++    }
++
++    public function name(): string
++    {
++        return $this->name;
++    }
++
++    public function offPeak(): ?OffPeak
++    {
++        if ($this->offPeakStart === null || $this->offPeakEnd === null || $this->offPeakMultiplier === null) {
++            return null;
++        }
++
++        return new OffPeak($this->offPeakStart, $this->offPeakEnd, $this->offPeakMultiplier);
++    }
++
++    public function setCode(string $code): void
++    {
++        $this->code = $code;
++    }
++
++    public function setName(string $name): void
++    {
++        $this->name = $name;
++    }
++
++    public function setOffPeak(?OffPeak $offPeak): void
++    {
++        if ($offPeak === null) {
++            $this->offPeakStart = null;
++            $this->offPeakEnd = null;
++            $this->offPeakMultiplier = null;
++
++            return;
++        }
++
++        $this->offPeakStart = $offPeak->windowStart();
++        $this->offPeakEnd = $offPeak->windowEnd();
++        $this->offPeakMultiplier = $offPeak->multiplier();
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Catalog/RateUnit.php /tmp/billing-pi-v_3ra9n_/repo/src/Domain/Catalog/RateUnit.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Catalog/RateUnit.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/src/Domain/Catalog/RateUnit.php	2026-10-21 00:17:05.458960639 +0700
+@@ -0,0 +1,20 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Domain\Catalog;
++
++enum RateUnit: string
++{
++    case Per1mTokens = 'per_1m_tokens';
++    case Per1mTokensUnified = 'per_1m_tokens_unified';
++
++    /** @return list<string> требуемые ключи rates для схемы */
++    public function rateKeys(): array
++    {
++        return match ($this) {
++            self::Per1mTokens => ['input', 'output', 'cache_read', 'cache_write'],
++            self::Per1mTokensUnified => ['any'],
++        };
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Usage/UsageEvent.php /tmp/billing-pi-v_3ra9n_/repo/src/Domain/Usage/UsageEvent.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Usage/UsageEvent.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/src/Domain/Usage/UsageEvent.php	2026-10-21 00:17:28.180806786 +0700
+@@ -0,0 +1,157 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Domain\Usage;
++
++use App\Domain\ValueObject\TokenUsage;
++use Doctrine\ORM\Mapping as ORM;
++
++/**
++ * Событие использования (запрос к модели).
++ *
++ * Естественный ключ — (provider, provider_request_id); повторная доставка
++ * игнорируется. Состояние тарификации:
++ *  - rated = false — ещё не рассчитано (будет повторный прогон в app:billing:rate);
++ *  - rated = true, cost — округлённая до 6 знаков стоимость события;
++ *    appliedPriceValidFrom — ключ строки цен, которой тарифицировано
++ *    (нужно для ретро-коррекции цены).
++ */
++#[ORM\Entity]
++#[ORM\Table(name: 'usage_events')]
++#[ORM\UniqueConstraint(name: 'uniq_usage_events_provider_request', columns: ['provider', 'provider_request_id'])]
++#[ORM\Index(name: 'idx_usage_events_rated', columns: ['rated'])]
++#[ORM\Index(name: 'idx_usage_events_ts', columns: ['ts'])]
++#[ORM\Index(name: 'idx_usage_events_applied_price', columns: ['provider', 'model', 'applied_price_valid_from'])]
++class UsageEvent
++{
++    #[ORM\Id]
++    #[ORM\GeneratedValue]
++    #[ORM\Column(type: 'integer')]
++    private ?int $id = null;
++
++    #[ORM\Column(type: 'string', length: 128)]
++    private string $provider = '';
++
++    #[ORM\Column(name: 'provider_request_id', type: 'string', length: 512)]
++    private string $providerRequestId = '';
++
++    #[ORM\Column(type: 'string', length: 128)]
++    private string $model = '';
++
++    #[ORM\Column(type: 'string', length: 255)]
++    private string $user = '';
++
++    #[ORM\Column(type: 'datetime_immutable')]
++    private \DateTimeImmutable $ts;
++
++    #[ORM\Column(name: 'tokens_input', type: 'bigint')]
++    private int $tokensInput = 0;
++
++    #[ORM\Column(name: 'tokens_output', type: 'bigint')]
++    private int $tokensOutput = 0;
++
++    #[ORM\Column(name: 'tokens_cache_read', type: 'bigint')]
++    private int $tokensCacheRead = 0;
++
++    #[ORM\Column(name: 'tokens_cache_write', type: 'bigint')]
++    private int $tokensCacheWrite = 0;
++
++    #[ORM\Column(type: 'boolean')]
++    private bool $rated = false;
++
++    /** Ровно 6 знаков после точки; null, пока событие не рассчитано (numeric(28,6)). */
++    #[ORM\Column(type: 'decimal', precision: 28, scale: 6, nullable: true)]
++    private ?string $cost = null;
++
++    #[ORM\Column(name: 'applied_price_valid_from', type: 'datetime_immutable', nullable: true)]
++    private ?\DateTimeImmutable $appliedPriceValidFrom = null;
++
++    public static function naturalKey(string $provider, string $providerRequestId): string
++    {
++        return $provider.'/'.$providerRequestId;
++    }
++
++    public function id(): ?int
++    {
++        return $this->id;
++    }
++
++    public function provider(): string
++    {
++        return $this->provider;
++    }
++
++    public function providerRequestId(): string
++    {
++        return $this->providerRequestId;
++    }
++
++    public function model(): string
++    {
++        return $this->model;
++    }
++
++    public function user(): string
++    {
++        return $this->user;
++    }
++
++    public function ts(): \DateTimeImmutable
++    {
++        return $this->ts;
++    }
++
++    public function tokens(): TokenUsage
++    {
++        return TokenUsage::fromKinds([
++            'input' => $this->tokensInput,
++            'output' => $this->tokensOutput,
++            'cache_read' => $this->tokensCacheRead,
++            'cache_write' => $this->tokensCacheWrite,
++        ]);
++    }
++
++    public function rated(): bool
++    {
++        return $this->rated;
++    }
++
++    /** @return string|null стоимость события, 6 знаков, или null */
++    public function cost(): ?string
++    {
++        return $this->cost;
++    }
++
++    public function appliedPriceValidFrom(): ?\DateTimeImmutable
++    {
++        return $this->appliedPriceValidFrom;
++    }
++
++    public function set(string $provider, string $providerRequestId, string $model, string $user, \DateTimeImmutable $ts, int $tokensInput, int $tokensOutput, int $tokensCacheRead, int $tokensCacheWrite): void
++    {
++        $this->provider = $provider;
++        $this->providerRequestId = $providerRequestId;
++        $this->model = $model;
++        $this->user = $user;
++        $this->ts = $ts;
++        $this->tokensInput = $tokensInput;
++        $this->tokensOutput = $tokensOutput;
++        $this->tokensCacheRead = $tokensCacheRead;
++        $this->tokensCacheWrite = $tokensCacheWrite;
++    }
++
++    /** Зафиксировать результат расчёта (округлённая стоимость + key строки цен). */
++    public function markRated(string $cost6, \DateTimeImmutable $priceValidFrom): void
++    {
++        $this->rated = true;
++        $this->cost = $cost6;
++        $this->appliedPriceValidFrom = $priceValidFrom;
++    }
++
++    /** Пересчёт после ретро-коррекции цены. */
++    public function setCost(string $cost6): void
++    {
++        $this->cost = $cost6;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/ValueObject/Money.php /tmp/billing-pi-v_3ra9n_/repo/src/Domain/ValueObject/Money.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/ValueObject/Money.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/src/Domain/ValueObject/Money.php	2026-10-21 00:17:01.030846974 +0700
+@@ -0,0 +1,106 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Domain\ValueObject;
++
++/**
++ * Невариантная десятичная величина денег (bcmath, внутренний масштаб 24).
++ *
++ * Инварианты:
++ *  - хранится как строка вида "123.456" (десятичная, без экспоненции);
++ *  - все операции выполняются bcmath — тип float в деньгах не используется;
++ *  - итоговое представление стоимости события — 6 знаков после точки (roundTo6).
++ */
++final class Money
++{
++    public const INTERNAL_SCALE = 24;
++    public const FINAL_SCALE = 6;
++
++    private function __construct(
++        private readonly string $value,
++    ) {
++    }
++
++    public static function of(string $value): self
++    {
++        if (!preg_match('/^-?\d+(\.\d+)?$/', $value)) {
++            throw new \InvalidArgumentException(sprintf('Некорректная десятичная строка: %s', $value));
++        }
++
++        return new self($value);
++    }
++
++    public static function zero(): self
++    {
++        return new self('0');
++    }
++
++    /** Точное значение как строка. */
++    public function value(): string
++    {
++        return $this->value;
++    }
++
++    public function isNegative(): bool
++    {
++        return str_starts_with($this->value, '-');
++    }
++
++    /** Сложение без округления (обе слагаемые — точные десятичные). */
++    public function add(self $other): self
++    {
++        return new self(bcadd($this->value, $other->value, self::INTERNAL_SCALE));
++    }
++
++    /** Сложение строковой десятичной (rates хранятся в строках). */
++    public function addDecimal(string $other): self
++    {
++        return new self(bcadd($this->value, $other, self::INTERNAL_SCALE));
++    }
++
++    /** Умножение на десятичный множитель (off-peak). */
++    public function multipliedBy(string $factor): self
++    {
++        return new self(bcmul($this->value, $factor, self::INTERNAL_SCALE));
++    }
++
++    /**
++     * Деление на целое (делитель 1 000 000 для per-1m-схем) с запасом масштаба.
++     * Делитель — степень 10, результат на масштабе >= 6 — точный.
++     */
++    public function dividedBy(int $divisor): self
++    {
++        return new self(bcdiv($this->value, (string) $divisor, self::INTERNAL_SCALE));
++    }
++
++    /**
++     * Округление до 6 знаков после точки, HALF_UP (2.5 → 3; для неотрицательных —
++     * «+ половина шага и отброс хвоста»). Результат — ровно 6 знаков.
++     */
++    public function roundTo6(): self
++    {
++        if ($this->isNegative()) {
++            throw new \LogicException('Округление отрицательной стоимости события не ожидается');
++        }
++
++        $shifted = bcadd($this->value, '0.0000005', self::INTERNAL_SCALE);
++
++        return new self(bcdiv($shifted, '1', self::FINAL_SCALE));
++    }
++
++    /**
++     * Форматировать в отчёт: ровно 6 знаков после точки.
++     * Допустимо только для величин, которые не грубее 6 знаков (суммы
++     * округлённых стоимостей событий — такие).
++     */
++    public function format6(): string
++    {
++        return bcadd($this->value, '0', self::FINAL_SCALE);
++    }
++
++    public function __toString(): string
++    {
++        return $this->value;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/ValueObject/OffPeak.php /tmp/billing-pi-v_3ra9n_/repo/src/Domain/ValueObject/OffPeak.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/ValueObject/OffPeak.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/src/Domain/ValueObject/OffPeak.php	2026-10-21 00:17:19.142262352 +0700
+@@ -0,0 +1,88 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Domain\ValueObject;
++
++/**
++ * Оф-пиковое окно провайдера по времени суток UTC:
++ * [windowStart, windowEnd), окно может переходить через полночь.
++ */
++final class OffPeak
++{
++    public function __construct(
++        private readonly string $windowStart,
++        private readonly string $windowEnd,
++        private readonly string $multiplier,
++    ) {
++        if (!preg_match('/^\d{2}:\d{2}$/', $this->windowStart) || !preg_match('/^\d{2}:\d{2}$/', $this->windowEnd)) {
++            throw new \DomainException('off_peak окно: ожидается "HH:MM"');
++        }
++        if (!preg_match('/^\d+(\.\d{1,6})?$/', $this->multiplier)) {
++            throw new \DomainException('off_peak.multiplier: ожидается десятичная строка (>= 0, до 6 знаков)');
++        }
++    }
++
++    public static function create(?array $source): ?self
++    {
++        if ($source === null) {
++            return null;
++        }
++
++        $windowStart = $source['window_start'] ?? null;
++        $windowEnd = $source['window_end'] ?? null;
++        $multiplier = $source['multiplier'] ?? null;
++
++        if (!is_string($windowStart) || !preg_match('/^\d{2}:\d{2}$/', $windowStart)) {
++            throw new \DomainException('off_peak.window_start: ожидается "HH:MM"');
++        }
++        if (!is_string($windowEnd) || !preg_match('/^\d{2}:\d{2}$/', $windowEnd)) {
++            throw new \DomainException('off_peak.window_end: ожидается "HH:MM"');
++        }
++        if (!is_string($multiplier) || !preg_match('/^\d+(\.\d{1,6})?$/', $multiplier)) {
++            throw new \DomainException('off_peak.multiplier: ожидается десятичная строка (>= 0, до 6 знаков)');
++        }
++
++        return new self($windowStart, $windowEnd, $multiplier);
++    }
++
++    /** Время ts — в UTC; проверка попадания в [windowStart, windowEnd). Degenerate (start == end) — пустое окно. */
++    public function covers(\DateTimeImmutable $tsUtc): bool
++    {
++        $secondOfDay = ($tsUtc->format('H')) * 3600 + ($tsUtc->format('i')) * 60 + ($tsUtc->format('s'));
++        $start = $this->toSecondsOfDay($this->windowStart);
++        $end = $this->toSecondsOfDay($this->windowEnd);
++
++        if ($start === $end) {
++            return false;
++        }
++        if ($start < $end) {
++            return $secondOfDay >= $start && $secondOfDay < $end;
++        }
++
++        // Окно пересекает полночь, например 16:30–00:30.
++        return $secondOfDay >= $start || $secondOfDay < $end;
++    }
++
++    public function multiplier(): string
++    {
++        return $this->multiplier;
++    }
++
++    public function windowStart(): string
++    {
++        return $this->windowStart;
++    }
++
++    public function windowEnd(): string
++    {
++        return $this->windowEnd;
++    }
++
++    private function toSecondsOfDay(string $hhmm): int
++    {
++        [$h, $m] = explode(':', $hhmm);
++
++        return ((int) $h) * 3600 + ((int) $m) * 60;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/ValueObject/TokenUsage.php /tmp/billing-pi-v_3ra9n_/repo/src/Domain/ValueObject/TokenUsage.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/ValueObject/TokenUsage.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/src/Domain/ValueObject/TokenUsage.php	2026-10-21 00:17:01.030846974 +0700
+@@ -0,0 +1,45 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Domain\ValueObject;
++
++/**
++ * Расход токенов одним событием, разбитый по видам.
++ * Вида — фиксированный набор: input, output, cache_read, cache_write.
++ */
++final class TokenUsage
++{
++    public const KINDS = ['input', 'output', 'cache_read', 'cache_write'];
++
++    /** @var array<string, int> */
++    private array $tokens;
++
++    /** @param array{input: int, output: int, cache_read: int, cache_write: int} $tokens */
++    private function __construct(array $tokens)
++    {
++        $this->tokens = $tokens;
++    }
++
++    /** @param array<string, int> $tokens */
++    public static function fromKinds(array $tokens): self
++    {
++        foreach (self::KINDS as $kind) {
++            if (!isset($tokens[$kind]) || !is_int($tokens[$kind]) || $tokens[$kind] < 0) {
++                throw new \DomainException(sprintf('tokens_%s: требуется целое >= 0', $kind));
++            }
++        }
++
++        return new self($tokens);
++    }
++
++    public function get(string $kind): int
++    {
++        return $this->tokens[$kind];
++    }
++
++    public function total(): int
++    {
++        return array_sum($this->tokens);
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Importer/ImportException.php /tmp/billing-pi-v_3ra9n_/repo/src/Importer/ImportException.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Importer/ImportException.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/src/Importer/ImportException.php	2026-10-21 00:17:39.929579172 +0700
+@@ -0,0 +1,13 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Importer;
++
++/**
++ * Ошибка импорта/коррекции: неккорректные данные файла.
++ * Команды перехватывают её и завершаются кодом 1.
++ */
++final class ImportException extends \RuntimeException
++{
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Importer/PriceFile.php /tmp/billing-pi-v_3ra9n_/repo/src/Importer/PriceFile.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Importer/PriceFile.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/src/Importer/PriceFile.php	2026-10-21 00:17:51.011364481 +0700
+@@ -0,0 +1,210 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Importer;
++
++use App\Domain\Catalog\RateUnit;
++use App\Domain\ValueObject\OffPeak;
++use App\Support\DateTimeParser;
++use App\Support\Decimal;
++
++use function file_get_contents;
++
++/**
++ * Разбор общего JSON-формата «история цен» (схема одинакова для импорта цен
++ * и для файла ретро-коррекции).
++ *
++ * Результат:
++ *  - providers: code => ['name' => string, 'offPeak' => ?OffPeak]
++ *  - models: "provider|code" => true (множество)
++ *  - prices: list<PriceSpec> — PriceSpec:
++ *    ['provider', 'model', 'validFrom' => \DateTimeImmutable, 'currency',
++ *     'unit' => RateUnit, 'rates' => array<string,string> (6 знаков),
++ *     'key' => "provider|model|unixts"]
++ */
++final class PriceFile
++{
++    /** @param array<string, array{name: string, offPeak: ?OffPeak}> $providers */
++    public function __construct(
++        public readonly array $providers,
++        public readonly array $models,
++        public readonly array $prices,
++    ) {
++    }
++
++    /**
++     * @param bool $requirePrices в режиме импорта секция prices обязательна;
++     *                            в режиме коррекции пустая секция допустима.
++     *
++     * @throws ImportException
++     */
++    public static function parse(string $path, bool $requirePrices = true): self
++    {
++        if (!is_readable($path)) {
++            throw new ImportException("файл не найден или нечитаем: $path");
++        }
++
++        $raw = file_get_contents($path);
++        if ($raw === false) {
++            throw new ImportException("не удалось прочитать файл: $path");
++        }
++
++        $data = json_decode($raw, true);
++        if (!is_array($data)) {
++            throw new ImportException('некорректный JSON: ожидается объект верхнего уровня');
++        }
++
++        foreach (['providers', 'models', 'prices'] as $section) {
++            if (isset($data["$section"]) && !self::isList($data["$section"])) {
++                throw new ImportException("$section: ожидается массив");
++            }
++        }
++
++        $sections = [];
++        foreach (['providers', 'models', 'prices'] as $name) {
++            $sections[$name] = $data[$name] ?? [];
++        }
++
++        if ($requirePrices && $sections['prices'] === []) {
++            throw new ImportException('prices: секция обязательна и не может быть пустой');
++        }
++
++        return new self(
++            self::parseProviders($sections['providers']),
++            self::parseModels($sections['models']),
++            self::parsePrices($sections['prices']),
++        );
++    }
++
++    /**
++     * @param list<mixed> $rows
++     *
++     * @return array<string, array{name: string, offPeak: ?OffPeak}>
++     *
++     * @throws ImportException
++     */
++    private static function parseProviders(array $rows): array
++    {
++        $providers = [];
++        foreach ($rows as $i => $p) {
++            $ctx = sprintf('providers[%d]', $i);
++            if (!is_array($p)) {
++                throw new ImportException("$ctx: ожидается объект");
++            }
++            $code = self::requireNonEmptyString($p, 'code', $ctx);
++            $name = self::requireNonEmptyString($p, 'name', $ctx);
++            if (isset($providers["$code"])) {
++                throw new ImportException("$ctx: дублирующийся code \"$code\"");
++            }
++            $offPeakSource = $p['off_peak'] ?? null;
++            if ($offPeakSource !== null && !is_array($offPeakSource)) {
++                throw new ImportException("$ctx.off_peak: ожидается объект или null");
++            }
++            $providers["$code"] = ['name' => $name, 'offPeak' => OffPeak::create($offPeakSource)];
++        }
++
++        return $providers;
++    }
++
++    /**
++     * @param list<mixed> $rows
++     *
++     * @return array<string, bool> множество "provider|code"
++     *
++     * @throws ImportException
++     */
++    private static function parseModels(array $rows): array
++    {
++        $models = [];
++        foreach ($rows as $i => $m) {
++            $ctx = sprintf('models[%d]', $i);
++            if (!is_array($m)) {
++                throw new ImportException("$ctx: ожидается объект");
++            }
++            $code = self::requireNonEmptyString($m, 'code', $ctx);
++            $provider = self::requireNonEmptyString($m, 'provider', $ctx);
++            // Провайдер модели может отсутствовать в этом файле (режим
++            // коррекции): проверка существования — на стороне БД.
++            $key = $provider.'|'.$code;
++            if (isset($models["$key"])) {
++                throw new ImportException("$ctx: дублирующаяся модель \"$key\"");
++            }
++            $models["$key"] = true;
++        }
++
++        return $models;
++    }
++
++    /**
++     * @param list<mixed> $rows
++     *
++     * @throws ImportException
++     */
++    private static function parsePrices(array $rows): array
++    {
++        $prices = [];
++        foreach ($rows as $i => $p) {
++            $ctx = sprintf('prices[%d]', $i);
++            if (!is_array($p)) {
++                throw new ImportException("$ctx: ожидается объект");
++            }
++            $provider = self::requireNonEmptyString($p, 'provider', $ctx);
++            $model = self::requireNonEmptyString($p, 'model', $ctx);
++            $validFrom = DateTimeParser::parseUtc("$ctx.valid_from", self::requireNonEmptyString($p, 'valid_from', $ctx));
++            $currency = self::requireNonEmptyString($p, 'currency', $ctx);
++            if (strlen($currency) > 3) {
++                throw new ImportException("$ctx.currency: код валюты длиннее 3 символов");
++            }
++            $unit = RateUnit::tryFrom(self::requireNonEmptyString($p, 'unit', $ctx));
++            if ($unit === null) {
++                throw new ImportException("$ctx: неизвестный unit");
++            }
++            if (!isset($p['rates']) || !is_array($p['rates'])) {
++                throw new ImportException("$ctx.rates: ожидается объект");
++            }
++            $rates = [];
++            foreach ($unit->rateKeys() as $kind) {
++                $rates[$kind] = Decimal::normalize6(
++                    Decimal::validate("$ctx.rates[$kind]", $p['rates'][$kind] ?? null),
++                );
++            }
++
++            $key = $provider.'|'.$model.'|'.$validFrom->getTimestamp();
++            if (isset($prices[$key])) {
++                throw new ImportException("$ctx: дублирующаяся строка цен (provider, model, valid_from)");
++            }
++            $prices[$key] = [
++                'provider' => $provider,
++                'model' => $model,
++                'validFrom' => $validFrom,
++                'currency' => $currency,
++                'unit' => $unit,
++                'rates' => $rates,
++            ];
++        }
++
++        return array_values($prices);
++    }
++
++    /**
++     * @param array<string, mixed> $row
++     */
++    private static function requireNonEmptyString(array $row, string $field, string $ctx): string
++    {
++        $value = $row[$field] ?? null;
++        if (!is_string($value) || $value === '') {
++            throw new ImportException("$ctx.$field: ожидается непустая строка");
++        }
++
++        return $value;
++    }
++
++    /**
++     * @param mixed $value
++     */
++    private static function isList($value): bool
++    {
++        return is_array($value) && array_is_list($value);
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Importer/PriceImporter.php /tmp/billing-pi-v_3ra9n_/repo/src/Importer/PriceImporter.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Importer/PriceImporter.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/src/Importer/PriceImporter.php	2026-10-21 00:20:01.913828461 +0700
+@@ -0,0 +1,143 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Importer;
++
++use App\Domain\Catalog\Model;
++use App\Domain\Catalog\PriceRow;
++use App\Domain\Catalog\Provider;
++use Doctrine\ORM\EntityManagerInterface;
++
++/**
++ * Импорт справочника (провайдеры, модели, строки цен).
++ *
++ * Идемпотентный upsert:
++ *  - провайдеры по code;
++ *  - модели по (provider, code);
++ *  - строки цен по (provider, model, valid_from).
++ * Повторная загрузка тех же сумм данных не изменяет.
++ */
++final class PriceImporter
++{
++    public function __construct(
++        private readonly EntityManagerInterface $em,
++    ) {
++    }
++
++    /**
++     * @throws ImportException
++     */
++    public function importFile(string $path): void
++    {
++        $file = PriceFile::parse($path, requirePrices: true);
++
++        $this->em->wrapInTransaction(function () use ($file): void {
++            $providers = $this->upsertProviders($file->providers);
++            $models = $this->upsertModels($file->models, $providers);
++            foreach ($file->prices as $spec) {
++                $this->upsertPrice($spec, $providers, $models);
++            }
++        });
++    }
++
++    /**
++     * @param array<string, array{name: string, offPeak: ?\App\Domain\ValueObject\OffPeak}> $specProviders
++     *
++     * @return array<string, Provider> code => сущность
++     *
++     * @throws ImportException
++     */
++    private function upsertProviders(array $specProviders): array
++    {
++        /** @var array<string, Provider> $existing */
++        $existing = [];
++        foreach ($this->em->getRepository(Provider::class)->findAll() as $p) {
++            $existing[$p->code()] = $p;
++        }
++
++        $result = $existing;
++        foreach ($specProviders as $code => $spec) {
++            $provider = $existing["$code"] ?? new Provider();
++            if (!isset($existing["$code"])) {
++                $provider->setCode($code);
++                $this->em->persist($provider);
++            }
++            $provider->setName($spec['name']);
++            $provider->setOffPeak($spec['offPeak']);
++            $result["$code"] = $provider;
++        }
++
++        return $result;
++    }
++
++    /**
++     * @param array<string, bool> $specModels
++     * @param array<string, Provider> $providers
++     *
++     * @return array<string, Model> "provider|code" => сущность
++     *
++     * @throws ImportException
++     */
++    private function upsertModels(array $specModels, array $providers): array
++    {
++        /** @var array<string, Model> $existing */
++        $existing = [];
++        foreach ($this->em->getRepository(Model::class)->findAll() as $m) {
++            $existing[$m->provider().'|'.$m->code()] = $m;
++        }
++
++        $result = $existing;
++        foreach ($specModels as $key => $_) {
++            [$providerCode, $code] = explode('|', $key);
++            if (!isset($providers["$providerCode"])) {
++                throw new ImportException(sprintf('models: модель "%s" ссылается на неизвестного провайдера "%s"', $key, $providerCode));
++            }
++            $model = $existing["$key"] ?? new Model();
++            if (!isset($existing["$key"])) {
++                $this->em->persist($model);
++            }
++            $model->setProvider($providerCode);
++            $model->setCode($code);
++            $result["$key"] = $model;
++        }
++
++        return $result;
++    }
++
++    /**
++     * @param array{name: string, offPeak: ?\App\Domain\ValueObject\OffPeak}|Provider $providers
++     * @param array<string, Model> $models
++     *
++     * @throws ImportException
++     */
++    private function upsertPrice(array $spec, array $providers, array $models): void
++    {
++        $providerCode = $spec['provider'];
++        $modelCode = $spec['model'];
++
++        if (!array_key_exists($providerCode, $providers)) {
++            throw new ImportException(sprintf('prices: провайдер "%s" не найден в файле или справочнике', $providerCode));
++        }
++        $key = $providerCode.'|'.$modelCode;
++        if (!isset($models["$key"])) {
++            throw new ImportException(sprintf('prices: модель "%s" не найдена в файле или справочнике', $key));
++        }
++
++        $repository = $this->em->getRepository(PriceRow::class);
++        $row = $repository->findOneBy([
++            'provider' => $providerCode,
++            'model' => $modelCode,
++            'validFrom' => $spec['validFrom'],
++        ]);
++
++        $row ??= new PriceRow();
++        if ($row->id() === null) {
++            $row->setProvider($providerCode);
++            $row->setModel($modelCode);
++            $row->setValidFrom($spec['validFrom']);
++            $this->em->persist($row);
++        }
++        $row->set($spec['currency'], $spec['unit'], $spec['rates']);
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Importer/UsageImporter.php /tmp/billing-pi-v_3ra9n_/repo/src/Importer/UsageImporter.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Importer/UsageImporter.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/src/Importer/UsageImporter.php	2026-10-21 00:20:08.684697287 +0700
+@@ -0,0 +1,126 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Importer;
++
++use App\Support\DateTimeParser;
++use Doctrine\ORM\EntityManagerInterface;
++
++use function file_get_contents;
++use function str_ends_with;
++
++/**
++ * Импорт событий использования (JSONL).
++ *
++ * Дедупликация по (provider, provider_request_id): повторная доставка
++ * уже известного события целиком игнорируется (INSERT ... ON CONFLICT DO NOTHING).
++ * Некорректная строка — ImportException (команда завершится кодом 1).
++ */
++final class UsageImporter
++{
++    private const INSERT_SQL = <<<'SQL'
++        INSERT INTO usage_events (
++            provider, provider_request_id, model, "user", ts,
++            tokens_input, tokens_output, tokens_cache_read, tokens_cache_write,
++            rated, cost, applied_price_valid_from
++        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE, NULL, NULL)
++        ON CONFLICT (provider, provider_request_id) DO NOTHING
++        SQL;
++
++    public function __construct(
++        private readonly EntityManagerInterface $em,
++    ) {
++    }
++
++    /**
++     * @throws ImportException
++     */
++    public function importFile(string $path): void
++    {
++        if (!is_readable($path)) {
++            throw new ImportException("файл не найден или нечитаем: $path");
++        }
++
++        $raw = file_get_contents($path);
++        if ($raw === false) {
++            throw new ImportException("не удалось прочитать файл: $path");
++        }
++
++        $lines = str_ends_with($raw, "\n") ? substr($raw, 0, -1) : $raw;
++        $lines = str_replace("\r\n", "\n", $lines);
++        $lines = $lines === '' ? [] : explode("\n", $lines);
++
++        $params = [];
++        foreach ($lines as $n => $line) {
++            $lineNo = $n + 1;
++            if (trim($line) === '') {
++                continue; // пустые строки (в т.ч. завершающая) игнорируются
++            }
++            $spec = self::parseLine($line, $lineNo);
++            $params[] = $spec;
++        }
++
++        $this->em->wrapInTransaction(function () use ($params): void {
++            $conn = $this->em->getConnection();
++            foreach ($params as $p) {
++                $conn->executeStatement(self::INSERT_SQL, $p);
++            }
++        });
++    }
++
++    /**
++     * @return list<array<string, mixed>> параметры вставки
++     *
++     * @throws ImportException
++     */
++    private static function parseLine(string $line, int $lineNo): array
++    {
++        $ctx = "строка $lineNo";
++        $data = json_decode($line, true);
++        if (!is_array($data)) {
++            throw new ImportException("$ctx: некорректный JSON");
++        }
++
++        $provider = self::requireNonEmptyString($data, 'provider', $ctx);
++        $requestId = self::requireNonEmptyString($data, 'provider_request_id', $ctx);
++        $model = self::requireNonEmptyString($data, 'model', $ctx);
++        $user = self::requireNonEmptyString($data, 'user', $ctx);
++        $ts = DateTimeParser::parseUtc("$ctx.ts", self::requireNonEmptyString($data, 'ts', $ctx));
++
++        $tokens = [];
++        foreach (['tokens_input', 'tokens_output', 'tokens_cache_read', 'tokens_cache_write'] as $field) {
++            if (!array_key_exists($field, $data) || !is_int($data[$field]) || $data[$field] < 0) {
++                throw new ImportException("$ctx.$field: ожидается целое >= 0");
++            }
++            $tokens[$field] = $data[$field];
++        }
++
++        return [
++            $provider,
++            $requestId,
++            $model,
++            $user,
++            $ts->format('Y-m-d H:i:s.u'),
++            $tokens['tokens_input'],
++            $tokens['tokens_output'],
++            $tokens['tokens_cache_read'],
++            $tokens['tokens_cache_write'],
++        ];
++    }
++
++    /**
++     * @param array<string, mixed> $row
++     *
++     * @throws ImportException
++     */
++    private static function requireNonEmptyString(array $row, string $field, string $ctx): string
++    {
++        $value = $row[$field] ?? null;
++        if (!is_string($value) || $value === '') {
++            throw new ImportException("$ctx.$field: ожидается непустая строка");
++        }
++
++        return $value;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Support/DateTimeParser.php /tmp/billing-pi-v_3ra9n_/repo/src/Support/DateTimeParser.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Support/DateTimeParser.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/src/Support/DateTimeParser.php	2026-10-21 00:17:19.142262352 +0700
+@@ -0,0 +1,36 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Support;
++
++/**
++ * Разбор ISO-8601 моментов времени, всегда UTC (суффикс З).
++ * Допускаются секунды и, опционально, доли секунды.
++ */
++final class DateTimeParser
++{
++    private const PATTERN = '/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d{1,6})?Z$/';
++
++    private function __construct()
++    {
++    }
++
++    /**
++     * @throws \DomainException
++     */
++    public static function parseUtc(string $context, string $value): \DateTimeImmutable
++    {
++        if (!preg_match(self::PATTERN, $value, $m)) {
++            throw new \DomainException(sprintf('%s: ожидается ISO-8601 UTC вида 2026-08-01T00:00:00Z', $context));
++        }
++
++        $dt = new \DateTimeImmutable(
++            sprintf('%s-%s-%s %s:%s:%s UTC', $m[1], $m[2], $m[3], $m[4], $m[5], $m[6]),
++            new \DateTimeZone('UTC'),
++        );
++        $micros = isset($m[7]) && $m[7] !== '' ? ltrim(substr($m[7], 1), '0') : '';
++
++        return $dt->modify('+'.str_pad($micros, 6, '0', STR_PAD_LEFT).' microseconds');
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Support/Decimal.php /tmp/billing-pi-v_3ra9n_/repo/src/Support/Decimal.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Support/Decimal.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/src/Support/Decimal.php	2026-10-21 00:17:19.140981917 +0700
+@@ -0,0 +1,37 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Support;
++
++/**
++ * Запасные десятичные строки: валидация и нормализация.
++ */
++final class Decimal
++{
++    private const RATE_PATTERN = '/^\d+(?:\.\d{1,6})?$/';
++
++    private function __construct()
++    {
++    }
++
++    /**
++     * @param mixed $value
++     *
++     * @throws \DomainException
++     */
++    public static function validate(string $context, $value): string
++    {
++        if (!is_string($value) || !preg_match(self::RATE_PATTERN, $value)) {
++            throw new \DomainException(sprintf('%s: ожидается десятичная строка (>= 0, до 6 знаков после точки)', $context));
++        }
++
++        return $value;
++    }
++
++    /** Нормализация к ровно 6 знакам после точки (без изменения значения). */
++    public static function normalize6(string $value): string
++    {
++        return bcadd($value, '0', 6);
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/tests/Billing/CostCalculatorTest.php /tmp/billing-pi-v_3ra9n_/repo/tests/Billing/CostCalculatorTest.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/tests/Billing/CostCalculatorTest.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/tests/Billing/CostCalculatorTest.php	2026-10-21 00:22:23.644025571 +0700
+@@ -0,0 +1,104 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Tests\Billing;
++
++use App\Billing\CostCalculator;
++use App\Domain\Catalog\PriceRow;
++use App\Domain\Catalog\RateUnit;
++use App\Domain\ValueObject\OffPeak;
++use App\Domain\ValueObject\TokenUsage;
++use PHPUnit\Framework\TestCase;
++
++final class CostCalculatorTest extends TestCase
++{
++    private CostCalculator $calculator;
++
++    protected function setUp(): void
++    {
++        $this->calculator = new CostCalculator();
++    }
++
++    private function price(RateUnit $unit, array $rates, string $validFrom = '2026-08-01T00:00:00Z'): PriceRow
++    {
++        $row = new PriceRow();
++        $row->setProvider('prism');
++        $row->setModel('lumen-8');
++        $row->setValidFrom(new \DateTimeImmutable($validFrom, new \DateTimeZone('UTC')));
++        $row->set('USD', $unit, $rates);
++
++        return $row;
++    }
++
++    private function tokens(int ...$byKind): TokenUsage
++    {
++        $kinds = ['input', 'output', 'cache_read', 'cache_write'];
++
++        return TokenUsage::fromKinds(array_combine($kinds, $byKind));
++    }
++
++    /** Пример e1 из TASK.md: 14.26249875 → 14.262499. */
++    public function testPerTokenSchemeE1(): void
++    {
++        $price = $this->price(RateUnit::Per1mTokens, [
++            'input' => '3.000000',
++            'output' => '12.000000',
++            'cache_read' => '0.300000',
++            'cache_write' => '3.750000',
++        ]);
++        $tokens = $this->tokens(1_200_000, 800_000, 2_500_000, 83_333);
++        $cost = $this->calculator->compute($price, $tokens, null, new \DateTimeImmutable('2026-09-15T11:00:00Z'));
++
++        self::assertSame('14.262499', $cost->format6());
++    }
++
++    /** Пример e2: 11.000000. */
++    public function testPerTokenSchemeE2(): void
++    {
++        $price = $this->price(RateUnit::Per1mTokens, [
++            'input' => '1.500000',
++            'output' => '8.000000',
++            'cache_read' => '0.150000',
++            'cache_write' => '1.875000',
++        ]);
++        $cost = $this->calculator->compute($price, $this->tokens(2_000_000, 1_000_000, 0, 0), null, new \DateTimeImmutable('2026-09-15T12:00:00Z'));
++
++        self::assertSame('11.000000', $cost->format6());
++    }
++
++    /** Пример e3: unified 3.5M × 2.4 = 8.400000. */
++    public function testUnifiedSchemaE3(): void
++    {
++        $price = $this->price(RateUnit::Per1mTokensUnified, ['any' => '2.400000']);
++        $cost = $this->calculator->compute($price, $this->tokens(3_000_000, 500_000, 0, 0), null, new \DateTimeImmutable('2026-09-20T17:10:00Z'));
++
++        self::assertSame('8.400000', $cost->format6());
++    }
++
++    public function testOffPeakMultiplierAppliedToWholeEvent(): void
++    {
++        $price = $this->price(RateUnit::Per1mTokens, [
++            'input' => '3.000000',
++            'output' => '12.000000',
++            'cache_read' => '0.300000',
++            'cache_write' => '3.750000',
++        ]);
++        $offPeak = new OffPeak('16:30', '00:30', '0.5');
++        $tokens = $this->tokens(1_000_000, 0, 0, 0);
++
++        $peak = $this->calculator->compute($price, $tokens, $offPeak, new \DateTimeImmutable('2026-09-15T10:00:00Z'));
++        $off = $this->calculator->compute($price, $tokens, $offPeak, new \DateTimeImmutable('2026-09-15T17:00:00Z'));
++
++        self::assertSame('3.000000', $peak->format6());
++        self::assertSame('1.500000', $off->format6());
++    }
++
++    public function testAllZeroTokensCostZero(): void
++    {
++        $price = $this->price(RateUnit::Per1mTokensUnified, ['any' => '2.400000']);
++        $cost = $this->calculator->compute($price, $this->tokens(0, 0, 0, 0), null, new \DateTimeImmutable('2026-09-15T11:00:00Z'));
++
++        self::assertSame('0.000000', $cost->format6());
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/tests/Billing/PriceSelectionTest.php /tmp/billing-pi-v_3ra9n_/repo/tests/Billing/PriceSelectionTest.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/tests/Billing/PriceSelectionTest.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/tests/Billing/PriceSelectionTest.php	2026-10-21 00:22:34.276876678 +0700
+@@ -0,0 +1,49 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Tests\Billing;
++
++use App\Billing\PriceCatalog;
++use App\Domain\Catalog\PriceRow;
++use App\Domain\Catalog\RateUnit;
++use PHPUnit\Framework\TestCase;
++
++final class PriceSelectionTest extends TestCase
++{
++    private function row(string $validFrom): PriceRow
++    {
++        $row = new PriceRow();
++        $row->setProvider('prism');
++        $row->setModel('lumen-8');
++        $row->setValidFrom(new \DateTimeImmutable($validFrom.'Z'));
++        $row->set('USD', RateUnit::Per1mTokens, [
++            'input' => '3.000000',
++            'output' => '12.000000',
++            'cache_read' => '0.300000',
++            'cache_write' => '3.750000',
++        ]);
++
++        return $row;
++    }
++
++    public function testLatestRowNotAfterEventTs(): void
++    {
++        $early = $this->row('2026-08-01T00:00:00');
++        $late = $this->row('2026-09-15T12:00:00');
++        $rows = [$early, $late];
++
++        // 11:00 — смена цены в 12:00 ещё не наступила (пример e1)
++        self::assertSame($early, PriceCatalog::selectFrom($rows, new \DateTimeImmutable('2026-09-15T11:59:59Z')));
++        // 12:00:00 — valid_from включительно (пример e2)
++        self::assertSame($late, PriceCatalog::selectFrom($rows, new \DateTimeImmutable('2026-09-15T12:00:00Z')));
++    }
++
++    public function testNoRowYetMeansUnrated(): void
++    {
++        $early = $this->row('2026-08-01T00:00:00');
++
++        self::assertNull(PriceCatalog::selectFrom([$early], new \DateTimeImmutable('2026-07-15T00:00:00Z')));
++        self::assertNull(PriceCatalog::selectFrom([], new \DateTimeImmutable('2026-07-15T00:00:00Z')));
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/tests/Domain/MoneyTest.php /tmp/billing-pi-v_3ra9n_/repo/tests/Domain/MoneyTest.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/tests/Domain/MoneyTest.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/tests/Domain/MoneyTest.php	2026-10-21 00:22:42.571715979 +0700
+@@ -0,0 +1,59 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Tests\Domain;
++
++use App\Domain\ValueObject\Money;
++use PHPUnit\Framework\Attributes\DataProvider;
++use PHPUnit\Framework\TestCase;
++
++final class MoneyTest extends TestCase
++{
++    /**
++     * @return array<string, array{0: string, 1: string}>
++     */
++    public static function roundHalfUpProvider(): array
++    {
++        return [
++            'пример из ТЗ: e1' => ['14.26249875', '14.262499'],
++            'точка ровно на середине (2.5 -> 3)' => ['2.5', '2.500000'],
++            'шестой знак: ровно 5 — вверх' => ['0.0000005', '0.000001'],
++            'шестой знак: окр. до 10-й' => ['1.0000005', '1.000001'],
++            'чуть ниже середины — вниз' => ['1.0000004999', '1.000000'],
++            'нулевая стоимость' => ['0', '0.000000'],
++            'целая сумма' => ['8.4', '8.400000'],
++            'крупная сумма без потери точности' => ['123456789.12345678', '123456789.123457'],
++            '99999999.9999995' => ['99999999.9999995', '100000000.000000'],
++        ];
++    }
++
++    #[DataProvider('roundHalfUpProvider')]
++    public function testRoundHalfUpTo6(string $input, string $expected): void
++    {
++        self::assertSame($expected, Money::of($input)->roundTo6()->format6());
++    }
++
++    public function testExactAdditionWithoutRounding(): void
++    {
++        $sum = Money::zero();
++        foreach (['14.262499', '8.400000', '11.000000'] as $part) {
++            $sum = $sum->add(Money::of($part));
++        }
++
++        self::assertSame('33.662499', $sum->format6());
++    }
++
++    public function testMultiplicationByOffPeakMultiplier(): void
++    {
++        $value = Money::of('3.000000')->multipliedBy('0.5');
++
++        self::assertSame('1.500000', $value->roundTo6()->format6());
++    }
++
++    public function testDecimalStringValidation(): void
++    {
++        $this->expectException(\InvalidArgumentException::class);
++        Money::of('1e3');
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/tests/Domain/OffPeakTest.php /tmp/billing-pi-v_3ra9n_/repo/tests/Domain/OffPeakTest.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/tests/Domain/OffPeakTest.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-v_3ra9n_/repo/tests/Domain/OffPeakTest.php	2026-10-21 00:22:42.571715979 +0700
+@@ -0,0 +1,71 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Tests\Domain;
++
++use App\Domain\ValueObject\OffPeak;
++use PHPUnit\Framework\Attributes\DataProvider;
++use PHPUnit\Framework\TestCase;
++
++final class OffPeakTest extends TestCase
++{
++    private static function window(?array $source): ?OffPeak
++    {
++        return OffPeak::create($source);
++    }
++
++    private static function ts(string $time): \DateTimeImmutable
++    {
++        return new \DateTimeImmutable('2026-09-15T'.$time.':00 UTC');
++    }
++
++    /**
++     * @return array<string, array{0: string, 1: string, 2: bool}>
++     */
++    public static function boundariesProvider(): array
++    {
++        $window = ['window_start' => '16:30', 'window_end' => '00:30', 'multiplier' => '0.5'];
++
++        return [
++            'начало окна включительно' => [$window, '16:30', true],
++            'окончание окна исключительно' => [$window, '00:30', false],
++            'сразу после начала' => [$window, '16:31', true],
++            'сразу до начала' => [$window, '16:29', false],
++            'сразу после окончания' => [$window, '00:31', false],
++            'сразу до окончания (через полночь)' => [$window, '00:29', true],
++            'ночь вне загибов окна (03:00 — после 00:30)' => [$window, '03:00', false],
++            'полдень вне окна' => [$window, '12:00', false],
++            'конец суток — внутри окна через полночь' => [$window, '23:59', true],
++            'начало суток — внутри окна через полночь' => [$window, '00:00', true],
++        ];
++    }
++
++    #[DataProvider('boundariesProvider')]
++    public function testWindowBounds(array $window, string $time, bool $expected): void
++    {
++        self::assertSame($expected, self::window($window)->covers(self::ts($time)));
++    }
++
++    public function testNonMidnightWindow(): void
++    {
++        $window = self::window(['window_start' => '02:00', 'window_end' => '04:00', 'multiplier' => '0.7']);
++
++        self::assertTrue($window->covers(self::ts('03:59')));
++        self::assertFalse($window->covers(self::ts('04:00')));
++        self::assertFalse($window->covers(self::ts('01:59')));
++    }
++
++    public function testDegenerateWindowIsEmpty(): void
++    {
++        $window = self::window(['window_start' => '05:00', 'window_end' => '05:00', 'multiplier' => '0.5']);
++
++        self::assertFalse($window->covers(self::ts('05:00')));
++        self::assertFalse($window->covers(self::ts('15:00')));
++    }
++
++    public function testNullSourceMeansNoDiscount(): void
++    {
++        self::assertNull(self::window(null));
++    }
++}

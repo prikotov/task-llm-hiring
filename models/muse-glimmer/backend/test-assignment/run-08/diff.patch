@@ -1,0 +1,582 @@
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/COMMIT_MESSAGE.md /tmp/billing-pi-piwap9qj/repo/COMMIT_MESSAGE.md
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/COMMIT_MESSAGE.md	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-piwap9qj/repo/COMMIT_MESSAGE.md	2026-10-27 23:08:12.544233468 +0700
+@@ -0,0 +1,8 @@
++feat(billing): implement LLM token cost accounting
++
++- Add migrations for providers, models, prices, usage_events
++- Implement app:prices:import with idempotent upsert for providers/models/prices
++- Implement app:usage:import with idempotent upsert by (provider, provider_request_id)
++- Implement app:billing:rate with price selection by valid_from, off-peak multiplier, decimal arithmetic via BCMath, half-up rounding to 6 decimals, unrated handling
++- Implement app:billing:report with CSV output, grouping by user/model, totals
++- Use Doctrine DBAL, Symfony Console, PostgreSQL
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/migrations/Version20261027Initial.php /tmp/billing-pi-piwap9qj/repo/migrations/Version20261027Initial.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/migrations/Version20261027Initial.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-piwap9qj/repo/migrations/Version20261027Initial.php	2026-10-27 23:07:11.288416415 +0700
+@@ -0,0 +1,79 @@
++<?php
++
++declare(strict_types=1);
++
++namespace DoctrineMigrations;
++
++use Doctrine\DBAL\Schema\Schema;
++use Doctrine\Migrations\AbstractMigration;
++
++final class Version20261027Initial extends AbstractMigration
++{
++    public function getDescription(): string
++    {
++        return 'Initial schema for LLM billing';
++    }
++
++    public function up(Schema $schema): void
++    {
++        // providers
++        $this->addSql('CREATE TABLE providers (
++            id SERIAL PRIMARY KEY,
++            code VARCHAR(64) NOT NULL UNIQUE,
++            name VARCHAR(255) NOT NULL,
++            off_peak_window_start TIME,
++            off_peak_window_end TIME,
++            off_peak_multiplier NUMERIC(10,6)
++        )');
++
++        // models
++        $this->addSql('CREATE TABLE models (
++            id SERIAL PRIMARY KEY,
++            provider_code VARCHAR(64) NOT NULL,
++            code VARCHAR(64) NOT NULL,
++            UNIQUE(provider_code, code),
++            FOREIGN KEY(provider_code) REFERENCES providers(code) ON DELETE CASCADE
++        )');
++
++        // prices
++        $this->addSql('CREATE TABLE prices (
++            id SERIAL PRIMARY KEY,
++            provider_code VARCHAR(64) NOT NULL,
++            model_code VARCHAR(64) NOT NULL,
++            valid_from TIMESTAMP NOT NULL,
++            currency VARCHAR(3) NOT NULL,
++            unit VARCHAR(64) NOT NULL,
++            rates JSONB NOT NULL,
++            UNIQUE(provider_code, model_code, valid_from),
++            FOREIGN KEY(provider_code) REFERENCES providers(code) ON DELETE CASCADE
++        )');
++
++        // usage_events
++        $this->addSql('CREATE TABLE usage_events (
++            id SERIAL PRIMARY KEY,
++            provider_code VARCHAR(64) NOT NULL,
++            provider_request_id VARCHAR(128) NOT NULL,
++            model_code VARCHAR(64) NOT NULL,
++            user_name VARCHAR(128) NOT NULL,
++            ts TIMESTAMP NOT NULL,
++            tokens_input BIGINT NOT NULL,
++            tokens_output BIGINT NOT NULL,
++            tokens_cache_read BIGINT NOT NULL,
++            tokens_cache_write BIGINT NOT NULL,
++            cost NUMERIC(18,6),
++            UNIQUE(provider_code, provider_request_id)
++        )');
++
++        // indexes for performance
++        $this->addSql('CREATE INDEX idx_prices_provider_model_valid_from ON prices (provider_code, model_code, valid_from DESC)');
++        $this->addSql('CREATE INDEX idx_usage_events_ts ON usage_events (ts)');
++    }
++
++    public function down(Schema $schema): void
++    {
++        $this->addSql('DROP TABLE usage_events');
++        $this->addSql('DROP TABLE prices');
++        $this->addSql('DROP TABLE models');
++        $this->addSql('DROP TABLE providers');
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/PR_DESCRIPTION.md /tmp/billing-pi-piwap9qj/repo/PR_DESCRIPTION.md
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/PR_DESCRIPTION.md	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-piwap9qj/repo/PR_DESCRIPTION.md	2026-10-27 23:08:22.303045010 +0700
+@@ -0,0 +1,36 @@
++# Реализация учёта расходов на LLM-токены
++
++## Что сделано
++- Создана схема БД (миграция `Version20261027Initial`) с таблицами `providers`, `models`, `prices`, `usage_events`. 
++- Реализованы команды:
++  - `app:prices:import <file>` — идемпотентный upsert провайдеров, моделей и строк цен.
++  - `app:usage:import <file>` — импорт JSONL событий с дедупликацией по `(provider, provider_request_id)`.
++  - `app:billing:rate` — тарификация нерассчитанных событий, выбор цены по `valid_from`, учёт off-peak окна провайдера, расчёт по схемам `per_1m_tokens` / `per_1m_tokens_unified`, десятичная арифметика BCMath, округление HALF_UP до 6 знаков. Вывод `RATED`/`UNRATED` и сообщения для unrated в stderr.
++  - `app:billing:report [--from] [--to]` — CSV-отчёт с группировкой по user/model, суммами токенов и стоимостей, строка TOTAL.
++- Проверка на фикстурах из задания: вывод совпадает байт-в-байт с примером.
++
++## Ключевые решения и допущения
++- Хранение цен в JSONB `rates`, upsert по `(provider_code, model_code, valid_from)`.
++- Провайдер хранит окно off-peak как `TIME` и `numeric multiplier`. Проверка времени суток UTC через `DateTimeImmutable`.
++- Идемпотентность импорта цен/событий реализована через `ON CONFLICT DO NOTHING/UPDATE`.
++- Расчёт стоимости без float, только BCMath, округление реализовано вручную add-0.5 метод.
++- Колонка пользователя названа `user_name` во избежание конфликта с зарезервированным словом `user` в PostgreSQL.
++- Отчёт сортируется по `user_name, provider_code, model_code` для лексикографического порядка `<provider>/<code>`.
++
++## Проверка
++```bash
++make db-up
++make migrate
++bin/console app:prices:import fixtures/prices.json
++bin/console app:usage:import fixtures/usage.jsonl
++bin/console app:billing:rate
++bin/console app:billing:report --from=2026-09-01T00:00:00Z --to=2026-10-01T00:00:00Z
++```
++Результат совпадает с примером задания. Повторный импорт не меняет данные.
++
++## Отступления
++- Имя колонки пользователя изменено на `user_name` — `user` зарезервировано в PostgreSQL, миграция иначе падает.
++- Миграция создаёт схему с `id` PK, отличается от исходных экспериментальных миграций, но полностью соответствует заданию.
++- Бонус `app:billing:reprice` не реализован — не требуется для приёмки.
++
++Зависимости не добавлялись, использованы только готовые Symfony/Doctrine компоненты.
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/BillingRateCommand.php /tmp/billing-pi-piwap9qj/repo/src/Command/BillingRateCommand.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/BillingRateCommand.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-piwap9qj/repo/src/Command/BillingRateCommand.php	2026-10-27 23:07:22.043208723 +0700
+@@ -0,0 +1,140 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Command;
++
++use Doctrine\DBAL\Connection;
++use Symfony\Component\Console\Attribute\AsCommand;
++use Symfony\Component\Console\Command\Command;
++use Symfony\Component\Console\Input\InputInterface;
++use Symfony\Component\Console\Output\OutputInterface;
++
++#[AsCommand(name: 'app:billing:rate', description: 'Rate usage events')]
++final class BillingRateCommand extends Command
++{
++    public function __construct(private Connection $conn)
++    {
++        parent::__construct();
++    }
++
++    protected function execute(InputInterface $input, OutputInterface $output): int
++    {
++        $events = $this->conn->fetchAllAssociative('SELECT id, provider_code, provider_request_id, model_code, user_name as user, ts, tokens_input, tokens_output, tokens_cache_read, tokens_cache_write FROM usage_events WHERE cost IS NULL');
++
++        $rated = 0;
++        $unrated = 0;
++
++        foreach ($events as $e) {
++            $price = $this->findPrice($e['provider_code'], $e['model_code'], $e['ts']);
++            if ($price === null) {
++                $unrated++;
++                $output->getErrorOutput()->writeln(sprintf('UNRATED %s/%s %s no_price', $e['provider_code'], $e['provider_request_id'], $e['ts']));
++                continue;
++            }
++
++            $provider = $this->findProvider($e['provider_code']);
++            $cost = $this->calculateCost($e, $price, $provider);
++            if ($cost === null) {
++                $unrated++;
++                $output->getErrorOutput()->writeln(sprintf('UNRATED %s/%s %s no_price', $e['provider_code'], $e['provider_request_id'], $e['ts']));
++                continue;
++            }
++
++            $this->conn->executeStatement('UPDATE usage_events SET cost = :cost WHERE id = :id', [
++                'cost' => $cost,
++                'id' => $e['id'],
++            ]);
++            $rated++;
++        }
++
++        $output->writeln(sprintf('RATED=%d UNRATED=%d', $rated, $unrated));
++        return Command::SUCCESS;
++    }
++
++    private function findPrice(string $provider, string $model, string $ts): ?array
++    {
++        $sql = 'SELECT valid_from, unit, rates FROM prices WHERE provider_code = :provider AND model_code = :model AND valid_from <= :ts ORDER BY valid_from DESC LIMIT 1';
++        $row = $this->conn->fetchAssociative($sql, [
++            'provider' => $provider,
++            'model' => $model,
++            'ts' => $ts,
++        ]);
++        return $row ?: null;
++    }
++
++    private function findProvider(string $code): ?array
++    {
++        $row = $this->conn->fetchAssociative('SELECT off_peak_window_start, off_peak_window_end, off_peak_multiplier FROM providers WHERE code = :code', ['code' => $code]);
++        return $row ?: null;
++    }
++
++    private function calculateCost(array $event, array $price, ?array $provider): ?string
++    {
++        $unit = $price['unit'];
++        $rates = json_decode($price['rates'], true);
++        if (!is_array($rates)) {
++            return null;
++        }
++
++        bcscale(16);
++        $cost = '0';
++
++        if ($unit === 'per_1m_tokens') {
++            foreach (['input' => 'tokens_input', 'output' => 'tokens_output', 'cache_read' => 'tokens_cache_read', 'cache_write' => 'tokens_cache_write'] as $rateKey => $tokenKey) {
++                $rate = $rates[$rateKey] ?? '0';
++                $tokens = (string)$event[$tokenKey];
++                $partial = bcdiv(bcmul($tokens, $rate, 16), '1000000', 16);
++                $cost = bcadd($cost, $partial, 16);
++            }
++        } elseif ($unit === 'per_1m_tokens_unified') {
++            $rate = $rates['any'] ?? '0';
++            $totalTokens = bcadd(bcadd((string)$event['tokens_input'], (string)$event['tokens_output'], 16), bcadd((string)$event['tokens_cache_read'], (string)$event['tokens_cache_write'], 16), 16);
++            $cost = bcdiv(bcmul($totalTokens, $rate, 16), '1000000', 16);
++        } else {
++            return null;
++        }
++
++        // off-peak
++        $multiplier = '1';
++        if ($provider && $provider['off_peak_window_start'] && $provider['off_peak_window_end'] && $provider['off_peak_multiplier']) {
++            $ts = new \DateTimeImmutable($event['ts'], new \DateTimeZone('UTC'));
++            $time = $ts->format('H:i');
++            $start = $provider['off_peak_window_start'];
++            $end = $provider['off_peak_window_end'];
++            $inOffPeak = false;
++            if ($start <= $end) {
++                $inOffPeak = $time >= $start && $time < $end;
++            } else {
++                // crosses midnight
++                $inOffPeak = $time >= $start || $time < $end;
++            }
++            if ($inOffPeak) {
++                $multiplier = (string)$provider['off_peak_multiplier'];
++                $cost = bcmul($cost, $multiplier, 16);
++            }
++        }
++
++        $rounded = $this->roundHalfUp($cost, 6);
++        return $rounded;
++    }
++
++    private function roundHalfUp(string $value, int $precision): string
++    {
++        // assume positive
++        $factor = bcpow('10', (string)$precision, 0);
++        $shifted = bcmul($value, $factor, $precision + 4);
++        $shifted = bcadd($shifted, '0.5', 0);
++        $result = bcdiv($shifted, $factor, $precision);
++        // ensure exactly precision digits
++        if (strpos($result, '.') === false) {
++            $result .= '.' . str_repeat('0', $precision);
++        } else {
++            [$int, $frac] = explode('.', $result, 2);
++            $frac = str_pad($frac, $precision, '0', STR_PAD_RIGHT);
++            $frac = substr($frac, 0, $precision);
++            $result = $int . '.' . $frac;
++        }
++        return $result;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/BillingReportCommand.php /tmp/billing-pi-piwap9qj/repo/src/Command/BillingReportCommand.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/BillingReportCommand.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-piwap9qj/repo/src/Command/BillingReportCommand.php	2026-10-27 23:07:56.051600205 +0700
+@@ -0,0 +1,97 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Command;
++
++use Doctrine\DBAL\Connection;
++use Symfony\Component\Console\Attribute\AsCommand;
++use Symfony\Component\Console\Command\Command;
++use Symfony\Component\Console\Input\InputOption;
++use Symfony\Component\Console\Input\InputInterface;
++use Symfony\Component\Console\Output\OutputInterface;
++
++#[AsCommand(name: 'app:billing:report', description: 'Report billing')]
++final class BillingReportCommand extends Command
++{
++    public function __construct(private Connection $conn)
++    {
++        parent::__construct();
++    }
++
++    protected function configure(): void
++    {
++        $this->addOption('from', null, InputOption::VALUE_OPTIONAL, 'ISO datetime inclusive');
++        $this->addOption('to', null, InputOption::VALUE_OPTIONAL, 'ISO datetime exclusive');
++    }
++
++    protected function execute(InputInterface $input, OutputInterface $output): int
++    {
++        $from = $input->getOption('from');
++        $to = $input->getOption('to');
++
++        $where = 'WHERE cost IS NOT NULL';
++        $params = [];
++        if ($from) {
++            $where .= ' AND ts >= :from';
++            $params['from'] = $from;
++        }
++        if ($to) {
++            $where .= ' AND ts < :to';
++            $params['to'] = $to;
++        }
++
++        $sql = "
++            SELECT user_name as user,
++                   CONCAT(provider_code, '/', model_code) AS model,
++                   SUM(tokens_input) AS tokens_input,
++                   SUM(tokens_output) AS tokens_output,
++                   SUM(tokens_cache_read) AS tokens_cache_read,
++                   SUM(tokens_cache_write) AS tokens_cache_write,
++                   SUM(cost) AS cost_usd
++            FROM usage_events
++            $where
++            GROUP BY user_name, provider_code, model_code
++            ORDER BY user_name ASC, provider_code ASC, model_code ASC
++        ";
++        $rows = $this->conn->fetchAllAssociative($sql, $params);
++
++        $output->writeln('user,model,tokens_input,tokens_output,tokens_cache_read,tokens_cache_write,cost_usd');
++
++        $totalTokensInput = '0';
++        $totalTokensOutput = '0';
++        $totalTokensCacheRead = '0';
++        $totalTokensCacheWrite = '0';
++        $totalCost = '0';
++
++        foreach ($rows as $r) {
++            $cost = number_format((float)$r['cost_usd'], 6, '.', '');
++            // ensure 6 decimals
++            $output->writeln(sprintf('%s,%s,%s,%s,%s,%s,%s',
++                $r['user'],
++                $r['model'],
++                $r['tokens_input'],
++                $r['tokens_output'],
++                $r['tokens_cache_read'],
++                $r['tokens_cache_write'],
++                $cost
++            ));
++            $totalTokensInput = bcadd($totalTokensInput, (string)$r['tokens_input'], 0);
++            $totalTokensOutput = bcadd($totalTokensOutput, (string)$r['tokens_output'], 0);
++            $totalTokensCacheRead = bcadd($totalTokensCacheRead, (string)$r['tokens_cache_read'], 0);
++            $totalTokensCacheWrite = bcadd($totalTokensCacheWrite, (string)$r['tokens_cache_write'], 0);
++            $totalCost = bcadd($totalCost, (string)$r['cost_usd'], 6);
++        }
++
++        $totalCostFormatted = number_format((float)$totalCost, 6, '.', '');
++        $output->writeln(sprintf('TOTAL,,%s,%s,%s,%s,%s',
++            $totalTokensInput,
++            $totalTokensOutput,
++            $totalTokensCacheRead,
++            $totalTokensCacheWrite,
++            $totalCostFormatted
++        ));
++
++        return Command::SUCCESS;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/PricesImportCommand.php /tmp/billing-pi-piwap9qj/repo/src/Command/PricesImportCommand.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/PricesImportCommand.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-piwap9qj/repo/src/Command/PricesImportCommand.php	2026-10-27 23:05:38.223140237 +0700
+@@ -0,0 +1,110 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Command;
++
++use Doctrine\DBAL\Connection;
++use Symfony\Component\Console\Attribute\AsCommand;
++use Symfony\Component\Console\Command\Command;
++use Symfony\Component\Console\Input\InputArgument;
++use Symfony\Component\Console\Input\InputInterface;
++use Symfony\Component\Console\Output\OutputInterface;
++
++#[AsCommand(name: 'app:prices:import', description: 'Import prices')]
++final class PricesImportCommand extends Command
++{
++    public function __construct(private Connection $conn)
++    {
++        parent::__construct();
++    }
++
++    protected function configure(): void
++    {
++        $this->addArgument('file', InputArgument::REQUIRED, 'JSON file');
++    }
++
++    protected function execute(InputInterface $input, OutputInterface $output): int
++    {
++        $file = $input->getArgument('file');
++        if (!is_file($file)) {
++            $output->writeln('<error>File not found</error>', OutputInterface::VERBOSITY_NORMAL);
++            return Command::FAILURE;
++        }
++        $content = file_get_contents($file);
++        if ($content === false) {
++            return Command::FAILURE;
++        }
++        try {
++            $data = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
++        } catch (\JsonException $e) {
++            $output->getErrorOutput()->writeln('Invalid JSON');
++            return Command::FAILURE;
++        }
++
++        $this->conn->beginTransaction();
++        try {
++            foreach ($data['providers'] ?? [] as $p) {
++                $this->upsertProvider($p);
++            }
++            foreach ($data['models'] ?? [] as $m) {
++                $this->upsertModel($m);
++            }
++            foreach ($data['prices'] ?? [] as $pr) {
++                $this->upsertPrice($pr);
++            }
++            $this->conn->commit();
++        } catch (\Throwable $e) {
++            $this->conn->rollBack();
++            $output->getErrorOutput()->writeln('Error: '.$e->getMessage());
++            return Command::FAILURE;
++        }
++
++        return Command::SUCCESS;
++    }
++
++    private function upsertProvider(array $p): void
++    {
++        $offPeak = $p['off_peak'] ?? null;
++        $sql = 'INSERT INTO providers (code, name, off_peak_window_start, off_peak_window_end, off_peak_multiplier)
++                VALUES (:code, :name, :ws, :we, :mult)
++                ON CONFLICT (code) DO UPDATE SET
++                    name = EXCLUDED.name,
++                    off_peak_window_start = EXCLUDED.off_peak_window_start,
++                    off_peak_window_end = EXCLUDED.off_peak_window_end,
++                    off_peak_multiplier = EXCLUDED.off_peak_multiplier';
++        $this->conn->executeStatement($sql, [
++            'code' => $p['code'],
++            'name' => $p['name'],
++            'ws' => $offPeak['window_start'] ?? null,
++            'we' => $offPeak['window_end'] ?? null,
++            'mult' => $offPeak['multiplier'] ?? null,
++        ]);
++    }
++
++    private function upsertModel(array $m): void
++    {
++        $sql = 'INSERT INTO models (provider_code, code)
++                VALUES (:provider, :code)
++                ON CONFLICT (provider_code, code) DO NOTHING';
++        $this->conn->executeStatement($sql, [
++            'provider' => $m['provider'],
++            'code' => $m['code'],
++        ]);
++    }
++
++    private function upsertPrice(array $pr): void
++    {
++        $sql = 'INSERT INTO prices (provider_code, model_code, valid_from, currency, unit, rates)
++                VALUES (:provider, :model, :valid_from, :currency, :unit, :rates::jsonb)
++                ON CONFLICT (provider_code, model_code, valid_from) DO NOTHING';
++        $this->conn->executeStatement($sql, [
++            'provider' => $pr['provider'],
++            'model' => $pr['model'],
++            'valid_from' => $pr['valid_from'],
++            'currency' => $pr['currency'],
++            'unit' => $pr['unit'],
++            'rates' => json_encode($pr['rates']),
++        ]);
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/UsageImportCommand.php /tmp/billing-pi-piwap9qj/repo/src/Command/UsageImportCommand.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/UsageImportCommand.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-piwap9qj/repo/src/Command/UsageImportCommand.php	2026-10-27 23:07:17.493296588 +0700
+@@ -0,0 +1,84 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Command;
++
++use Doctrine\DBAL\Connection;
++use Symfony\Component\Console\Attribute\AsCommand;
++use Symfony\Component\Console\Command\Command;
++use Symfony\Component\Console\Input\InputArgument;
++use Symfony\Component\Console\Input\InputInterface;
++use Symfony\Component\Console\Output\OutputInterface;
++
++#[AsCommand(name: 'app:usage:import', description: 'Import usage events')]
++final class UsageImportCommand extends Command
++{
++    public function __construct(private Connection $conn)
++    {
++        parent::__construct();
++    }
++
++    protected function configure(): void
++    {
++        $this->addArgument('file', InputArgument::REQUIRED, 'JSONL file');
++    }
++
++    protected function execute(InputInterface $input, OutputInterface $output): int
++    {
++        $file = $input->getArgument('file');
++        if (!is_file($file)) {
++            return Command::FAILURE;
++        }
++        $handle = fopen($file, 'r');
++        if ($handle === false) {
++            return Command::FAILURE;
++        }
++        $this->conn->beginTransaction();
++        try {
++            $lineNum = 0;
++            while (($line = fgets($handle)) !== false) {
++                $lineNum++;
++                $line = trim($line);
++                if ($line === '') {
++                    continue;
++                }
++                try {
++                    $data = json_decode($line, true, 512, JSON_THROW_ON_ERROR);
++                } catch (\JsonException $e) {
++                    $output->getErrorOutput()->writeln("Invalid JSON at line $lineNum");
++                    $this->conn->rollBack();
++                    fclose($handle);
++                    return Command::FAILURE;
++                }
++                $this->upsertEvent($data);
++            }
++            $this->conn->commit();
++        } catch (\Throwable $e) {
++            $this->conn->rollBack();
++            $output->getErrorOutput()->writeln('Error: '.$e->getMessage());
++            fclose($handle);
++            return Command::FAILURE;
++        }
++        fclose($handle);
++        return Command::SUCCESS;
++    }
++
++    private function upsertEvent(array $e): void
++    {
++        $sql = 'INSERT INTO usage_events (provider_code, provider_request_id, model_code, user_name, ts, tokens_input, tokens_output, tokens_cache_read, tokens_cache_write, cost)
++                VALUES (:provider, :request_id, :model, :user, :ts, :in, :out, :cr, :cw, NULL)
++                ON CONFLICT (provider_code, provider_request_id) DO NOTHING';
++        $this->conn->executeStatement($sql, [
++            'provider' => $e['provider'],
++            'request_id' => $e['provider_request_id'],
++            'model' => $e['model'],
++            'user' => $e['user'],
++            'ts' => $e['ts'],
++            'in' => $e['tokens_input'],
++            'out' => $e['tokens_output'],
++            'cr' => $e['tokens_cache_read'],
++            'cw' => $e['tokens_cache_write'],
++        ]);
++    }
++}

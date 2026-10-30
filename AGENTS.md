@@ -72,20 +72,32 @@ solo-репо не может требовать аппрув второго ч�
   оба тега перечислены в её `model.md` (пример: `qwen3.8/` для
   `qwen3.8:27b` и `qwen3.8:latest`).
 - Внутри папки модели — `model.md` (характеристики и статус) и
-  **все результаты** по каждой роли:
-  - `<роль>/run-XX/` — собесы: `session.json` (messages, thinking,
-    тайминги, условия серии) + `transcript.md`;
-  - `<роль>/scorecard.md` — судейский свод по модели;
-  - `<роль>/judgments/<судья>/<run>.json` — вердикты внешних судей
+  **все результаты** по каждой роли; внутри роли — по этапам:
+  - `<роль>/interview/run-XX/` — собесы (этап 1): `session.json`
+    (messages, thinking, тайминги, условия серии) + `transcript.md`;
+  - `<роль>/interview/scorecard.md` — судейский свод по модели;
+  - `<роль>/interview/judgments/<судья>/<run>.json` — вердикты внешних судей
     (clef, clef-flash, glm-5.3-flash-iso…), рядом `judgments/tasks/` —
     входные пары вопрос-ответ для воспроизводимости;
-  - `<роль>/judgments/judges-<run>.csv` — сырые данные всех судей
+  - `<роль>/interview/judgments/judges-<run>.csv` — сырые данные всех судей
     по ответам (для анализа кодом);
-  - `<роль>/judgments/COMPARE.md` — резюме судейства этой модели
-    со ссылкой на CSV.
-- `interview/` — только методология: blueprint, вопросники ролей,
-  рубрики, скрипты (`runner.py`, `score.py`, `judge_glm.py`), тестовое задание.
+  - `<роль>/interview/judgments/COMPARE.md` — резюме судейства этой модели
+    со ссылкой на CSV;
+  - `<роль>/test-assignment/run-XX/` — тестовое задание (этап 2):
+    `solution/` (полный код решения), `pi-session/` (JSONL-след
+    агентной сессии), `pi-run.log`, `diff.patch`, `run.json` (условия),
+    `check.json` (чекер), `metrics.json` (качество кода; сырые выводы
+    инструментов — в `metrics-raw/`),
+    `session-profile.md`, `summary.md`, `report.html` (визуальный отчёт
+    прогона — дашборд показателей), `scorecard.md`, `judge-glm.md`
+    (ярус 2).
+- `interview/` — только методология собеседований (этап 1): blueprint,
+  вопросники ролей, рубрики, скрипты (`runner.py`, `score.py`, `judge_glm.py`).
   Никаких результатов.
+- `test-assignment/` — методология тестового задания (этап 2): параллельный
+  независимый этап отбора, не часть интервью. `backend/billing/` — задание
+  (TASK.md, скелет, чекер, судьи, README), `original.md` — исходное задание
+  до адаптации под TasK. Никаких результатов.
 - `reports/` — кросс-модельные сводные отчёты и агрегаты
   (`judges-all.csv` — все вердикты всех судей, `COMPARE-judges.md`,
   `AUDIT-glm-flash.md`, будущий `REPORT.md` по моделям).
@@ -161,10 +173,10 @@ solo-репо не может требовать аппрув второго ч�
 - запуск: `python3 interview/runner.py --questions
   interview/roles/<роль>/questions.json --model <тег> --runs 5`
   (роль и пути определяются автоматически);
-  транскрипты — `models/<model>/<роль>/run-XX/` (transcript.md + session.json),
-  свод — `<model>/<роль>/scorecard.md`, сравнение моделей — `REPORT.md`.
+  транскрипты — `models/<model>/<роль>/interview/run-XX/` (transcript.md + session.json),
+  свод — `<model>/<роль>/interview/scorecard.md`, сравнение моделей — `REPORT.md`.
 
-## Набор моделей (16 генеративных, ollama)
+## Набор моделей (14 генеративных, ollama)
 
 | Папка | Тег(и) | Параметры | Квант | Семейство |
 |---|---|---|---|---|
@@ -173,8 +185,6 @@ solo-репо не может требовать аппрув второго ч�
 | `huihui_ai-Qwen3.8-abliterated-latest/` | `huihui_ai/Qwen3.8-abliterated:latest` | 27.3B | Q4_K_M | qwen35 |
 | `qwen3.8/` | `qwen3.8:27b` = `qwen3.8:latest` | 27.3B | Q4_K_M | qwen35 |
 | `qwen3.8-27b-pi-100k/` | `qwen3.8:27b-pi-100k` | 27.3B | Q4_K_M | qwen35 |
-| `qwen3.8-unc-pi-100k/` | `qwen3.8-unc:pi-100k` | 27.3B | Q4_K_M | qwen35 |
-| `qwen3.8-unc-iq4xs-pi-100k/` | `qwen3.8-unc-iq4xs:pi-100k` | 27.3B | IQ4_XS | qwen35 |
 | `orcarouter-Qwen3.8-27B-Uncensored-latest/` | `orcarouter/Qwen3.8-27B-Uncensored:latest` | 27.3B | Q4_K_M | qwen35 |
 | `orcarouter-Qwen3.8-27B-Uncensored-iq4_xs/` | `orcarouter/Qwen3.8-27B-Uncensored:iq4_xs` | 27.3B | IQ4_XS | qwen35 |
 | `gemma4-26b/` | `gemma4:26b` | 25.2B | Q4_K_M | gemma4 |
@@ -204,7 +214,7 @@ interpolation до ~100k); по API у всех заявлен ctx 262144.
   `OPENROUTER_PROXY_FILE` (сами файлы вне workspace, не шарить; локальные
   пути — в `.env.local`);
 - папка модели — слаг OpenRouter с `/` → `-` (пример: `openai-gpt-6-luna/`),
-  внутри те же `<роль>/run-XX/` и `model.md`;
+  внутри те же `<роль>/interview/run-XX/` и `model.md`;
 - каждая платная операция пишется в журнал `reports/openrouter-spend.csv`
   (модель, цель, запросы, токены, стоимость) — сверяться перед прогонами;
 - у ключа дневной лимит: остаток смотреть `GET /api/v1/auth/key`

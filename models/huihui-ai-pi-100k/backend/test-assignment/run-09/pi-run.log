@@ -1,0 +1,20 @@
+Все пять команд на месте, отчёт — точно по образцу, rc=0. Итоговая сводка:
+
+## Сделано
+
+**Архитектура (слои):**
+- **Домен** `src/Domain/`: `Decimal` (bcmath, шкалы 16–20, `roundHalfUp` HALF_UP), `UnitRates` (обе схемы), `OffPeakPolicy` ([start,end) по спецификации, переход через полночь), `Rater` (точные формулы, одно округление на событие).
+- **Сущности** `src/Entity/`: `Provider` (off_peak), `Model`, `PriceRow` (история `valid_from`), `UsageEvent`.
+- **Приложение** `src/Application/`: `CatalogParser`/`CatalogWriter`/`PriceImporter`, `UsageImporter` (дедуп + in-file dedup), `RaterService` (unrated-ретраи, выбор строки по `valid_from ≤ ts`), `ReportService` (`[from,to)`, grouping, TOTAL), `RepriceService` (upsert строки + пересчёт связанных, дельта).
+- **Команды** `src/Command/`: 5 команд, stdout/stderr строго по спецификации, rc 0/1.
+- **Миграция** `Version20260101000001` — разворачивается на чистой базе (`make migrate`).
+- **Инфраструктура**: `Transactor` (ORM 3.7 без `EM::transactional`).
+
+**Исправления каркаса:** сигнатура миграции (`up(Schema $schema): void`), `orderBy` → в DQL (ORM 3 `Query`), `App.` → `App\`, `user` → колонка `user_id` (резервированное слово PG), flush после инсовов providers/models для FK-идов.
+
+**Проверено (всё зелёное):**
+- Приёмка TASK.md — отчёт **байт-в-байт** (`cmp` ✓), идемпотентность повтора (✓), чистый цикл `db-down → db-up → migrate → …` (✓).
+- Edge-cases: границы `valid_from` (11:00/12:00/20:00), оф-пик `[start,end)`, переход через полночь, дедуп дубля `e8`, unrated→добавление цены→ретраит, reprice `REPRICED_EVENTS=1 DELTA=+0.600000` и идемпотентность повторного reprice.
+- **Тесты: 12 tests, 32 assertions, OK** (`make test`).
+
+**Артефакты:** `COMMIT_MESSAGE.md`, `PR_DESCRIPTION.md` — созданы, на русском, с перечислением решений и отступлений.

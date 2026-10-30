@@ -342,7 +342,7 @@ def main() -> int:
     out_root = Path(args.out) if args.out else resolve_out_root(
         args.models_root, slugify(args.model))
     if role and args.out is None:
-        out_root = out_root / role
+        out_root = out_root / role / "interview"
 
     keep_alive = int(args.keep_alive) if str(args.keep_alive).lstrip("-").isdigit() \
         else args.keep_alive

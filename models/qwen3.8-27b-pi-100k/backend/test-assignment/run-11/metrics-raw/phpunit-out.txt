@@ -1,0 +1,1122 @@
+PHPUnit 11.5.57 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.5.11
+Configuration: /tmp/billing-metrics-t3dfw739/repo/phpunit.xml.dist
+
+.....................                                             21 / 21 (100%)
+
+Time: 00:00.846, Memory: 16.00 MB
+
+OK (21 tests, 53 assertions)
+
+[info] Connecting with parameters [array]
+[debug] Executing query: SELECT 1
+[debug] Executing query: SELECT current_schema()
+[debug] Executing query: SELECT schema_name
+FROM   information_schema.schemata
+WHERE  schema_name NOT LIKE 'pg\_%'
+AND    schema_name != 'information_schema'
+[debug] Executing query: SELECT CURRENT_DATABASE()
+[debug] Executing query: SELECT sequence_name AS relname,
+                       sequence_schema AS schemaname,
+                       minimum_value AS min_value,
+                       increment AS increment_by
+                FROM   information_schema.sequences
+                WHERE  sequence_catalog = 'app'
+                AND    sequence_schema NOT LIKE 'pg\_%'
+                AND    sequence_schema != 'information_schema'
+[debug] Executing query: SELECT CURRENT_DATABASE()
+[debug] Executing query: SELECT quote_ident(n.nspname)               AS schema_name,
+       quote_ident(c.relname)               AS table_name,
+       quote_ident(a.attname)               AS field,
+       t.typname                            AS type,
+       format_type(a.atttypid, a.atttypmod) AS complete_type,
+       bt.typname                           AS domain_type,
+       format_type(bt.oid, t.typtypmod)     AS domain_complete_type,
+       a.attnotnull                         AS isnotnull,
+       a.attidentity,
+       (    SELECT
+        CASE
+            WHEN a.attgenerated = 's' THEN NULL
+            ELSE pg_get_expr(adbin, adrelid)
+        END
+     FROM pg_attrdef
+     WHERE c.oid = pg_attrdef.adrelid
+        AND pg_attrdef.adnum=a.attnum)                                 AS "default",
+       dsc.description                      AS comment,
+       CASE
+           WHEN coll.collprovider = 'c'
+               THEN coll.collcollate
+           WHEN coll.collprovider = 'd'
+               THEN NULL
+           ELSE coll.collname
+           END                              AS collation
+FROM pg_attribute a
+         JOIN pg_class c
+              ON c.oid = a.attrelid
+         JOIN pg_namespace n
+              ON n.oid = c.relnamespace
+         JOIN pg_type t
+              ON t.oid = a.atttypid
+         LEFT JOIN pg_type bt
+                   ON t.typtype = 'd'
+                       AND bt.oid = t.typbasetype
+         LEFT JOIN pg_collation coll
+                   ON coll.oid = a.attcollation
+         LEFT JOIN pg_depend dep
+                   ON dep.objid = c.oid
+                       AND dep.deptype = 'e'
+                       AND dep.classid = (SELECT oid FROM pg_class WHERE relname = 'pg_class')
+         LEFT JOIN pg_description dsc
+                   ON dsc.objoid = c.oid AND dsc.objsubid = a.attnum
+         LEFT JOIN pg_inherits i
+                   ON i.inhrelid = c.oid
+         LEFT JOIN pg_class p
+                   ON i.inhparent = p.oid
+                       AND p.relkind = 'p'
+WHERE n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+  -- 'r' for regular tables - 'p' for partitioned tables
+  AND c.relkind IN ('r', 'p')
+  AND a.attnum > 0
+  AND dep.refobjid IS NULL
+  -- exclude partitions (tables that inherit from partitioned tables)
+  AND p.oid IS NULL
+ORDER BY n.nspname,
+    c.relname,
+    a.attnum
+[debug] Executing query: SELECT
+       quote_ident(n.nspname) AS schema_name,
+       quote_ident(c.relname) AS table_name,
+       quote_ident(ic.relname) AS relname,
+       i.indisunique,
+       i.indisprimary,
+       i.indkey,
+       i.indrelid,
+       pg_get_expr(indpred, indrelid) AS "where",
+       quote_ident(attname) AS attname
+  FROM pg_index i
+       JOIN pg_class AS c ON c.oid = i.indrelid
+       JOIN pg_namespace n ON n.oid = c.relnamespace
+       JOIN pg_class AS ic ON ic.oid = i.indexrelid
+       JOIN LATERAL UNNEST(i.indkey) WITH ORDINALITY AS keys(attnum, ord)
+            ON TRUE
+       JOIN pg_attribute a
+            ON a.attrelid = c.oid
+                AND a.attnum = keys.attnum
+ WHERE n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+ ORDER BY 1, 2, keys.ord;
+[debug] Executing query:    SELECT
+          quote_ident(tn.nspname) AS schema_name,
+          quote_ident(tc.relname) AS table_name,
+          quote_ident(r.conname) as conname,
+          pg_get_constraintdef(r.oid, true) as condef,
+          r.condeferrable,
+          r.condeferred
+          FROM pg_constraint r
+              JOIN pg_class AS tc ON tc.oid = r.conrelid
+              JOIN pg_namespace tn ON tn.oid = tc.relnamespace
+          WHERE r.conrelid IN
+          (
+              SELECT c.oid
+              FROM pg_class c
+                JOIN pg_namespace n
+                    ON n.oid = c.relnamespace
+                WHERE n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast'))
+          AND r.contype = 'f'
+          ORDER BY 1, 2
+[debug] Executing query: SELECT quote_ident(n.nspname) AS schema_name,
+       quote_ident(c.relname) AS table_name,
+       CASE c.relpersistence WHEN 'u' THEN true ELSE false END as unlogged,
+       obj_description(c.oid, 'pg_class') AS comment
+FROM pg_class c
+     INNER JOIN pg_namespace n
+         ON n.oid = c.relnamespace
+WHERE
+      c.relkind = 'r'
+  AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+[debug] Executing statement: ALTER TABLE usage_ratings DROP CONSTRAINT FK_903271D671F7E88B
+[debug] Executing statement: ALTER TABLE prices DROP CONSTRAINT FK_E4CB6D59D79572D9
+[debug] Executing statement: ALTER TABLE models DROP CONSTRAINT FK_E4D6300992C4739C
+[debug] Executing statement: DROP TABLE usage_ratings
+[debug] Executing statement: DROP TABLE usage_events
+[debug] Executing statement: DROP TABLE prices
+[debug] Executing statement: DROP TABLE models
+[debug] Executing statement: DROP TABLE providers
+[debug] Executing statement: CREATE TABLE usage_ratings (id BIGINT GENERATED BY DEFAULT AS IDENTITY NOT NULL, amount TEXT NOT NULL, price_id BIGINT DEFAULT NULL, source VARCHAR(16) NOT NULL, created_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, event_id BIGINT DEFAULT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE INDEX idx_usage_ratings_event ON usage_ratings (event_id, id)
+[debug] Executing statement: CREATE INDEX IDX_903271D671F7E88B ON usage_ratings (event_id)
+[debug] Executing statement: CREATE TABLE usage_events (id BIGINT GENERATED BY DEFAULT AS IDENTITY NOT NULL, provider VARCHAR(64) NOT NULL, provider_request_id VARCHAR(128) NOT NULL, model VARCHAR(128) NOT NULL, user_id VARCHAR(255) NOT NULL, ts TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, tokens_input BIGINT NOT NULL, tokens_output BIGINT NOT NULL, tokens_cache_read BIGINT NOT NULL, tokens_cache_write BIGINT NOT NULL, status VARCHAR(16) NOT NULL, cost_usd TEXT DEFAULT NULL, cost_source VARCHAR(16) DEFAULT NULL, price_id BIGINT DEFAULT NULL, created_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, updated_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE INDEX idx_usage_events_status ON usage_events (status)
+[debug] Executing statement: CREATE INDEX idx_usage_events_ts ON usage_events (ts)
+[debug] Executing statement: CREATE UNIQUE INDEX uq_usage_events_provider_request ON usage_events (provider, provider_request_id)
+[debug] Executing statement: CREATE TABLE prices (id INT GENERATED BY DEFAULT AS IDENTITY NOT NULL, valid_from TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, currency VARCHAR(3) NOT NULL, unit VARCHAR(32) NOT NULL, rates JSON NOT NULL, model INT DEFAULT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE UNIQUE INDEX uq_prices_model_valid_from ON prices (model, valid_from)
+[debug] Executing statement: CREATE INDEX IDX_E4CB6D59D79572D9 ON prices (model)
+[debug] Executing statement: CREATE TABLE models (id INT GENERATED BY DEFAULT AS IDENTITY NOT NULL, code VARCHAR(64) NOT NULL, provider INT DEFAULT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE UNIQUE INDEX uq_models_provider_code ON models (provider, code)
+[debug] Executing statement: CREATE INDEX IDX_E4D6300992C4739C ON models (provider)
+[debug] Executing statement: CREATE TABLE providers (id INT GENERATED BY DEFAULT AS IDENTITY NOT NULL, code VARCHAR(64) NOT NULL, name VARCHAR(255) NOT NULL, off_peak_window_start INT DEFAULT NULL, off_peak_window_end INT DEFAULT NULL, off_peak_multiplier TEXT DEFAULT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE UNIQUE INDEX uq_providers_code ON providers (code)
+[debug] Executing statement: ALTER TABLE usage_ratings ADD CONSTRAINT FK_903271D671F7E88B FOREIGN KEY (event_id) REFERENCES usage_events (id) ON DELETE CASCADE NOT DEFERRABLE
+[debug] Executing statement: ALTER TABLE prices ADD CONSTRAINT FK_E4CB6D59D79572D9 FOREIGN KEY (model) REFERENCES models (id) ON DELETE CASCADE NOT DEFERRABLE
+[debug] Executing statement: ALTER TABLE models ADD CONSTRAINT FK_E4D6300992C4739C FOREIGN KEY (provider) REFERENCES providers (id) ON DELETE CASCADE NOT DEFERRABLE
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_window_start AS off_peak_window_start_4, t0.off_peak_window_end AS off_peak_window_end_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_window_start AS off_peak_window_start_4, t0.off_peak_window_end AS off_peak_window_end_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider AS provider_3 FROM models t0 WHERE t0.provider = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider AS provider_3 FROM models t0 WHERE t0.provider = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider AS provider_3 FROM models t0 WHERE t0.provider = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.rates AS rates_5, t0.model AS model_6 FROM prices t0 WHERE t0.model = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.rates AS rates_5, t0.model AS model_6 FROM prices t0 WHERE t0.model = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.rates AS rates_5, t0.model AS model_6 FROM prices t0 WHERE t0.model = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.rates AS rates_5, t0.model AS model_6 FROM prices t0 WHERE t0.model = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Beginning transaction
+[debug] Executing statement: INSERT INTO providers (code, name, off_peak_window_start, off_peak_window_end, off_peak_multiplier) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO providers (code, name, off_peak_window_start, off_peak_window_end, off_peak_multiplier) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO models (code, provider) VALUES (?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO models (code, provider) VALUES (?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO models (code, provider) VALUES (?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO prices (valid_from, currency, unit, rates, model) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO prices (valid_from, currency, unit, rates, model) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO prices (valid_from, currency, unit, rates, model) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO prices (valid_from, currency, unit, rates, model) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Committing transaction
+[debug] Executing statement: SELECT t0.id AS id_1, t0.provider AS provider_2, t0.provider_request_id AS provider_request_id_3, t0.model AS model_4, t0.user_id AS user_id_5, t0.ts AS ts_6, t0.tokens_input AS tokens_input_7, t0.tokens_output AS tokens_output_8, t0.tokens_cache_read AS tokens_cache_read_9, t0.tokens_cache_write AS tokens_cache_write_10, t0.status AS status_11, t0.cost_usd AS cost_usd_12, t0.cost_source AS cost_source_13, t0.price_id AS price_id_14, t0.created_at AS created_at_15, t0.updated_at AS updated_at_16 FROM usage_events t0 WHERE t0.provider = ? AND t0.provider_request_id = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.provider AS provider_2, t0.provider_request_id AS provider_request_id_3, t0.model AS model_4, t0.user_id AS user_id_5, t0.ts AS ts_6, t0.tokens_input AS tokens_input_7, t0.tokens_output AS tokens_output_8, t0.tokens_cache_read AS tokens_cache_read_9, t0.tokens_cache_write AS tokens_cache_write_10, t0.status AS status_11, t0.cost_usd AS cost_usd_12, t0.cost_source AS cost_source_13, t0.price_id AS price_id_14, t0.created_at AS created_at_15, t0.updated_at AS updated_at_16 FROM usage_events t0 WHERE t0.provider = ? AND t0.provider_request_id = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.provider AS provider_2, t0.provider_request_id AS provider_request_id_3, t0.model AS model_4, t0.user_id AS user_id_5, t0.ts AS ts_6, t0.tokens_input AS tokens_input_7, t0.tokens_output AS tokens_output_8, t0.tokens_cache_read AS tokens_cache_read_9, t0.tokens_cache_write AS tokens_cache_write_10, t0.status AS status_11, t0.cost_usd AS cost_usd_12, t0.cost_source AS cost_source_13, t0.price_id AS price_id_14, t0.created_at AS created_at_15, t0.updated_at AS updated_at_16 FROM usage_events t0 WHERE t0.provider = ? AND t0.provider_request_id = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Beginning transaction
+[debug] Executing statement: INSERT INTO usage_events (provider, provider_request_id, model, user_id, ts, tokens_input, tokens_output, tokens_cache_read, tokens_cache_write, status, cost_usd, cost_source, price_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO usage_events (provider, provider_request_id, model, user_id, ts, tokens_input, tokens_output, tokens_cache_read, tokens_cache_write, status, cost_usd, cost_source, price_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO usage_events (provider, provider_request_id, model, user_id, ts, tokens_input, tokens_output, tokens_cache_read, tokens_cache_write, status, cost_usd, cost_source, price_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Committing transaction
+[debug] Executing statement: SELECT u0_.id AS id_0, u0_.provider AS provider_1, u0_.provider_request_id AS provider_request_id_2, u0_.model AS model_3, u0_.user_id AS user_id_4, u0_.ts AS ts_5, u0_.tokens_input AS tokens_input_6, u0_.tokens_output AS tokens_output_7, u0_.tokens_cache_read AS tokens_cache_read_8, u0_.tokens_cache_write AS tokens_cache_write_9, u0_.status AS status_10, u0_.cost_usd AS cost_usd_11, u0_.cost_source AS cost_source_12, u0_.price_id AS price_id_13, u0_.created_at AS created_at_14, u0_.updated_at AS updated_at_15 FROM usage_events u0_ WHERE u0_.status IN (?, ?) ORDER BY u0_.id ASC (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_window_start AS off_peak_window_start_4, t0.off_peak_window_end AS off_peak_window_end_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider AS provider_3 FROM models t0 WHERE t0.provider = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.rates AS rates_5, t0.model AS model_6 FROM prices t0 WHERE t0.model = ? ORDER BY t0.valid_from DESC (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_window_start AS off_peak_window_start_4, t0.off_peak_window_end AS off_peak_window_end_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_window_start AS off_peak_window_start_4, t0.off_peak_window_end AS off_peak_window_end_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider AS provider_3 FROM models t0 WHERE t0.provider = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.rates AS rates_5, t0.model AS model_6 FROM prices t0 WHERE t0.model = ? ORDER BY t0.valid_from DESC (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_window_start AS off_peak_window_start_4, t0.off_peak_window_end AS off_peak_window_end_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_window_start AS off_peak_window_start_4, t0.off_peak_window_end AS off_peak_window_end_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider AS provider_3 FROM models t0 WHERE t0.provider = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.rates AS rates_5, t0.model AS model_6 FROM prices t0 WHERE t0.model = ? ORDER BY t0.valid_from DESC (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_window_start AS off_peak_window_start_4, t0.off_peak_window_end AS off_peak_window_end_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Beginning transaction
+[debug] Executing statement: INSERT INTO usage_ratings (amount, price_id, source, created_at, event_id) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO usage_ratings (amount, price_id, source, created_at, event_id) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO usage_ratings (amount, price_id, source, created_at, event_id) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: UPDATE usage_events SET status = ?, cost_usd = ?, cost_source = ?, price_id = ?, updated_at = ? WHERE id = ? (parameters: [array], types: [array])
+[debug] Executing statement: UPDATE usage_events SET status = ?, cost_usd = ?, cost_source = ?, price_id = ?, updated_at = ? WHERE id = ? (parameters: [array], types: [array])
+[debug] Executing statement: UPDATE usage_events SET status = ?, cost_usd = ?, cost_source = ?, price_id = ?, updated_at = ? WHERE id = ? (parameters: [array], types: [array])
+[debug] Committing transaction
+[debug] Executing statement: SELECT u0_.id AS id_0, u0_.provider AS provider_1, u0_.provider_request_id AS provider_request_id_2, u0_.model AS model_3, u0_.user_id AS user_id_4, u0_.ts AS ts_5, u0_.tokens_input AS tokens_input_6, u0_.tokens_output AS tokens_output_7, u0_.tokens_cache_read AS tokens_cache_read_8, u0_.tokens_cache_write AS tokens_cache_write_9, u0_.status AS status_10, u0_.cost_usd AS cost_usd_11, u0_.cost_source AS cost_source_12, u0_.price_id AS price_id_13, u0_.created_at AS created_at_14, u0_.updated_at AS updated_at_15 FROM usage_events u0_ WHERE u0_.cost_usd IS NOT NULL AND u0_.ts >= ? AND u0_.ts < ? ORDER BY u0_.ts ASC (parameters: [array], types: [array])
+[debug] Executing query: SELECT id, event_id FROM usage_ratings WHERE event_id IN (1,2,3)
+[debug] Executing query: SELECT t0.id AS id_1, t0.amount AS amount_2, t0.price_id AS price_id_3, t0.source AS source_4, t0.created_at AS created_at_5, t0.event_id AS event_id_6 FROM usage_ratings t0
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_window_start AS off_peak_window_start_4, t0.off_peak_window_end AS off_peak_window_end_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_window_start AS off_peak_window_start_4, t0.off_peak_window_end AS off_peak_window_end_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider AS provider_3 FROM models t0 WHERE t0.provider = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider AS provider_3 FROM models t0 WHERE t0.provider = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider AS provider_3 FROM models t0 WHERE t0.provider = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.rates AS rates_5, t0.model AS model_6 FROM prices t0 WHERE t0.model = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.rates AS rates_5, t0.model AS model_6 FROM prices t0 WHERE t0.model = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.rates AS rates_5, t0.model AS model_6 FROM prices t0 WHERE t0.model = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.rates AS rates_5, t0.model AS model_6 FROM prices t0 WHERE t0.model = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.provider AS provider_2, t0.provider_request_id AS provider_request_id_3, t0.model AS model_4, t0.user_id AS user_id_5, t0.ts AS ts_6, t0.tokens_input AS tokens_input_7, t0.tokens_output AS tokens_output_8, t0.tokens_cache_read AS tokens_cache_read_9, t0.tokens_cache_write AS tokens_cache_write_10, t0.status AS status_11, t0.cost_usd AS cost_usd_12, t0.cost_source AS cost_source_13, t0.price_id AS price_id_14, t0.created_at AS created_at_15, t0.updated_at AS updated_at_16 FROM usage_events t0 WHERE t0.provider = ? AND t0.provider_request_id = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.provider AS provider_2, t0.provider_request_id AS provider_request_id_3, t0.model AS model_4, t0.user_id AS user_id_5, t0.ts AS ts_6, t0.tokens_input AS tokens_input_7, t0.tokens_output AS tokens_output_8, t0.tokens_cache_read AS tokens_cache_read_9, t0.tokens_cache_write AS tokens_cache_write_10, t0.status AS status_11, t0.cost_usd AS cost_usd_12, t0.cost_source AS cost_source_13, t0.price_id AS price_id_14, t0.created_at AS created_at_15, t0.updated_at AS updated_at_16 FROM usage_events t0 WHERE t0.provider = ? AND t0.provider_request_id = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.provider AS provider_2, t0.provider_request_id AS provider_request_id_3, t0.model AS model_4, t0.user_id AS user_id_5, t0.ts AS ts_6, t0.tokens_input AS tokens_input_7, t0.tokens_output AS tokens_output_8, t0.tokens_cache_read AS tokens_cache_read_9, t0.tokens_cache_write AS tokens_cache_write_10, t0.status AS status_11, t0.cost_usd AS cost_usd_12, t0.cost_source AS cost_source_13, t0.price_id AS price_id_14, t0.created_at AS created_at_15, t0.updated_at AS updated_at_16 FROM usage_events t0 WHERE t0.provider = ? AND t0.provider_request_id = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT u0_.id AS id_0, u0_.provider AS provider_1, u0_.provider_request_id AS provider_request_id_2, u0_.model AS model_3, u0_.user_id AS user_id_4, u0_.ts AS ts_5, u0_.tokens_input AS tokens_input_6, u0_.tokens_output AS tokens_output_7, u0_.tokens_cache_read AS tokens_cache_read_8, u0_.tokens_cache_write AS tokens_cache_write_9, u0_.status AS status_10, u0_.cost_usd AS cost_usd_11, u0_.cost_source AS cost_source_12, u0_.price_id AS price_id_13, u0_.created_at AS created_at_14, u0_.updated_at AS updated_at_15 FROM usage_events u0_ WHERE u0_.status IN (?, ?) ORDER BY u0_.id ASC (parameters: [array], types: [array])
+[debug] Executing statement: SELECT u0_.id AS id_0, u0_.provider AS provider_1, u0_.provider_request_id AS provider_request_id_2, u0_.model AS model_3, u0_.user_id AS user_id_4, u0_.ts AS ts_5, u0_.tokens_input AS tokens_input_6, u0_.tokens_output AS tokens_output_7, u0_.tokens_cache_read AS tokens_cache_read_8, u0_.tokens_cache_write AS tokens_cache_write_9, u0_.status AS status_10, u0_.cost_usd AS cost_usd_11, u0_.cost_source AS cost_source_12, u0_.price_id AS price_id_13, u0_.created_at AS created_at_14, u0_.updated_at AS updated_at_15 FROM usage_events u0_ WHERE u0_.cost_usd IS NOT NULL AND u0_.ts >= ? AND u0_.ts < ? ORDER BY u0_.ts ASC (parameters: [array], types: [array])
+[debug] Executing query: SELECT id, event_id FROM usage_ratings WHERE event_id IN (1,2,3)
+[debug] Executing query: SELECT t0.id AS id_1, t0.amount AS amount_2, t0.price_id AS price_id_3, t0.source AS source_4, t0.created_at AS created_at_5, t0.event_id AS event_id_6 FROM usage_ratings t0
+[info] Connecting with parameters [array]
+[debug] Executing query: SELECT 1
+[debug] Executing query: SELECT current_schema()
+[debug] Executing query: SELECT schema_name
+FROM   information_schema.schemata
+WHERE  schema_name NOT LIKE 'pg\_%'
+AND    schema_name != 'information_schema'
+[debug] Executing query: SELECT CURRENT_DATABASE()
+[debug] Executing query: SELECT sequence_name AS relname,
+                       sequence_schema AS schemaname,
+                       minimum_value AS min_value,
+                       increment AS increment_by
+                FROM   information_schema.sequences
+                WHERE  sequence_catalog = 'app'
+                AND    sequence_schema NOT LIKE 'pg\_%'
+                AND    sequence_schema != 'information_schema'
+[debug] Executing query: SELECT CURRENT_DATABASE()
+[debug] Executing query: SELECT quote_ident(n.nspname)               AS schema_name,
+       quote_ident(c.relname)               AS table_name,
+       quote_ident(a.attname)               AS field,
+       t.typname                            AS type,
+       format_type(a.atttypid, a.atttypmod) AS complete_type,
+       bt.typname                           AS domain_type,
+       format_type(bt.oid, t.typtypmod)     AS domain_complete_type,
+       a.attnotnull                         AS isnotnull,
+       a.attidentity,
+       (    SELECT
+        CASE
+            WHEN a.attgenerated = 's' THEN NULL
+            ELSE pg_get_expr(adbin, adrelid)
+        END
+     FROM pg_attrdef
+     WHERE c.oid = pg_attrdef.adrelid
+        AND pg_attrdef.adnum=a.attnum)                                 AS "default",
+       dsc.description                      AS comment,
+       CASE
+           WHEN coll.collprovider = 'c'
+               THEN coll.collcollate
+           WHEN coll.collprovider = 'd'
+               THEN NULL
+           ELSE coll.collname
+           END                              AS collation
+FROM pg_attribute a
+         JOIN pg_class c
+              ON c.oid = a.attrelid
+         JOIN pg_namespace n
+              ON n.oid = c.relnamespace
+         JOIN pg_type t
+              ON t.oid = a.atttypid
+         LEFT JOIN pg_type bt
+                   ON t.typtype = 'd'
+                       AND bt.oid = t.typbasetype
+         LEFT JOIN pg_collation coll
+                   ON coll.oid = a.attcollation
+         LEFT JOIN pg_depend dep
+                   ON dep.objid = c.oid
+                       AND dep.deptype = 'e'
+                       AND dep.classid = (SELECT oid FROM pg_class WHERE relname = 'pg_class')
+         LEFT JOIN pg_description dsc
+                   ON dsc.objoid = c.oid AND dsc.objsubid = a.attnum
+         LEFT JOIN pg_inherits i
+                   ON i.inhrelid = c.oid
+         LEFT JOIN pg_class p
+                   ON i.inhparent = p.oid
+                       AND p.relkind = 'p'
+WHERE n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+  -- 'r' for regular tables - 'p' for partitioned tables
+  AND c.relkind IN ('r', 'p')
+  AND a.attnum > 0
+  AND dep.refobjid IS NULL
+  -- exclude partitions (tables that inherit from partitioned tables)
+  AND p.oid IS NULL
+ORDER BY n.nspname,
+    c.relname,
+    a.attnum
+[debug] Executing query: SELECT
+       quote_ident(n.nspname) AS schema_name,
+       quote_ident(c.relname) AS table_name,
+       quote_ident(ic.relname) AS relname,
+       i.indisunique,
+       i.indisprimary,
+       i.indkey,
+       i.indrelid,
+       pg_get_expr(indpred, indrelid) AS "where",
+       quote_ident(attname) AS attname
+  FROM pg_index i
+       JOIN pg_class AS c ON c.oid = i.indrelid
+       JOIN pg_namespace n ON n.oid = c.relnamespace
+       JOIN pg_class AS ic ON ic.oid = i.indexrelid
+       JOIN LATERAL UNNEST(i.indkey) WITH ORDINALITY AS keys(attnum, ord)
+            ON TRUE
+       JOIN pg_attribute a
+            ON a.attrelid = c.oid
+                AND a.attnum = keys.attnum
+ WHERE n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+ ORDER BY 1, 2, keys.ord;
+[debug] Executing query:    SELECT
+          quote_ident(tn.nspname) AS schema_name,
+          quote_ident(tc.relname) AS table_name,
+          quote_ident(r.conname) as conname,
+          pg_get_constraintdef(r.oid, true) as condef,
+          r.condeferrable,
+          r.condeferred
+          FROM pg_constraint r
+              JOIN pg_class AS tc ON tc.oid = r.conrelid
+              JOIN pg_namespace tn ON tn.oid = tc.relnamespace
+          WHERE r.conrelid IN
+          (
+              SELECT c.oid
+              FROM pg_class c
+                JOIN pg_namespace n
+                    ON n.oid = c.relnamespace
+                WHERE n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast'))
+          AND r.contype = 'f'
+          ORDER BY 1, 2
+[debug] Executing query: SELECT quote_ident(n.nspname) AS schema_name,
+       quote_ident(c.relname) AS table_name,
+       CASE c.relpersistence WHEN 'u' THEN true ELSE false END as unlogged,
+       obj_description(c.oid, 'pg_class') AS comment
+FROM pg_class c
+     INNER JOIN pg_namespace n
+         ON n.oid = c.relnamespace
+WHERE
+      c.relkind = 'r'
+  AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+[debug] Executing statement: ALTER TABLE usage_ratings DROP CONSTRAINT FK_903271D671F7E88B
+[debug] Executing statement: ALTER TABLE prices DROP CONSTRAINT FK_E4CB6D59D79572D9
+[debug] Executing statement: ALTER TABLE models DROP CONSTRAINT FK_E4D6300992C4739C
+[debug] Executing statement: DROP TABLE usage_ratings
+[debug] Executing statement: DROP TABLE usage_events
+[debug] Executing statement: DROP TABLE prices
+[debug] Executing statement: DROP TABLE models
+[debug] Executing statement: DROP TABLE providers
+[debug] Executing statement: CREATE TABLE usage_ratings (id BIGINT GENERATED BY DEFAULT AS IDENTITY NOT NULL, amount TEXT NOT NULL, price_id BIGINT DEFAULT NULL, source VARCHAR(16) NOT NULL, created_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, event_id BIGINT DEFAULT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE INDEX idx_usage_ratings_event ON usage_ratings (event_id, id)
+[debug] Executing statement: CREATE INDEX IDX_903271D671F7E88B ON usage_ratings (event_id)
+[debug] Executing statement: CREATE TABLE usage_events (id BIGINT GENERATED BY DEFAULT AS IDENTITY NOT NULL, provider VARCHAR(64) NOT NULL, provider_request_id VARCHAR(128) NOT NULL, model VARCHAR(128) NOT NULL, user_id VARCHAR(255) NOT NULL, ts TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, tokens_input BIGINT NOT NULL, tokens_output BIGINT NOT NULL, tokens_cache_read BIGINT NOT NULL, tokens_cache_write BIGINT NOT NULL, status VARCHAR(16) NOT NULL, cost_usd TEXT DEFAULT NULL, cost_source VARCHAR(16) DEFAULT NULL, price_id BIGINT DEFAULT NULL, created_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, updated_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE INDEX idx_usage_events_status ON usage_events (status)
+[debug] Executing statement: CREATE INDEX idx_usage_events_ts ON usage_events (ts)
+[debug] Executing statement: CREATE UNIQUE INDEX uq_usage_events_provider_request ON usage_events (provider, provider_request_id)
+[debug] Executing statement: CREATE TABLE prices (id INT GENERATED BY DEFAULT AS IDENTITY NOT NULL, valid_from TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, currency VARCHAR(3) NOT NULL, unit VARCHAR(32) NOT NULL, rates JSON NOT NULL, model INT DEFAULT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE UNIQUE INDEX uq_prices_model_valid_from ON prices (model, valid_from)
+[debug] Executing statement: CREATE INDEX IDX_E4CB6D59D79572D9 ON prices (model)
+[debug] Executing statement: CREATE TABLE models (id INT GENERATED BY DEFAULT AS IDENTITY NOT NULL, code VARCHAR(64) NOT NULL, provider INT DEFAULT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE UNIQUE INDEX uq_models_provider_code ON models (provider, code)
+[debug] Executing statement: CREATE INDEX IDX_E4D6300992C4739C ON models (provider)
+[debug] Executing statement: CREATE TABLE providers (id INT GENERATED BY DEFAULT AS IDENTITY NOT NULL, code VARCHAR(64) NOT NULL, name VARCHAR(255) NOT NULL, off_peak_window_start INT DEFAULT NULL, off_peak_window_end INT DEFAULT NULL, off_peak_multiplier TEXT DEFAULT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE UNIQUE INDEX uq_providers_code ON providers (code)
+[debug] Executing statement: ALTER TABLE usage_ratings ADD CONSTRAINT FK_903271D671F7E88B FOREIGN KEY (event_id) REFERENCES usage_events (id) ON DELETE CASCADE NOT DEFERRABLE
+[debug] Executing statement: ALTER TABLE prices ADD CONSTRAINT FK_E4CB6D59D79572D9 FOREIGN KEY (model) REFERENCES models (id) ON DELETE CASCADE NOT DEFERRABLE
+[debug] Executing statement: ALTER TABLE models ADD CONSTRAINT FK_E4D6300992C4739C FOREIGN KEY (provider) REFERENCES providers (id) ON DELETE CASCADE NOT DEFERRABLE
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_window_start AS off_peak_window_start_4, t0.off_peak_window_end AS off_peak_window_end_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_window_start AS off_peak_window_start_4, t0.off_peak_window_end AS off_peak_window_end_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider AS provider_3 FROM models t0 WHERE t0.provider = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider AS provider_3 FROM models t0 WHERE t0.provider = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider AS provider_3 FROM models t0 WHERE t0.provider = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.rates AS rates_5, t0.model AS model_6 FROM prices t0 WHERE t0.model = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.rates AS rates_5, t0.model AS model_6 FROM prices t0 WHERE t0.model = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.rates AS rates_5, t0.model AS model_6 FROM prices t0 WHERE t0.model = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.rates AS rates_5, t0.model AS model_6 FROM prices t0 WHERE t0.model = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Beginning transaction
+[debug] Executing statement: INSERT INTO providers (code, name, off_peak_window_start, off_peak_window_end, off_peak_multiplier) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO providers (code, name, off_peak_window_start, off_peak_window_end, off_peak_multiplier) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO models (code, provider) VALUES (?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO models (code, provider) VALUES (?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO models (code, provider) VALUES (?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO prices (valid_from, currency, unit, rates, model) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO prices (valid_from, currency, unit, rates, model) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO prices (valid_from, currency, unit, rates, model) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO prices (valid_from, currency, unit, rates, model) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Committing transaction
+[debug] Executing statement: SELECT t0.id AS id_1, t0.provider AS provider_2, t0.provider_request_id AS provider_request_id_3, t0.model AS model_4, t0.user_id AS user_id_5, t0.ts AS ts_6, t0.tokens_input AS tokens_input_7, t0.tokens_output AS tokens_output_8, t0.tokens_cache_read AS tokens_cache_read_9, t0.tokens_cache_write AS tokens_cache_write_10, t0.status AS status_11, t0.cost_usd AS cost_usd_12, t0.cost_source AS cost_source_13, t0.price_id AS price_id_14, t0.created_at AS created_at_15, t0.updated_at AS updated_at_16 FROM usage_events t0 WHERE t0.provider = ? AND t0.provider_request_id = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.provider AS provider_2, t0.provider_request_id AS provider_request_id_3, t0.model AS model_4, t0.user_id AS user_id_5, t0.ts AS ts_6, t0.tokens_input AS tokens_input_7, t0.tokens_output AS tokens_output_8, t0.tokens_cache_read AS tokens_cache_read_9, t0.tokens_cache_write AS tokens_cache_write_10, t0.status AS status_11, t0.cost_usd AS cost_usd_12, t0.cost_source AS cost_source_13, t0.price_id AS price_id_14, t0.created_at AS created_at_15, t0.updated_at AS updated_at_16 FROM usage_events t0 WHERE t0.provider = ? AND t0.provider_request_id = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.provider AS provider_2, t0.provider_request_id AS provider_request_id_3, t0.model AS model_4, t0.user_id AS user_id_5, t0.ts AS ts_6, t0.tokens_input AS tokens_input_7, t0.tokens_output AS tokens_output_8, t0.tokens_cache_read AS tokens_cache_read_9, t0.tokens_cache_write AS tokens_cache_write_10, t0.status AS status_11, t0.cost_usd AS cost_usd_12, t0.cost_source AS cost_source_13, t0.price_id AS price_id_14, t0.created_at AS created_at_15, t0.updated_at AS updated_at_16 FROM usage_events t0 WHERE t0.provider = ? AND t0.provider_request_id = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Beginning transaction
+[debug] Executing statement: INSERT INTO usage_events (provider, provider_request_id, model, user_id, ts, tokens_input, tokens_output, tokens_cache_read, tokens_cache_write, status, cost_usd, cost_source, price_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO usage_events (provider, provider_request_id, model, user_id, ts, tokens_input, tokens_output, tokens_cache_read, tokens_cache_write, status, cost_usd, cost_source, price_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO usage_events (provider, provider_request_id, model, user_id, ts, tokens_input, tokens_output, tokens_cache_read, tokens_cache_write, status, cost_usd, cost_source, price_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Committing transaction
+[debug] Executing statement: SELECT u0_.id AS id_0, u0_.provider AS provider_1, u0_.provider_request_id AS provider_request_id_2, u0_.model AS model_3, u0_.user_id AS user_id_4, u0_.ts AS ts_5, u0_.tokens_input AS tokens_input_6, u0_.tokens_output AS tokens_output_7, u0_.tokens_cache_read AS tokens_cache_read_8, u0_.tokens_cache_write AS tokens_cache_write_9, u0_.status AS status_10, u0_.cost_usd AS cost_usd_11, u0_.cost_source AS cost_source_12, u0_.price_id AS price_id_13, u0_.created_at AS created_at_14, u0_.updated_at AS updated_at_15 FROM usage_events u0_ WHERE u0_.status IN (?, ?) ORDER BY u0_.id ASC (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_window_start AS off_peak_window_start_4, t0.off_peak_window_end AS off_peak_window_end_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider AS provider_3 FROM models t0 WHERE t0.provider = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.rates AS rates_5, t0.model AS model_6 FROM prices t0 WHERE t0.model = ? ORDER BY t0.valid_from DESC (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_window_start AS off_peak_window_start_4, t0.off_peak_window_end AS off_peak_window_end_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_window_start AS off_peak_window_start_4, t0.off_peak_window_end AS off_peak_window_end_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider AS provider_3 FROM models t0 WHERE t0.provider = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.rates AS rates_5, t0.model AS model_6 FROM prices t0 WHERE t0.model = ? ORDER BY t0.valid_from DESC (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_window_start AS off_peak_window_start_4, t0.off_peak_window_end AS off_peak_window_end_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_window_start AS off_peak_window_start_4, t0.off_peak_window_end AS off_peak_window_end_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider AS provider_3 FROM models t0 WHERE t0.provider = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.rates AS rates_5, t0.model AS model_6 FROM prices t0 WHERE t0.model = ? ORDER BY t0.valid_from DESC (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_window_start AS off_peak_window_start_4, t0.off_peak_window_end AS off_peak_window_end_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Beginning transaction
+[debug] Executing statement: INSERT INTO usage_ratings (amount, price_id, source, created_at, event_id) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO usage_ratings (amount, price_id, source, created_at, event_id) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO usage_ratings (amount, price_id, source, created_at, event_id) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: UPDATE usage_events SET status = ?, cost_usd = ?, cost_source = ?, price_id = ?, updated_at = ? WHERE id = ? (parameters: [array], types: [array])
+[debug] Executing statement: UPDATE usage_events SET status = ?, cost_usd = ?, cost_source = ?, price_id = ?, updated_at = ? WHERE id = ? (parameters: [array], types: [array])
+[debug] Executing statement: UPDATE usage_events SET status = ?, cost_usd = ?, cost_source = ?, price_id = ?, updated_at = ? WHERE id = ? (parameters: [array], types: [array])
+[debug] Committing transaction
+[debug] Executing statement: SELECT u0_.id AS id_0, u0_.provider AS provider_1, u0_.provider_request_id AS provider_request_id_2, u0_.model AS model_3, u0_.user_id AS user_id_4, u0_.ts AS ts_5, u0_.tokens_input AS tokens_input_6, u0_.tokens_output AS tokens_output_7, u0_.tokens_cache_read AS tokens_cache_read_8, u0_.tokens_cache_write AS tokens_cache_write_9, u0_.status AS status_10, u0_.cost_usd AS cost_usd_11, u0_.cost_source AS cost_source_12, u0_.price_id AS price_id_13, u0_.created_at AS created_at_14, u0_.updated_at AS updated_at_15 FROM usage_events u0_ WHERE u0_.cost_usd IS NOT NULL AND u0_.ts >= ? AND u0_.ts < ? ORDER BY u0_.ts ASC (parameters: [array], types: [array])
+[debug] Executing query: SELECT id, event_id FROM usage_ratings WHERE event_id IN (1,2)
+[debug] Executing query: SELECT t0.id AS id_1, t0.amount AS amount_2, t0.price_id AS price_id_3, t0.source AS source_4, t0.created_at AS created_at_5, t0.event_id AS event_id_6 FROM usage_ratings t0
+[info] Connecting with parameters [array]
+[debug] Executing query: SELECT 1
+[debug] Executing query: SELECT current_schema()
+[debug] Executing query: SELECT schema_name
+FROM   information_schema.schemata
+WHERE  schema_name NOT LIKE 'pg\_%'
+AND    schema_name != 'information_schema'
+[debug] Executing query: SELECT CURRENT_DATABASE()
+[debug] Executing query: SELECT sequence_name AS relname,
+                       sequence_schema AS schemaname,
+                       minimum_value AS min_value,
+                       increment AS increment_by
+                FROM   information_schema.sequences
+                WHERE  sequence_catalog = 'app'
+                AND    sequence_schema NOT LIKE 'pg\_%'
+                AND    sequence_schema != 'information_schema'
+[debug] Executing query: SELECT CURRENT_DATABASE()
+[debug] Executing query: SELECT quote_ident(n.nspname)               AS schema_name,
+       quote_ident(c.relname)               AS table_name,
+       quote_ident(a.attname)               AS field,
+       t.typname                            AS type,
+       format_type(a.atttypid, a.atttypmod) AS complete_type,
+       bt.typname                           AS domain_type,
+       format_type(bt.oid, t.typtypmod)     AS domain_complete_type,
+       a.attnotnull                         AS isnotnull,
+       a.attidentity,
+       (    SELECT
+        CASE
+            WHEN a.attgenerated = 's' THEN NULL
+            ELSE pg_get_expr(adbin, adrelid)
+        END
+     FROM pg_attrdef
+     WHERE c.oid = pg_attrdef.adrelid
+        AND pg_attrdef.adnum=a.attnum)                                 AS "default",
+       dsc.description                      AS comment,
+       CASE
+           WHEN coll.collprovider = 'c'
+               THEN coll.collcollate
+           WHEN coll.collprovider = 'd'
+               THEN NULL
+           ELSE coll.collname
+           END                              AS collation
+FROM pg_attribute a
+         JOIN pg_class c
+              ON c.oid = a.attrelid
+         JOIN pg_namespace n
+              ON n.oid = c.relnamespace
+         JOIN pg_type t
+              ON t.oid = a.atttypid
+         LEFT JOIN pg_type bt
+                   ON t.typtype = 'd'
+                       AND bt.oid = t.typbasetype
+         LEFT JOIN pg_collation coll
+                   ON coll.oid = a.attcollation
+         LEFT JOIN pg_depend dep
+                   ON dep.objid = c.oid
+                       AND dep.deptype = 'e'
+                       AND dep.classid = (SELECT oid FROM pg_class WHERE relname = 'pg_class')
+         LEFT JOIN pg_description dsc
+                   ON dsc.objoid = c.oid AND dsc.objsubid = a.attnum
+         LEFT JOIN pg_inherits i
+                   ON i.inhrelid = c.oid
+         LEFT JOIN pg_class p
+                   ON i.inhparent = p.oid
+                       AND p.relkind = 'p'
+WHERE n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+  -- 'r' for regular tables - 'p' for partitioned tables
+  AND c.relkind IN ('r', 'p')
+  AND a.attnum > 0
+  AND dep.refobjid IS NULL
+  -- exclude partitions (tables that inherit from partitioned tables)
+  AND p.oid IS NULL
+ORDER BY n.nspname,
+    c.relname,
+    a.attnum
+[debug] Executing query: SELECT
+       quote_ident(n.nspname) AS schema_name,
+       quote_ident(c.relname) AS table_name,
+       quote_ident(ic.relname) AS relname,
+       i.indisunique,
+       i.indisprimary,
+       i.indkey,
+       i.indrelid,
+       pg_get_expr(indpred, indrelid) AS "where",
+       quote_ident(attname) AS attname
+  FROM pg_index i
+       JOIN pg_class AS c ON c.oid = i.indrelid
+       JOIN pg_namespace n ON n.oid = c.relnamespace
+       JOIN pg_class AS ic ON ic.oid = i.indexrelid
+       JOIN LATERAL UNNEST(i.indkey) WITH ORDINALITY AS keys(attnum, ord)
+            ON TRUE
+       JOIN pg_attribute a
+            ON a.attrelid = c.oid
+                AND a.attnum = keys.attnum
+ WHERE n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+ ORDER BY 1, 2, keys.ord;
+[debug] Executing query:    SELECT
+          quote_ident(tn.nspname) AS schema_name,
+          quote_ident(tc.relname) AS table_name,
+          quote_ident(r.conname) as conname,
+          pg_get_constraintdef(r.oid, true) as condef,
+          r.condeferrable,
+          r.condeferred
+          FROM pg_constraint r
+              JOIN pg_class AS tc ON tc.oid = r.conrelid
+              JOIN pg_namespace tn ON tn.oid = tc.relnamespace
+          WHERE r.conrelid IN
+          (
+              SELECT c.oid
+              FROM pg_class c
+                JOIN pg_namespace n
+                    ON n.oid = c.relnamespace
+                WHERE n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast'))
+          AND r.contype = 'f'
+          ORDER BY 1, 2
+[debug] Executing query: SELECT quote_ident(n.nspname) AS schema_name,
+       quote_ident(c.relname) AS table_name,
+       CASE c.relpersistence WHEN 'u' THEN true ELSE false END as unlogged,
+       obj_description(c.oid, 'pg_class') AS comment
+FROM pg_class c
+     INNER JOIN pg_namespace n
+         ON n.oid = c.relnamespace
+WHERE
+      c.relkind = 'r'
+  AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+[debug] Executing statement: ALTER TABLE usage_ratings DROP CONSTRAINT FK_903271D671F7E88B
+[debug] Executing statement: ALTER TABLE prices DROP CONSTRAINT FK_E4CB6D59D79572D9
+[debug] Executing statement: ALTER TABLE models DROP CONSTRAINT FK_E4D6300992C4739C
+[debug] Executing statement: DROP TABLE usage_ratings
+[debug] Executing statement: DROP TABLE usage_events
+[debug] Executing statement: DROP TABLE prices
+[debug] Executing statement: DROP TABLE models
+[debug] Executing statement: DROP TABLE providers
+[debug] Executing statement: CREATE TABLE usage_ratings (id BIGINT GENERATED BY DEFAULT AS IDENTITY NOT NULL, amount TEXT NOT NULL, price_id BIGINT DEFAULT NULL, source VARCHAR(16) NOT NULL, created_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, event_id BIGINT DEFAULT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE INDEX idx_usage_ratings_event ON usage_ratings (event_id, id)
+[debug] Executing statement: CREATE INDEX IDX_903271D671F7E88B ON usage_ratings (event_id)
+[debug] Executing statement: CREATE TABLE usage_events (id BIGINT GENERATED BY DEFAULT AS IDENTITY NOT NULL, provider VARCHAR(64) NOT NULL, provider_request_id VARCHAR(128) NOT NULL, model VARCHAR(128) NOT NULL, user_id VARCHAR(255) NOT NULL, ts TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, tokens_input BIGINT NOT NULL, tokens_output BIGINT NOT NULL, tokens_cache_read BIGINT NOT NULL, tokens_cache_write BIGINT NOT NULL, status VARCHAR(16) NOT NULL, cost_usd TEXT DEFAULT NULL, cost_source VARCHAR(16) DEFAULT NULL, price_id BIGINT DEFAULT NULL, created_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, updated_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE INDEX idx_usage_events_status ON usage_events (status)
+[debug] Executing statement: CREATE INDEX idx_usage_events_ts ON usage_events (ts)
+[debug] Executing statement: CREATE UNIQUE INDEX uq_usage_events_provider_request ON usage_events (provider, provider_request_id)
+[debug] Executing statement: CREATE TABLE prices (id INT GENERATED BY DEFAULT AS IDENTITY NOT NULL, valid_from TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, currency VARCHAR(3) NOT NULL, unit VARCHAR(32) NOT NULL, rates JSON NOT NULL, model INT DEFAULT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE UNIQUE INDEX uq_prices_model_valid_from ON prices (model, valid_from)
+[debug] Executing statement: CREATE INDEX IDX_E4CB6D59D79572D9 ON prices (model)
+[debug] Executing statement: CREATE TABLE models (id INT GENERATED BY DEFAULT AS IDENTITY NOT NULL, code VARCHAR(64) NOT NULL, provider INT DEFAULT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE UNIQUE INDEX uq_models_provider_code ON models (provider, code)
+[debug] Executing statement: CREATE INDEX IDX_E4D6300992C4739C ON models (provider)
+[debug] Executing statement: CREATE TABLE providers (id INT GENERATED BY DEFAULT AS IDENTITY NOT NULL, code VARCHAR(64) NOT NULL, name VARCHAR(255) NOT NULL, off_peak_window_start INT DEFAULT NULL, off_peak_window_end INT DEFAULT NULL, off_peak_multiplier TEXT DEFAULT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE UNIQUE INDEX uq_providers_code ON providers (code)
+[debug] Executing statement: ALTER TABLE usage_ratings ADD CONSTRAINT FK_903271D671F7E88B FOREIGN KEY (event_id) REFERENCES usage_events (id) ON DELETE CASCADE NOT DEFERRABLE
+[debug] Executing statement: ALTER TABLE prices ADD CONSTRAINT FK_E4CB6D59D79572D9 FOREIGN KEY (model) REFERENCES models (id) ON DELETE CASCADE NOT DEFERRABLE
+[debug] Executing statement: ALTER TABLE models ADD CONSTRAINT FK_E4D6300992C4739C FOREIGN KEY (provider) REFERENCES providers (id) ON DELETE CASCADE NOT DEFERRABLE
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_window_start AS off_peak_window_start_4, t0.off_peak_window_end AS off_peak_window_end_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider AS provider_3 FROM models t0 WHERE t0.provider = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.rates AS rates_5, t0.model AS model_6 FROM prices t0 WHERE t0.model = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Beginning transaction
+[debug] Executing statement: INSERT INTO providers (code, name, off_peak_window_start, off_peak_window_end, off_peak_multiplier) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO models (code, provider) VALUES (?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO prices (valid_from, currency, unit, rates, model) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Committing transaction
+[debug] Executing statement: SELECT t0.id AS id_1, t0.provider AS provider_2, t0.provider_request_id AS provider_request_id_3, t0.model AS model_4, t0.user_id AS user_id_5, t0.ts AS ts_6, t0.tokens_input AS tokens_input_7, t0.tokens_output AS tokens_output_8, t0.tokens_cache_read AS tokens_cache_read_9, t0.tokens_cache_write AS tokens_cache_write_10, t0.status AS status_11, t0.cost_usd AS cost_usd_12, t0.cost_source AS cost_source_13, t0.price_id AS price_id_14, t0.created_at AS created_at_15, t0.updated_at AS updated_at_16 FROM usage_events t0 WHERE t0.provider = ? AND t0.provider_request_id = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Beginning transaction
+[debug] Executing statement: INSERT INTO usage_events (provider, provider_request_id, model, user_id, ts, tokens_input, tokens_output, tokens_cache_read, tokens_cache_write, status, cost_usd, cost_source, price_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Committing transaction
+[debug] Executing statement: SELECT u0_.id AS id_0, u0_.provider AS provider_1, u0_.provider_request_id AS provider_request_id_2, u0_.model AS model_3, u0_.user_id AS user_id_4, u0_.ts AS ts_5, u0_.tokens_input AS tokens_input_6, u0_.tokens_output AS tokens_output_7, u0_.tokens_cache_read AS tokens_cache_read_8, u0_.tokens_cache_write AS tokens_cache_write_9, u0_.status AS status_10, u0_.cost_usd AS cost_usd_11, u0_.cost_source AS cost_source_12, u0_.price_id AS price_id_13, u0_.created_at AS created_at_14, u0_.updated_at AS updated_at_15 FROM usage_events u0_ WHERE u0_.status IN (?, ?) ORDER BY u0_.id ASC (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_window_start AS off_peak_window_start_4, t0.off_peak_window_end AS off_peak_window_end_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider AS provider_3 FROM models t0 WHERE t0.provider = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.rates AS rates_5, t0.model AS model_6 FROM prices t0 WHERE t0.model = ? ORDER BY t0.valid_from DESC (parameters: [array], types: [array])
+[debug] Beginning transaction
+[debug] Executing statement: UPDATE usage_events SET status = ?, updated_at = ? WHERE id = ? (parameters: [array], types: [array])
+[debug] Committing transaction
+[info] Connecting with parameters [array]
+[debug] Executing query: SELECT 1
+[debug] Executing query: SELECT current_schema()
+[debug] Executing query: SELECT schema_name
+FROM   information_schema.schemata
+WHERE  schema_name NOT LIKE 'pg\_%'
+AND    schema_name != 'information_schema'
+[debug] Executing query: SELECT CURRENT_DATABASE()
+[debug] Executing query: SELECT sequence_name AS relname,
+                       sequence_schema AS schemaname,
+                       minimum_value AS min_value,
+                       increment AS increment_by
+                FROM   information_schema.sequences
+                WHERE  sequence_catalog = 'app'
+                AND    sequence_schema NOT LIKE 'pg\_%'
+                AND    sequence_schema != 'information_schema'
+[debug] Executing query: SELECT CURRENT_DATABASE()
+[debug] Executing query: SELECT quote_ident(n.nspname)               AS schema_name,
+       quote_ident(c.relname)               AS table_name,
+       quote_ident(a.attname)               AS field,
+       t.typname                            AS type,
+       format_type(a.atttypid, a.atttypmod) AS complete_type,
+       bt.typname                           AS domain_type,
+       format_type(bt.oid, t.typtypmod)     AS domain_complete_type,
+       a.attnotnull                         AS isnotnull,
+       a.attidentity,
+       (    SELECT
+        CASE
+            WHEN a.attgenerated = 's' THEN NULL
+            ELSE pg_get_expr(adbin, adrelid)
+        END
+     FROM pg_attrdef
+     WHERE c.oid = pg_attrdef.adrelid
+        AND pg_attrdef.adnum=a.attnum)                                 AS "default",
+       dsc.description                      AS comment,
+       CASE
+           WHEN coll.collprovider = 'c'
+               THEN coll.collcollate
+           WHEN coll.collprovider = 'd'
+               THEN NULL
+           ELSE coll.collname
+           END                              AS collation
+FROM pg_attribute a
+         JOIN pg_class c
+              ON c.oid = a.attrelid
+         JOIN pg_namespace n
+              ON n.oid = c.relnamespace
+         JOIN pg_type t
+              ON t.oid = a.atttypid
+         LEFT JOIN pg_type bt
+                   ON t.typtype = 'd'
+                       AND bt.oid = t.typbasetype
+         LEFT JOIN pg_collation coll
+                   ON coll.oid = a.attcollation
+         LEFT JOIN pg_depend dep
+                   ON dep.objid = c.oid
+                       AND dep.deptype = 'e'
+                       AND dep.classid = (SELECT oid FROM pg_class WHERE relname = 'pg_class')
+         LEFT JOIN pg_description dsc
+                   ON dsc.objoid = c.oid AND dsc.objsubid = a.attnum
+         LEFT JOIN pg_inherits i
+                   ON i.inhrelid = c.oid
+         LEFT JOIN pg_class p
+                   ON i.inhparent = p.oid
+                       AND p.relkind = 'p'
+WHERE n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+  -- 'r' for regular tables - 'p' for partitioned tables
+  AND c.relkind IN ('r', 'p')
+  AND a.attnum > 0
+  AND dep.refobjid IS NULL
+  -- exclude partitions (tables that inherit from partitioned tables)
+  AND p.oid IS NULL
+ORDER BY n.nspname,
+    c.relname,
+    a.attnum
+[debug] Executing query: SELECT
+       quote_ident(n.nspname) AS schema_name,
+       quote_ident(c.relname) AS table_name,
+       quote_ident(ic.relname) AS relname,
+       i.indisunique,
+       i.indisprimary,
+       i.indkey,
+       i.indrelid,
+       pg_get_expr(indpred, indrelid) AS "where",
+       quote_ident(attname) AS attname
+  FROM pg_index i
+       JOIN pg_class AS c ON c.oid = i.indrelid
+       JOIN pg_namespace n ON n.oid = c.relnamespace
+       JOIN pg_class AS ic ON ic.oid = i.indexrelid
+       JOIN LATERAL UNNEST(i.indkey) WITH ORDINALITY AS keys(attnum, ord)
+            ON TRUE
+       JOIN pg_attribute a
+            ON a.attrelid = c.oid
+                AND a.attnum = keys.attnum
+ WHERE n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+ ORDER BY 1, 2, keys.ord;
+[debug] Executing query:    SELECT
+          quote_ident(tn.nspname) AS schema_name,
+          quote_ident(tc.relname) AS table_name,
+          quote_ident(r.conname) as conname,
+          pg_get_constraintdef(r.oid, true) as condef,
+          r.condeferrable,
+          r.condeferred
+          FROM pg_constraint r
+              JOIN pg_class AS tc ON tc.oid = r.conrelid
+              JOIN pg_namespace tn ON tn.oid = tc.relnamespace
+          WHERE r.conrelid IN
+          (
+              SELECT c.oid
+              FROM pg_class c
+                JOIN pg_namespace n
+                    ON n.oid = c.relnamespace
+                WHERE n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast'))
+          AND r.contype = 'f'
+          ORDER BY 1, 2
+[debug] Executing query: SELECT quote_ident(n.nspname) AS schema_name,
+       quote_ident(c.relname) AS table_name,
+       CASE c.relpersistence WHEN 'u' THEN true ELSE false END as unlogged,
+       obj_description(c.oid, 'pg_class') AS comment
+FROM pg_class c
+     INNER JOIN pg_namespace n
+         ON n.oid = c.relnamespace
+WHERE
+      c.relkind = 'r'
+  AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+[debug] Executing statement: ALTER TABLE usage_ratings DROP CONSTRAINT FK_903271D671F7E88B
+[debug] Executing statement: ALTER TABLE prices DROP CONSTRAINT FK_E4CB6D59D79572D9
+[debug] Executing statement: ALTER TABLE models DROP CONSTRAINT FK_E4D6300992C4739C
+[debug] Executing statement: DROP TABLE usage_ratings
+[debug] Executing statement: DROP TABLE usage_events
+[debug] Executing statement: DROP TABLE prices
+[debug] Executing statement: DROP TABLE models
+[debug] Executing statement: DROP TABLE providers
+[debug] Executing statement: CREATE TABLE usage_ratings (id BIGINT GENERATED BY DEFAULT AS IDENTITY NOT NULL, amount TEXT NOT NULL, price_id BIGINT DEFAULT NULL, source VARCHAR(16) NOT NULL, created_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, event_id BIGINT DEFAULT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE INDEX idx_usage_ratings_event ON usage_ratings (event_id, id)
+[debug] Executing statement: CREATE INDEX IDX_903271D671F7E88B ON usage_ratings (event_id)
+[debug] Executing statement: CREATE TABLE usage_events (id BIGINT GENERATED BY DEFAULT AS IDENTITY NOT NULL, provider VARCHAR(64) NOT NULL, provider_request_id VARCHAR(128) NOT NULL, model VARCHAR(128) NOT NULL, user_id VARCHAR(255) NOT NULL, ts TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, tokens_input BIGINT NOT NULL, tokens_output BIGINT NOT NULL, tokens_cache_read BIGINT NOT NULL, tokens_cache_write BIGINT NOT NULL, status VARCHAR(16) NOT NULL, cost_usd TEXT DEFAULT NULL, cost_source VARCHAR(16) DEFAULT NULL, price_id BIGINT DEFAULT NULL, created_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, updated_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE INDEX idx_usage_events_status ON usage_events (status)
+[debug] Executing statement: CREATE INDEX idx_usage_events_ts ON usage_events (ts)
+[debug] Executing statement: CREATE UNIQUE INDEX uq_usage_events_provider_request ON usage_events (provider, provider_request_id)
+[debug] Executing statement: CREATE TABLE prices (id INT GENERATED BY DEFAULT AS IDENTITY NOT NULL, valid_from TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, currency VARCHAR(3) NOT NULL, unit VARCHAR(32) NOT NULL, rates JSON NOT NULL, model INT DEFAULT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE UNIQUE INDEX uq_prices_model_valid_from ON prices (model, valid_from)
+[debug] Executing statement: CREATE INDEX IDX_E4CB6D59D79572D9 ON prices (model)
+[debug] Executing statement: CREATE TABLE models (id INT GENERATED BY DEFAULT AS IDENTITY NOT NULL, code VARCHAR(64) NOT NULL, provider INT DEFAULT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE UNIQUE INDEX uq_models_provider_code ON models (provider, code)
+[debug] Executing statement: CREATE INDEX IDX_E4D6300992C4739C ON models (provider)
+[debug] Executing statement: CREATE TABLE providers (id INT GENERATED BY DEFAULT AS IDENTITY NOT NULL, code VARCHAR(64) NOT NULL, name VARCHAR(255) NOT NULL, off_peak_window_start INT DEFAULT NULL, off_peak_window_end INT DEFAULT NULL, off_peak_multiplier TEXT DEFAULT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE UNIQUE INDEX uq_providers_code ON providers (code)
+[debug] Executing statement: ALTER TABLE usage_ratings ADD CONSTRAINT FK_903271D671F7E88B FOREIGN KEY (event_id) REFERENCES usage_events (id) ON DELETE CASCADE NOT DEFERRABLE
+[debug] Executing statement: ALTER TABLE prices ADD CONSTRAINT FK_E4CB6D59D79572D9 FOREIGN KEY (model) REFERENCES models (id) ON DELETE CASCADE NOT DEFERRABLE
+[debug] Executing statement: ALTER TABLE models ADD CONSTRAINT FK_E4D6300992C4739C FOREIGN KEY (provider) REFERENCES providers (id) ON DELETE CASCADE NOT DEFERRABLE
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_window_start AS off_peak_window_start_4, t0.off_peak_window_end AS off_peak_window_end_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider AS provider_3 FROM models t0 WHERE t0.provider = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.rates AS rates_5, t0.model AS model_6 FROM prices t0 WHERE t0.model = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Beginning transaction
+[debug] Executing statement: INSERT INTO providers (code, name, off_peak_window_start, off_peak_window_end, off_peak_multiplier) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO models (code, provider) VALUES (?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO prices (valid_from, currency, unit, rates, model) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Committing transaction
+[debug] Executing statement: SELECT t0.id AS id_1, t0.provider AS provider_2, t0.provider_request_id AS provider_request_id_3, t0.model AS model_4, t0.user_id AS user_id_5, t0.ts AS ts_6, t0.tokens_input AS tokens_input_7, t0.tokens_output AS tokens_output_8, t0.tokens_cache_read AS tokens_cache_read_9, t0.tokens_cache_write AS tokens_cache_write_10, t0.status AS status_11, t0.cost_usd AS cost_usd_12, t0.cost_source AS cost_source_13, t0.price_id AS price_id_14, t0.created_at AS created_at_15, t0.updated_at AS updated_at_16 FROM usage_events t0 WHERE t0.provider = ? AND t0.provider_request_id = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Beginning transaction
+[debug] Executing statement: INSERT INTO usage_events (provider, provider_request_id, model, user_id, ts, tokens_input, tokens_output, tokens_cache_read, tokens_cache_write, status, cost_usd, cost_source, price_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Committing transaction
+[debug] Executing statement: SELECT u0_.id AS id_0, u0_.provider AS provider_1, u0_.provider_request_id AS provider_request_id_2, u0_.model AS model_3, u0_.user_id AS user_id_4, u0_.ts AS ts_5, u0_.tokens_input AS tokens_input_6, u0_.tokens_output AS tokens_output_7, u0_.tokens_cache_read AS tokens_cache_read_8, u0_.tokens_cache_write AS tokens_cache_write_9, u0_.status AS status_10, u0_.cost_usd AS cost_usd_11, u0_.cost_source AS cost_source_12, u0_.price_id AS price_id_13, u0_.created_at AS created_at_14, u0_.updated_at AS updated_at_15 FROM usage_events u0_ WHERE u0_.status IN (?, ?) ORDER BY u0_.id ASC (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_window_start AS off_peak_window_start_4, t0.off_peak_window_end AS off_peak_window_end_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider AS provider_3 FROM models t0 WHERE t0.provider = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.rates AS rates_5, t0.model AS model_6 FROM prices t0 WHERE t0.model = ? ORDER BY t0.valid_from DESC (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_window_start AS off_peak_window_start_4, t0.off_peak_window_end AS off_peak_window_end_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Beginning transaction
+[debug] Executing statement: INSERT INTO usage_ratings (amount, price_id, source, created_at, event_id) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: UPDATE usage_events SET status = ?, cost_usd = ?, cost_source = ?, price_id = ?, updated_at = ? WHERE id = ? (parameters: [array], types: [array])
+[debug] Committing transaction
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_window_start AS off_peak_window_start_4, t0.off_peak_window_end AS off_peak_window_end_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider AS provider_3 FROM models t0 WHERE t0.provider = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.rates AS rates_5, t0.model AS model_6 FROM prices t0 WHERE t0.model = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Beginning transaction
+[debug] Executing statement: UPDATE prices SET rates = ? WHERE id = ? (parameters: [array], types: [array])
+[debug] Committing transaction
+[debug] Executing query: SELECT r.id, r.event_id, r.amount, e.id AS ev_id, e.provider, e.model, e.ts
+             FROM usage_ratings r
+             JOIN usage_events e ON e.id = r.event_id
+             WHERE r.price_id IN (1)
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_window_start AS off_peak_window_start_4, t0.off_peak_window_end AS off_peak_window_end_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Beginning transaction
+[debug] Executing statement: INSERT INTO usage_ratings (amount, price_id, source, created_at, event_id) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: UPDATE usage_events SET cost_usd = ?, cost_source = ?, updated_at = ? WHERE id = ? (parameters: [array], types: [array])
+[debug] Committing transaction
+[debug] Executing statement: SELECT u0_.id AS id_0, u0_.provider AS provider_1, u0_.provider_request_id AS provider_request_id_2, u0_.model AS model_3, u0_.user_id AS user_id_4, u0_.ts AS ts_5, u0_.tokens_input AS tokens_input_6, u0_.tokens_output AS tokens_output_7, u0_.tokens_cache_read AS tokens_cache_read_8, u0_.tokens_cache_write AS tokens_cache_write_9, u0_.status AS status_10, u0_.cost_usd AS cost_usd_11, u0_.cost_source AS cost_source_12, u0_.price_id AS price_id_13, u0_.created_at AS created_at_14, u0_.updated_at AS updated_at_15 FROM usage_events u0_ WHERE u0_.cost_usd IS NOT NULL AND u0_.ts >= ? AND u0_.ts < ? ORDER BY u0_.ts ASC (parameters: [array], types: [array])
+[debug] Executing query: SELECT id, event_id FROM usage_ratings WHERE event_id IN (1)
+[debug] Executing query: SELECT t0.id AS id_1, t0.amount AS amount_2, t0.price_id AS price_id_3, t0.source AS source_4, t0.created_at AS created_at_5, t0.event_id AS event_id_6 FROM usage_ratings t0
+[info] Connecting with parameters [array]
+[debug] Executing query: SELECT 1
+[debug] Executing query: SELECT current_schema()
+[debug] Executing query: SELECT schema_name
+FROM   information_schema.schemata
+WHERE  schema_name NOT LIKE 'pg\_%'
+AND    schema_name != 'information_schema'
+[debug] Executing query: SELECT CURRENT_DATABASE()
+[debug] Executing query: SELECT sequence_name AS relname,
+                       sequence_schema AS schemaname,
+                       minimum_value AS min_value,
+                       increment AS increment_by
+                FROM   information_schema.sequences
+                WHERE  sequence_catalog = 'app'
+                AND    sequence_schema NOT LIKE 'pg\_%'
+                AND    sequence_schema != 'information_schema'
+[debug] Executing query: SELECT CURRENT_DATABASE()
+[debug] Executing query: SELECT quote_ident(n.nspname)               AS schema_name,
+       quote_ident(c.relname)               AS table_name,
+       quote_ident(a.attname)               AS field,
+       t.typname                            AS type,
+       format_type(a.atttypid, a.atttypmod) AS complete_type,
+       bt.typname                           AS domain_type,
+       format_type(bt.oid, t.typtypmod)     AS domain_complete_type,
+       a.attnotnull                         AS isnotnull,
+       a.attidentity,
+       (    SELECT
+        CASE
+            WHEN a.attgenerated = 's' THEN NULL
+            ELSE pg_get_expr(adbin, adrelid)
+        END
+     FROM pg_attrdef
+     WHERE c.oid = pg_attrdef.adrelid
+        AND pg_attrdef.adnum=a.attnum)                                 AS "default",
+       dsc.description                      AS comment,
+       CASE
+           WHEN coll.collprovider = 'c'
+               THEN coll.collcollate
+           WHEN coll.collprovider = 'd'
+               THEN NULL
+           ELSE coll.collname
+           END                              AS collation
+FROM pg_attribute a
+         JOIN pg_class c
+              ON c.oid = a.attrelid
+         JOIN pg_namespace n
+              ON n.oid = c.relnamespace
+         JOIN pg_type t
+              ON t.oid = a.atttypid
+         LEFT JOIN pg_type bt
+                   ON t.typtype = 'd'
+                       AND bt.oid = t.typbasetype
+         LEFT JOIN pg_collation coll
+                   ON coll.oid = a.attcollation
+         LEFT JOIN pg_depend dep
+                   ON dep.objid = c.oid
+                       AND dep.deptype = 'e'
+                       AND dep.classid = (SELECT oid FROM pg_class WHERE relname = 'pg_class')
+         LEFT JOIN pg_description dsc
+                   ON dsc.objoid = c.oid AND dsc.objsubid = a.attnum
+         LEFT JOIN pg_inherits i
+                   ON i.inhrelid = c.oid
+         LEFT JOIN pg_class p
+                   ON i.inhparent = p.oid
+                       AND p.relkind = 'p'
+WHERE n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+  -- 'r' for regular tables - 'p' for partitioned tables
+  AND c.relkind IN ('r', 'p')
+  AND a.attnum > 0
+  AND dep.refobjid IS NULL
+  -- exclude partitions (tables that inherit from partitioned tables)
+  AND p.oid IS NULL
+ORDER BY n.nspname,
+    c.relname,
+    a.attnum
+[debug] Executing query: SELECT
+       quote_ident(n.nspname) AS schema_name,
+       quote_ident(c.relname) AS table_name,
+       quote_ident(ic.relname) AS relname,
+       i.indisunique,
+       i.indisprimary,
+       i.indkey,
+       i.indrelid,
+       pg_get_expr(indpred, indrelid) AS "where",
+       quote_ident(attname) AS attname
+  FROM pg_index i
+       JOIN pg_class AS c ON c.oid = i.indrelid
+       JOIN pg_namespace n ON n.oid = c.relnamespace
+       JOIN pg_class AS ic ON ic.oid = i.indexrelid
+       JOIN LATERAL UNNEST(i.indkey) WITH ORDINALITY AS keys(attnum, ord)
+            ON TRUE
+       JOIN pg_attribute a
+            ON a.attrelid = c.oid
+                AND a.attnum = keys.attnum
+ WHERE n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+ ORDER BY 1, 2, keys.ord;
+[debug] Executing query:    SELECT
+          quote_ident(tn.nspname) AS schema_name,
+          quote_ident(tc.relname) AS table_name,
+          quote_ident(r.conname) as conname,
+          pg_get_constraintdef(r.oid, true) as condef,
+          r.condeferrable,
+          r.condeferred
+          FROM pg_constraint r
+              JOIN pg_class AS tc ON tc.oid = r.conrelid
+              JOIN pg_namespace tn ON tn.oid = tc.relnamespace
+          WHERE r.conrelid IN
+          (
+              SELECT c.oid
+              FROM pg_class c
+                JOIN pg_namespace n
+                    ON n.oid = c.relnamespace
+                WHERE n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast'))
+          AND r.contype = 'f'
+          ORDER BY 1, 2
+[debug] Executing query: SELECT quote_ident(n.nspname) AS schema_name,
+       quote_ident(c.relname) AS table_name,
+       CASE c.relpersistence WHEN 'u' THEN true ELSE false END as unlogged,
+       obj_description(c.oid, 'pg_class') AS comment
+FROM pg_class c
+     INNER JOIN pg_namespace n
+         ON n.oid = c.relnamespace
+WHERE
+      c.relkind = 'r'
+  AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+[debug] Executing statement: ALTER TABLE usage_ratings DROP CONSTRAINT FK_903271D671F7E88B
+[debug] Executing statement: ALTER TABLE prices DROP CONSTRAINT FK_E4CB6D59D79572D9
+[debug] Executing statement: ALTER TABLE models DROP CONSTRAINT FK_E4D6300992C4739C
+[debug] Executing statement: DROP TABLE usage_ratings
+[debug] Executing statement: DROP TABLE usage_events
+[debug] Executing statement: DROP TABLE prices
+[debug] Executing statement: DROP TABLE models
+[debug] Executing statement: DROP TABLE providers
+[debug] Executing statement: CREATE TABLE usage_ratings (id BIGINT GENERATED BY DEFAULT AS IDENTITY NOT NULL, amount TEXT NOT NULL, price_id BIGINT DEFAULT NULL, source VARCHAR(16) NOT NULL, created_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, event_id BIGINT DEFAULT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE INDEX idx_usage_ratings_event ON usage_ratings (event_id, id)
+[debug] Executing statement: CREATE INDEX IDX_903271D671F7E88B ON usage_ratings (event_id)
+[debug] Executing statement: CREATE TABLE usage_events (id BIGINT GENERATED BY DEFAULT AS IDENTITY NOT NULL, provider VARCHAR(64) NOT NULL, provider_request_id VARCHAR(128) NOT NULL, model VARCHAR(128) NOT NULL, user_id VARCHAR(255) NOT NULL, ts TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, tokens_input BIGINT NOT NULL, tokens_output BIGINT NOT NULL, tokens_cache_read BIGINT NOT NULL, tokens_cache_write BIGINT NOT NULL, status VARCHAR(16) NOT NULL, cost_usd TEXT DEFAULT NULL, cost_source VARCHAR(16) DEFAULT NULL, price_id BIGINT DEFAULT NULL, created_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, updated_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE INDEX idx_usage_events_status ON usage_events (status)
+[debug] Executing statement: CREATE INDEX idx_usage_events_ts ON usage_events (ts)
+[debug] Executing statement: CREATE UNIQUE INDEX uq_usage_events_provider_request ON usage_events (provider, provider_request_id)
+[debug] Executing statement: CREATE TABLE prices (id INT GENERATED BY DEFAULT AS IDENTITY NOT NULL, valid_from TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, currency VARCHAR(3) NOT NULL, unit VARCHAR(32) NOT NULL, rates JSON NOT NULL, model INT DEFAULT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE UNIQUE INDEX uq_prices_model_valid_from ON prices (model, valid_from)
+[debug] Executing statement: CREATE INDEX IDX_E4CB6D59D79572D9 ON prices (model)
+[debug] Executing statement: CREATE TABLE models (id INT GENERATED BY DEFAULT AS IDENTITY NOT NULL, code VARCHAR(64) NOT NULL, provider INT DEFAULT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE UNIQUE INDEX uq_models_provider_code ON models (provider, code)
+[debug] Executing statement: CREATE INDEX IDX_E4D6300992C4739C ON models (provider)
+[debug] Executing statement: CREATE TABLE providers (id INT GENERATED BY DEFAULT AS IDENTITY NOT NULL, code VARCHAR(64) NOT NULL, name VARCHAR(255) NOT NULL, off_peak_window_start INT DEFAULT NULL, off_peak_window_end INT DEFAULT NULL, off_peak_multiplier TEXT DEFAULT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE UNIQUE INDEX uq_providers_code ON providers (code)
+[debug] Executing statement: ALTER TABLE usage_ratings ADD CONSTRAINT FK_903271D671F7E88B FOREIGN KEY (event_id) REFERENCES usage_events (id) ON DELETE CASCADE NOT DEFERRABLE
+[debug] Executing statement: ALTER TABLE prices ADD CONSTRAINT FK_E4CB6D59D79572D9 FOREIGN KEY (model) REFERENCES models (id) ON DELETE CASCADE NOT DEFERRABLE
+[debug] Executing statement: ALTER TABLE models ADD CONSTRAINT FK_E4D6300992C4739C FOREIGN KEY (provider) REFERENCES providers (id) ON DELETE CASCADE NOT DEFERRABLE
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_window_start AS off_peak_window_start_4, t0.off_peak_window_end AS off_peak_window_end_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider AS provider_3 FROM models t0 WHERE t0.provider = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.rates AS rates_5, t0.model AS model_6 FROM prices t0 WHERE t0.model = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Beginning transaction
+[debug] Executing statement: INSERT INTO providers (code, name, off_peak_window_start, off_peak_window_end, off_peak_multiplier) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO models (code, provider) VALUES (?, ?) (parameters: [array], types: [array])
+[debug] Executing statement: INSERT INTO prices (valid_from, currency, unit, rates, model) VALUES (?, ?, ?, ?, ?) (parameters: [array], types: [array])
+[debug] Committing transaction
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider AS provider_3 FROM models t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.rates AS rates_5, t0.model AS model_6 FROM prices t0 WHERE t0.model = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_window_start AS off_peak_window_start_4, t0.off_peak_window_end AS off_peak_window_end_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider AS provider_3 FROM models t0 WHERE t0.provider = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.rates AS rates_5, t0.model AS model_6 FROM prices t0 WHERE t0.model = ? AND t0.valid_from = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Beginning transaction
+[debug] Executing statement: UPDATE prices SET rates = ? WHERE id = ? (parameters: [array], types: [array])
+[debug] Committing transaction
+[debug] Executing query: SELECT COUNT(p0_.id) AS sclr_0 FROM prices p0_
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider AS provider_3 FROM models t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.valid_from AS valid_from_2, t0.currency AS currency_3, t0.unit AS unit_4, t0.rates AS rates_5, t0.model AS model_6 FROM prices t0 WHERE t0.model = ? LIMIT 1 (parameters: [array], types: [array])
+[info] Connecting with parameters [array]
+[debug] Executing query: SELECT 1
+[debug] Executing query: SELECT current_schema()
+[debug] Executing query: SELECT schema_name
+FROM   information_schema.schemata
+WHERE  schema_name NOT LIKE 'pg\_%'
+AND    schema_name != 'information_schema'
+[debug] Executing query: SELECT CURRENT_DATABASE()
+[debug] Executing query: SELECT sequence_name AS relname,
+                       sequence_schema AS schemaname,
+                       minimum_value AS min_value,
+                       increment AS increment_by
+                FROM   information_schema.sequences
+                WHERE  sequence_catalog = 'app'
+                AND    sequence_schema NOT LIKE 'pg\_%'
+                AND    sequence_schema != 'information_schema'
+[debug] Executing query: SELECT CURRENT_DATABASE()
+[debug] Executing query: SELECT quote_ident(n.nspname)               AS schema_name,
+       quote_ident(c.relname)               AS table_name,
+       quote_ident(a.attname)               AS field,
+       t.typname                            AS type,
+       format_type(a.atttypid, a.atttypmod) AS complete_type,
+       bt.typname                           AS domain_type,
+       format_type(bt.oid, t.typtypmod)     AS domain_complete_type,
+       a.attnotnull                         AS isnotnull,
+       a.attidentity,
+       (    SELECT
+        CASE
+            WHEN a.attgenerated = 's' THEN NULL
+            ELSE pg_get_expr(adbin, adrelid)
+        END
+     FROM pg_attrdef
+     WHERE c.oid = pg_attrdef.adrelid
+        AND pg_attrdef.adnum=a.attnum)                                 AS "default",
+       dsc.description                      AS comment,
+       CASE
+           WHEN coll.collprovider = 'c'
+               THEN coll.collcollate
+           WHEN coll.collprovider = 'd'
+               THEN NULL
+           ELSE coll.collname
+           END                              AS collation
+FROM pg_attribute a
+         JOIN pg_class c
+              ON c.oid = a.attrelid
+         JOIN pg_namespace n
+              ON n.oid = c.relnamespace
+         JOIN pg_type t
+              ON t.oid = a.atttypid
+         LEFT JOIN pg_type bt
+                   ON t.typtype = 'd'
+                       AND bt.oid = t.typbasetype
+         LEFT JOIN pg_collation coll
+                   ON coll.oid = a.attcollation
+         LEFT JOIN pg_depend dep
+                   ON dep.objid = c.oid
+                       AND dep.deptype = 'e'
+                       AND dep.classid = (SELECT oid FROM pg_class WHERE relname = 'pg_class')
+         LEFT JOIN pg_description dsc
+                   ON dsc.objoid = c.oid AND dsc.objsubid = a.attnum
+         LEFT JOIN pg_inherits i
+                   ON i.inhrelid = c.oid
+         LEFT JOIN pg_class p
+                   ON i.inhparent = p.oid
+                       AND p.relkind = 'p'
+WHERE n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+  -- 'r' for regular tables - 'p' for partitioned tables
+  AND c.relkind IN ('r', 'p')
+  AND a.attnum > 0
+  AND dep.refobjid IS NULL
+  -- exclude partitions (tables that inherit from partitioned tables)
+  AND p.oid IS NULL
+ORDER BY n.nspname,
+    c.relname,
+    a.attnum
+[debug] Executing query: SELECT
+       quote_ident(n.nspname) AS schema_name,
+       quote_ident(c.relname) AS table_name,
+       quote_ident(ic.relname) AS relname,
+       i.indisunique,
+       i.indisprimary,
+       i.indkey,
+       i.indrelid,
+       pg_get_expr(indpred, indrelid) AS "where",
+       quote_ident(attname) AS attname
+  FROM pg_index i
+       JOIN pg_class AS c ON c.oid = i.indrelid
+       JOIN pg_namespace n ON n.oid = c.relnamespace
+       JOIN pg_class AS ic ON ic.oid = i.indexrelid
+       JOIN LATERAL UNNEST(i.indkey) WITH ORDINALITY AS keys(attnum, ord)
+            ON TRUE
+       JOIN pg_attribute a
+            ON a.attrelid = c.oid
+                AND a.attnum = keys.attnum
+ WHERE n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+ ORDER BY 1, 2, keys.ord;
+[debug] Executing query:    SELECT
+          quote_ident(tn.nspname) AS schema_name,
+          quote_ident(tc.relname) AS table_name,
+          quote_ident(r.conname) as conname,
+          pg_get_constraintdef(r.oid, true) as condef,
+          r.condeferrable,
+          r.condeferred
+          FROM pg_constraint r
+              JOIN pg_class AS tc ON tc.oid = r.conrelid
+              JOIN pg_namespace tn ON tn.oid = tc.relnamespace
+          WHERE r.conrelid IN
+          (
+              SELECT c.oid
+              FROM pg_class c
+                JOIN pg_namespace n
+                    ON n.oid = c.relnamespace
+                WHERE n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast'))
+          AND r.contype = 'f'
+          ORDER BY 1, 2
+[debug] Executing query: SELECT quote_ident(n.nspname) AS schema_name,
+       quote_ident(c.relname) AS table_name,
+       CASE c.relpersistence WHEN 'u' THEN true ELSE false END as unlogged,
+       obj_description(c.oid, 'pg_class') AS comment
+FROM pg_class c
+     INNER JOIN pg_namespace n
+         ON n.oid = c.relnamespace
+WHERE
+      c.relkind = 'r'
+  AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+[debug] Executing statement: ALTER TABLE usage_ratings DROP CONSTRAINT FK_903271D671F7E88B
+[debug] Executing statement: ALTER TABLE prices DROP CONSTRAINT FK_E4CB6D59D79572D9
+[debug] Executing statement: ALTER TABLE models DROP CONSTRAINT FK_E4D6300992C4739C
+[debug] Executing statement: DROP TABLE usage_ratings
+[debug] Executing statement: DROP TABLE usage_events
+[debug] Executing statement: DROP TABLE prices
+[debug] Executing statement: DROP TABLE models
+[debug] Executing statement: DROP TABLE providers
+[debug] Executing statement: CREATE TABLE usage_ratings (id BIGINT GENERATED BY DEFAULT AS IDENTITY NOT NULL, amount TEXT NOT NULL, price_id BIGINT DEFAULT NULL, source VARCHAR(16) NOT NULL, created_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, event_id BIGINT DEFAULT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE INDEX idx_usage_ratings_event ON usage_ratings (event_id, id)
+[debug] Executing statement: CREATE INDEX IDX_903271D671F7E88B ON usage_ratings (event_id)
+[debug] Executing statement: CREATE TABLE usage_events (id BIGINT GENERATED BY DEFAULT AS IDENTITY NOT NULL, provider VARCHAR(64) NOT NULL, provider_request_id VARCHAR(128) NOT NULL, model VARCHAR(128) NOT NULL, user_id VARCHAR(255) NOT NULL, ts TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, tokens_input BIGINT NOT NULL, tokens_output BIGINT NOT NULL, tokens_cache_read BIGINT NOT NULL, tokens_cache_write BIGINT NOT NULL, status VARCHAR(16) NOT NULL, cost_usd TEXT DEFAULT NULL, cost_source VARCHAR(16) DEFAULT NULL, price_id BIGINT DEFAULT NULL, created_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, updated_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE INDEX idx_usage_events_status ON usage_events (status)
+[debug] Executing statement: CREATE INDEX idx_usage_events_ts ON usage_events (ts)
+[debug] Executing statement: CREATE UNIQUE INDEX uq_usage_events_provider_request ON usage_events (provider, provider_request_id)
+[debug] Executing statement: CREATE TABLE prices (id INT GENERATED BY DEFAULT AS IDENTITY NOT NULL, valid_from TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, currency VARCHAR(3) NOT NULL, unit VARCHAR(32) NOT NULL, rates JSON NOT NULL, model INT DEFAULT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE UNIQUE INDEX uq_prices_model_valid_from ON prices (model, valid_from)
+[debug] Executing statement: CREATE INDEX IDX_E4CB6D59D79572D9 ON prices (model)
+[debug] Executing statement: CREATE TABLE models (id INT GENERATED BY DEFAULT AS IDENTITY NOT NULL, code VARCHAR(64) NOT NULL, provider INT DEFAULT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE UNIQUE INDEX uq_models_provider_code ON models (provider, code)
+[debug] Executing statement: CREATE INDEX IDX_E4D6300992C4739C ON models (provider)
+[debug] Executing statement: CREATE TABLE providers (id INT GENERATED BY DEFAULT AS IDENTITY NOT NULL, code VARCHAR(64) NOT NULL, name VARCHAR(255) NOT NULL, off_peak_window_start INT DEFAULT NULL, off_peak_window_end INT DEFAULT NULL, off_peak_multiplier TEXT DEFAULT NULL, PRIMARY KEY (id))
+[debug] Executing statement: CREATE UNIQUE INDEX uq_providers_code ON providers (code)
+[debug] Executing statement: ALTER TABLE usage_ratings ADD CONSTRAINT FK_903271D671F7E88B FOREIGN KEY (event_id) REFERENCES usage_events (id) ON DELETE CASCADE NOT DEFERRABLE
+[debug] Executing statement: ALTER TABLE prices ADD CONSTRAINT FK_E4CB6D59D79572D9 FOREIGN KEY (model) REFERENCES models (id) ON DELETE CASCADE NOT DEFERRABLE
+[debug] Executing statement: ALTER TABLE models ADD CONSTRAINT FK_E4D6300992C4739C FOREIGN KEY (provider) REFERENCES providers (id) ON DELETE CASCADE NOT DEFERRABLE
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.name AS name_3, t0.off_peak_window_start AS off_peak_window_start_4, t0.off_peak_window_end AS off_peak_window_end_5, t0.off_peak_multiplier AS off_peak_multiplier_6 FROM providers t0 WHERE t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[debug] Executing statement: SELECT t0.id AS id_1, t0.code AS code_2, t0.provider AS provider_3 FROM models t0 WHERE t0.provider = ? AND t0.code = ? LIMIT 1 (parameters: [array], types: [array])
+[info] Disconnecting
+[info] Disconnecting
+[info] Disconnecting
+[info] Disconnecting
+[info] Disconnecting
+[info] Disconnecting

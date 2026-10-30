@@ -1,0 +1,36 @@
+parameters:
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    App\:
+        resource: '../src/'
+        exclude:
+            - '../src/Kernel.php'
+            - '../src/Domain/'
+            - '../src/Repository/'
+
+    # Doctrine ServiceEntityRepository: the bundle's ContainerRepositoryFactory
+    # resolves these by class name from the container, so they must be
+    # container services.
+    App\Repository\ModelRepository:
+        arguments:
+            - '@doctrine'
+            - App\Domain\Model
+
+    App\Repository\ProviderRepository:
+        arguments:
+            - '@doctrine'
+            - App\Domain\Provider
+
+    App\Repository\PriceLineRepository:
+        arguments:
+            - '@doctrine'
+            - App\Domain\PriceLine
+
+    App\Repository\UsageEventRepository:
+        arguments:
+            - '@doctrine'
+            - App\Domain\UsageEvent

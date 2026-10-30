@@ -1,0 +1,23 @@
+Готово — всё сдано и проверено. Итоговое состояние:
+
+## Что реализовано
+Полный цикл «цены + использование → деньги» на PHP 8.5 / Symfony / Doctrine ORM / PostgreSQL, DDD-слои:
+
+- **`src/Domain`** — `CostCalculator` (`Σ tokens_вид × rate_вид / 1M`, затем единый опциональный множитель оф-пика, **единственное** округление HALF_UP до 6 знаков), `DecimalMath` (bcmath, масштаб 16, `roundHalfUp`, точный `tokenCost`), `PricingUnit`, `OffPeak`, сущности каталога/журнала
+- **`src/Application`** — импортеры (идемпотентный upsert каталога; JSONL-приём с дедупликацией `ON CONFLICT (provider_code, provider_request_id) DO NOTHING`), `RateService` (тарификация ценой по `valid_from ≤ ts`, повторные попытки для `pending + unrated`), `ReportService` (сумма уже округлённых стоимостей), `RepriceService` (бонус: ретро-коррекция, пересчёт только ссылающихся событий, дельта)
+- **`src/Command`** — все 5 команд; контракты: `RATED=… UNRATED=…` строго в stdout (детали unrated — stderr), CSV-отчёт только в stdout, reprice — ровно 2 строки
+
+## Проверено
+- ✅ Чистая база: `database:create` + `migrations:migrate -n` → схема; `doctrine:schema:validate` — **in sync**
+- ✅ Приёмка из TASK.md: шаги 3–5 пройдены; отчёт с `--from/--to` совпадает с примером **байт-в-байт** (`diff` пуст), повторная импорт/тарификация идемпотентны
+- ✅ Бонус reprice: `REPRICED_EVENTS=1`, `REPRICE_DELTA_USD=5.462499`, отчёт после — без задвоений (14.262499 → 19.724998)
+- ✅ unrated-поток (цена доходит позже → событие рассчитывается при следующем `rate`)
+- ✅ Негативные пути: некорректный JSON/JSONL/время → rc 1, сообщения в stderr
+- ✅ `vendor/bin/phpunit` — **20 тестов, 46 ассерций, OK**
+- ✅ `php -l` всё чисто; float в пути стоимости не используется, `bccomp` в вызовах отсутствует (сборка его ломает — обход строчными сравнениями + явные масштабы)
+
+## Документы
+- `COMMIT_MESSAGE.md` — commit message
+- `CR_DESCRIPTION.md` → `PR_DESCRIPTION.md` — что сделано, ключевые решения, шаги проверки, полный список добавленных файлов, отступление только в альтернативных подходах (reprice через пересчёт ссылки на строку цены — без журналов корректировок)
+
+Зависимости не добавлялись, каркасные файлы (`Makefile`, `docker-compose.yml`, `fixtures/`, конфиги) не тронуты — вся работа в `src/`, `migrations/`, `tests/` и двух .md в корне.

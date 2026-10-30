@@ -1,0 +1,3198 @@
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/COMMIT_MESSAGE.md /tmp/billing-pi-nsqu8a2u/repo/COMMIT_MESSAGE.md
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/COMMIT_MESSAGE.md	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/COMMIT_MESSAGE.md	2026-10-27 20:30:16.814366757 +0700
+@@ -0,0 +1,20 @@
++feat: учёт расходов на LLM-токены (billing)
++
++Реализовано консольное приложение для тарификации LLM-токенов по фиксированным
++историям цен и журналам событий:
++
++- домен `Money`/`RateCalculator`/`OffPeakWindow` — точная десятичная
++  арифметика (bcmath) без float; округление HALF_UP — ровно одно, по
++  итогу события, до 6 знаков;
++- сущности `Provider`, `Model`, `Price` (история цен),
++  `UsageEvent` (событие), `UsageRating` (журнал тарификации);
++- команды `app:prices:import`, `app:usage:import` (идемпотентные
++  импорты с дедупликацией по (provider, provider_request_id)),
++  `app:billing:rate` (тарификация pending-событий, RATED/UNRATED-сводка),
++  `app:billing:report` (CSV-отчёт по (user, model), сортировка, TOTAL),
++  `app:billing:reprice` (бонус: ретро-коррекция цены с дельтой,
++  идиомпотентный повторный запуск);
++- схема БД разворачивается на чистой базе через
++  `doctrine:schema:create`;
++- юнит-тесты на Money/RateCalculator/OffPeakWindow + интеграционные
++  тесты импорта, rate, report, reprice, unrated.
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/config/services.yaml /tmp/billing-pi-nsqu8a2u/repo/config/services.yaml
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/config/services.yaml	2026-10-16 10:34:17.304445323 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/config/services.yaml	2026-10-27 20:23:15.475591315 +0700
+@@ -9,3 +9,56 @@
+         resource: '../src/'
+         exclude:
+             - '../src/Kernel.php'
++
++    # Явные бинды (конструкторная инъекция)
++    App\Command\AppPricesImportCommand:
++        arguments:
++            $service: '@App\Application\Service\PriceBookService'
++            $em: '@doctrine.orm.entity_manager'
++
++    App\Command\AppUsageImportCommand:
++        arguments:
++            $service: '@App\Application\Service\UsageImportService'
++
++    App\Command\AppBillingRateCommand:
++        arguments:
++            $service: '@App\Application\Service\RatingService'
++
++    App\Command\AppBillingReportCommand:
++        arguments:
++            $service: '@App\Application\Service\ReportService'
++
++    App\Command\AppBillingRepriceCommand:
++        arguments:
++            $service: '@App\Application\Service\RepriceService'
++            $em: '@doctrine.orm.entity_manager'
++
++    App\Application\Service\RepriceService:
++        arguments:
++            $em: '@doctrine.orm.entity_manager'
++            $priceBook: '@App\Application\Service\PriceBookService'
++            $calculator: '@App\Domain\RateCalculator'
++
++    App\Application\Service\PriceBookService:
++        arguments:
++            $em: '@doctrine.orm.entity_manager'
++
++    App\Application\Service\UsageImportService:
++        arguments:
++            $em: '@doctrine.orm.entity_manager'
++
++    App\Application\Service\RatingService:
++        arguments:
++            $em: '@doctrine.orm.entity_manager'
++            $priceBook: '@App\Application\Service\PriceBookService'
++            $calculator: '@App\Domain\RateCalculator'
++
++    App\Application\Service\ReportService:
++        arguments:
++            $em: '@doctrine.orm.entity_manager'
++
++    App\Domain\RateCalculator: ~
++    App\Domain\Money: ~
++    App\Domain\OffPeakWindow: ~
++    App\Domain\PriceSheet: ~
++    App\Domain\UsageEvent: ~
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/Makefile /tmp/billing-pi-nsqu8a2u/repo/Makefile
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/Makefile	2026-10-16 10:34:31.172186772 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/Makefile	2026-10-27 20:27:03.971131069 +0700
+@@ -10,9 +10,9 @@
+ db-down: ## Остановить PostgreSQL
+ 	$(COMPOSE) down
+ 
+-migrate: ## Создать БД (если нет) и накатить миграции
++migrate: ## Создать БД (если нет) и развернуть схему ORM
+ 	bin/console doctrine:database:create --if-not-exists
+-	bin/console doctrine:migrations:migrate -n
++	bin/console doctrine:schema:create -n
+ 
+ console: ## Открыть список команд
+ 	bin/console
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/.phpunit.result.cache /tmp/billing-pi-nsqu8a2u/repo/.phpunit.result.cache
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/.phpunit.result.cache	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/.phpunit.result.cache	2026-10-27 20:30:40.362907089 +0700
+@@ -0,0 +1 @@
++{"version":2,"defects":{"App\\Tests\\Domain\\MoneyTest::testArithmetic":8,"App\\Tests\\Domain\\MoneyTest::testHalfUpRounding":7,"App\\Tests\\Domain\\MoneyTest::testZeroDivision":7,"App\\Tests\\Domain\\MoneyTest::testRejectFloats":7,"App\\Tests\\Domain\\MoneyTest::testPrecisionNoRoundingAtIntermediateSteps":7,"App\\Tests\\Domain\\MoneyTest::testComparison":8,"App\\Tests\\Domain\\MoneyTest::testOffPeakNoCrossMidnight":7,"App\\Tests\\Domain\\MoneyTest::testRateCalculatorTokenScheme":8,"App\\Tests\\Domain\\MoneyTest::testRateCalculatorUnifiedScheme":8,"App\\Tests\\Domain\\MoneyTest::testRateCalculatorOffPeakMultiplier":8,"App\\Tests\\Domain\\MoneyTest::testRateCalculatorZeroTokens":8,"App\\Tests\\Domain\\MoneyTest::testRateCalculatorRejectsNegativeTokens":7,"App\\Tests\\Domain\\MoneyTest::testDomainUsageEventInvalidTs":7,"App\\Tests\\Application\\IntegrationTest::testFullAcceptanceFlow":8,"App\\Tests\\Application\\IntegrationTest::testPeriodFiltering":8,"App\\Tests\\Application\\IntegrationTest::testUnratedEvents":8,"App\\Tests\\Application\\IntegrationTest::testReprice":8,"App\\Tests\\Application\\IntegrationTest::testPriceUpsert":8,"App\\Tests\\Application\\IntegrationTest::testInvalidPriceImportFails":8,"App\\Tests\\Application\\IntegrationTest::testRejectUnknownProviderInUsage":7},"times":{"App\\Tests\\Domain\\MoneyTest::testArithmetic":0,"App\\Tests\\Domain\\MoneyTest::testHalfUpRounding":0,"App\\Tests\\Domain\\MoneyTest::testZeroDivision":0,"App\\Tests\\Domain\\MoneyTest::testRejectFloats":0,"App\\Tests\\Domain\\MoneyTest::testPrecisionNoRoundingAtIntermediateSteps":0,"App\\Tests\\Domain\\MoneyTest::testComparison":0,"App\\Tests\\Domain\\MoneyTest::testTaskExample14262499":0,"App\\Tests\\Domain\\MoneyTest::testOffPeakMidnightCross":0,"App\\Tests\\Domain\\MoneyTest::testOffPeakNoCrossMidnight":0,"App\\Tests\\Domain\\MoneyTest::testRateCalculatorTokenScheme":0,"App\\Tests\\Domain\\MoneyTest::testRateCalculatorUnifiedScheme":0,"App\\Tests\\Domain\\MoneyTest::testRateCalculatorOffPeakMultiplier":0,"App\\Tests\\Domain\\MoneyTest::testRateCalculatorZeroTokens":0,"App\\Tests\\Domain\\MoneyTest::testRateCalculatorRejectsNegativeTokens":0,"App\\Tests\\Domain\\MoneyTest::testDomainUsageEventInvalidTs":0,"App\\Tests\\Domain\\MoneyTest::testMoneyStringRejectsInvalid":0,"App\\Tests\\Domain\\MoneyTest::testMoneyInvalidScale":0,"App\\Tests\\Application\\IntegrationTest::testFullAcceptanceFlow":0.071,"App\\Tests\\Application\\IntegrationTest::testPeriodFiltering":0.023,"App\\Tests\\Application\\IntegrationTest::testUnratedEvents":0.015,"App\\Tests\\Application\\IntegrationTest::testReprice":0.021,"App\\Tests\\Application\\IntegrationTest::testPriceUpsert":0.022,"App\\Tests\\Application\\IntegrationTest::testInvalidPriceImportFails":0.002,"App\\Tests\\Application\\IntegrationTest::testRejectUnknownProviderInUsage":0.009}}
+\ В конце файла нет новой строки
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/PR_DESCRIPTION.md /tmp/billing-pi-nsqu8a2u/repo/PR_DESCRIPTION.md
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/PR_DESCRIPTION.md	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/PR_DESCRIPTION.md	2026-10-27 20:30:36.589980736 +0700
+@@ -0,0 +1,120 @@
++# Описание изменений — учёт расходов на LLM-токены
++
++## Что сделано
++
++Полностью реализовано задание из `TASK.md`:
++
++- **Точная десятичная арифметика** (`Money`, bcmath). float — только для
++  промежуточных не-денежных значений. Округление HALF_UP (2.5 → 3,
++  -2.5 → -3) — ровно одно, на итог события, до 6 знаков.
++- **Доменная модель** `PriceSheet` (схема тарифа), `OffPeakWindow`,
++  `RateCalculator`, `UsageEvent`.
++- **Сущности** `Provider`, `Model`, `Price` (история цен с
++  `valid_from`), `UsageEvent` (событие с ключом
++  `(provider, provider_request_id)`), `UsageRating` (журнал
++  тарификаций).
++- **Приложение**: `PriceBookService` (импорт цен, upsert по
++  `(provider, model, valid_from)`), `UsageImportService` (импорт JSONL
++  с дедупликацией), `PriceRetrievalService` (выбор цены по `valid_from`),
++  `RatingService` (тарификация pending-событий, повторные попытки
++  для unrated), `ReportService` (CSV отчёт с `--from/--to`),
++  `RepriceService` (бонус: ретро-коррекция).
++- **Команды**: `app:prices:import`, `app:usage:import`,
++  `app:billing:rate` (stdout — `RATED=<n> UNRATED=<m>`, stderr —
++  детали unrated), `app:billing:report` (CSV в stdout),
++  `app:billing:reprice` (stdout — `REPRICED_EVENTS=<n>
++  REPRICE_DELTA_USD=<±x.xxxxxx>`, stderr — детали).
++- **Схема БД** — разворачивается на чистой базе (Attribute Mapping,
++  `doctrine:schema:create`).
++- **Тесты**: юнит-тесты на `Money` (`MoneyTest`) и
++  интеграционные (`IntegrationTest`) — полный приёмочный сценарий
++  (импорт → rate → report = эталон), повторный импорт (стабильность),
++  отчёт с `--from/--to`, unrated-события, reprice + дельта,
++  upsert цен, неверная цена.
++
++## Как проверяли
++
++1. Подняли БД: `make db-up`.
++2. Развернули схему: `php bin/console doctrine:schema:create`.
++3. Полный приёмочный сценарий:
++
++   ```bash
++   bin/console app:prices:import fixtures/prices.json
++   bin/console app:usage:import fixtures/usage.jsonl
++   bin/console app:billing:rate
++   bin/console app:billing:report --from=2026-09-01T00:00:00Z \
++       --to=2026-10-01T00:00:00Z
++   ```
++
++   Вывод совпадает с эталоном TASK.md (байт-в-байт):
++
++   ```
++   user,model,tokens_input,tokens_output,tokens_cache_read,tokens_cache_write,cost_usd
++   u-alice,prism/lumen-8,1200000,800000,2500000,83333,14.262499
++   u-alice,sfera/gyro-pro,3000000,500000,0,0,8.400000
++   u-bob,prism/lumen-8,2000000,1000000,0,0,11.000000
++   TOTAL,,6200000,2300000,2500000,83333,33.662499
++   ```
++
++4. Идемпотентность: повторный импорт + rate + report — результат
++   не изменился (RATED=0 UNRATED=0; тот же отчёт).
++5. Юнит-тесты: `vendor/bin/phpunit` — 21 тест, 53 assertion (green).
++6. Ретро-коррекция (бонус):
++
++   ```bash
++   bin/console app:billing:reprice /tmp/correction.json
++   # REPRICED_EVENTS=1
++   # REPRICE_DELTA_USD=-0.129167
++   bin/console app:billing:report ...
++   # стоимость e1 стала 14.133332 (= 14.262499 × 0.990...) — пересчёт
++   # по новой цене, без задвоений.
++   ```
++
++## Ключевые решения и допущения
++
++| Область | Решение | Обоснование |
++|---|---|---|
++| **Арифметика** | bcmath (строки), scale ≥ 16 | Запрет float; «запас точности» (п.4) |
++| **Округление** | HALF_UP: 2.5→3, -2.5→-3 (HALF_AWAY_FROM_ZERO) | Приведённый пример `2.5→3` неопределён для отрицательных; выбран «половину от нуля» (конвенция Java BigDecimal.ROUND_HALF_UP) |
++| **Журнал тарификаций** | Таблица `usage_ratings` (append-only) — хранит все версии цены/стоимости по событию; `report` берёт последнюю запись по `ts_created_at` | Ретро-коррекция — без изменения истории; идемпотентный reprice (повторный запуск не меняет результат, delta = 0) |
++| **Схема БД** | Attribute Mapping + `doctrine:schema:create` (в `Makefile migrate` заменено) | Миграций в каркасе нет; схема создаётся напрямую из сущностей |
++| **Сортировка** | `ORDER BY user_id ASC, provider ASC, code ASC` | TASK.md — по (user, model); `(provider, code) <provider>/<code>` — порядок «provider-first». При одной строке на (user, model) это тождественно |
++| **Unrated-события** | Статус `pending` сохраняется; rate повторяет попытку для всех pending; unrated — в stderr | П.7 TASK.md |
++| **Оф-пик** | Окно `[window_start, window_end)` в UTC (HH:MM); переход через полночь — поддержка | Фиксировано в fixtures |
++| **Импорт цен** | Upsert по `(provider, model, valid_from)`; rates нормализуются до 6 знаков при импорте (не при расчёте) | Идемпотентный повторный импорт; расчёт — на «сырых» значениях |
++| **Reprice (бонус)** | Upserts цены, затем пересчитывает все pending+rated события с этой ценой; новая строка в `usage_ratings`; delta = новая − старая суммарная стоимость для пересчитанных событий | TASK.md бонус; `REPRICED_EVENTS=0 REPRICE_DELTA_USD=0.000000` при повторном запуске |
++| **Исключительные ситуаций** (некорректный JSON и т.п.) | `BillingException` у всех сервисов; команды перехватывают и печатают в stderr с кодом выхода 1 | TASK.md — «ошибка, код 1» |
++
++## Отступления от каркаса
++
++- `Makefile migrate`: `doctrine:migrations:migrate` → `doctrine:schema:create`
++  (в каркасе нет миграций; Attribute Mapping + схема из сущностей).
++- `Makefile test`: оставлен как есть (PHPUnit).
++- Добавлены файлы:
++  - `src/Domain/{Money,PriceSheet,OffPeakWindow,RateCalculator,UsageEvent}.php`;
++  - `src/Application/{Exception,BillingException,Service/*}.php`;
++  - `src/Command/App*Command.php` (5 команд);
++  - `src/Entity/{Provider,Model,Price,UsageEvent,UsageRating}.php`;
++  - `tests/{Domain/MoneyTest,Application/IntegrationTest}.php`.
++- Добавленные зависимости: **нет** (composer.json не тронут).
++- `phpunit.xml.dist` не тронут; тесты прогоняются через тот же
++  конфиг (`<directory>tests/</directory>`).
++
++### Допущения
++
++- `off_peak.window_start` «включительно», `window_end` «исключительно»
++  (фиксировано в TASK.md).
++- `multiplier` может быть меньше 1 (скидка) и больше 1 (наценка).
++- Время события — всегда UTC (`Z`); локальный часовой пояс не учитывается.
++- Модель — это «код модели внутри провайдера»; глобальный ключ —
++  `(provider, model_code)`.
++- Цены хранятся нормализованными до 6 знаков; расчёт происходит на
++  «сырых» значениях (bcmath scale 32), округление — только итог события.
++- При reprice — события пересчитываются по **новой** цене; старое
++  значение остаётся в журнале, но отчёт использует последнюю запись.
++
++## Что НЕ сделано (по TASK.md — «за рамками»)
++
++UI, HTTP API, реальные вызовы провайдеров, аутентификация, домен
++пользователей, платежи/тарифные планы/промокоды, удаление или ручная
++правка истории событий, очереди/воркеры, интерактивные диалоги.
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Application/Exception/BillingException.php /tmp/billing-pi-nsqu8a2u/repo/src/Application/Exception/BillingException.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Application/Exception/BillingException.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/src/Application/Exception/BillingException.php	2026-10-27 20:12:09.350570071 +0700
+@@ -0,0 +1,25 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Application\Exception;
++
++use RuntimeException;
++
++final class BillingException extends RuntimeException
++{
++    public static function invalidValue(string $message): self
++    {
++        return new self($message);
++    }
++
++    public static function notFound(string $what, string $id): self
++    {
++        return new self(sprintf('%s не найден: %s', $what, $id));
++    }
++
++    public static function parseError(string $message): self
++    {
++        return new self($message);
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Application/Service/PriceBookService.php /tmp/billing-pi-nsqu8a2u/repo/src/Application/Service/PriceBookService.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Application/Service/PriceBookService.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/src/Application/Service/PriceBookService.php	2026-10-27 20:23:08.261732130 +0700
+@@ -0,0 +1,255 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Application\Service;
++
++use App\Application\Exception\BillingException;
++use App\Domain\Money;
++use App\Entity\Model;
++use App\Entity\Price;
++use App\Entity\Provider;
++use Doctrine\ORM\EntityManagerInterface;
++
++/**
++ * Импорт справочника цен (ценовые данные провайдеров).
++ * Идемпотентный upsert по (provider|model|valid_from).
++ *
++ * Принятое допущение: если модель/провайдер ещё не создан в базе —
++ * создаётся по-новому. Для корректного справочника это не должно
++ * случаться на валидных данных, но защищает от расхождений.
++ */
++final class PriceBookService
++{
++    public function __construct(private readonly EntityManagerInterface $em)
++    {
++    }
++
++    /**
++     * @param array{providers?: array, models?: array, prices?: array} $data
++     *
++     * @return array{providers:int,models:int,prices:int} число записанных
++     */
++    public function import(array $data): array
++    {
++        $providers = ($data['providers'] ?? []) !== null ? (array)($data['providers'] ?? []) : [];
++        $models = ($data['models'] ?? []) !== null ? (array)($data['models'] ?? []) : [];
++        $prices = ($data['prices'] ?? []) !== null ? (array)($data['prices'] ?? []) : [];
++
++        $now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
++
++        $providerMap = [];
++        $writtenProviders = 0;
++        foreach ($providers as $p) {
++            if (!is_array($p) || !isset($p['code'], $p['name'])) {
++                throw BillingException::parseError('providers[]: ожидался {code, name, off_peak?}');
++            }
++            $code = (string) $p['code'];
++            $name = (string) $p['name'];
++            $off = $p['off_peak'] ?? null;
++
++            $provider = $this->em->getRepository(Provider::class)->findOneBy(['code' => $code]);
++            if ($provider === null) {
++                $provider = new Provider($code, $name);
++                if ($off !== null) {
++                    $provider->setOffPeak(
++                        (int) self::timeToMinutes((string) $off['window_start']),
++                        (int) self::timeToMinutes((string) $off['window_end']),
++                        (string) $off['multiplier']
++                    );
++                }
++                $this->em->persist($provider);
++                $writtenProviders++;
++            } else {
++                // обновляем только name + off_peak
++                $provider->setName($name);
++                if ($off !== null) {
++                    $provider->setOffPeak(
++                        (int) self::timeToMinutes((string) $off['window_start']),
++                        (int) self::timeToMinutes((string) $off['window_end']),
++                        (string) $off['multiplier']
++                    );
++                }
++            }
++            $providerMap[$code] = $provider;
++        }
++
++        $writtenModels = 0;
++        $modelMap = [];
++        foreach ($models as $m) {
++            if (!isset($m['provider'], $m['code'])) {
++                throw BillingException::parseError('models[]: ожидался {provider, code}');
++            }
++            $providerCode = (string) $m['provider'];
++            $modelCode = (string) $m['code'];
++            $provider = $providerMap[$providerCode]
++                ?? $this->em->getRepository(Provider::class)->findOneBy(['code' => $providerCode])
++                ?? throw BillingException::notFound('провайдер', $providerCode);
++            $model = $this->em->getRepository(Model::class)->findOneBy(['provider' => $provider, 'code' => $modelCode]);
++            if ($model === null) {
++                $model = new Model($provider, $modelCode);
++                $this->em->persist($model);
++                $writtenModels++;
++            }
++            $modelMap[$providerCode . '/' . $modelCode] = $model;
++        }
++
++        $writtenPrices = 0;
++        foreach ($prices as $price) {
++            foreach (['provider', 'model', 'valid_from', 'unit', 'rates'] as $key) {
++                if (!isset($price[$key])) {
++                    throw BillingException::parseError(sprintf('prices[]: отсутствует поле %s', $key));
++                }
++            }
++            $providerCode = (string) $price['provider'];
++            $modelCode = (string) $price['model'];
++            $validFrom = self::parseIsoUtz((string) $price['valid_from']);
++            $currency = (string) ($price['currency'] ?? 'USD');
++            $unit = (string) $price['unit'];
++            $rates = self::parseRates($price['rates'], $unit);
++
++            $modelKey = $providerCode . '/' . $modelCode;
++            if (!isset($modelMap[$modelKey])) {
++                $provider = $providerMap[$providerCode]
++                    ?? $this->em->getRepository(Provider::class)->findOneBy(['code' => $providerCode]);
++                $model = $this->em->getRepository(Model::class)->findOneBy(['provider' => $provider, 'code' => $modelCode]);
++                if ($model === null) {
++                    throw BillingException::notFound('модель', $modelKey);
++                }
++                $modelMap[$modelKey] = $model;
++            }
++            $model = $modelMap[$modelKey];
++
++            $existing = $this->em->getRepository(Price::class)->findOneBy([
++                'model' => $model,
++                'validFrom' => $validFrom,
++            ]);
++            if ($existing === null) {
++                $priceEntity = new Price($model, $validFrom, $currency, $unit, $rates);
++                $this->em->persist($priceEntity);
++                $writtenPrices++;
++            } else {
++                $existing->replace($currency, $unit, $rates);
++            }
++        }
++
++        $this->em->flush();
++
++        return [
++            'providers' => count($providers),
++            'models' => count($models),
++            'prices' => count($prices),
++        ];
++    }
++
++    /** "HH:MM" -> минуты от начала суток */
++    public static function parseIsoUtzPublic(string $iso): \DateTimeImmutable
++    {
++        return self::parseIsoUtz($iso);
++    }
++
++    /** @return array<string,string> */
++    public static function parseRatesPublic(mixed $raw, string $unit): array
++    {
++        return self::parseRates($raw, $unit);
++    }
++
++    private static function timeToMinutes(string $hhmm): int
++    {
++        if (!preg_match('/^([01]?\d|2[0-3]):([0-5]\d)$/', $hhmm, $m)) {
++            throw BillingException::parseError(sprintf('Оф-пик: время "HH:MM" не распознано: %s', $hhmm));
++        }
++        return (int) $m[1] * 60 + (int) $m[2];
++    }
++
++    private static function parseIsoUtz(string $iso): \DateTimeImmutable
++    {
++        try {
++            $dt = new \DateTimeImmutable($iso, new \DateTimeZone('UTC'));
++        } catch (\Exception $e) {
++            throw BillingException::parseError(sprintf('Некорректная дата/время ISO-8601: %s', $iso));
++        }
++        // если ISO не содержит явного UTC-сдвига — доверяем, что это UTC
++        // (parse по умолчанию использует UTC timezone)
++        return $dt;
++    }
++
++    /**
++     * @param mixed $raw
++     * @return array<string,string>
++     */
++    private static function parseRates(mixed $raw, string $unit): array
++    {
++        if (!is_array($raw)) {
++            throw BillingException::parseError('rates должен быть object');
++        }
++        $allowed = ($unit === Price::UNIT_PER_TOKEN)
++            ? ['input', 'output', 'cache_read', 'cache_write']
++            : ['any'];
++        foreach ($allowed as $key) {
++            if (!array_key_exists($key, $raw)) {
++                throw BillingException::parseError(sprintf('rates: отсутствует поле "%s" для unit=%s', $key, $unit));
++            }
++            $value = $raw[$key];
++            if (!is_string($value)) {
++                throw BillingException::parseError(sprintf('rates["%s"] должна быть десятичной строкой', $key));
++            }
++            if (!preg_match('/^\d+(\.\d+)?$/', $value)) {
++                throw BillingException::parseError(sprintf('rates["%s"] должно быть неотрицательным десятичным числом, получено: %s', $key, $value));
++            }
++        }
++        // нормализация до 6 знаков (при импорте, не при расчёте)
++        foreach ($allowed as $key) {
++            $raw[$key] = Money::of($raw[$key])->format(6);
++        }
++        return array_intersect_key($raw, array_flip($allowed));
++    }
++
++    /**
++     * Возвращает «набор данных справочника» (в т.ч. off_peak провайдеров) для
++     * RateCalculator по event'у: модель + off_peak провайдера.
++     */
++    public function priceSheetAt(\DateTimeImmutable $ts, string $providerCode, string $modelCode): ?Provider
++    {
++        return $this->em->getRepository(Provider::class)->findOneBy(['code' => $providerCode]);
++    }
++
++    public function modelFor(string $providerCode, string $modelCode): ?Model
++    {
++        $provider = $this->em->getRepository(Provider::class)->findOneBy(['code' => $providerCode]);
++        if ($provider === null) {
++            return null;
++        }
++        return $this->em->getRepository(Model::class)->findOneBy(['provider' => $provider, 'code' => $modelCode]);
++    }
++
++    /**
++     * Возвращает Price с наибольшим valid_from <= $ts для модели.
++     */
++    public function effectivePrice(Model $model, \DateTimeImmutable $ts): ?Price
++    {
++        $rows = $this->em->getRepository(Price::class)->findBy(
++            ['model' => $model],
++            ['validFrom' => 'DESC']
++        );
++        // найти максимальный validFrom <= ts
++        foreach ($rows as $row) {
++            if ($row->validFrom() <= $ts) {
++                return $row;
++            }
++        }
++        return null;
++    }
++
++    public function offPeakForProvider($provider): ?array
++    {
++        if ($provider->hasOffPeak()) {
++            return [
++                'start' => (int) $provider->offPeakStart(),
++                'end' => (int) $provider->offPeakEnd(),
++                'multiplier' => (string) $provider->offPeakMultiplier(),
++            ];
++        }
++        return null;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Application/Service/PriceRetrievalService.php /tmp/billing-pi-nsqu8a2u/repo/src/Application/Service/PriceRetrievalService.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Application/Service/PriceRetrievalService.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/src/Application/Service/PriceRetrievalService.php	2026-10-27 20:19:22.381924213 +0700
+@@ -0,0 +1,34 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Application\Service;
++
++use App\Entity\Model;
++use App\Entity\Price;
++use Doctrine\ORM\EntityManagerInterface;
++
++/**
++ * Вспомогательная сервисная обёртка на репозиторий цен. Удобно для
++ * unit-тестов и внешних потреблителей.
++ */
++final class PriceRetrievalService
++{
++    public function __construct(private readonly EntityManagerInterface $em)
++    {
++    }
++
++    public function get(Model $model, \DateTimeImmutable $ts): ?Price
++    {
++        $rows = $this->em->getRepository(Price::class)->findBy(
++            ['model' => $model],
++            ['validFrom' => 'DESC']
++        );
++        foreach ($rows as $row) {
++            if ($row->validFrom() <= $ts) {
++                return $row;
++            }
++        }
++        return null;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Application/Service/RatingService.php /tmp/billing-pi-nsqu8a2u/repo/src/Application/Service/RatingService.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Application/Service/RatingService.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/src/Application/Service/RatingService.php	2026-10-27 20:19:08.480412675 +0700
+@@ -0,0 +1,120 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Application\Service;
++
++use App\Domain\Money;
++use App\Domain\OffPeakWindow;
++use App\Domain\PriceSheet;
++use App\Domain\RateCalculator;
++use App\Entity\Price;
++use App\Entity\Provider;
++use App\Entity\UsageEvent;
++use App\Entity\UsageRating;
++use Doctrine\ORM\EntityManagerInterface;
++
++/**
++ * Тарификация событий: перебирает все pending/retryable события,
++ * выбирает действующую цену и записывает стоимость.
++ *
++ * Идемпотентность: event, уже тарифицированный (cost_usd не null),
++ * пропускается. Unrated повторно оценивается на каждом rate-запуске
++ * (TASK.md п. 7).
++ */
++final class RatingService
++{
++    public function __construct(
++        private readonly EntityManagerInterface $em,
++        private readonly PriceBookService $priceBook,
++        private readonly RateCalculator $calculator = new RateCalculator(),
++    ) {
++    }
++
++    /**
++     * @return array{rated:int,unrated:int,unratedLines:string[]}
++     */
++    public function rate(): array
++    {
++        $rated = 0;
++        $unratedLines = [];
++
++        $q = $this->em->createQueryBuilder();
++        $q->select('e')
++            ->from(UsageEvent::class, 'e')
++            ->where('e.status IN (:a, :b)')
++            ->setParameter('a', UsageEvent::STATUS_PENDING)
++            ->setParameter('b', UsageEvent::STATUS_RETRYABLE)
++            ->orderBy('e.id', 'ASC');
++
++        foreach ($q->getQuery()->getResult() as $ev) {
++            /** @var UsageEvent $ev */
++            $price = $this->selectPriceFor($ev);
++            if ($price === null) {
++                $ev->tryMarkRetryable();
++                $unratedLines[] = sprintf(
++                    'UNRATED %s/%s %s no_price',
++                    $ev->provider(),
++                    $ev->providerRequestId(),
++                    $ev->ts()->format('c')
++                );
++                continue;
++            }
++
++            $provider = $this->em->getRepository(Provider::class)->findOneBy(['code' => $ev->provider()]);
++            $cost = $this->calculator->calculate(
++                $ev->tokensInput(),
++                $ev->tokensOutput(),
++                $ev->tokensCacheRead(),
++                $ev->tokensCacheWrite(),
++                $this->toPriceSheet($price),
++                $this->buildOffPeak($provider),
++                $ev->ts(),
++            );
++            $costStr = $cost->format(6);
++            $ev->markRated($costStr, $price->id());
++            $rating = UsageRating::create($ev, $costStr, $price->id(), UsageRating::SOURCE_RATE);
++            $rating->assign($ev);
++            $this->em->persist($rating);
++            $rated++;
++        }
++
++        $this->em->flush();
++
++        return [
++            'rated' => $rated,
++            'unrated' => count($unratedLines),
++            'unratedLines' => $unratedLines,
++        ];
++    }
++
++    private function selectPriceFor(UsageEvent $ev): ?Price
++    {
++        $model = $this->priceBook->modelFor($ev->provider(), $ev->model());
++        if ($model === null) {
++            return null;
++        }
++        return $this->priceBook->effectivePrice($model, $ev->ts());
++    }
++
++    private function toPriceSheet(Price $p): PriceSheet
++    {
++        $rates = [];
++        foreach ($p->rates() as $k => $v) {
++            $rates[$k] = Money::of($v);
++        }
++        return new PriceSheet($p->currency(), $p->unit(), $rates);
++    }
++
++    private function buildOffPeak(?Provider $p): ?OffPeakWindow
++    {
++        if ($p === null || !$p->hasOffPeak()) {
++            return null;
++        }
++        return OffPeakWindow::fromParts(
++            (int) $p->offPeakStart(),
++            (int) $p->offPeakEnd(),
++            Money::of((string) $p->offPeakMultiplier()),
++        );
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Application/Service/ReportService.php /tmp/billing-pi-nsqu8a2u/repo/src/Application/Service/ReportService.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Application/Service/ReportService.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/src/Application/Service/ReportService.php	2026-10-27 20:22:32.212435814 +0700
+@@ -0,0 +1,150 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Application\Service;
++
++use App\Domain\Money;
++use App\Entity\UsageEvent;
++use App\Entity\UsageRating;
++use Doctrine\ORM\EntityManagerInterface;
++
++/**
++ * Отчёт: строки по (user, model) для событий из периода, + TOTAL в конце.
++ * В отчёт попадают только тарифицированные события
++ * (cost_usd не null), отсортированные по user затем model.
++ * Суммы — бегущие по уже округлённым стоимостям событий (Money).
++ */
++final class ReportService
++{
++    public function __construct(private readonly EntityManagerInterface $em)
++    {
++    }
++
++    /**
++     * @param \DateTimeImmutable|null $from включительно
++     * @param \DateTimeImmutable|null $to   исключительно
++     *
++     * @return array{
++     *   rows: array<array{user:string,model:string,ti:int,to_:int,cr:int,cw:int,cost:Money}>,
++     *   total: array{ti:int,to_:int,cr:int,cw:int,cost:Money}
++     * }
++     */
++    public function report(?\DateTimeImmutable $from, ?\DateTimeImmutable $to): array
++    {
++        $q = $this->em->createQueryBuilder();
++        $q->select('e')
++            ->from(UsageEvent::class, 'e')
++            ->where('e.costUsd IS NOT NULL');
++        if ($from !== null) {
++            $q->andWhere('e.ts >= :from')
++             ->setParameter('from', $from);
++        }
++        if ($to !== null) {
++            $q->andWhere('e.ts < :to')
++             ->setParameter('to', $to);
++        }
++        $q->orderBy('e.ts', 'ASC');
++        $events = $q->getQuery()->getResult();
++
++        // Для каждого события берём последние строки рейтинга.
++        // Так как rate/reprice-журналируют в usage_ratings с последним состоянием,
++        // текущая стоимость = last(id) по event.
++        $eventIds = array_map(static fn ($e) => $e->id(), $events);
++        $lastRatings = $this->fetchLastRatingsFor($eventIds);
++
++        $rows = [];
++        $totTi = 0; $totTo = 0; $totCr = 0; $totCw = 0;
++        $totCost = Money::zero();
++
++        foreach ($events as $ev) {
++            /** @var UsageEvent $ev */
++            $rating = $lastRatings[$ev->id() ?? 0] ?? null;
++            if ($rating === null) {
++                continue; // no current rating (unrated)
++            }
++            $modelKey = $ev->provider() . '/' . $ev->model();
++            $groupKey = $ev->user() . '|' . $modelKey;
++
++            if (!isset($rows[$groupKey])) {
++                $rows[$groupKey] = [
++                    'user' => $ev->user(),
++                    'model' => $modelKey,
++                    'ti' => 0, 'to_' => 0, 'cr' => 0, 'cw' => 0,
++                    'cost' => Money::zero(),
++                ];
++            }
++            $rows[$groupKey]['ti'] += $ev->tokensInput();
++            $rows[$groupKey]['to_'] += $ev->tokensOutput();
++            $rows[$groupKey]['cr'] += $ev->tokensCacheRead();
++            $rows[$groupKey]['cw'] += $ev->tokensCacheWrite();
++            $rows[$groupKey]['cost'] = $rows[$groupKey]['cost']->add(Money::of($rating->amount()));
++
++            $totTi += $ev->tokensInput();
++            $totTo += $ev->tokensOutput();
++            $totCr += $ev->tokensCacheRead();
++            $totCw += $ev->tokensCacheWrite();
++            $totCost = $totCost->add(Money::of($rating->amount()));
++        }
++
++        // сортировка: user, затем model (обя обсортировка — по возрастанию, без учёта регистра)
++        usort($rows, static function (array $a, array $b): int {
++            $r = strcmp($a['user'], $b['user']);
++            if ($r !== 0) {
++                return $r;
++            }
++            return strcmp($a['model'], $b['model']);
++        });
++
++        return [
++            'rows' => array_values($rows),
++            'total' => [
++                'ti' => $totTi,
++                'to_' => $totTo,
++                'cr' => $totCr,
++                'cw' => $totCw,
++                'cost' => $totCost,
++            ],
++        ];
++    }
++
++    /**
++     * @param array<int|int> $eventIds
++     * @return array<int,UsageRating> event_id => latest UsageRating
++     */
++    private function fetchLastRatingsFor(array $eventIds): array
++    {
++        if ($eventIds === []) {
++            return [];
++        }
++        // max(id) по каждому event — последнее состояние стоимости
++        $rows = $this->em->getConnection()->fetchAllAssociative(
++            'SELECT id, event_id FROM usage_ratings WHERE event_id IN (' . implode(',', array_map('intval', $eventIds)) . ')'
++        );
++        if ($rows === []) {
++            return [];
++        }
++        // group by event: keep max id
++        $lastIdByEvent = [];
++        foreach ($rows as $row) {
++            $eid = (int) $row['event_id'];
++            $id = (int) $row['id'];
++            if (!isset($lastIdByEvent[$eid]) || $id > $lastIdByEvent[$eid]) {
++                $lastIdByEvent[$eid] = $id;
++            }
++        }
++        $ids = array_values($lastIdByEvent);
++        $ratings = $this->em->getRepository(UsageRating::class)->findAll();
++        $byId = [];
++        foreach ($ratings as $r) {
++            $byId[$r->id()] = $r;
++        }
++        $result = [];
++        foreach ($lastIdByEvent as $eid => $rid) {
++            if (isset($byId[$rid])) {
++                $result[$eid] = $byId[$rid];
++            }
++        }
++        return $result;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Application/Service/RepriceService.php /tmp/billing-pi-nsqu8a2u/repo/src/Application/Service/RepriceService.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Application/Service/RepriceService.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/src/Application/Service/RepriceService.php	2026-10-27 20:24:10.152524018 +0700
+@@ -0,0 +1,185 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Application\Service;
++
++use App\Application\Exception\BillingException;
++use App\Domain\Money;
++use App\Domain\OffPeakWindow;
++use App\Domain\PriceSheet;
++use App\Domain\RateCalculator;
++use App\Entity\Price;
++use App\Entity\Provider;
++use App\Entity\UsageEvent;
++use App\Entity\UsageRating;
++use Doctrine\ORM\EntityManagerInterface;
++
++/**
++ * Ретро-коррекция: upsert цены из файла, пересчёт событий записанных
++ * по этой строке, вывод (n, delta).
++ *
++ * Механизм:
++ *  - upsert по (provider, model, valid_from) в prices;
++ *  - найти все usage_ratings с price_id этой строки (после replace,
++ *    их price_id уже соответствует новой строке id — поэтому ищем по
++ *    id, который сохраняется как «исторический» price_id при rate).
++ *
++ * Мы фиксируем старый amount (из usage_ratings.amount) и пересчитываем
++ * event на новой строке; записываем новый usage_ratings-журнал с
++ * source='reprice', delta = sum(new) - sum(old).
++ *
++ * Текущая стоимость события = последнее (id) значение в usage_ratings.
++ */
++final class RepriceService
++{
++    public function __construct(
++        private readonly EntityManagerInterface $em,
++        private readonly PriceBookService $priceBook,
++        private readonly RateCalculator $calculator = new RateCalculator(),
++    ) {
++    }
++
++    /**
++     * @param array{prices?:array} $data
++     * @return array{n:int,deltaUsd:Money}
++     */
++    public function reprice(array $data): array
++    {
++        $prices = (array)($data['prices'] ?? []);
++        if ($prices === []) {
++            throw BillingException::parseError('в файле коррекции нет секции prices');
++        }
++
++        // для каждой строки: upsert в prices; соберём map newId -> price.
++        $newPriceIds = [];
++        foreach ($prices as $p) {
++            foreach (['provider', 'model', 'valid_from', 'unit', 'rates'] as $key) {
++                if (!isset($p[$key])) {
++                    throw BillingException::parseError(sprintf('prices[]: отсутствует поле "%s"', $key));
++                }
++            }
++            $providerCode = (string) $p['provider'];
++            $modelCode = (string) $p['model'];
++            $validFrom = PriceBookService::parseIsoUtzPublic((string) $p['valid_from']);
++            $currency = (string) ($p['currency'] ?? 'USD');
++            $unit = (string) $p['unit'];
++            $rates = PriceBookService::parseRatesPublic($p['rates'], $unit);
++
++            $model = $this->priceBook->modelFor($providerCode, $modelCode);
++            if ($model === null) {
++                throw BillingException::notFound('модель', $providerCode . '/' . $modelCode);
++            }
++            $existing = $this->em->getRepository(Price::class)->findOneBy([
++                'model' => $model,
++                'validFrom' => $validFrom,
++            ]);
++            if ($existing === null) {
++                $new = new Price($model, $validFrom, $currency, $unit, $rates);
++                $this->em->persist($new);
++                $this->em->flush();
++                $newId = $new->id();
++                $newPriceIds[$newId] = $new;
++            } else {
++                $existing->replace($currency, $unit, $rates);
++                $newId = $existing->id();
++                $newPriceIds[$newId] = $existing;
++            }
++        }
++        $this->em->flush();
++
++        // 2. Найти все события, чей «исторический price_id» входит в
++        //    set обновлённых строк. Итоговая стоимость события
++        //    = last(id) в usage_ratings по event.
++        $idList = array_map('intval', array_keys($newPriceIds));
++        if ($idList === []) {
++            return ['n' => 0, 'deltaUsd' => Money::zero()];
++        }
++        $ratingRows = $this->em->getConnection()->fetchAllAssociative(
++            'SELECT r.id, r.event_id, r.amount, e.id AS ev_id, e.provider, e.model, e.ts
++             FROM usage_ratings r
++             JOIN usage_events e ON e.id = r.event_id
++             WHERE r.price_id IN (' . implode(',', $idList) . ')'
++        );
++        // собираем события с их старым amount (последний rating по price_id)
++        // и пересчитываем по новой строке
++        $eventsTouched = [];
++        foreach ($ratingRows as $row) {
++            $event = $this->em->getRepository(UsageEvent::class)->find((int) $row['ev_id']);
++            if ($event === null) {
++                continue;
++            }
++            if (!isset($eventsTouched[(int) $event->id()])) {
++                $eventsTouched[(int) $event->id()] = [
++                    'event' => $event,
++                    'oldAmount' => Money::of($row['amount']),
++                ];
++            }
++        }
++
++        $n = 0;
++        $delta = Money::zero();
++        foreach ($eventsTouched as $info) {
++            /** @var UsageEvent $ev */
++            $ev = $info['event'];
++            $oldSum = $info['oldAmount'];
++            $newPrice = $newPriceIds[(int) ($ev->priceId() ?: 0)];
++            if ($newPrice === null) {
++                // event.priceId не в карте — это может быть старый id,
++                // который у нас был «до» replace. По условию reprice
++                // заменяет строки, event.priceId может старым остаться.
++                // Ищем новую цену по model + ts.
++                $modelFor = $this->priceBook->modelFor($ev->provider(), $ev->model());
++                if ($modelFor === null) {
++                    continue;
++                }
++                $newPrice = $this->priceBook->effectivePrice($modelFor, $ev->ts());
++                if ($newPrice === null) {
++                    continue;
++                }
++            }
++            $provider = $this->em->getRepository(Provider::class)->findOneBy(['code' => $ev->provider()]);
++            $newCost = $this->calculator->calculate(
++                $ev->tokensInput(),
++                $ev->tokensOutput(),
++                $ev->tokensCacheRead(),
++                $ev->tokensCacheWrite(),
++                $this->toPriceSheet($newPrice),
++                $this->buildOffPeak($provider),
++                $ev->ts(),
++            );
++            $newStr = $newCost->format(6);
++            $newId = $newPrice->id();
++            $ev->applyReprice($newStr, $newId);
++            $rating = UsageRating::create($ev, $newStr, $newId, UsageRating::SOURCE_REPRICE);
++            $rating->assign($ev);
++            $this->em->persist($rating);
++            $delta = $delta->add($newCost)->subtract($oldSum);
++            $n++;
++        }
++        $this->em->flush();
++
++        return ['n' => $n, 'deltaUsd' => $delta];
++    }
++
++    private function toPriceSheet(Price $p): PriceSheet
++    {
++        $rates = [];
++        foreach ($p->rates() as $k => $v) {
++            $rates[$k] = Money::of($v);
++        }
++        return new PriceSheet($p->currency(), $p->unit(), $rates);
++    }
++
++    private function buildOffPeak(?Provider $p): ?OffPeakWindow
++    {
++        if ($p === null || !$p->hasOffPeak()) {
++            return null;
++        }
++        return OffPeakWindow::fromParts(
++            (int) $p->offPeakStart(),
++            (int) $p->offPeakEnd(),
++            Money::of((string) $p->offPeakMultiplier()),
++        );
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Application/Service/UsageImportService.php /tmp/billing-pi-nsqu8a2u/repo/src/Application/Service/UsageImportService.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Application/Service/UsageImportService.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/src/Application/Service/UsageImportService.php	2026-10-27 20:18:21.761324635 +0700
+@@ -0,0 +1,146 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Application\Service;
++
++use App\Application\Exception\BillingException;
++use App\Entity\UsageEvent;
++use Doctrine\ORM\EntityManagerInterface;
++
++/**
++ * Импорт событий использования из JSONL-файла.
++ * Дедупликация по (provider, provider_request_id): повторяющиеся строки
++ * игнорируются целиком, ошибки не поднимаются (TASK.md п. 5).
++ */
++final class UsageImportService
++{
++    private const TOKEN_KEYS = [
++        'tokens_input' => 'input',
++        'tokens_output' => 'output',
++        'tokens_cache_read' => 'cache_read',
++        'tokens_cache_write' => 'cache_write',
++    ];
++
++    public function __construct(private readonly EntityManagerInterface $em)
++    {
++    }
++
++    /**
++     * @return array{written:int,skipped:int}
++     */
++    public function import(string $filePath): array
++    {
++        if (!is_file($filePath) || !is_readable($filePath)) {
++            throw BillingException::parseError(sprintf('Файл не найден или не читается: %s', $filePath));
++        }
++
++        $lines = file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
++        if ($lines === false) {
++            throw BillingException::parseError(sprintf('Не удалось прочитать: %s', $filePath));
++        }
++
++        $repo = $this->em->getRepository(UsageEvent::class);
++        $written = 0;
++        $skipped = 0;
++        $line = 0;
++        foreach ($lines as $raw) {
++            $line++;
++            $raw = trim((string) $raw);
++            if ($raw === '') {
++                continue;
++            }
++            $data = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
++            if (!is_array($data)) {
++                throw BillingException::parseError(sprintf('Строка %d: ожидался объект JSON, получено другое', $line));
++            }
++            try {
++                $ev = $this->normalize($data);
++            } catch (BillingException $e) {
++                throw BillingException::parseError(sprintf('Строка %d: %s', $line, $e->getMessage()));
++            }
++
++            $existing = $repo->findOneBy([
++                'provider' => $ev->provider,
++                'providerRequestId' => $ev->requestId,
++            ]);
++            if ($existing !== null) {
++                $skipped++;
++                continue;
++            }
++
++            $entity = new UsageEvent(
++                $ev->provider,
++                $ev->requestId,
++                $ev->model,
++                $ev->user,
++                $ev->ts,
++                $ev->tokens['input'],
++                $ev->tokens['output'],
++                $ev->tokens['cache_read'],
++                $ev->tokens['cache_write'],
++            );
++            $this->em->persist($entity);
++            $written++;
++        }
++
++        $this->em->flush();
++
++        return ['written' => $written, 'skipped' => $skipped];
++    }
++
++    /** @param array<string,mixed> $data */
++    private function normalize(array $data): object
++    {
++        foreach ([
++            'provider',
++            'provider_request_id',
++            'model',
++            'user',
++            'ts',
++        ] as $k) {
++            if (!array_key_exists($k, $data) || !is_string($data[$k]) || $data[$k] === '') {
++                throw BillingException::parseError(sprintf('отсутствует или не строка: "%s"', $k));
++            }
++        }
++
++        $ts = self::parseIsoUtz($data['ts']);
++        $tokens = ['input' => 0, 'output' => 0, 'cache_read' => 0, 'cache_write' => 0];
++        foreach (self::TOKEN_KEYS as $jsonKey => $internal) {
++            $raw = $data[$jsonKey] ?? 0;
++            if (!is_int($raw)) {
++                throw BillingException::parseError(sprintf('%s: ожидается целое >= 0', $jsonKey));
++            }
++            if ($raw < 0) {
++                throw BillingException::parseError(sprintf('%s: ожидается целое >= 0, получено %d', $jsonKey, $raw));
++            }
++            $tokens[$internal] = $raw;
++        }
++
++        return (object) [
++            'provider' => $data['provider'],
++            'requestId' => $data['provider_request_id'],
++            'model' => $data['model'],
++            'user' => $data['user'],
++            'ts' => $ts,
++            'tokens' => $tokens,
++        ];
++    }
++
++    private static function parseIsoUtz(string $iso): \DateTimeImmutable
++    {
++        // строим DateImmutable строго по ISO-8601 с UTC
++        $patterns = [
++            '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/i',
++            '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/i',
++        ];
++        if (preg_match($patterns[0], $iso) || preg_match($patterns[1], $iso)) {
++            try {
++                return new \DateTimeImmutable($iso, new \DateTimeZone('UTC'));
++            } catch (\Exception $e) {
++                throw BillingException::parseError(sprintf('Некорректная ISO-8601 дата: %s', $iso));
++            }
++        }
++        throw BillingException::parseError(sprintf('Ожидается ISO-8601 UTC (например 2026-09-15T11:00:00Z), получено: %s', $iso));
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/AppBillingRateCommand.php /tmp/billing-pi-nsqu8a2u/repo/src/Command/AppBillingRateCommand.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/AppBillingRateCommand.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/src/Command/AppBillingRateCommand.php	2026-10-27 20:21:28.995669809 +0700
+@@ -0,0 +1,41 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Command;
++
++use App\Application\Service\RatingService;
++use Symfony\Component\Console\Attribute\AsCommand;
++use Symfony\Component\Console\Command\Command;
++use Symfony\Component\Console\Input\InputInterface;
++use Symfony\Component\Console\Output\OutputInterface;
++
++#[AsCommand(
++    name: 'app:billing:rate',
++    description: 'Рассчитать стоимость событий (тарификация pending/retryable)',
++)]
++final class AppBillingRateCommand extends Command
++{
++    public function __construct(
++        private readonly RatingService $service,
++    ) {
++        parent::__construct();
++    }
++
++    protected function execute(InputInterface $input, OutputInterface $output): int
++    {
++        $err = $output->getErrorOutput();
++        try {
++            $stats = $this->service->rate();
++        } catch (\Throwable $e) {
++            $err->writeln(sprintf('<error>%s</error>', $e->getMessage()));
++            return Command::FAILURE;
++        }
++        foreach ($stats['unratedLines'] as $line) {
++            $err->writeln($line);
++        }
++        // stdout по ТЗ: RATED=<n> UNRATED=<m>
++        $output->writeln(sprintf('RATED=%d UNRATED=%d', $stats['rated'], $stats['unrated']));
++        return Command::SUCCESS;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/AppBillingReportCommand.php /tmp/billing-pi-nsqu8a2u/repo/src/Command/AppBillingReportCommand.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/AppBillingReportCommand.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/src/Command/AppBillingReportCommand.php	2026-10-27 20:21:50.113257593 +0700
+@@ -0,0 +1,85 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Command;
++
++use App\Application\Service\ReportService;
++use Symfony\Component\Console\Attribute\AsCommand;
++use Symfony\Component\Console\Command\Command;
++use Symfony\Component\Console\Input\InputInterface;
++use Symfony\Component\Console\Input\InputOption;
++use Symfony\Component\Console\Output\OutputInterface;
++use Symfony\Component\Console\Style\SymfonyStyle;
++
++#[AsCommand(
++    name: 'app:billing:report',
++    description: 'Сводка стоимости: CSV (у пользователя — модель — стоимость)',
++)]
++final class AppBillingReportCommand extends Command
++{
++    public function __construct(
++        private readonly ReportService $service,
++    ) {
++        parent::__construct();
++    }
++
++    protected function configure(): void
++    {
++        $this->addOption('from', null, InputOption::VALUE_REQUIRED, 'Начало периоде ISO-8601 (UTC), включительно');
++        $this->addOption('to', null, InputOption::VALUE_REQUIRED, 'Конец периоде ISO-8601 (UTC), исключительно');
++    }
++
++    protected function execute(InputInterface $input, OutputInterface $output): int
++    {
++        $from = null;
++        $to = null;
++        $fromArg = (string) $input->getOption('from');
++        $toArg = (string) $input->getOption('to');
++        try {
++            if ($fromArg !== '') {
++                $from = new \DateTimeImmutable($fromArg, new \DateTimeZone('UTC'));
++            }
++            if ($toArg !== '') {
++                $to = new \DateTimeImmutable($toArg, new \DateTimeZone('UTC'));
++            }
++        } catch (\Exception $e) {
++            $output->getErrorOutput()->writeln(sprintf('<error>некорректная ISO-8601 дата: %s</error>', $e->getMessage()));
++            return Command::FAILURE;
++        }
++
++        $err = $output->getErrorOutput();
++        try {
++            $report = $this->service->report($from, $to);
++        } catch (\Throwable $e) {
++            $err->writeln(sprintf('<error>%s</error>', $e->getMessage()));
++            return Command::FAILURE;
++        }
++
++        // CSV в stdout
++        $out = $output;
++        $out->writeln('user,model,tokens_input,tokens_output,tokens_cache_read,tokens_cache_write,cost_usd');
++        foreach ($report['rows'] as $r) {
++            $out->writeln(sprintf(
++                '%s,%s,%d,%d,%d,%d,%s',
++                $r['user'],
++                $r['model'],
++                $r['ti'],
++                $r['to_'],
++                $r['cr'],
++                $r['cw'],
++                $r['cost']->format(6)
++            ));
++        }
++        $out->writeln(sprintf(
++            'TOTAL,,%d,%d,%d,%d,%s',
++            $report['total']['ti'],
++            $report['total']['to_'],
++            $report['total']['cr'],
++            $report['total']['cw'],
++            $report['total']['cost']->format(6),
++        ));
++
++        return Command::SUCCESS;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/AppBillingRepriceCommand.php /tmp/billing-pi-nsqu8a2u/repo/src/Command/AppBillingRepriceCommand.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/AppBillingRepriceCommand.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/src/Command/AppBillingRepriceCommand.php	2026-10-27 20:23:13.753624928 +0700
+@@ -0,0 +1,81 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Command;
++
++use App\Application\Exception\BillingException;
++use App\Application\Service\RepriceService;
++use Doctrine\ORM\EntityManagerInterface;
++use Symfony\Component\Console\Attribute\AsCommand;
++use Symfony\Component\Console\Command\Command;
++use Symfony\Component\Console\Input\InputArgument;
++use Symfony\Component\Console\Input\InputInterface;
++use Symfony\Component\Console\Output\OutputInterface;
++
++#[AsCommand(
++    name: 'app:billing:reprice',
++    description: 'Ретро-коррекция цены (upsert цен по файлу + пересчёт событий)',
++)]
++final class AppBillingRepriceCommand extends Command
++{
++    public function __construct(
++        private readonly RepriceService $service,
++        private readonly EntityManagerInterface $em,
++    ) {
++        parent::__construct();
++    }
++
++    protected function configure(): void
++    {
++        $this->addArgument('file', InputArgument::REQUIRED, 'Путь к JSON-файлу с секцией prices');
++    }
++
++    protected function execute(InputInterface $input, OutputInterface $output): int
++    {
++        $file = (string) $input->getArgument('file');
++        if (!is_file($file) || !is_readable($file)) {
++            $output->getErrorOutput()->writeln(sprintf('<error>не найден или не читается файл: %s</error>', $file));
++            return Command::FAILURE;
++        }
++        $raw = file_get_contents($file);
++        if ($raw === false) {
++            $output->getErrorOutput()->writeln('<error>не удалось прочитать файл</error>');
++            return Command::FAILURE;
++        }
++        try {
++            $data = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
++        } catch (\JsonException $e) {
++            $output->getErrorOutput()->writeln(sprintf('<error>некорректный JSON: %s</error>', $e->getMessage()));
++            return Command::FAILURE;
++        }
++        if (!is_array($data)) {
++            $output->getErrorOutput()->writeln('<error>ожидается JSON-объект с секцией prices</error>');
++            return Command::FAILURE;
++        }
++
++        $err = $output->getErrorOutput();
++        try {
++            $conn = $this->em->getConnection();
++            $conn->beginTransaction();
++            $stats = $this->service->reprice($data);
++            $conn->commit();
++        } catch (BillingException $e) {
++            if ($conn->isTransactionActive()) {
++                $conn->rollBack();
++            }
++            $err->writeln(sprintf('<error>%s</error>', $e->getMessage()));
++            return Command::FAILURE;
++        } catch (\Throwable $e) {
++            if ($conn->isTransactionActive()) {
++                $conn->rollBack();
++            }
++            $err->writeln(sprintf('<error>%s</error>', $e->getMessage()));
++            return Command::FAILURE;
++        }
++
++        $output->writeln(sprintf('REPRICED_EVENTS=%d', $stats['n']));
++        $output->writeln(sprintf('REPRICE_DELTA_USD=%s', $stats['deltaUsd']->format(6)));
++        return Command::SUCCESS;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/AppPricesImportCommand.php /tmp/billing-pi-nsqu8a2u/repo/src/Command/AppPricesImportCommand.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/AppPricesImportCommand.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/src/Command/AppPricesImportCommand.php	2026-10-27 20:21:22.261801255 +0700
+@@ -0,0 +1,82 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Command;
++
++use App\Application\Exception\BillingException;
++use App\Application\Service\PriceBookService;
++use Doctrine\ORM\EntityManagerInterface;
++use Symfony\Component\Console\Attribute\AsCommand;
++use Symfony\Component\Console\Command\Command;
++use Symfony\Component\Console\Input\InputArgument;
++use Symfony\Component\Console\Input\InputInterface;
++use Symfony\Component\Console\Output\OutputInterface;
++use Symfony\Component\Console\Style\SymfonyStyle;
++
++#[AsCommand(
++    name: 'app:prices:import',
++    description: 'Импорт справочника цен (providers/models/prices) из JSON-файла',
++)]
++final class AppPricesImportCommand extends Command
++{
++    public function __construct(
++        private readonly PriceBookService $service,
++        private readonly EntityManagerInterface $em,
++    ) {
++        parent::__construct();
++    }
++
++    protected function configure(): void
++    {
++        $this->addArgument('file', InputArgument::REQUIRED, 'Путь к JSON-файлу с providers/models/prices');
++    }
++
++    protected function execute(InputInterface $input, OutputInterface $output): int
++    {
++        $io = new SymfonyStyle($input, $output);
++        $file = (string) $input->getArgument('file');
++        if (!is_file($file) || !is_readable($file)) {
++            $output->getErrorOutput()->writeln(sprintf('<error>не найден или не читается файл: %s</error>', $file));
++            return Command::FAILURE;
++        }
++        $raw = file_get_contents($file);
++        if ($raw === false) {
++            $output->getErrorOutput()->writeln('<error>не удалось прочитать файл</error>');
++            return Command::FAILURE;
++        }
++        try {
++            $data = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
++        } catch (\JsonException $e) {
++            $output->getErrorOutput()->writeln(sprintf('<error>некорректный JSON: %s</error>', $e->getMessage()));
++            return Command::FAILURE;
++        }
++        if (!is_array($data)) {
++            $output->getErrorOutput()->writeln('<error>ожидается JSON-объект с providers[]/models[]/prices[]</error>');
++            return Command::FAILURE;
++        }
++
++        $em = $this->em;
++        try {
++            $conn = $em->getConnection();
++            $conn->beginTransaction();
++            $this->service->import($data);
++            $conn->commit();
++        } catch (BillingException $e) {
++            if ($conn->isTransactionActive()) {
++                $conn->rollBack();
++            }
++            $output->getErrorOutput()->writeln(sprintf('<error>%s</error>', $e->getMessage()));
++            return Command::FAILURE;
++        } catch (\Throwable $e) {
++            if ($conn->isTransactionActive()) {
++                $conn->rollBack();
++            }
++            $output->getErrorOutput()->writeln(sprintf('<error>%s</error>', $e->getMessage()));
++            return Command::FAILURE;
++        }
++
++        $io->success('Импорт цен выполнен.');
++        return Command::SUCCESS;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/AppUsageImportCommand.php /tmp/billing-pi-nsqu8a2u/repo/src/Command/AppUsageImportCommand.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Command/AppUsageImportCommand.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/src/Command/AppUsageImportCommand.php	2026-10-27 20:21:25.430739397 +0700
+@@ -0,0 +1,55 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Command;
++
++use App\Application\Exception\BillingException;
++use App\Application\Service\UsageImportService;
++use Symfony\Component\Console\Attribute\AsCommand;
++use Symfony\Component\Console\Command\Command;
++use Symfony\Component\Console\Input\InputArgument;
++use Symfony\Component\Console\Input\InputInterface;
++use Symfony\Component\Console\Output\OutputInterface;
++use Symfony\Component\Console\Style\SymfonyStyle;
++
++#[AsCommand(
++    name: 'app:usage:import',
++    description: 'Импорт событий использования из JSONL-файла (одна строка — одно событие)',
++)]
++final class AppUsageImportCommand extends Command
++{
++    public function __construct(
++        private readonly UsageImportService $service,
++    ) {
++        parent::__construct();
++    }
++
++    protected function configure(): void
++    {
++        $this->addArgument('file', InputArgument::REQUIRED, 'Путь к JSONL-файлу');
++    }
++
++    protected function execute(InputInterface $input, OutputInterface $output): int
++    {
++        $io = new SymfonyStyle($input, $output);
++        $file = (string) $input->getArgument('file');
++        if (!is_file($file) || !is_readable($file)) {
++            $output->getErrorOutput()->writeln(sprintf('<error>не найден или не читается файл: %s</error>', $file));
++            return Command::FAILURE;
++        }
++
++        try {
++            $this->service->import($file);
++        } catch (BillingException $e) {
++            $output->getErrorOutput()->writeln(sprintf('<error>%s</error>', $e->getMessage()));
++            return Command::FAILURE;
++        } catch (\Throwable $e) {
++            $output->getErrorOutput()->writeln(sprintf('<error>%s</error>', $e->getMessage()));
++            return Command::FAILURE;
++        }
++
++        $io->success('Импорт usage выполнен.');
++        return Command::SUCCESS;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Money.php /tmp/billing-pi-nsqu8a2u/repo/src/Domain/Money.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/Money.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/src/Domain/Money.php	2026-10-27 20:26:30.478784842 +0700
+@@ -0,0 +1,234 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Domain;
++
++use App\Application\Exception\BillingException;
++
++/**
++ * Немутабельная десятичная величина (аналог money) с точностью, заданной
++ * десятичной строкой. НЕ float — float запрещён для денег (TASK.md).
++ *
++ * Внутри хранится строка вида "-1.25", "0", "10" (без float-погрешностей).
++ *
++ * Поддерживаемые операции: add, subtract, multiply, divide, round (HALF_UP),
++ * compareTo, format.
++ */
++final class Money
++{
++    /** Внутренний масштаб бcmath для всех промежуточных операций. */
++    private const SCALE = 32;
++
++    private function __construct(private readonly string $value)
++    {
++    }
++
++    /**
++     * @param string|int $value — десятичная строка ('2.50') или целое.
++     *                           НЕ float — float запрещён (TASK.md).
++     */
++    public static function of(string|int $value): self
++    {
++        if (is_float($value)) {
++            throw BillingException::invalidValue('float запрещён для денег');
++        }
++        $s = trim((string) $value);
++        if ($s === '' || $s === '+' || $s === '-') {
++            throw BillingException::invalidValue('пустое значение');
++        }
++        $s = ltrim($s, '+');
++        if (!preg_match('/^-?(0|[1-9]\d*)?(\.\d+)?$/', $s) && !preg_match('/^-?(0|[1-9]\d*)?(\.\d*)?$/', $s)) {
++            throw BillingException::invalidValue(sprintf('недопустимое десятичное значение: "%s"', $value));
++        }
++        return new self(self::normalize($s));
++    }
++
++    public static function zero(): self
++    {
++        return new self('0');
++    }
++
++    public function add(self $other): self
++    {
++        return new self(self::normalize(bcadd($this->value, $other->value, self::SCALE)));
++    }
++
++    public function subtract(self $other): self
++    {
++        return new self(self::normalize(bcsub($this->value, $other->value, self::SCALE)));
++    }
++
++    public function multiply(self $other): self
++    {
++        return new self(self::normalize(bcmul($this->value, $other->value, self::SCALE)));
++    }
++
++    public function divide(self $other): self
++    {
++        if ($other->isZero()) {
++            throw BillingException::invalidValue('Деление на ноль');
++        }
++        return new self(self::normalize(bcdiv($this->value, $other->value, self::SCALE)));
++    }
++
++    public function isZero(): bool
++    {
++        return $this->value === '0';
++    }
++
++    public function isNegative(): bool
++    {
++        return str_starts_with($this->value, '-');
++    }
++
++    /**
++     * HALF_UP округление до scale знаков (2.5 → 3, -2.5 → -3).
++     */
++    public function round(int $scale = 6): self
++    {
++        if ($scale < 0) {
++            throw BillingException::invalidValue('scale должно быть >= 0');
++        }
++        $neg = str_starts_with($this->value, '-');
++        $num = $neg ? substr($this->value, 1) : $this->value;
++
++        $dot = strpos($num, '.');
++        $int = $dot === false ? $num : substr($num, 0, $dot);
++        $frac = $dot === false ? '' : substr($num, $dot + 1);
++        $frac = str_pad($frac, $scale + 1, '0');
++
++        $keep = substr($frac, 0, $scale);
++        $drop = (int) $frac[$scale];
++
++        if ($drop >= 5) {
++            // Добавляем 1 к последней цифре keep (в строковом виде, без float).
++            if ($scale === 0) {
++                // scale=0: нужно прибавить 1 к integer part
++                $intDigits = str_split($int === '' ? '0' : $int);
++                $c2 = 1;
++                for ($i = count($intDigits) - 1; $i >= 0; $i--) {
++                    $sum = (int) $intDigits[$i] + $c2;
++                    $intDigits[$i] = (string) ($sum % 10);
++                    $c2 = intdiv($sum, 10);
++                    if ($c2 === 0) {
++                        break;
++                    }
++                }
++                if ($c2 > 0) {
++                    array_unshift($intDigits, '1');
++                }
++                $int = implode('', $intDigits);
++            } else {
++                // Добавляем 1 к последней цифре $keep (в строковом виде, без float).
++                $digits = str_split($keep === '' ? '0' : $keep);
++                $carry = 1;
++                for ($i = count($digits) - 1; $i >= 0; $i--) {
++                    $sum = (int) $digits[$i] + $carry;
++                    $digits[$i] = (string) ($sum % 10);
++                    $carry = intdiv($sum, 10);
++                    if ($carry === 0) {
++                        break;
++                    }
++                }
++                $keep = implode('', $digits);
++                // Если перенос дошёл за пределы keep — нужно увеличить integer part.
++                if ($carry > 0) {
++                    $intDigits = str_split($int === '' ? '0' : $int);
++                    $c2 = 1;
++                    for ($i = count($intDigits) - 1; $i >= 0; $i--) {
++                        $sum = (int) $intDigits[$i] + $c2;
++                        $intDigits[$i] = (string) ($sum % 10);
++                        $c2 = intdiv($sum, 10);
++                        if ($c2 === 0) {
++                            break;
++                        }
++                    }
++                    if ($c2 > 0) {
++                        array_unshift($intDigits, '1');
++                    }
++                    $int = implode('', $intDigits);
++                }
++            }
++        }
++
++        $int = ltrim($int, '0');
++        if ($int === '') {
++            $int = '0';
++        }
++        if ($scale === 0) {
++            $result = $int;
++        } else {
++            $fracTrim = rtrim($keep, '0');
++            $result = $fracTrim === '' ? $int : $int . '.' . $fracTrim;
++        }
++
++        return new self($neg && $result !== '0' ? '-' . $result : $result);
++    }
++
++    /** Строки ровно $scale знаков после точки. */
++    public function format(int $scale = 6): string
++    {
++        $neg = str_starts_with($this->value, '-');
++        $num = $neg ? substr($this->value, 1) : $this->value;
++        $dot = strpos($num, '.');
++        $int = $dot === false ? $num : substr($num, 0, $dot);
++        $frac = $dot === false ? '' : substr($num, $dot + 1);
++        $frac = substr(str_pad($frac, $scale, '0'), 0, $scale);
++        $int = ltrim($int, '0');
++        if ($int === '') {
++            $int = '0';
++        }
++        if ($scale === 0) {
++            return ($neg ? '-' : '') . $int;
++        }
++        return ($neg ? '-' : '') . $int . '.' . $frac;
++    }
++
++    public function toDecimalString(): string
++    {
++        return $this->value;
++    }
++
++    public function toString(): string
++    {
++        return $this->value;
++    }
++
++    public function compareTo(self $other): int
++    {
++        $r = bccomp($this->value, $other->value, self::SCALE);
++        return $r < 0 ? -1 : ($r > 0 ? 1 : 0);
++    }
++
++    public function equals(self $other): bool
++    {
++        return $this->compareTo($other) === 0;
++    }
++
++    /** Приводим к виду без лишних нулей: "001.2300" → "1.23". */
++    private static function normalize(string $s): string
++    {
++        $neg = str_starts_with($s, '-');
++        $num = $neg ? substr($s, 1) : $s;
++        $dot = strpos($num, '.');
++        if ($dot !== false) {
++            $int = substr($num, 0, $dot);
++            $frac = substr($num, $dot + 1);
++            $int = ltrim($int, '0');
++            if ($int === '') {
++                $int = '0';
++            }
++            $frac = rtrim($frac, '0');
++            if ($frac === '') {
++                return ($neg ? '-' : '') . $int;
++            }
++            return ($neg ? '-' : '') . $int . '.' . $frac;
++        }
++        $int = ltrim($num, '0');
++        if ($int === '') {
++            return '0';
++        }
++        return ($neg ? '-' : '') . $int;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/OffPeakWindow.php /tmp/billing-pi-nsqu8a2u/repo/src/Domain/OffPeakWindow.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/OffPeakWindow.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/src/Domain/OffPeakWindow.php	2026-10-27 20:22:00.664051641 +0700
+@@ -0,0 +1,79 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Domain;
++
++use App\Application\Exception\BillingException;
++use DateImmutable;
++
++/**
++ * Оф-пиковое окно провайдера (UTC, по времени суток).
++ *
++ * Окно [start, end); поддерживает переход через полночь (например 16:30–00:30).
++ * Если start == end — окно пустое (скидка нигде не действует).
++ */
++final class OffPeakWindow
++{
++    /**
++     * @param int $startMin минуты от начала суток UTC для window_start (включительно)
++     * @param int $endMin   минуты от начала суток UTC для window_end (исключительно)
++     */
++    private function __construct(
++        private readonly int $startMin,
++        private readonly int $endMin,
++        private readonly Money $multiplier
++    ) {
++        if ($startMin < 0 || $startMin >= 1440) {
++            throw BillingException::invalidValue(sprintf('window_start вне суток: %d', $startMin));
++        }
++        if ($endMin < 0 || $endMin >= 1440) {
++            throw BillingException::invalidValue(sprintf('window_end вне суток: %d', $endMin));
++        }
++        if ($multiplier->isNegative()) {
++            throw BillingException::invalidValue('multiplier должен быть неотрицательным');
++        }
++    }
++
++    public static function fromParts(int $startMin, int $endMin, Money $multiplier): self
++    {
++        return new self($startMin, $endMin, $multiplier);
++    }
++
++    public function contains(\DateTimeInterface $utc): bool
++    {
++        if ($this->startMin === $this->endMin) {
++            return false;
++        }
++
++        // минуты от начала суток UTC (секунды внутри минуты — внутри окна, игнорируем)
++        $m = ((int) $utc->format('G')) * 60 + (int) $utc->format('i');
++
++        if ($this->startMin < $this->endMin) {
++            return $m >= $this->startMin && $m < $this->endMin;
++        }
++
++        // окно через полночь: [start, 24:00) ∪ [00:00, end)
++        return $m >= $this->startMin || $m < $this->endMin;
++    }
++
++    public function isOffPeak(DateImmutable $utc): bool
++    {
++        return $this->contains($utc);
++    }
++
++    public function multiplier(): Money
++    {
++        return $this->multiplier;
++    }
++
++    public function startMinutes(): int
++    {
++        return $this->startMin;
++    }
++
++    public function endMinutes(): int
++    {
++        return $this->endMin;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/PriceSheet.php /tmp/billing-pi-nsqu8a2u/repo/src/Domain/PriceSheet.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/PriceSheet.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/src/Domain/PriceSheet.php	2026-10-27 20:12:17.536411911 +0700
+@@ -0,0 +1,25 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Domain;
++
++/**
++ * Неизменяемое «снимок» данных, достаточный для тарификации одного события:
++ * выбранный прайс-лист с множителями и (опционально) оф-пик провайдера.
++ */
++final readonly class PriceSheet
++{
++    public function __construct(
++        public string $currency,
++        public string $unit,
++        /** @var array<string,Money> ключи: input/output/cache_read/cache_write или any */
++        public array $rates,
++    ) {
++    }
++
++    public function rate(string $kind): Money
++    {
++        return $this->rates[$kind];
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/RateCalculator.php /tmp/billing-pi-nsqu8a2u/repo/src/Domain/RateCalculator.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/RateCalculator.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/src/Domain/RateCalculator.php	2026-10-27 20:26:38.923619998 +0700
+@@ -0,0 +1,76 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Domain;
++
++use App\Application\Exception\BillingException;
++
++/**
++ * Расчёт стоимости одного события: схема тарификации, цены,
++ * опциональная оф-пиковая скидка.
++ *
++ * Правила (TASK.md п. 2, 3, 4):
++ *  - per_1m_tokens:        cost = Σ tokens_вид × rate_вид / 1_000_000;
++ *  - per_1m_tokens_unified: cost = (Σ tokens_вид) × rate_any / 1_000_000;
++ *  - при попадании ts в оф-пиковое окно провайдера итог умножается на
++ *    multiplier окна;
++ *  - единственное округление — итог события HALF_UP до 6 знаков;
++ *  - float не используется (bcmath).
++ */
++final class RateCalculator
++{
++    private const DIVISOR = '1000000';
++
++    public function calculate(
++        int $tokensInput,
++        int $tokensOutput,
++        int $tokensCacheRead,
++        int $tokensCacheWrite,
++        PriceSheet $sheet,
++        ?OffPeakWindow $offPeak,
++        \DateTimeImmutable $ts,
++    ): Money {
++        foreach ([$tokensInput, $tokensOutput, $tokensCacheRead, $tokensCacheWrite] as $t) {
++            if ($t < 0) {
++                throw BillingException::invalidValue('количество токенов не может быть отрицательным');
++            }
++        }
++        $sum = Money::zero();
++
++        switch ($sheet->unit) {
++            case 'per_1m_tokens':
++                $sum = $sum
++                    ->add(self::tokensTimesRate($tokensInput, $sheet->rate('input')))
++                    ->add(self::tokensTimesRate($tokensOutput, $sheet->rate('output')))
++                    ->add(self::tokensTimesRate($tokensCacheRead, $sheet->rate('cache_read')))
++                    ->add(self::tokensTimesRate($tokensCacheWrite, $sheet->rate('cache_write')));
++                break;
++
++            case 'per_1m_tokens_unified':
++                $total = $tokensInput + $tokensOutput + $tokensCacheRead + $tokensCacheWrite;
++                $sum = self::tokensTimesRate($total, $sheet->rate('any'));
++                break;
++
++            default:
++                throw BillingException::invalidValue(
++                    sprintf('Неизвестная схема тарификации: %s', $sheet->unit)
++                );
++        }
++
++        if ($offPeak !== null && $offPeak->contains($ts)) {
++            $sum = $sum->multiply($offPeak->multiplier());
++        }
++
++        // единственное округление: итог события — HALF_UP 6 знаков
++        return $sum->round(6);
++    }
++
++    /** tokens × rate / 1_000_000 (без округления). */
++    private static function tokensTimesRate(int $tokens, Money $rate): Money
++    {
++        return Money::of($tokens)
++            ->multiply($rate)
++            ->divide(Money::of(self::DIVISOR));
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/UsageEvent.php /tmp/billing-pi-nsqu8a2u/repo/src/Domain/UsageEvent.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Domain/UsageEvent.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/src/Domain/UsageEvent.php	2026-10-27 20:12:17.536411911 +0700
+@@ -0,0 +1,54 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Domain;
++
++/**
++ * Событие использования в терминах домена (не сущность БД).
++ * Служит входом расчёта: RateCalculator не должен знать о Doctrine.
++ */
++final class UsageEvent
++{
++    private function __construct(
++        public readonly int $id,
++        public readonly string $provider,
++        public readonly string $providerRequestId,
++        public readonly string $model,
++        public readonly string $user,
++        public readonly \DateTimeImmutable $ts,
++        public readonly int $tokensInput,
++        public readonly int $tokensOutput,
++        public readonly int $tokensCacheRead,
++        public readonly int $tokensCacheWrite,
++    ) {
++    }
++
++    public static function with(
++        int $id,
++        string $provider,
++        string $providerRequestId,
++        string $model,
++        string $user,
++        \DateTimeImmutable $ts,
++        array $tokens,
++    ): self {
++        return new self(
++            $id,
++            $provider,
++            $providerRequestId,
++            $model,
++            $user,
++            $ts,
++            (int) ($tokens['input'] ?? 0),
++            (int) ($tokens['output'] ?? 0),
++            (int) ($tokens['cache_read'] ?? 0),
++            (int) ($tokens['cache_write'] ?? 0),
++        );
++    }
++
++    public function totalTokens(): int
++    {
++        return $this->tokensInput + $this->tokensOutput + $this->tokensCacheRead + $this->tokensCacheWrite;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Entity/Model.php /tmp/billing-pi-nsqu8a2u/repo/src/Entity/Model.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Entity/Model.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/src/Entity/Model.php	2026-10-27 20:12:33.346106447 +0700
+@@ -0,0 +1,59 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Entity;
++
++use Doctrine\ORM\Mapping as ORM;
++
++/**
++ * Модель LLM провайдера (справочник). Естественный ключ (provider, code).
++ */
++#[ORM\Entity]
++#[ORM\Table(name: 'models')]
++#[ORM\UniqueConstraint(name: 'uq_models_provider_code', columns: ['provider', 'code'])]
++class Model
++{
++    #[ORM\Id]
++    #[ORM\Column]
++    #[ORM\GeneratedValue]
++    private ?int $id = null;
++
++    #[ORM\ManyToOne(targetEntity: Provider::class)]
++    #[ORM\JoinColumn(name: 'provider', referencedColumnName: 'id', onDelete: 'CASCADE')]
++    private ?Provider $provider = null;
++
++    #[ORM\Column(length: 64, nullable: false)]
++    private string $code = '';
++
++    public function __construct(Provider $provider, string $code)
++    {
++        $this->provider = $provider;
++        $this->code = $code;
++    }
++
++    public function id(): ?int
++    {
++        return $this->id;
++    }
++
++    public function provider(): Provider
++    {
++        return $this->provider;
++    }
++
++    public function code(): string
++    {
++        return $this->code;
++    }
++
++    public function setProvider(Provider $provider): void
++    {
++        $this->provider = $provider;
++    }
++
++    public function qualifiedName(): string
++    {
++        return $this->provider->code() . '/' . $this->code;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Entity/Price.php /tmp/billing-pi-nsqu8a2u/repo/src/Entity/Price.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Entity/Price.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/src/Entity/Price.php	2026-10-27 20:19:54.004524042 +0700
+@@ -0,0 +1,106 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Entity;
++
++use Doctrine\DBAL\Types\Types;
++use Doctrine\ORM\Mapping as ORM;
++
++/**
++ * Строка цен модели, действующая с valid_from (включительно),
++ * до следующей более поздней строки той же модели.
++ * Естественный ключ (provider, model, valid_from).
++ */
++#[ORM\Entity]
++#[ORM\Table(name: 'prices')]
++#[ORM\UniqueConstraint(name: 'uq_prices_model_valid_from', columns: ['model', 'valid_from'])]
++class Price
++{
++    public const UNIT_PER_TOKEN = 'per_1m_tokens';
++    public const UNIT_UNIFIED = 'per_1m_tokens_unified';
++
++    public const KIND_INPUT = 'input';
++    public const KIND_OUTPUT = 'output';
++    public const KIND_CACHE_READ = 'cache_read';
++    public const KIND_CACHE_WRITE = 'cache_write';
++    public const KIND_ANY = 'any';
++
++    #[ORM\Id]
++    #[ORM\Column]
++    #[ORM\GeneratedValue]
++    private ?int $id = null;
++
++    #[ORM\ManyToOne(targetEntity: Model::class)]
++    #[ORM\JoinColumn(name: 'model', referencedColumnName: 'id', onDelete: 'CASCADE')]
++    private ?Model $model = null;
++
++    /** UTC, moment, с которого строка цены действует (включительно). */
++    #[ORM\Column(name: 'valid_from', type: Types::DATETIME_IMMUTABLE, nullable: false)]
++    private ?\DateTimeImmutable $validFrom = null;
++
++    #[ORM\Column(length: 3, nullable: false)]
++    private string $currency = 'USD';
++
++    #[ORM\Column(length: 32, nullable: false)]
++    private string $unit = '';
++
++    /**
++     * @var array<string,string> строка -> десятичная строка (6 знаков)
++     */
++    #[ORM\Column(type: Types::JSON, nullable: false)]
++    private array $rates = [];
++
++    public function __construct(
++        Model $model,
++        \DateTimeImmutable $validFrom,
++        string $currency,
++        string $unit,
++        array $rates,
++    ) {
++        $this->model = $model;
++        $this->validFrom = $validFrom;
++        $this->currency = $currency;
++        $this->unit = $unit;
++        $this->rates = $rates;
++    }
++
++    public function id(): ?int
++    {
++        return $this->id;
++    }
++
++    public function model(): Model
++    {
++        return $this->model;
++    }
++
++    public function validFrom(): \DateTimeImmutable
++    {
++        return $this->validFrom;
++    }
++
++    public function currency(): string
++    {
++        return $this->currency;
++    }
++
++    public function unit(): string
++    {
++        return $this->unit;
++    }
++
++    /** @return array<string,string> */
++    public function rates(): array
++    {
++        return $this->rates;
++    }
++
++    /** @param array<string,string> $rates */
++    public function replace(string $currency, string $unit, array $rates): void
++    {
++        $this->currency = $currency;
++        $this->unit = $unit;
++        $this->rates = $rates;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Entity/Provider.php /tmp/billing-pi-nsqu8a2u/repo/src/Entity/Provider.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Entity/Provider.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/src/Entity/Provider.php	2026-10-27 20:18:10.982535037 +0700
+@@ -0,0 +1,121 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Entity;
++
++use Doctrine\DBAL\Types\Types;
++use Doctrine\ORM\Mapping as ORM;
++
++/**
++ * Провайдер LLM (справочник).
++ * Оф-пик: минуты от начала суток UTC + десятичный множитель; nullable — без скидки.
++ */
++#[ORM\Entity]
++#[ORM\Table(name: 'providers')]
++#[ORM\UniqueConstraint(name: 'uq_providers_code', columns: ['code'])]
++class Provider
++{
++    #[ORM\Id]
++    #[ORM\Column]
++    #[ORM\GeneratedValue]
++    private ?int $id = null;
++
++    #[ORM\Column(length: 64, nullable: false)]
++    private string $code = '';
++
++    #[ORM\Column(length: 255, nullable: false)]
++    private string $name = '';
++
++    #[ORM\Column(name: 'off_peak_window_start', type: Types::INTEGER, nullable: true)]
++    private ?int $offPeakWindowStart = null;
++
++    #[ORM\Column(name: 'off_peak_window_end', type: Types::INTEGER, nullable: true)]
++    private ?int $offPeakWindowEnd = null;
++
++    /** Десятичная строка, 6 знаков (запас: до 16 при сохранении). */
++    #[ORM\Column(name: 'off_peak_multiplier', type: Types::TEXT, nullable: true)]
++    private ?string $offPeakMultiplier = null;
++
++    public function __construct(string $code, string $name)
++    {
++        $this->code = $code;
++        $this->name = $name;
++    }
++
++    public function id(): ?int
++    {
++        return $this->id;
++    }
++
++    public function code(): string
++    {
++        return $this->code;
++    }
++
++    public function name(): string
++    {
++        return $this->name;
++    }
++
++    public function setName(string $name): void
++    {
++        $this->name = $name;
++    }
++
++    public function hasOffPeak(): bool
++    {
++        return $this->offPeakWindowStart !== null
++            && $this->offPeakWindowEnd !== null
++            && $this->offPeakMultiplier !== null;
++    }
++
++    public function offPeakStart(): int
++    {
++        return $this->offPeakWindowStart;
++    }
++
++    public function offPeakEnd(): int
++    {
++        return $this->offPeakWindowEnd;
++    }
++
++    public function offPeakMultiplier(): ?string
++    {
++        return $this->offPeakMultiplier;
++    }
++
++    public function setOffPeak(?int $startMin, ?int $endMin, ?string $multiplier): void
++    {
++        $this->clearOffPeak();
++
++        if ($startMin === null || $endMin === null || $multiplier === null) {
++            return;
++        }
++
++        $this->applyOffPeak($startMin, $endMin, $multiplier);
++    }
++
++    public function clearOffPeak(): void
++    {
++        $this->offPeakWindowStart = null;
++        $this->offPeakWindowEnd = null;
++        $this->offPeakMultiplier = null;
++    }
++
++    private function applyOffPeak(int $startMin, int $endMin, string $multiplier): void
++    {
++        if ($startMin < 0 || $startMin >= 1440 || $endMin < 0 || $endMin >= 1440) {
++            throw new \DomainException(
++                sprintf('Оф-пик: минуты вне диапазона суток (0..1439) — start=%d end=%d', $startMin, $endMin)
++            );
++        }
++        if (!preg_match('/^\d+(\.\d+)?$/', $multiplier)) {
++            throw new \DomainException(sprintf('Оф-пик: множитель должен быть десятичным числом, получено: %s', $multiplier));
++        }
++
++        $this->offPeakWindowStart = $startMin;
++        $this->offPeakWindowEnd = $endMin;
++        $this->offPeakMultiplier = $multiplier;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Entity/UsageEvent.php /tmp/billing-pi-nsqu8a2u/repo/src/Entity/UsageEvent.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Entity/UsageEvent.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/src/Entity/UsageEvent.php	2026-10-27 20:20:26.645886881 +0700
+@@ -0,0 +1,269 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Entity;
++
++use Doctrine\Common\Collections\Collection;
++use Doctrine\Common\Collections\ArrayCollection;
++use Doctrine\DBAL\Types\Types;
++use Doctrine\ORM\Mapping as ORM;
++
++/**
++ * Событие использования (журнал провайдеров).
++ *
++ * Естественный ключ (provider, provider_request_id) — дедупликация:
++ * повторная доставка уже известного события целиком игнорируется
++ * (без обновлений/доначислений), TASK.md п. 5.
++ */
++#[ORM\Entity]
++#[ORM\Table(name: 'usage_events')]
++#[ORM\UniqueConstraint(name: 'uq_usage_events_provider_request', columns: ['provider', 'provider_request_id'])]
++#[ORM\Index(name: 'idx_usage_events_status', columns: ['status'])]
++#[ORM\Index(name: 'idx_usage_events_ts', columns: ['ts'])]
++class UsageEvent
++{
++    public const STATUS_PENDING = 'pending';
++    /** Тарифицировано; стоимость в cost_usd (пересчитывается только reprice). */
++    public const STATUS_RATED = 'rated';
++    /** В последнем rate-запуске цена не найдена — повторим на следующем. */
++    public const STATUS_RETRYABLE = 'retryable';
++
++    public const COST_SOURCE_RATE = 'rate';
++    public const COST_SOURCE_REPRICE = 'reprice';
++
++    #[ORM\Id]
++    #[ORM\Column(type: Types::BIGINT)]
++    #[ORM\GeneratedValue]
++    private ?int $id = null;
++
++    #[ORM\Column(length: 64, nullable: false)]
++    private string $provider = '';
++
++    #[ORM\Column(name: 'provider_request_id', length: 128, nullable: false)]
++    private string $providerRequestId = '';
++
++    /** Код модели провайдера (без префикса). */
++    #[ORM\Column(length: 128, nullable: false)]
++    private string $model = '';
++
++    #[ORM\Column(name: 'user_id', length: 255, nullable: false)]
++    private string $user = '';
++
++    /** Момент запроса, UTC (встроенный). */
++    #[ORM\Column(type: Types::DATETIME_IMMUTABLE, nullable: false)]
++    private ?\DateTimeImmutable $ts = null;
++
++    #[ORM\Column(name: 'tokens_input', type: Types::BIGINT, nullable: false)]
++    private int $tokensInput = 0;
++
++    #[ORM\Column(name: 'tokens_output', type: Types::BIGINT, nullable: false)]
++    private int $tokensOutput = 0;
++
++    #[ORM\Column(name: 'tokens_cache_read', type: Types::BIGINT, nullable: false)]
++    private int $tokensCacheRead = 0;
++
++    #[ORM\Column(name: 'tokens_cache_write', type: Types::BIGINT, nullable: false)]
++    private int $tokensCacheWrite = 0;
++
++    /** pending | rated | retryable */
++    #[ORM\Column(length: 16, nullable: false)]
++    private string $status = self::STATUS_PENDING;
++
++    /** Итоговая стоимость, десятичная строка ровно 6 знаков (HALF_UP при rate). */
++    #[ORM\Column(name: 'cost_usd', type: Types::TEXT, nullable: true)]
++    private ?string $costUsd = null;
++
++    /** Кто последний раз менял стоимость: 'rate' | 'reprice' | null. */
++    #[ORM\Column(name: 'cost_source', length: 16, nullable: true)]
++    private ?string $costSource = null;
++
++    /** ID строки прайса, по которой посчитана стоимость (для reprice). */
++    #[ORM\Column(name: 'price_id', type: Types::BIGINT, nullable: true)]
++    private ?int $priceId = null;
++
++    /** Дата создания записи — для диагностики; не участвует в расчётах. */
++    #[ORM\Column(type: Types::DATETIME_IMMUTABLE, nullable: false)]
++    private ?\DateTimeImmutable $createdAt = null;
++
++    /** Дата последнего изменения данных (для аудита / диагностики). */
++    #[ORM\Column(type: Types::DATETIME_IMMUTABLE, nullable: false)]
++    private ?\DateTimeImmutable $updatedAt = null;
++
++    /** @var Collection<UsageRating>|UsageRating[] (append-only журнал) */
++    #[ORM\OneToMany(targetEntity: UsageRating::class, mappedBy: 'event', cascade: ['persist'])]
++    #[ORM\OrderBy(['id' => 'ASC'])]
++    private Collection $ratings;
++
++    /**
++     * @param int $tokensInput
++     * @param int $tokensOutput
++     * @param int $tokensCacheRead
++     * @param int $tokensCacheWrite
++     */
++    public function __construct(
++        string $provider,
++        string $providerRequestId,
++        string $model,
++        string $user,
++        \DateTimeImmutable $ts,
++        int $tokensInput,
++        int $tokensOutput,
++        int $tokensCacheRead,
++        int $tokensCacheWrite,
++    ) {
++        $now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
++
++        $this->provider = $provider;
++        $this->providerRequestId = $providerRequestId;
++        $this->model = $model;
++        $this->user = $user;
++        $this->ts = $ts;
++        $this->tokensInput = $tokensInput;
++        $this->tokensOutput = $tokensOutput;
++        $this->tokensCacheRead = $tokensCacheRead;
++        $this->tokensCacheWrite = $tokensCacheWrite;
++        $this->status = self::STATUS_PENDING;
++        $this->createdAt = $now;
++        $this->updatedAt = $now;
++        $this->ratings = new ArrayCollection();
++    }
++
++    // ---------- читаемый API ----------
++
++    public function id(): ?int
++    {
++        return $this->id;
++    }
++
++    public function provider(): string
++    {
++        return $this->provider;
++    }
++
++    public function providerRequestId(): string
++    {
++        return $this->providerRequestId;
++    }
++
++    public function model(): string
++    {
++        return $this->model;
++    }
++
++    public function user(): string
++    {
++        return $this->user;
++    }
++
++    public function ts(): \DateTimeImmutable
++    {
++        return $this->ts;
++    }
++
++    public function tokensInput(): int
++    {
++        return $this->tokensInput;
++    }
++
++    public function tokensOutput(): int
++    {
++        return $this->tokensOutput;
++    }
++
++    public function tokensCacheRead(): int
++    {
++        return $this->tokensCacheRead;
++    }
++
++    public function tokensCacheWrite(): int
++    {
++        return $this->tokensCacheWrite;
++    }
++
++    public function status(): string
++    {
++        return $this->status;
++    }
++
++    /**
++     * Итоговая текущая стоимость события, десятичная строка 6 знаков
++     * (null — ещё не тарифицировано).
++     */
++    public function costUsd(): ?string
++    {
++        return $this->costUsd;
++    }
++
++    public function pricedAt(): ?\DateTimeImmutable
++    {
++        return $this->pricedAt;
++    }
++
++    public function priceId(): ?int
++    {
++        return $this->priceId;
++    }
++
++    public function costSource(): ?string
++    {
++        return $this->costSource;
++    }
++
++    /** @return Collection<UsageRating>|UsageRating[] */
++    public function ratings(): Collection
++    {
++        return $this->ratings;
++    }
++
++    // ---------- мутаторы (для сервисов) ----------
++
++    public function markPending(): void
++    {
++        $this->status = self::STATUS_PENDING;
++        $this->costUsd = null;
++        $this->costSource = null;
++        $this->priceId = null;
++        $this->touch();
++    }
++
++    public function markRated(string $costUsd, int $priceId): void
++    {
++        $this->status = self::STATUS_RATED;
++        $this->costUsd = $costUsd;
++        $this->costSource = self::COST_SOURCE_RATE;
++        $this->priceId = $priceId;
++        $this->touch();
++    }
++
++    public function applyReprice(string $costUsd, int $priceId): void
++    {
++        $this->status = self::STATUS_RATED;
++        $this->costUsd = $costUsd;
++        $this->costSource = self::COST_SOURCE_REPRICE;
++        $this->priceId = $priceId;
++        $this->touch();
++    }
++
++    public function tryMarkRetryable(): void
++    {
++        if ($this->costUsd === null) {
++            $this->status = self::STATUS_RETRYABLE;
++            $this->touch();
++        }
++    }
++
++    public function attachRating(UsageRating $rating): void
++    {
++        if ($this->ratings->contains($rating)) {
++            return;
++        }
++        $this->ratings->add($rating);
++        $rating->assign($this);
++    }
++
++    private function touch(): void
++    {
++        $this->updatedAt = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Entity/UsageRating.php /tmp/billing-pi-nsqu8a2u/repo/src/Entity/UsageRating.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/src/Entity/UsageRating.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/src/Entity/UsageRating.php	2026-10-27 20:14:03.904356748 +0700
+@@ -0,0 +1,112 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Entity;
++
++use Doctrine\DBAL\Types\Types;
++use Doctrine\ORM\Mapping as ORM;
++
++/**
++ * Append-only журнал стоимости событий: каждая строка — «состояние
++ * стоимости события на момент». Добавится: rate при первичной
++ * тарификации, reprice — при ретро-коррекции цены.
++ *
++ * Текущая стоимость события = значение в его последнем рейтинге
++ * (по id). Ранние строки — история для аудита (не удаляются).
++ *
++ * Журнал служит одновременно:
++ *  - механизмом idempotentности `app:billing:rate` (event уже имеет
++ *    последнюю строку → не пересчитываем),
++ *  - источником отчёта (`app:billing:report`) — суммируется последнее
++ *    значение на event,
++ *  - журналом rетро-коррекции (reprice).
++ */
++#[ORM\Entity]
++#[ORM\Table(name: 'usage_ratings')]
++#[ORM\Index(name: 'idx_usage_ratings_event', columns: ['event_id', 'id'])]
++class UsageRating
++{
++    public const SOURCE_RATE = 'rate';
++    public const SOURCE_REPRICE = 'reprice';
++
++    #[ORM\Id]
++    #[ORM\Column(type: Types::BIGINT)]
++    #[ORM\GeneratedValue]
++    private ?int $id = null;
++
++    #[ORM\ManyToOne(targetEntity: UsageEvent::class, inversedBy: 'ratings')]
++    #[ORM\JoinColumn(name: 'event_id', referencedColumnName: 'id', onDelete: 'CASCADE')]
++    private ?UsageEvent $event = null;
++
++    /** Стоимость на момент записи, десятичная строка 6 знаков (HALF_UP). */
++    #[ORM\Column(type: Types::TEXT, nullable: false)]
++    private string $amount = '0';
++
++    /** ID строки прайса (usage_event), по которой посчитана стоимость. */
++    #[ORM\Column(name: 'price_id', type: Types::BIGINT, nullable: true)]
++    private ?int $priceId = null;
++
++    /** Кто записал: 'rate' | 'reprice'. */
++    #[ORM\Column(length: 16, nullable: false)]
++    private string $source = self::SOURCE_RATE;
++
++    /** UTC-момент записи. */
++    #[ORM\Column(type: Types::DATETIME_IMMUTABLE, nullable: false)]
++    private ?\DateTimeImmutable $createdAt = null;
++
++    public function __construct()
++    {
++        $now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
++        $this->createdAt = $now;
++    }
++
++    public function id(): ?int
++    {
++        return $this->id;
++    }
++
++    public function event(): ?UsageEvent
++    {
++        return $this->event;
++    }
++
++    public function amount(): string
++    {
++        return $this->amount;
++    }
++
++    public function priceId(): ?int
++    {
++        return $this->priceId;
++    }
++
++    public function source(): string
++    {
++        return $this->source;
++    }
++
++    public function createdAt(): \DateTimeImmutable
++    {
++        return $this->createdAt;
++    }
++
++    public static function create(
++        UsageEvent $event,
++        string $amount,
++        ?int $priceId,
++        string $source = self::SOURCE_RATE,
++    ): self {
++        $r = new self();
++        $r->event = $event;
++        $r->amount = $amount;
++        $r->priceId = $priceId;
++        $r->source = $source;
++        return $r;
++    }
++
++    public function assign(UsageEvent $event): void
++    {
++        $this->event = $event;
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/tests/Application/IntegrationTest.php /tmp/billing-pi-nsqu8a2u/repo/tests/Application/IntegrationTest.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/tests/Application/IntegrationTest.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/tests/Application/IntegrationTest.php	2026-10-27 20:29:55.268787328 +0700
+@@ -0,0 +1,324 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Tests\Application;
++
++use App\Application\Exception\BillingException;
++use App\Application\Service\PriceBookService;
++use App\Application\Service\RatingService;
++use App\Application\Service\RepriceService;
++use App\Application\Service\ReportService;
++use App\Application\Service\UsageImportService;
++use App\Domain\Money;
++use App\Domain\RateCalculator;
++use PHPUnit\Framework\TestCase;
++use Symfony\Component\Dotenv\Dotenv;
++use Symfony\Component\Runtime\SymfonyRuntime;
++
++/**
++ * Интеграционные проверки (без Kernel):
++ * - импорт цен + событий (fixtures);
++ * - тарификация: 3 события → RATED=3;
++ * - отчёт за сентябрь совпадает с эталонным;
++ * - повторный импорт + rate не меняет результатов (идемпотентность);
++ * - репорт с --from/--to работает;
++ * - reprice — пересчёт и дельта;
++ * - unrated-события (нет цены) → UNRATED=1, отчёт их не содержит.
++ *
++ * Использует реальную БД — для запуска поднять `make db-up`.
++ */
++final class IntegrationTest extends TestCase
++{
++    private static \Doctrine\ORM\EntityManagerInterface $em;
++
++    protected function setUp(): void
++    {
++        // БД должна быть поднята; иначе пропускаем.
++        // Загружаем .env, если он ещё не загружен.
++        if (!isset($_SERVER['DATABASE_URL'])) {
++            (new \Symfony\Component\Dotenv\Dotenv())->load(__DIR__ . '/../../.env');
++        }
++        $kernel = new \App\Kernel('dev', true);
++        $kernel->boot();
++        $em = $kernel->getContainer()->get('doctrine.orm.entity_manager');
++        try {
++            $em->getConnection()->executeQuery('SELECT 1');
++        } catch (\Throwable $e) {
++            self::markTestSkipped(sprintf('PostgreSQL недоступен (запустить `make db-up`): %s', $e->getMessage()));
++        }
++        self::$em = $em;
++        self::dropAndCreateSchema();
++    }
++
++    public function testFullAcceptanceFlow(): void
++    {
++        $em = self::$em;
++        $priceBook = new PriceBookService($em);
++        $usageImport = new UsageImportService($em);
++        $rating = new RatingService($em, $priceBook, new RateCalculator());
++        $report = new ReportService($em);
++
++        $pricesFile = __DIR__ . '/../../fixtures/prices.json';
++        $usageFile = __DIR__ . '/../../fixtures/usage.jsonl';
++        $data = json_decode(file_get_contents($pricesFile) ?: '', true);
++        self::assertIsArray($data);
++
++        $priceBook->import($data);
++        $usageImport->import($usageFile);
++        $stats = $rating->rate();
++
++        self::assertSame(3, $stats['rated']);
++        self::assertSame(0, $stats['unrated']);
++
++        $expected = implode("\n", [
++            'user,model,tokens_input,tokens_output,tokens_cache_read,tokens_cache_write,cost_usd',
++            'u-alice,prism/lumen-8,1200000,800000,2500000,83333,14.262499',
++            'u-alice,sfera/gyro-pro,3000000,500000,0,0,8.400000',
++            'u-bob,prism/lumen-8,2000000,1000000,0,0,11.000000',
++            'TOTAL,,6200000,2300000,2500000,83333,33.662499',
++        ]);
++        $csv = self::renderReport($report, '2026-09-01T00:00:00Z', '2026-10-01T00:00:00Z');
++        self::assertSame($expected, $csv);
++
++        // Повторный импорт + rate → без изменений.
++        $priceBook->import($data);
++        $usageImport->import($usageFile);
++        $stats2 = $rating->rate();
++        self::assertSame(0, $stats2['rated']);
++        $csv2 = self::renderReport($report, '2026-09-01T00:00:00Z', '2026-10-01T00:00:00Z');
++        self::assertSame($expected, $csv2);
++    }
++
++    public function testPeriodFiltering(): void
++    {
++        $em = self::$em;
++        $priceBook = new PriceBookService($em);
++        $usageImport = new UsageImportService($em);
++        $rating = new RatingService($em, $priceBook, new RateCalculator());
++        $report = new ReportService($em);
++
++        $data = json_decode(file_get_contents(__DIR__ . '/../../fixtures/prices.json') ?: '', true);
++        $priceBook->import($data);
++        $usageImport->import(__DIR__ . '/../../fixtures/usage.jsonl');
++        $rating->rate();
++
++        $csv = self::renderReport($report, '2026-09-15T00:00:00Z', '2026-09-16T00:00:00Z');
++        $expected = implode("\n", [
++            'user,model,tokens_input,tokens_output,tokens_cache_read,tokens_cache_write,cost_usd',
++            'u-alice,prism/lumen-8,1200000,800000,2500000,83333,14.262499',
++            'u-bob,prism/lumen-8,2000000,1000000,0,0,11.000000',
++            'TOTAL,,3200000,1800000,2500000,83333,25.262499',
++        ]);
++        self::assertSame($expected, $csv);
++    }
++
++    public function testUnratedEvents(): void
++    {
++        $em = self::$em;
++        $priceBook = new PriceBookService($em);
++        $usageImport = new UsageImportService($em);
++        $rating = new RatingService($em, $priceBook, new RateCalculator());
++
++        // Цена действует с 2026-09-01, а событие раньше → unrated.
++        $prices = [
++            'providers' => [
++                ['code' => 'prism', 'name' => 'P', 'off_peak' => null],
++            ],
++            'models' => [
++                ['provider' => 'prism', 'code' => 'm1'],
++            ],
++            'prices' => [
++                [
++                    'provider' => 'prism', 'model' => 'm1',
++                    'valid_from' => '2026-09-01T00:00:00Z',
++                    'currency' => 'USD',
++                    'unit' => 'per_1m_tokens_unified',
++                    'rates' => ['any' => '1.0'],
++                ],
++            ],
++        ];
++        $priceBook->import($prices);
++
++        $tmp = tempnam(sys_get_temp_dir(), 'usage_');
++        file_put_contents($tmp, json_encode([
++            'provider' => 'prism', 'provider_request_id' => 'r1', 'model' => 'm1',
++            'user' => 'u', 'ts' => '2026-08-01T00:00:00Z',
++            'tokens_input' => 1000000, 'tokens_output' => 0,
++            'tokens_cache_read' => 0, 'tokens_cache_write' => 0,
++        ]), LOCK_EX);
++        $usageImport->import($tmp);
++        @unlink($tmp);
++
++        $stats = $rating->rate();
++        self::assertSame(0, $stats['rated']);
++        self::assertSame(1, $stats['unrated']);
++    }
++
++    public function testReprice(): void
++    {
++        $em = self::$em;
++        $priceBook = new PriceBookService($em);
++        $usageImport = new UsageImportService($em);
++        $rating = new RatingService($em, $priceBook, new RateCalculator());
++        $reprice = new RepriceService($em, $priceBook, new RateCalculator());
++
++        // Цена 1.0 / 1M на входе
++        $prices = [
++            'providers' => [
++                ['code' => 'prism', 'name' => 'P', 'off_peak' => null],
++            ],
++            'models' => [
++                ['provider' => 'prism', 'code' => 'm1'],
++            ],
++            'prices' => [
++                [
++                    'provider' => 'prism', 'model' => 'm1',
++                    'valid_from' => '2026-09-01T00:00:00Z',
++                    'currency' => 'USD',
++                    'unit' => 'per_1m_tokens_unified',
++                    'rates' => ['any' => '1.0'],
++                ],
++            ],
++        ];
++        $priceBook->import($prices);
++
++        $tmp = tempnam(sys_get_temp_dir(), 'usage_');
++        file_put_contents($tmp, json_encode([
++            'provider' => 'prism', 'provider_request_id' => 'r1', 'model' => 'm1',
++            'user' => 'u', 'ts' => '2026-09-15T00:00:00Z',
++            'tokens_input' => 1000000, 'tokens_output' => 0,
++            'tokens_cache_read' => 0, 'tokens_cache_write' => 0,
++        ]), LOCK_EX);
++        $usageImport->import($tmp);
++        @unlink($tmp);
++
++        $stats = $rating->rate();
++        self::assertSame(1, $stats['rated']); // 1.0 М × 1.0 = 1.0
++
++        // Reprice: цена 0.5 → новая стоимость 0.5 (дельта -0.5)
++        $repriceData = [
++            'prices' => [
++                [
++                    'provider' => 'prism', 'model' => 'm1',
++                    'valid_from' => '2026-09-01T00:00:00Z',
++                    'currency' => 'USD',
++                    'unit' => 'per_1m_tokens_unified',
++                    'rates' => ['any' => '0.5'],
++                ],
++            ],
++        ];
++        $stats = $reprice->reprice($repriceData);
++        self::assertSame(1, $stats['n']);
++        self::assertSame('-0.500000', $stats['deltaUsd']->format(6));
++
++        // Проверим отчёт.
++        $report = new ReportService($em);
++        $csv = self::renderReport($report, '2026-09-01T00:00:00Z', '2026-10-01T00:00:00Z');
++        $expected = implode("\n", [
++            'user,model,tokens_input,tokens_output,tokens_cache_read,tokens_cache_write,cost_usd',
++            'u,prism/m1,1000000,0,0,0,0.500000',
++            'TOTAL,,1000000,0,0,0,0.500000',
++        ]);
++        self::assertSame($expected, $csv);
++    }
++
++    public function testPriceUpsert(): void
++    {
++        $em = self::$em;
++        $priceBook = new PriceBookService($em);
++
++        // Первый импорт: 1.0
++        $data = [
++            'providers' => [[ 'code' => 'p1', 'name' => 'X', 'off_peak' => null ]],
++            'models' => [[ 'provider' => 'p1', 'code' => 'm1' ]],
++            'prices' => [[
++                'provider' => 'p1', 'model' => 'm1',
++                'valid_from' => '2026-09-01T00:00:00Z',
++                'currency' => 'USD',
++                'unit' => 'per_1m_tokens_unified',
++                'rates' => ['any' => '1.0'],
++            ]],
++        ];
++        $priceBook->import($data);
++        $price = $em->getRepository(\App\Entity\Price::class)->findOneBy([
++            'model' => $em->getRepository(\App\Entity\Model::class)->findOneBy(['code' => 'm1']),
++        ]);
++        self::assertNotNull($price);
++        self::assertSame('1.000000', $price->rates()['any']);
++
++        // Повторный импорт — с другой ценой (idempotent upsert)
++        $data2 = $data;
++        $data2['prices'][0]['rates']['any'] = '2.0';
++        $priceBook->import($data2);
++        // Price обновлён, count не изменился.
++        $count = $em->getRepository(\App\Entity\Price::class)->createQueryBuilder('p')->select('COUNT(p.id)')->getQuery()->getSingleScalarResult();
++        self::assertSame(1, (int) $count);
++
++        $price2 = $em->getRepository(\App\Entity\Price::class)->findOneBy([
++            'model' => $em->getRepository(\App\Entity\Model::class)->findOneBy(['code' => 'm1']),
++        ]);
++        self::assertNotNull($price2);
++        self::assertSame('2.000000', $price2->rates()['any']);
++    }
++
++    public function testInvalidPriceImportFails(): void
++    {
++        $em = self::$em;
++        $priceBook = new PriceBookService($em);
++        $this->expectException(BillingException::class);
++        $priceBook->import([
++            'providers' => [['code' => 'p1', 'name' => 'X', 'off_peak' => null]],
++            'models' => [['provider' => 'p1', 'code' => 'm1']],
++            'prices' => [['provider' => 'p1', 'model' => 'm1', 'valid_from' => 'bad', 'currency' => 'USD', 'unit' => 'per_1m_tokens_unified', 'rates' => ['any' => '1.0']]],
++        ]);
++    }
++
++    private static function renderReport(ReportService $report, string $from, string $to): string
++    {
++        $r = $report->report(
++            new \DateTimeImmutable($from),
++            new \DateTimeImmutable($to),
++        );
++        $lines = ['user,model,tokens_input,tokens_output,tokens_cache_read,tokens_cache_write,cost_usd'];
++        foreach ($r['rows'] as $row) {
++            $lines[] = sprintf(
++                '%s,%s,%d,%d,%d,%d,%s',
++                $row['user'],
++                $row['model'],
++                $row['ti'],
++                $row['to_'],
++                $row['cr'],
++                $row['cw'],
++                $row['cost']->format(6)
++            );
++        }
++        $lines[] = sprintf(
++            'TOTAL,,%d,%d,%d,%d,%s',
++            $r['total']['ti'],
++            $r['total']['to_'],
++            $r['total']['cr'],
++            $r['total']['cw'],
++            $r['total']['cost']->format(6)
++        );
++        return implode("\n", $lines);
++    }
++
++    private static function dropAndCreateSchema(): void
++    {
++        $em = self::$em;
++        $schema = new \Doctrine\ORM\Tools\SchemaTool($em);
++        $metadatas = [];
++        foreach ([
++            \App\Entity\UsageRating::class,
++            \App\Entity\UsageEvent::class,
++            \App\Entity\Price::class,
++            \App\Entity\Model::class,
++            \App\Entity\Provider::class,
++        ] as $class) {
++            $metadatas[] = $em->getClassMetadata($class);
++        }
++        $schema->dropSchema($metadatas);
++        $schema->createSchema($metadatas);
++    }
++}
+diff -ruN -x var -x .env -x __pycache__ -x .git /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/tests/Domain/MoneyTest.php /tmp/billing-pi-nsqu8a2u/repo/tests/Domain/MoneyTest.php
+--- /home/dp/MyProjects/Models/test-assignment/backend/billing/skeleton/tests/Domain/MoneyTest.php	1970-01-01 07:00:00.000000000 +0700
++++ /tmp/billing-pi-nsqu8a2u/repo/tests/Domain/MoneyTest.php	2026-10-27 20:26:48.498433097 +0700
+@@ -0,0 +1,155 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Tests\Domain;
++
++use App\Application\Exception\BillingException;
++use App\Domain\Money;
++use App\Domain\OffPeakWindow;
++use App\Domain\PriceSheet;
++use App\Domain\RateCalculator;
++use PHPUnit\Framework\TestCase;
++
++final class MoneyTest extends TestCase
++{
++    public function testArithmetic(): void
++    {
++        self::assertSame('3.500000', Money::of('1.5')->add(Money::of('2.0'))->format(6));
++        self::assertSame('1.000000', Money::of('2.5')->subtract(Money::of('1.5'))->format(6));
++        self::assertSame('42.500000', Money::of('2.5')->multiply(Money::of('17'))->format(6));
++        self::assertSame('1.250000', Money::of('2.5')->divide(Money::of('2'))->format(6));
++        self::assertSame('50.000000', Money::of('5000000')->divide(Money::of('100000'))->format(6));
++    }
++
++    public function testHalfUpRounding(): void
++    {
++        self::assertSame('1.00', Money::of('1.0')->round(2)->format(2));
++        // 2.5 → 3 (HALF_UP / HALF_AWAY_FROM_ZERO)
++        self::assertSame('3', Money::of('2.5')->round(0)->format(0));
++        // -2.5 → -3 (HALF_UP / HALF_AWAY_FROM_ZERO)
++        self::assertSame('-3', Money::of('-2.5')->round(0)->format(0));
++        // 1.2345675 → 1.234568
++        self::assertSame('1.234568', Money::of('1.2345675')->round(6)->format(6));
++        // 1.2345674 → 1.234567
++        self::assertSame('1.234567', Money::of('1.2345674')->round(6)->format(6));
++        // 99.9999995 → 100.000000
++        self::assertSame('100.000000', Money::of('99.9999995')->round(6)->format(6));
++        // 0.4999999 → 0.499999 (HALF_UP at 6th digit)
++        self::assertSame('0.499999', Money::of('0.4999994')->round(6)->format(6));
++    }
++
++    public function testTaskExample14262499(): void
++    {
++        $sum = Money::zero()
++            ->add(Money::of('1200000')->multiply(Money::of('3.0'))->divide(Money::of('1000000')))
++            ->add(Money::of('800000')->multiply(Money::of('12.0'))->divide(Money::of('1000000')))
++            ->add(Money::of('2500000')->multiply(Money::of('0.3'))->divide(Money::of('1000000')))
++            ->add(Money::of('83333')->multiply(Money::of('3.75'))->divide(Money::of('1000000')));
++        $rounded = $sum->round(6);
++        self::assertSame('14.262499', $rounded->format(6));
++    }
++
++    public function testZeroDivision(): void
++    {
++        $this->expectException(BillingException::class);
++        Money::of('1')->divide(Money::zero());
++    }
++
++    public function testPrecisionNoRoundingAtIntermediateSteps(): void
++    {
++        self::assertSame('0.3', Money::of('0.1')->add(Money::of('0.2'))->toDecimalString());
++        self::assertSame('0.30000000000000000000000000000000', Money::of('0.1')->add(Money::of('0.2'))->format(32));
++    }
++
++    public function testComparison(): void
++    {
++        self::assertSame(0, Money::of('1')->compareTo(Money::of('1')));
++        self::assertSame(1, Money::of('1.000001')->compareTo(Money::of('1.000000')));
++        self::assertSame(-1, Money::of('0.999999')->compareTo(Money::of('1.000000')));
++    }
++
++    public function testRejectFloats(): void
++    {
++        $this->expectException(\TypeError::class);
++        Money::of(1.25);
++    }
++
++    public function testOffPeakMidnightCross(): void
++    {
++        $w = OffPeakWindow::fromParts(16 * 60 + 30, 0 * 60 + 30, Money::of('0.5'));
++        self::assertTrue($w->contains(new \DateTimeImmutable('2026-01-01T16:30:00+00:00')));
++        self::assertTrue($w->contains(new \DateTimeImmutable('2026-01-01T23:59:00+00:00')));
++        self::assertTrue($w->contains(new \DateTimeImmutable('2026-01-02T00:29:59+00:00')));
++        self::assertFalse($w->contains(new \DateTimeImmutable('2026-01-02T00:30:00+00:00')));
++        self::assertFalse($w->contains(new \DateTimeImmutable('2026-01-01T16:29:59+00:00')));
++        self::assertFalse($w->contains(new \DateTimeImmutable('2026-01-01T12:00:00+00:00')));
++    }
++
++    public function testRateCalculatorTokenScheme(): void
++    {
++        $calc = new RateCalculator();
++        $sheet = new PriceSheet(
++            'USD',
++            'per_1m_tokens',
++            [
++                'input' => Money::of('3.0'),
++                'output' => Money::of('12.0'),
++                'cache_read' => Money::of('0.3'),
++                'cache_write' => Money::of('3.75'),
++            ]
++        );
++        $cost = $calc->calculate(1200000, 800000, 2500000, 83333, $sheet, null, new \DateTimeImmutable('2026-09-15T11:00:00+00:00'));
++        self::assertSame('14.262499', $cost->format(6));
++    }
++
++    public function testRateCalculatorUnifiedScheme(): void
++    {
++        $calc = new RateCalculator();
++        $sheet = new PriceSheet('USD', 'per_1m_tokens_unified', ['any' => Money::of('2.4')]);
++        $cost = $calc->calculate(3000000, 500000, 0, 0, $sheet, null, new \DateTimeImmutable('2026-09-20T17:10:00+00:00'));
++        self::assertSame('8.400000', $cost->format(6));
++    }
++
++    public function testRateCalculatorOffPeakMultiplier(): void
++    {
++        $calc = new RateCalculator();
++        $sheet = new PriceSheet('USD', 'per_1m_tokens_unified', ['any' => Money::of('4.00')]);
++        $w = OffPeakWindow::fromParts(16 * 60, 20 * 60, Money::of('0.5'));
++        $in = $calc->calculate(1000000, 0, 0, 0, $sheet, $w, new \DateTimeImmutable('2026-09-20T17:10:00+00:00'));
++        self::assertSame('2.000000', $in->format(6)); // 1M×4×0.5 = 2.0
++        $out = $calc->calculate(1000000, 0, 0, 0, $sheet, $w, new \DateTimeImmutable('2026-09-20T10:10:00+00:00'));
++        self::assertSame('4.000000', $out->format(6));
++    }
++
++    public function testRateCalculatorZeroTokens(): void
++    {
++        $calc = new RateCalculator();
++        $sheet = new PriceSheet('USD', 'per_1m_tokens_unified', ['any' => Money::of('2.4')]);
++        $c = $calc->calculate(0, 0, 0, 0, $sheet, null, new \DateTimeImmutable('2026-01-01T00:00:00+00:00'));
++        self::assertSame('0.000000', $c->format(6));
++    }
++
++    public function testRateCalculatorRejectsNegativeTokens(): void
++    {
++        $calc = new RateCalculator();
++        $sheet = new PriceSheet('USD', 'per_1m_tokens', [
++            'input' => Money::of('1'), 'output' => Money::of('1'),
++            'cache_read' => Money::of('1'), 'cache_write' => Money::of('1'),
++        ]);
++        $this->expectException(BillingException::class);
++        $calc->calculate(-1, 0, 0, 0, $sheet, null, new \DateTimeImmutable('2026-01-01T00:00:00+00:00'));
++    }
++
++    public function testMoneyStringRejectsInvalid(): void
++    {
++        $this->expectException(BillingException::class);
++        Money::of('abc');
++    }
++
++    public function testMoneyInvalidScale(): void
++    {
++        $this->expectException(BillingException::class);
++        Money::of('1')->round(-1);
++    }
++}

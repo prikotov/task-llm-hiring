@@ -1,0 +1,42 @@
+{
+  "workdir": "/tmp/billing-pi-ldedl6hv/repo",
+  "signals": [
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/expected.csv <<'EOF' ⏎ user,model,tokens_input,tokens_output,tokens_cache_read,tokens_cache_write,cost_usd ⏎ u-alice,prism/lumen-8,1200000,800000,2500000,83333,14.262499 ⏎ u-alice,sfera/gyro-pro,3000000,500000",
+      "detail": "/tmp/expected"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/usage2.jsonl <<'EOF' ⏎ {\"provider\": \"prism\", \"provider_request_id\": \"e4\", \"model\": \"lumen-8\", \"user\": \"u-carol\", \"ts\": \"2026-09-15T17:00:00Z\", \"tokens_input\": 1000000, \"tokens_output\": 0, \"tokens_cache_read\": ",
+      "detail": "/tmp/usage2"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/reprice.json <<'EOF' ⏎ { ⏎   \"providers\": [], ⏎   \"models\": [], ⏎   \"prices\": [ ⏎     { ⏎       \"provider\": \"prism\", ⏎       \"model\": \"lumen-8\", ⏎       \"valid_from\": \"2026-09-15T12:00:00Z\", ⏎       \"currency\"",
+      "detail": "/tmp/reprice"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "echo \"=== bad JSON prices -> exit 1 ===\" ⏎ echo '{{not json' > /tmp/bad.json ⏎ bin/console app:prices:import /tmp/bad.json 2>&1 | tail -2; echo \"exit=${PIPESTATUS[0]}\" ⏎  ⏎ echo \"=== bad JSONL line -> exit 1 ===\" ⏎ print",
+      "detail": "/tmp/bad"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "cat > /tmp/pk.jsonl <<'EOF' ⏎ {\"provider\": \"prism\", \"provider_request_id\": \"e10\", \"model\": \"lumen-8\", \"user\": \"u-pk\", \"ts\": \"2026-09-16T23:00:00Z\", \"tokens_input\": 1000000, \"tokens_output\": 0, \"tokens_cache_read\": 0, \"to",
+      "detail": "/tmp/pk"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "export PGPASSWORD=app ⏎ psql -h 127.0.0.1 -p 5544 -U app -d app -c 'DROP TABLE IF EXISTS usage_event, price_line, model, provider, doctrine_migration_versions CASCADE;' 2>&1 | tail -1 ⏎ make migrate 2>&1 | tail -1 ⏎ echo",
+      "detail": "/tmp/final"
+    },
+    {
+      "kind": "вне cwd",
+      "cmd": "export PGPASSWORD=app ⏎ echo \"=== clean DB ===\" ⏎ psql -h 127.0.0.1 -p 5544 -U app -d app -c 'DROP TABLE IF EXISTS usage_event, price_line, model, provider, doctrine_migration_versions CASCADE;' 2>&1 | tail -1 ⏎ make mig",
+      "detail": "/tmp/expected"
+    }
+  ],
+  "network": 0,
+  "outside_cwd": 7
+}
