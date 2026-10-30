@@ -4011,6 +4011,11 @@ def solution_costs() -> str:
         cloud = rs[0]["prov"] != "ollama"
         badge = ('<span class="badge g">облако</span>' if cloud
                  else '<span class="badge b">локально</span>')
+        # подсветка строки — как в таблице результатов: зелёная, если все
+        # прогоны варианта набрали полную базу 11/11; красная, если есть
+        # провал базы (<9)
+        trcls = (' class="top"' if a["n"] and a["n_full"] == a["n"]
+                 else ' class="neg"' if FAIL in a["kinds"] else "")
         c = st.median([r["cost"] for r in rs])
         med_by_variant.append((c, name))
         rub = f"₽{c * RUB_USD:,.2f}".replace(",", " ")
@@ -4021,7 +4026,7 @@ def solution_costs() -> str:
             e = st.median([r["gen"] for r in rs]) / 60 * ELEC_RUB_H
             price = f'${c:.3f}<div class=sub>{rub}</div>'
             elec = f'${e / RUB_USD:.3f}<div class=sub>₽{e:.2f}</div>'
-        trs.append(f'<tr><td><b>{short}</b><div class=sub>{badge}</div></td>'
+        trs.append(f'<tr{trcls}><td><b>{short}</b><div class=sub>{badge}</div></td>'
                    f'<td>{think}</td>'
                    f'<td class=narrow>{len(rs)}</td>'
                    f'<td class=narrow>{fmt_dur(st.median([r["dur"] for r in rs]))}</td>'
