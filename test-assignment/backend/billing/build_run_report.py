@@ -6,7 +6,7 @@
 test-assignment/run-XX; выход — <run>/report.html. Источники:
 run.json, check.json, metrics.json, metrics-raw/collector.json,
 pi-session/*.jsonl (парсер — analyze_session.py), judge-glm.md,
-review-zcode.md, scorecard.md.
+review-zcode.md.
 
 Запуск:
     python3 test-assignment/backend/billing/build_run_report.py \
@@ -1179,7 +1179,7 @@ def session_html(events: list[dict], st: dict, ctx_limit: int, run_dir: Path) ->
             "галлюцинаций из интервью.</p>"
             + f'<p class=sub>{tail}</p>'
             + art_links(run_dir, "pi-session", "pi-run.log", "diff.patch",
-                        "session-profile.md", "scorecard.md", "summary.md"))
+                        "session-profile.md", "summary.md"))
 
 
 TOOLTIP_JS = """
@@ -1509,7 +1509,7 @@ def build(run_dir: Path) -> str:
         f"окно {fmt_k(ctx)} · начало {str(run.get('started_at', ''))[:16].replace('T', ' ')}</p>")
 
     matrix = dep_matrix(collector)
-    tier2 = ('<h2>Ярус 2 · метрики кода</h2>'
+    tier2 = ('<h2 id="quality">Ярус 2 · метрики кода</h2>'
              '<p class=lead>Насколько хорошо написан код: предупреждения статанализа '
              "(phpstan, psalm, phpcs) и структурные метрики (сложность, связность). Числа не про "
              "поведение — его проверил чекер, и не про смысл решения — его оценивают судьи "
@@ -1529,7 +1529,14 @@ def build(run_dir: Path) -> str:
              + coupling_table(collector, run_dir)
              + cycles_block(collector, run_dir)
              + ast_tables(collector, run_dir)
-             + art_links(run_dir, "metrics.json", "metrics-raw"))
+             + '<p class=sub style="margin:6px 0 0">Отчёт по метрикам качества кода: '
+             '<a href="metrics.json">metrics.json</a> — агрегат прогона (Ce, Ca, LCOM4&gt;1, '
+             'WMC, cc_max, пороги и выводы статанализаторов); '
+             '<a href="metrics-raw/collector.json">metrics-raw/collector.json</a> — '
+             'метрики каждого класса (LOC, LCOM4, методы) и граф зависимостей, по которому '
+             'считаются C<sub>e</sub>/C<sub>a</sub> таблицы выше; '
+             '<a href="metrics-raw">metrics-raw/</a> — сырые выводы инструментов '
+             '(phpstan, phpmd, phpcs, psalm, phpunit, scc).</p>')
 
     env = env_html(run, model, outcome, usage=us, run_dir=run_dir)
     sess = session_html(events, st, ctx, run_dir) if st else '<div class=note>pi-сессия не найдена</div>'

@@ -4284,9 +4284,11 @@ def runs_inventory() -> str:
                         last_stop = m.get("stopReason")
 
             def rel(name, title):
-                f = r / name
+                base, _, anchor = name.partition("#")
+                f = r / base
                 if f.exists():
-                    return f'<a href="../{f.relative_to(ROOT)}">{title}</a>'
+                    href = f"../{f.relative_to(ROOT)}" + (f"#{anchor}" if anchor else "")
+                    return f'<a href="{href}">{title}</a>'
                 return f'<span class=sub>{title}</span>'
 
             foreign = run.get("ollama_foreign_models") or []
@@ -4390,7 +4392,7 @@ def runs_inventory() -> str:
                 f'<td class="narrow">{toks}</td>'
                 f'<td class="narrow">{dur}</td>'
                 f'<td>{rel("report.html", "отчёт")} · {rel("solution", "код")} · '
-                f'{rel("scorecard.md", "scorecard")} · {rel("review-zcode.md", "ревью яруса 3")} · '
+                f'{rel("metrics.json", "метрики")} · {rel("review-zcode.md", "ревью яруса 3")} · '
                 f'{rel("judge-glm.md", "судья яруса 4")} · {rel("audit-verdict.md", "аудит")}</td></tr>')
         if not runs:
             continue
@@ -4457,7 +4459,8 @@ def runs_inventory() -> str:
             "под таблицей группы.</p>"
             + "".join(groups)
             + '<p class=sub>Артефакты: визуальный отчёт (дашборд показателей — сценарии чекера, метрики, '
-            "сессия, вердикты), код решения целиком, scorecard, ревью яруса 3, вердикт судьи "
+            "сессия, вердикты), код решения целиком, метрики качества кода (файл metrics.json "
+            "прогона: Ce, Ca, LCOM4, WMC и выводы статанализаторов), ревью яруса 3, вердикт судьи "
             "яруса 4, аудит безопасности. Всё закоммичено в ветке "
             "<a href=\"https://github.com/prikotov/task-llm-hiring/tree/main\">main</a> — "
             "ссылки на прогоны относительные и работают локально, на GitHub и в блоге. Сводка судей текстом: "
@@ -4830,8 +4833,11 @@ ollama, драйвер NVIDIA с CUDA и ядро сервера; железо �
 <div style="flex:0 0 290px">
 <img src="assets/nserv-rig.webp" alt="nserv — сервер локальных моделей: RTX 5090, СЖО, дисплей телеметрии на корпусе"
 style="width:100%;border-radius:10px;border:1px solid var(--line);display:block">
-<div class=sub style="margin-top:6px">nserv — сервер локальных моделей; дисплей на корпусе
-показывает телеметрию: CPU и GPU (ватты, температуры), VRAM, RAM, нагрузка, помпа.</div>
+<div class=sub style="margin-top:6px">Мой nserv (нейроша) — сервер локальных
+моделей; дисплей на корпусе показывает телеметрию: CPU и GPU (ватты,
+температуры), VRAM, RAM, нагрузка, помпа; в кружке — дисплей крупно
+в простое (13 Вт на CPU, 21 Вт на GPU). Код для отображения телеметрии
+написал агент по моей просьбе.</div>
 </div>
 <table style="flex:1">
 <tr><th>Компонент</th><th>Версия / модель</th><th>Ключевое</th></tr>
@@ -4843,6 +4849,31 @@ style="width:100%;border-radius:10px;border:1px solid var(--line);display:block"
 <tr><td>ollama</td><td>0.40.7 (llama.cpp-based)</td><td>в интервью — 0.40.0; уровни мышления и квант KV-кэша — фичи линейки 0.40</td></tr>
 <tr><td>KV-кэш</td><td>OLLAMA_KV_CACHE_TYPE=q8_0</td><td>единственный нестандартный env демона, как и в интервью</td></tr>
 </table>
+</div>
+<p style="margin:16px 0 6px">Нейроша под нагрузкой:</p>
+<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
+<div style="flex:0 0 250px">
+<img src="assets/nserv-load.webp" alt="нейроша под нагрузкой: RTX 5090 GameRock в риге, дисплей телеметрии на помпе"
+style="width:100%;border-radius:10px;border:1px solid var(--line);display:block">
+<div class=sub style="margin-top:6px">Общий кадр: 5090, белые кабели
+в разъёме видюхи; в кружке — дисплей телеметрии крупно (GPU 599 Вт —
+впритык к лимиту 600, 82 °C).</div>
+</div>
+<div style="flex:0 0 400px;max-width:100%">
+<img src="assets/nserv-ir-gpu.webp" alt="тепловизор: весь корпус, максимум 86.8 °C на 5090 под нагрузкой"
+style="width:100%;height:300px;object-fit:contain;border-radius:10px;border:1px solid var(--line);display:block">
+<div class=sub style="margin-top:6px">Тепловизор, весь корпус — распределение
+температур: максимум 86.8 °C на карте под нагрузкой.</div>
+</div>
+<div style="flex:0 0 225px;max-width:100%">
+<img src="assets/nserv-ir-power.webp" alt="тепловизор: 93.7 °C у разъёма питания 12V-2x6"
+style="width:100%;height:300px;object-fit:contain;border-radius:10px;border:1px solid var(--line);display:block">
+<div class=sub style="margin-top:6px">Разъём крупно: самое горячее место —
+93.7 °C у разъёма питания, это известное больное место топовых GeForce —
+расплавы разъёма на 4090/5090 задокументированы
+(<a href="https://www.tomshardware.com/pc-components/gpus/melting-power-connectors-and-how-to-safeguard-against-them">разбор
+Tom&#8217;s Hardware</a>), поэтому разъём держите на контроле.</div>
+</div>
 </div>
 <p>nserv считает только инференс (адрес сервера — env <code>OLLAMA_BASE_URL</code>,
 в git не хранится); раннер, чекер и судьи крутятся на рабочей
