@@ -33,7 +33,7 @@ def main() -> None:
 
     data: dict[tuple, list] = defaultdict(list)
     skipped = 0
-    for rp in sorted((MODELS).glob("*/backend/review/run-*")):
+    for rp in sorted((MODELS).glob("*/backend/review*/run-*")):
         rj, vj = rp / "run.json", rp / "review.json"
         if not (rj.is_file() and vj.is_file()):
             continue
@@ -43,18 +43,18 @@ def main() -> None:
                 or not all(isinstance(v.get(k), (int, float)) for k in AXES):
             skipped += 1
             continue
-        data[(meta["model"], meta["solution_slug"])].append(tuple(v[k] for k in AXES))
+        data[(meta["model"], meta.get("protocol", "v1"), meta["solution_slug"])].append(tuple(v[k] for k in AXES))
 
-    print(f"{'модель':<36}{'реш.':<8}{'A прогоны':<15}{'B прогоны':<15}"
+    print(f"{'модель':<36}{'прот.':<6}{'реш.':<8}{'A прогоны':<15}{'B прогоны':<15}"
           f"{'F прогоны':<15}{'>ΔA':>5}{'>ΔB':>5}{'>ΔF':>5}  разброс  n")
-    spreads: dict[str, list] = defaultdict(list)
-    for (model, slug), runs in sorted(data.items()):
+    spreads: dict[tuple, list] = defaultdict(list)
+    for (model, protocol, slug), runs in sorted(data.items()):
         e = refs[slug]
         deltas = [statistics.mean(abs(r[i] - e[a]) for r in runs)
                   for i, a in enumerate(AXES)]
         sp = [max(r[i] for r in runs) - min(r[i] for r in runs) for i in range(3)]
-        spreads[model].append(statistics.mean(sp))
-        print(f"{model:<36}{slug:<8}"
+        spreads[(model, protocol)].append(statistics.mean(sp))
+        print(f"{model:<36}{protocol:<6}{slug:<8}"
               + "".join(f"{' '.join(f'{r[i]:g}' for r in runs):<15}" for i in range(3))
               + "".join(f"{d:>5.2f}" for d in deltas)
               + f"  {'/'.join(f'{s:g}' for s in sp)}   {len(runs)}")
@@ -62,7 +62,7 @@ def main() -> None:
     print(f"\nПропущено невалидных прогонов: {skipped}")
     print("Средний разброс по модели (усреднение по решениям, оси A/B/F вместе):")
     for m, sps in sorted(spreads.items()):
-        print(f"  {m:<36} {statistics.mean(sps):.2f}")
+        print(f"  {m[0]:<36} {m[1]:<6} {statistics.mean(sps):.2f}")
 
 
 if __name__ == "__main__":

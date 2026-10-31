@@ -118,16 +118,18 @@ def load_references() -> dict:
 
 
 def load_runs() -> list[dict]:
-    """Все прогоны ревью с полями вердикта/валидности; валидность — по гейтам."""
+    """Все прогоны ревью (протоколы v1 и v2) с полями вердикта/валидности."""
     runs = []
-    for rp in sorted(MODELS.glob("*/backend/review/run-*")):
+    for rp in sorted(MODELS.glob("*/backend/review*/run-*")):
         rj, vj = rp / "run.json", rp / "review.json"
         if not rj.is_file():
             continue
         meta = json.loads(rj.read_text(encoding="utf-8"))
         run = {
             "dir": rp.name,
+            "path": str(rp.relative_to(MODELS)),
             "model": meta.get("model", "?"),
+            "protocol": meta.get("protocol", "v1"),
             "folder": meta["target"].split("/models/")[1].split("/backend")[0]
             if "target" in meta else "?",
             "slug": meta.get("solution_slug", "?"),
@@ -165,39 +167,49 @@ def fail_kind(run: dict) -> str:
 
 
 def aggregate(runs: list[dict], refs: dict) -> dict:
-    """(модель, решение) -> прогоны; и профили моделей."""
+    """(модель, протокол, решение) -> прогоны; профили по паре (модель, протокол)."""
     grid = defaultdict(list)
     for r in runs:
         if r["valid"]:
-            grid[(r["model"], r["slug"])].append(r)
+            grid[(r["model"], r["protocol"], r["slug"])].append(r)
     profiles = {}
     for model in MODEL_ORDER:
-        per_slug, spreads, deltas, defects = {}, [], [], defaultdict(int)
-        for slug in SLUG_ORDER:
-            rs = grid.get((model, slug), [])
-            if not rs:
-                continue
-            e = refs[slug]["expected"]
-            vals = {a: [r["verdict"][a] for r in rs] for a in AXES}
-            per_slug[slug] = {
-                "vals": vals, "n": len(rs),
-                "delta_mean": {a: statistics.mean(abs(v - e[a]) for v in vals[a]) for a in AXES},
-                "spread": {a: max(vals[a]) - min(vals[a]) for a in AXES},
-            }
-            spreads.append(statistics.mean(per_slug[slug]["spread"].values()))
-            deltas.append(statistics.mean(per_slug[slug]["delta_mean"].values()))
-            for r in rs:
-                for d in r["defects"]:
-                    defects[(d.get("severity") or "?").lower()] += 1
-        if per_slug:
-            profiles[model] = {
-                "per_slug": per_slug,
-                "spread_mean": statistics.mean(spreads) if spreads else 0,
-                "delta_mean": statistics.mean(deltas) if deltas else 0,
-                "n": sum(p["n"] for p in per_slug.values()),
-                "defects": dict(defects),
-            }
+        for protocol in sorted({p for (m, p, _s) in grid if m == model}):
+            per_slug, spreads, deltas, defects = {}, [], [], defaultdict(int)
+            for slug in SLUG_ORDER:
+                rs = grid.get((model, protocol, slug), [])
+                if not rs:
+                    continue
+                e = refs[slug]["expected"]
+                vals = {a: [r["verdict"][a] for r in rs] for a in AXES}
+                per_slug[slug] = {
+                    "vals": vals, "n": len(rs),
+                    "delta_mean": {a: statistics.mean(abs(v - e[a]) for v in vals[a]) for a in AXES},
+                    "spread": {a: max(vals[a]) - min(vals[a]) for a in AXES},
+                }
+                spreads.append(statistics.mean(per_slug[slug]["spread"].values()))
+                deltas.append(statistics.mean(per_slug[slug]["delta_mean"].values()))
+                for r in rs:
+                    for d in r["defects"]:
+                        defects[(d.get("severity") or "?").lower()] += 1
+            if per_slug:
+                profiles[(model, protocol)] = {
+                    "per_slug": per_slug,
+                    "spread_mean": statistics.mean(spreads) if spreads else 0,
+                    "delta_mean": statistics.mean(deltas) if deltas else 0,
+                    "n": sum(p["n"] for p in per_slug.values()),
+                    "defects": dict(defects),
+                }
     return grid, profiles
+
+
+def latest_profiles(profiles: dict) -> dict:
+    """Профиль каждой модели по её самой свежей версии протокола."""
+    latest = {}
+    for (model, protocol), prof in profiles.items():
+        if model not in latest or protocol > latest[model][0]:
+            latest[model] = (protocol, prof)
+    return {m: (p, pr) for m, (p, pr) in latest.items()}
 
 
 def num(v) -> str:
@@ -224,13 +236,13 @@ def esc(s) -> str:
 
 # --- секции -----------------------------------------------------------------
 
-def section_header() -> str:
+def section_header(n_runs: int) -> str:
     return f"""
 <header>
 <h1>Этап 3: код-ревью решений этапа 2 локальными моделями</h1>
 <p>На этапе 2 модели выполняли тестовое задание «биллинг LLM-токенов» в среде pi.
 На этапе 3 другие модели проверяют эти решения в роли код-ревьюеров. Каждое
-ревью — отдельная сессия pi; всего прогонов в отчёте: 56.</p>
+ревью — отдельная сессия pi; всего прогонов в отчёте: {n_runs}.</p>
 <p>Что получает ревьюер: текст задания (TASK.md), памятку кандидата (AGENTS.md),
 код решения целиком и метрики качества (phpstan, phpmd, phpcs,
 psalm, scc, сводка по классам). Чего ревьюер не получает: имя модели-автора и
@@ -264,8 +276,9 @@ psalm, scc, сводка по классам). Чего ревьюер не по
 def section_tldr(runs, profiles, refs, grid) -> str:
     n_valid = sum(1 for r in runs if r["valid"])
     n_all = len(runs)
+    latest = latest_profiles(profiles)
     blind = []
-    for model, prof in profiles.items():
+    for model, (_protocol, prof) in latest.items():
         t = prof["per_slug"].get("tricky")
         if t:
             blind.append((model, t["vals"]["axis_a"]))
@@ -331,6 +344,7 @@ def section_method() -> str:
 <tr><td><b>Запрет правок и запуска</b></td><td>pi запускается с единственным инструментом — чтением файлов; edit, write, bash отключены. В копии нет vendor — код нечем исполнить. Хэш-суммы всех файлов до и после прогона; изменение — прогон отбраковывается.</td></tr>
 <tr><td><b>Изоляция прогонов</b></td><td>Каждый прогон получает свой временный каталог с копией материалов и свой pi-home. После прогона модель выгружается из памяти сервера: следующий прогон не наследует от предыдущего ничего.</td></tr>
 <tr><td><b>Сравнение с эталоном</b></td><td>Разница |Δ| между баллом ревьюера и эталонным баллом по каждой шкале. Черновик зачёта: |Δ| ≤ 0.5 — зачёт, ≤ 1.0 — частично, выше — промах. Спорные расхождения проверяются кодом и рантаймом (раздел 6.2).</td></tr>
+<tr><td><b>Версии протокола</b></td><td><b>v1</b> — сетка от 2026-10-31: помимо решения в материалах лежал diff.patch как вспомогательный файл (56 прогонов, каталог review/). <b>v2</b> — текущий: решение целиком, без диффа (каталог review-v2/). Версия указана в run.json каждого прогона; в разделе 4 таблицы разбиты по версиям — старые данные сохранены для сравнения.</td></tr>
 </table>"""
 
 
@@ -374,30 +388,31 @@ def section_results(profiles, refs) -> str:
             "<th class=narrow>|Δ|A</th><th class=narrow>|Δ|B</th><th class=narrow>|Δ|F</th><th>Разброс A/B/F</th></tr>")
     n_shown = 0
     for model in MODEL_ORDER:
-        prof = profiles.get(model)
-        if not prof:
-            continue
-        n_shown += 1
-        rows = []
-        for slug in SLUG_ORDER:
-            s = prof["per_slug"].get(slug)
-            if not s:
+        for protocol in ("v1", "v2"):
+            prof = profiles.get((model, protocol))
+            if not prof:
                 continue
-            e = refs[slug]["expected"]
-            a, b, f = (AXES[0], AXES[1], AXES[2])
-            dcls = [delta_class(s["delta_mean"][x]) for x in AXES]
-            spread = f"{num(s['spread'][a])} / {num(s['spread'][b])} / {num(s['spread'][f])}"
-            rows.append(
-                f"<tr><td><b>{SLUG_TITLES[slug]}</b></td><td class=num>{s['n']}</td>"
-                f"<td>{runs_cell(s['vals'][a])}</td><td>{runs_cell(s['vals'][b])}</td><td>{runs_cell(s['vals'][f])}</td>"
-                f"<td class='num {dcls[0]}'>{s['delta_mean'][a]:.2f}</td>"
-                f"<td class='num {dcls[1]}'>{s['delta_mean'][b]:.2f}</td>"
-                f"<td class='num {dcls[2]}'>{s['delta_mean'][f]:.2f}</td>"
-                f"<td class=num>{spread}</td></tr>")
-        params = PARAMS.get(model, ("?", "?"))
-        blocks.append(f"""
-<h3><span class=no>4.{n_shown}.</span>{esc(SHORT.get(model, model))}
-<span class=sub>{params[0]} · {params[1]} · thinking max · контекст 102400 · {prof['n']} валидных прогонов</span></h3>
+            n_shown += 1
+            rows = []
+            for slug in SLUG_ORDER:
+                s = prof["per_slug"].get(slug)
+                if not s:
+                    continue
+                e = refs[slug]["expected"]
+                a, b, f = (AXES[0], AXES[1], AXES[2])
+                dcls = [delta_class(s["delta_mean"][x]) for x in AXES]
+                spread = f"{num(s['spread'][a])} / {num(s['spread'][b])} / {num(s['spread'][f])}"
+                rows.append(
+                    f"<tr><td><b>{SLUG_TITLES[slug]}</b></td><td class=num>{s['n']}</td>"
+                    f"<td>{runs_cell(s['vals'][a])}</td><td>{runs_cell(s['vals'][b])}</td><td>{runs_cell(s['vals'][f])}</td>"
+                    f"<td class='num {dcls[0]}'>{s['delta_mean'][a]:.2f}</td>"
+                    f"<td class='num {dcls[1]}'>{s['delta_mean'][b]:.2f}</td>"
+                    f"<td class='num {dcls[2]}'>{s['delta_mean'][f]:.2f}</td>"
+                    f"<td class=num>{spread}</td></tr>")
+            params = PARAMS.get(model, ("?", "?"))
+            blocks.append(f"""
+<h3><span class=no>4.{n_shown}.</span>{esc(SHORT.get(model, model))} — протокол {protocol}
+<span class=sub>{params[0]} · {params[1]} · thinking max · контекст 102400 · {prof['n']} зачётных прогонов</span></h3>
 <table>{head}{''.join(rows)}</table>""")
     return f"""
 <h2 id=results><span class=no>4.</span>Результаты моделей</h2>
@@ -427,8 +442,11 @@ def _hbars_svg(rows: list[tuple[str, float]], vmax: float, title: str) -> str:
 
 
 def section_stability(profiles) -> str:
-    rows = sorted(((SHORT.get(m, m), p["spread_mean"]) for m, p in profiles.items()),
-                  key=lambda x: x[1])
+    multi = defaultdict(int)
+    for (m, _p) in profiles:
+        multi[m] += 1
+    rows = sorted(((SHORT.get(m, m) + (f" · {pr}" if multi[m] > 1 else ""), p["spread_mean"])
+                   for (m, pr), p in profiles.items()), key=lambda x: x[1])
     chart = _hbars_svg(rows, 0.5, "Средний разброс вердикта между прогонами (оси A/B/F вместе), баллов")
     cards = f"""
 <div class="card g"><b>Трёх прогонов достаточно</b>В среднем по моделям и решениям разброс
@@ -561,7 +579,8 @@ def section_runs(runs, grid) -> str:
         tok = f"{r['tokens']/1e6:.1f}M" if r["tokens"] else "—"
         rows.append(
             f"<tr{' class=neg' if not r['valid'] else ''}><td class=num>{esc(short)}</td>"
-            f"<td class=num>{esc(r['dir'])}</td><td>{SLUG_TITLES.get(r['slug'], r['slug'])}</td>"
+            f"<td class=num>{esc(r['dir'])}</td><td class=num>{esc(r['protocol'])}</td>"
+            f"<td>{SLUG_TITLES.get(r['slug'], r['slug'])}</td>"
             f"<td>{marks} <span class=num>{scores}</span></td>"
             f"<td class=num>{r['tool_calls']}</td><td class=num>{dur}</td><td class=num>{tok}</td></tr>")
     return f"""
@@ -572,7 +591,7 @@ review.json (вердикт + дефекты), review.md (сырой ответ)
 review-score.json (сверка с эталоном).</p>
 <div class=alist><details><summary>Показать все прогоны ({len(runs)})</summary>
 <table>
-<tr><th>Модель</th><th class=narrow>Прогон</th><th>Решение</th><th>Вердикт</th><th class=narrow>Чтений</th><th class=narrow>Время</th><th class=narrow>Токены</th></tr>
+<tr><th>Модель</th><th class=narrow>Прогон</th><th class=narrow>Протокол</th><th>Решение</th><th>Вердикт</th><th class=narrow>Чтений</th><th class=narrow>Время</th><th class=narrow>Токены</th></tr>
 {''.join(rows)}
 </table></details></div>"""
 
@@ -611,7 +630,7 @@ def main() -> int:
 <title>Этап 3: код-ревью — отчёт</title>
 <style>{CSS}</style></head>
 <body><div class=wrap>
-{section_header()}
+{section_header(len(runs))}
 {section_tldr(runs, profiles, refs, grid)}
 {section_method()}
 {section_objects(refs)}

@@ -100,8 +100,10 @@ solo-репо не может требовать аппрув второго ч�
 - `test-assignment/backend/billing/reviewer/` — методология этапа 3
   (код-ревью решений этапа 2 локальными моделями в среде pi: слепой
   протокол, только чтение, метрики как запахи; эталон-карточки и сверка
-  с судьёй — `REVIEWER.md`). Результаты —
-  `models/<модель>/backend/review/run-XX/`.
+  с судьёй — `REVIEWER.md`). Результаты: протокол v1 (с diff.patch в
+  материалах) — `models/<модель>/backend/review/run-XX/`, протокол v2
+  (без diff) — `models/<модель>/backend/review-v2/run-XX/`; версия в
+  run.json.
 - `reports/` — кросс-модельные сводные отчёты и агрегаты
   (`judges-all.csv` — все вердикты всех судей, `COMPARE-judges.md`,
   `AUDIT-glm-flash.md`, будущий `REPORT.md` по моделям).

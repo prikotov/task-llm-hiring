@@ -62,6 +62,11 @@ from runner_pi import (  # noqa: E402
 
 DEFAULT_TIMEOUT = 3600
 
+# Версия протокола материалов ревьюера. v1 (до 2026-10-31) клал в материалы
+# diff.patch вспомогательным файлом; v2 — решение целиком, без диффа.
+PROTOCOL = "v2"
+PROTOCOL_MATERIALS = ["TASK.md", "AGENTS.md", "solution/", "metrics.json", "MANIFEST.txt"]
+
 # System-prompt ревьюера: слепой протокол + дескрипторы рубрики яруса 3,
 # переписанные под слепоту (без ссылок на чекер), + JSON-контракт ответа.
 SYSTEM = """Ты — изолированный код-ревьюер тестового задания «биллинг LLM-токенов» (PHP 8 / Symfony / Doctrine / PostgreSQL). В рабочем каталоге материалы одного решения:
@@ -324,6 +329,8 @@ def main() -> int:
         "context": args.context,
         "timeout_s": args.timeout,
         "stage": "review",
+        "protocol": PROTOCOL,
+        "materials": PROTOCOL_MATERIALS,
         "smoke": args.smoke,
         "started_at": datetime.now(timezone.utc).isoformat(),
         "target": str(target),
