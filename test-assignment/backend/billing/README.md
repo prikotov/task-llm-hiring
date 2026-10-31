@@ -19,6 +19,7 @@
 | `RUBRIC.md` | рубрика ревью (ярус 3) и описание всех ярусов |
 | `runner_pi.py` | управляемый прогон: pi лидер отдельной process group (стоп по сигналу/таймауту убивает группу целиком — «зомби-pi» невозможны), live-лог `pi-run.log` (tail -f), метаданные `run.json` |
 | `analyze_session.py` | анализатор сессий: tool-calls по инструментам, объём thinking, таймлайн по 5-мин интервалам, файлы, категории bash-команд, повторы (детектор циклов), итерации тестов с исходами, финальный ответ; `--json` для агрегатов |
+| `reviewer/` | **этап 3** — код-ревью решений этапа 2 локальными моделями: слепой протокол (без чекера), только чтение, метрики как запахи; методика, эталон-карточки и сверка с судьёй — `reviewer/REVIEWER.md` |
 
 Golden пересоздаются: `python3 reference_calc.py` (из этого каталога).
 Менять формулы — только синхронно в TASK.md и reference_calc.py, затем
@@ -133,6 +134,24 @@ skeleton "$RESULTS/solution"`.)
 
 Сводные таблицы этапа — в `reports/` (по аналогии с этапом 1; формат
 зафиксируем по данным пилота).
+
+## Этап 3 — код-ревью (reviewer/)
+
+Решения этапа 2 ревьюируются локальными моделями в среде pi при слепом
+протоколе: без чекера и golden, только чтение (`--tools read`), метрики —
+как указатели, где смотреть. Методика, объекты ревью (4 решения: good /
+mid / tricky / bad), изоляция и сверка с судьёй — `reviewer/REVIEWER.md`.
+
+```bash
+python3 test-assignment/backend/billing/reviewer/runner_reviewer.py \
+  --model qwen3.8:27b-pi-100k \
+  --target models/huihui-ai-pi-100k/backend/test-assignment/run-02 \
+  --results models/qwen3.8-27b-pi-100k/backend/review/run-01
+```
+
+Результаты — `models/<модель>/backend/review/run-XX/` (run.json с
+целостностью, pi-session, review.json + review.md, review-score.json —
+сверка с эталоном).
 
 ## Валидированность
 

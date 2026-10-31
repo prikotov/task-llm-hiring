@@ -1,0 +1,92 @@
+{
+  "slug": "bad",
+  "title": "плохое: усечение вместо HALF_UP, задвоение дублей в импорте, артефактов нет",
+  "source_run": "models/gemma4-31b-it-qat-pi-100k/backend/test-assignment/run-02",
+  "frozen_at": "2026-10-30",
+  "basis": {
+    "checker": "8/11 обязательных + 0/2 бонус (падают report_base, report_duplicates, artifacts_present)",
+    "tier3": { "axis_a": 1.5, "axis_b": 1.0 },
+    "tier4_blind": { "axis_a": 2.5 },
+    "note": "слепой судья яруса 4 переоценил (2.5): формально всё на месте. Эталон A/B — вердикт яруса 3; дефекты D1/D2/D3 верифицированы чтением кода"
+  },
+  "expected": { "axis_a": 1.5, "axis_b": 1.0, "functional": 2.5 },
+  "checker_failures": [
+    {
+      "scenario": "report_base, report_duplicates",
+      "fact": "суммы отчётов неверны: из-за усечения вместо HALF_UP и задвоения дублей внутри одного файла (u-bob/prism/lumen-8: in=999999, cr=83333, cost=3.312496 против ожидаемых)"
+    },
+    {
+      "scenario": "artifacts_present",
+      "fact": "COMMIT_MESSAGE.md и PR_DESCRIPTION.md отсутствуют"
+    }
+  ],
+  "known_defects": [
+    {
+      "id": "D1",
+      "severity": "major",
+      "file": "src/Service/PriceImportService.php",
+      "desc": "оф-пик-скидка теряется при ПЕРВИЧНОМ импорте провайдера: updateProvider() (с оф-пиком) вызывается только в ветке else, при создании — new Provider($code, $name) без off_peak. Чистая БД чекера → скидка 0.5 не применяется: стоимости завышены ровно на снятые скидки (u-alice/lumen-8 48.31 против golden 38.885; u-bob/lumen-mini 6.0 против 4.0; u-carol 45.5 против 28.25), токены совпадают. Тот же класс бага, что и у tricky (qwen run-03). Верифицировано: рантайм-прогон пайплайна (off_peak_* в БД NULL) + арифметика по событиям"
+    },
+    {
+      "id": "D2",
+      "severity": "major",
+      "file": "src/Service/BillingRatingService.php:70-73",
+      "desc": "bcadd($cost, bcmul(..., 16)) — масштаб 16 принадлежит bcmul, у bcadd масштаба НЕТ: дефолт bcmath.scale=0 усекает накопление до целых. h02: 3312495.75 → 3.312495 против golden 3.312496 (HALF_UP съеден). Верифицировано рантайм-трассировкой (PRE=3.3124950000 при корректных входах) и php-репродукцией строки"
+    },
+    {
+      "id": "D3",
+      "severity": "major",
+      "file": "src/Service/UsageImportService.php",
+      "desc": "дедупликация findOneBy до flush — незафлашенные события той же пачки запрос не видит; риск задвоения внутри файла (на сценариях чекера не проявилось: base и duplicates упали одинаково — причина падения в D1, не в дублях)"
+    },
+    {
+      "id": "D4",
+      "severity": "major",
+      "file": "(корень)",
+      "desc": "артефакты COMMIT_MESSAGE.md / PR_DESCRIPTION.md отсутствуют"
+    },
+    {
+      "id": "D5",
+      "severity": "major",
+      "file": "debug_round.php",
+      "desc": "отладочный мусор в диффе — не убран"
+    },
+    {
+      "id": "D6",
+      "severity": "major",
+      "file": "src/Command/BillingRateCommand.php",
+      "desc": "мёртвый код: $stderr = $output с комментарием «In Symfony Command, we might need a different way for stderr»"
+    },
+    {
+      "id": "D7",
+      "severity": "major",
+      "file": "(тесты отсутствуют)",
+      "desc": "тестов нет"
+    },
+    {
+      "id": "D8",
+      "severity": "minor",
+      "file": "src/Service/BillingRatingService.php",
+      "desc": "тарификация в сервисе с EntityManager — домен не отделён, чистую логику не протестировать"
+    },
+    {
+      "id": "D9",
+      "severity": "minor",
+      "file": "src/Command/PricesImportCommand.php",
+      "desc": "upsert цен затирает unit/rates — шире заявленного «повторная загрузка не изменяет данных»"
+    },
+    {
+      "id": "D10",
+      "severity": "minor",
+      "file": "migrations/",
+      "desc": "каталог migrations/ пуст (.gitkeep) — схема воспроизводится только fallback-ом schema_update, штатного разворачивания на чистой БД нет"
+    }
+  ],
+  "review_focus": "плохое, но не трэш: команды и сущности на месте, bcmath используется — на вид рабочее решение. Реальные дефекты сидят в жизненном цикле импорта (оф-пик только при обновлении), усечении накопления (bcadd без scale), пустых миграциях, отсутствии артефактов. Ловушка: слепой судья дал 2.5; ревьюер, который читает код, а не оглавление, должен дать заметно ниже",
+  "changelog": [
+    {
+      "date": "2026-10-31",
+      "what": "Переписано по результатам верификации. D1 «усечение вместо HALF_UP в bcRoundHalfUp» (ярус 3) ОПРОВЕРГНУТ: php 8.5 показывает, что трюк с аддером эквивалентен HALF_UP (нашло ревью qwen run-04 самостоятельным пересчётом). Реальные причины падения отчётов: (1) оф-пик теряется при первичном импорте провайдера — подтверждено рантайм-прогоном пайплайна (off_peak_* NULL в БД); (2) bcadd без scale в пер-1м ветке усекает накопление (h02: 3.312495 против 3.312496) — подтверждено рантайм-трассировкой. D2 (дубли) понижен до риска. Добавлен D10 (пустые миграции). Ожидаемые баллы не менялись"
+    }
+  ]
+}
