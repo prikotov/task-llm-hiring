@@ -257,13 +257,50 @@ def _repair_escapes(s: str) -> str:
     return "".join(out)
 
 
+def _balanced_spans(s: str) -> list[str]:
+    """Кандидаты-объекты: для каждой '{' — её закрывающая '}' с учётом строк.
+
+    Ловит случай huihui-v2: корневой объект закрывается раньше конца текста,
+    а после него идут отдельные дефекты — тогда спан от первой '{' до последней
+    '}' невалиден, а сбалансированный корень парсится."""
+    out: list[str] = []
+    n = len(s)
+    for start in range(n):
+        if s[start] != "{":
+            continue
+        depth, in_str, esc_ = 0, False, False
+        for i in range(start, n):
+            c = s[i]
+            if in_str:
+                if esc_:
+                    esc_ = False
+                elif c == "\\":
+                    esc_ = True
+                elif c == '"':
+                    in_str = False
+                continue
+            if c == '"':
+                in_str = True
+            elif c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    out.append(s[start:i + 1])
+                    break
+    return out
+
+
 def extract_verdict(text: str) -> dict | None:
     """JSON-вердикт из финального сообщения (устойчиво к обрамлению).
 
     Модели ломают JSON типовыми способами: невалидный \\-escape в строке
-    (qwen: «...\\Что-то»), markdown-обрамление, проза до/после. Порядок
-    попыток: прямой парс спана {..}, ремонт эскейпов, перебор вложенных
-    спанов от первой '{' к последней '}'."""
+    (qwen: «...\\Что-то»), одинарные кавычки вместо двойных (qwen v2), проза
+    до/после, корневой объект, закрытый раньше конца текста (huihui v2).
+    Порядок попыток: прямой парс спана {..}, ремонт эскейпов, сбалансированные
+    корни, literal_eval для питоновских словарей."""
+    import ast
+
     start, end = text.find("{"), text.rfind("}")
     if start == -1 or end <= start:
         return None
@@ -271,17 +308,35 @@ def extract_verdict(text: str) -> dict | None:
     repaired = _repair_escapes(text[start:end + 1])
     if repaired != candidates[0]:
         candidates.append(repaired)
-    candidates.extend(repaired[i:repaired.rfind('}') + 1]
-                      for i in range(len(repaired))
-                      if repaired[i] == "{")  # вложенные/частичные спаны
+    candidates.extend(_balanced_spans(repaired))
+    candidates.append(repaired)  # literal_eval в конце — питоновский dict
+    fallback = None
     for cand in candidates:
-        try:
-            verdict = json.loads(cand)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(verdict, dict):
-            return verdict
-    return None
+        # raw_decode берёт первый валидный объект и игнорирует хвост
+        # (случай huihui-v2: лишняя '}' после закрытия корня)
+        for parser in (json.loads,
+                       lambda s: json.JSONDecoder().raw_decode(s)[0],
+                       ast.literal_eval):
+            try:
+                verdict = parser(cand)
+            except (json.JSONDecodeError, ValueError, SyntaxError, MemoryError,
+                    RecursionError):
+                continue
+            if not isinstance(verdict, dict):
+                continue
+            if "axis_a" in verdict:
+                return verdict
+            fallback = fallback or verdict  # первый словарь без осей — запасной
+    # последний резерв: оси по regex ( JSON может быть невосстановим целиком,
+    # но оценки — всегда числа)
+    m_a = re.search(r'"axis_a"\s*:\s*(\d+(?:\.\d+)?)', text)
+    m_b = re.search(r'"axis_b"\s*:\s*(\d+(?:\.\d+)?)', text)
+    m_f = re.search(r'"functional"\s*:\s*(\d+(?:\.\d+)?)', text)
+    if m_a and m_b and m_f:
+        return {"axis_a": float(m_a.group(1)), "axis_b": float(m_b.group(1)),
+                "functional": float(m_f.group(1)), "defects": [],
+                "note": "", "regex_recovered": True}
+    return fallback
 
 
 def main() -> int:
