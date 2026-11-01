@@ -20,6 +20,14 @@ ROOT = HERE.parents[3]
 MODELS = ROOT / "models"
 OUT = ROOT / "reports" / "REVIEW-report.html"
 
+# Стоимость локального инференса — методика отчётов этапов 1-2
+# (billing/build_report.py): 550 Вт в момент генерации при ₽7.07/кВт·ч
+# (тариф с 01.10.2026) плюс амортизация железа (₽600 000 минус остаточные
+# 30% за 13 140 часов) — итого ₽35.85/ч чистой генерации; нижняя граница —
+# только электричество ₽3.89/ч
+LOCAL_RUB_H = 0.55 * 7.07 + (600_000 * 0.70) / (3 * 365 * 12)   # ₽35.85/ч
+ELEC_RUB_H = 0.55 * 7.07   # только электричество
+
 SHORT = {
     "qwen3.8:27b-pi-100k": "qwen3.8",
     "huihui-ai:pi-100k": "huihui",
@@ -672,6 +680,8 @@ def section_runs(runs, grid) -> str:
             f"<td>{SLUG_TITLES.get(r['slug'], r['slug'])}</td>"
             f"<td>{marks} <span class=num>{scores}</span></td>"
             f"<td class=num>{r['tool_calls']}</td><td class=num>{dur}</td><td class=num>{tok}</td></tr>")
+    total_rub = sum(r["duration_s"] for r in runs if r["duration_s"]) / 3600 * LOCAL_RUB_H
+    total_elec = sum(r["duration_s"] for r in runs if r["duration_s"]) / 3600 * ELEC_RUB_H
     agg = defaultdict(list)
     for r in runs:
         if r["duration_s"] and r["tokens"]:
@@ -680,11 +690,13 @@ def section_runs(runs, grid) -> str:
     for (model, protocol), rs in sorted(agg.items()):
         durs = [x[0] for x in rs]
         toks = [x[1] for x in rs]
+        med_rub = statistics.median(durs) / 3600 * LOCAL_RUB_H
         agg_rows.append(
             f"<tr><td><b>{esc(SHORT.get(model, model))}</b></td><td class=num>{protocol}</td>"
             f"<td class=num>{len(rs)}</td>"
             f"<td class=num>{statistics.median(durs)/60:.1f}</td>"
             f"<td class=num>{min(durs)/60:.1f}–{max(durs)/60:.1f}</td>"
+            f"<td class='num p-warn'>₽{med_rub:.1f}</td>"
             f"<td class=num>{statistics.median(toks)/1e6:.2f}</td>"
             f"<td class=num>{min(toks)/1e6:.2f}–{max(toks)/1e6:.2f}</td></tr>")
     return f"""
@@ -698,12 +710,16 @@ review.json (вердикт + дефекты), review.md (сырой ответ)
 <table>
 <tr><th>Модель</th><th class=narrow>Протокол</th><th class=narrow>Прогонов</th>
 <th class=narrow>Медиана, мин</th><th class=narrow>Время, мин</th>
+<th class=narrow>₽/ревью</th>
 <th class=narrow>Медиана, М ток.</th><th class=narrow>Токены, М</th></tr>
 {''.join(agg_rows)}
 </table>
-<p class=sub>Время и токены — по данным run.json каждой сессии (замер pi). Модели
-локальные: денежных затрат нет; ресурс — время и токены сервера. Прогоны e2b времени
-почти не занимают, потому что файлы не читались.</p>
+<p class=sub>Время и токены — по данным run.json каждой сессии (замер pi). Стоимость
+локального прогона — электричество и амортизация железа (методика этапов 1–2:
+550 Вт при ₽7.07/кВт·ч плюс амортизация — ₽35.85/ч чистой генерации; нижняя граница —
+только электричество, ₽3.89/ч). Вся серия из {len(runs)} прогонов ≈
+₽{total_rub:.0f} (нижняя граница ≈ ₽{total_elec:.0f}). Прогоны e2b времени почти не
+занимают, потому что файлы не читались.</p>
 <div class=alist><details><summary>Показать все прогоны ({len(runs)})</summary>
 <table>
 <tr><th>Модель</th><th class=narrow>Прогон</th><th class=narrow>Протокол</th><th>Решение</th><th>Вердикт</th><th class=narrow>Чтений</th><th class=narrow>Время</th><th class=narrow>Токены</th></tr>
