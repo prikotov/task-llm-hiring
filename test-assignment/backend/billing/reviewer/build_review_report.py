@@ -414,7 +414,7 @@ def results_summary_block(profiles, runs) -> str:
         if len(prof["per_slug"]) >= 3 and prof["n"] >= 3:
             ranked.append((model, protocol, prof))
         else:
-            excluded.append((model, prof))
+            excluded.append((model, protocol, prof))
 
     def axis_overall(prof):
         """Средний |Δ| по каждой оси (усреднение по решениям) и общий."""
@@ -423,6 +423,23 @@ def results_summary_block(profiles, runs) -> str:
         return axis_delta, statistics.mean(axis_delta.values())
 
     ranked.sort(key=lambda x: axis_overall(x[2])[1])
+
+    def resources(model, protocol):
+        """Медианы времени (мин), токенов (М) и стоимости (₽) по прогонам."""
+        rs = [r for r in runs if r["model"] == model and r["protocol"] == protocol
+              and r["duration_s"] and r["tokens"]]
+        if not rs:
+            return None
+        med_d = statistics.median(r["duration_s"] for r in rs)
+        med_t = statistics.median(r["tokens"] for r in rs)
+        return (med_d / 60, med_t / 1e6, med_d / 3600 * LOCAL_RUB_H)
+
+    def res_cells(res):
+        if not res:
+            return "<td colspan=3 class=num>—</td>"
+        return (f"<td class=num>{res[0]:.1f}</td>"
+                f"<td class=num>{res[1]:.2f}</td>"
+                f"<td class='num p-warn'>₽{res[2]:.1f}</td>")
 
     rows = []
     for place, (model, protocol, prof) in enumerate(ranked, 1):
@@ -442,34 +459,44 @@ def results_summary_block(profiles, runs) -> str:
             + "".join(f"<td class='num {dcls[i]}'>{axis_delta[a]:.2f}</td>"
                       for i, a in enumerate(AXES))
             + f"<td class=num><b>{overall:.2f}</b></td>"
-            f"<td>{_quality_level(overall)}</td></tr>")
+            + res_cells(resources(model, protocol))
+            + f"<td>{_quality_level(overall)}</td></tr>")
 
     fail_rows = []
-    for model, prof in excluded:
+    for model, protocol, prof in excluded:
+        res = resources(model, protocol)
         fail_rows.append(
             f"<tr class=neg><td class=num>—</td>"
             f"<td><b>{esc(SHORT.get(model, model))}</b>"
             f"<div class=sub>{_runs_word(prof['n'])}</div></td>"
-            + "<td colspan=4>—</td>"
-            + "<td colspan=4>вне зачёта: данных для ранжирования недостаточно</td></tr>")
+            + "<td colspan=4>—</td>" + res_cells(res)
+            + "<td colspan=2><span class=sub>вне зачёта: данных для ранжирования недостаточно</span></td></tr>")
+    orca_runs = [r for r in runs if r["model"] == "orcarouter/Qwen3.8-27B-Uncensored:ctx100k"]
+    res = resources("orcarouter/Qwen3.8-27B-Uncensored:ctx100k",
+                    max(r["protocol"] for r in orca_runs)) if orca_runs else None
     fail_rows.append(
         f"<tr class=neg><td class=num>—</td>"
-        f"<td><b>orca</b><div class=sub>24 прогона (v1 и v2)</div></td>"
-        + "<td colspan=4>—</td>"
-        + "<td colspan=4>вне зачёта: вердикт в заданном формате не выдан ни разу</td></tr>")
+        f"<td><b>orca</b><div class=sub>{len(orca_runs)} прогона (v1 и v2)</div></td>"
+        + "<td colspan=4>—</td>" + res_cells(res)
+        + "<td colspan=2><span class=sub>вне зачёта: вердикт в заданном формате не выдан ни разу</span></td></tr>")
 
     head = ("<tr><th class=narrow>Место</th><th>Модель</th>"
             "<th class=narrow>A «хорош.»</th><th class=narrow>A «средн.»</th>"
             "<th class=narrow>A «каверзн.»</th><th class=narrow>A «плох.»</th>"
             "<th class=narrow>|Δ|A</th><th class=narrow>|Δ|B</th><th class=narrow>|Δ|F</th>"
-            "<th class=narrow>Итог |Δ|</th><th>Уровень качества ревью</th></tr>")
+            "<th class=narrow>Итог |Δ|</th>"
+            "<th class=narrow>Мин (мед.)</th><th class=narrow>М ток. (мед.)</th>"
+            "<th class=narrow>₽/ревью</th>"
+            "<th>Уровень качества ревью</th></tr>")
     return f"""
 <h3><span class=no>4.1.</span>Сводная таблица: качество ревью</h3>
 <p class=lead>Одна строка на модель. Баллы A — среднее по трём прогонам на каждом решении
 (эталоны: 3.5 / 2.5 / 2.5 / 1.5). Итог |Δ| — средняя разница с эталоном по всем осям и
 решениям; чем меньше, тем точнее ревью. Уровень: до 0.6 — высокая точность, до 0.9 —
-средняя, выше — низкая. Таблица построена по протоколу v2 (без диффа); полные данные
-по версиям — в таблицах 4.2 и далее.</p>
+средняя, выше — низкая. Время, токены и ₽/ревью — медианы по прогонам модели; стоимость
+локального инференса — электричество и амортизация (₽35.85/ч, методика этапов 1–2).
+Таблица построена по протоколу v2 (без диффа); полные данные по версиям — в таблицах
+4.2 и далее.</p>
 <table>{head}{''.join(rows)}{''.join(fail_rows)}</table>"""
 
 
