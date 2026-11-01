@@ -382,7 +382,90 @@ def section_objects(refs) -> str:
 рантаймом (раздел 6).</p>"""
 
 
-def section_results(profiles, refs) -> str:
+def _runs_word(n: int) -> str:
+    if n % 10 == 1 and n % 100 != 11:
+        return f"{n} зачётный прогон"
+    if n % 10 in (2, 3, 4) and n % 100 not in (12, 13, 14):
+        return f"{n} зачётных прогона"
+    return f"{n} зачётных прогонов"
+
+
+def _quality_level(overall: float) -> str:
+    if overall <= 0.6:
+        return '<span class="okmark" title="средний |Δ| по всем осям и решениям">высокая точность</span>'
+    if overall <= 0.9:
+        return '<span class="deadmark contract" title="средний |Δ| по всем осям и решениям">средняя точность</span>'
+    return '<span class="deadmark fab" title="средний |Δ| по всем осям и решениям">низкая точность</span>'
+
+
+def results_summary_block(profiles, runs) -> str:
+    """Сводная таблица: одна строка на модель, сортировка по итоговому |Δ|."""
+    latest = latest_profiles(profiles)
+    ranked, excluded = [], []
+    for model, (protocol, prof) in latest.items():
+        if len(prof["per_slug"]) >= 3 and prof["n"] >= 3:
+            ranked.append((model, protocol, prof))
+        else:
+            excluded.append((model, prof))
+
+    def axis_overall(prof):
+        """Средний |Δ| по каждой оси (усреднение по решениям) и общий."""
+        axis_delta = {a: statistics.mean(s["delta_mean"][a] for s in prof["per_slug"].values())
+                      for a in AXES}
+        return axis_delta, statistics.mean(axis_delta.values())
+
+    ranked.sort(key=lambda x: axis_overall(x[2])[1])
+
+    rows = []
+    for place, (model, protocol, prof) in enumerate(ranked, 1):
+        per = prof["per_slug"]
+        a_means = []
+        for slug in SLUG_ORDER:
+            s = per.get(slug)
+            a_means.append(statistics.mean(s["vals"]["axis_a"]) if s else None)
+        axis_delta, overall = axis_overall(prof)
+        dcls = [delta_class(axis_delta[a]) for a in AXES]
+        rows.append(
+            f"<tr class={'top' if place == 1 else ''}>"
+            f"<td class=num>{place}</td>"
+            f"<td><b>{esc(SHORT.get(model, model))}</b>"
+            f"<div class=sub>протокол {protocol} · {_runs_word(prof['n'])}</div></td>"
+            + "".join(f"<td class=num>{'—' if v is None else f'{v:.1f}'}</td>" for v in a_means)
+            + "".join(f"<td class='num {dcls[i]}'>{axis_delta[a]:.2f}</td>"
+                      for i, a in enumerate(AXES))
+            + f"<td class=num><b>{overall:.2f}</b></td>"
+            f"<td>{_quality_level(overall)}</td></tr>")
+
+    fail_rows = []
+    for model, prof in excluded:
+        fail_rows.append(
+            f"<tr class=neg><td class=num>—</td>"
+            f"<td><b>{esc(SHORT.get(model, model))}</b>"
+            f"<div class=sub>{_runs_word(prof['n'])}</div></td>"
+            + "<td colspan=4>—</td>"
+            + "<td colspan=4>вне зачёта: данных для ранжирования недостаточно</td></tr>")
+    fail_rows.append(
+        f"<tr class=neg><td class=num>—</td>"
+        f"<td><b>orca</b><div class=sub>24 прогона (v1 и v2)</div></td>"
+        + "<td colspan=4>—</td>"
+        + "<td colspan=4>вне зачёта: вердикт в заданном формате не выдан ни разу</td></tr>")
+
+    head = ("<tr><th class=narrow>Место</th><th>Модель</th>"
+            "<th class=narrow>A «хорош.»</th><th class=narrow>A «средн.»</th>"
+            "<th class=narrow>A «каверзн.»</th><th class=narrow>A «плох.»</th>"
+            "<th class=narrow>|Δ|A</th><th class=narrow>|Δ|B</th><th class=narrow>|Δ|F</th>"
+            "<th class=narrow>Итог |Δ|</th><th>Уровень качества ревью</th></tr>")
+    return f"""
+<h3><span class=no>4.1.</span>Сводная таблица: качество ревью</h3>
+<p class=lead>Одна строка на модель. Баллы A — среднее по трём прогонам на каждом решении
+(эталоны: 3.5 / 2.5 / 2.5 / 1.5). Итог |Δ| — средняя разница с эталоном по всем осям и
+решениям; чем меньше, тем точнее ревью. Уровень: до 0.6 — высокая точность, до 0.9 —
+средняя, выше — низкая. Таблица построена по протоколу v2 (без диффа); полные данные
+по версиям — в таблицах 4.2 и далее.</p>
+<table>{head}{''.join(rows)}{''.join(fail_rows)}</table>"""
+
+
+def section_results(profiles, refs, runs) -> str:
     blocks = []
     head = ("<tr><th>Решение</th><th>n</th>"
             "<th>A «код и архитектура»</th><th>B «процесс»</th><th>F «задание»</th>"
@@ -412,13 +495,16 @@ def section_results(profiles, refs) -> str:
                     f"<td class=num>{spread}</td></tr>")
             params = PARAMS.get(model, ("?", "?"))
             blocks.append(f"""
-<h3><span class=no>4.{n_shown}.</span>{esc(SHORT.get(model, model))} — протокол {protocol}
-<span class=sub>{params[0]} · {params[1]} · thinking max · контекст 102400 · {prof['n']} зачётных прогонов</span></h3>
+<h3><span class=no>4.{n_shown + 1}.</span>{esc(SHORT.get(model, model))} — протокол {protocol}
+<span class=sub>{params[0]} · {params[1]} · thinking max · контекст 102400 · {_runs_word(prof['n'])}</span></h3>
 <table>{head}{''.join(rows)}</table>""")
+    summary = results_summary_block(profiles, runs)
     return f"""
 <h2 id=results><span class=no>4.</span>Результаты моделей</h2>
-<p class=lead>Вердикты по прогонам (каждая ячейка — отдельный изолированный прогон),
-средние |Δ| к эталону и разброс max−min. Цвет |Δ|: зелёный — 0, жёлтый — ≤1, красный — &gt;1.</p>
+{summary}
+<p class=lead>Детали по каждой модели: вердикты по прогонам (каждая ячейка — отдельный
+изолированный прогон), средние |Δ| к эталону и разброс max−min. Цвет |Δ|: зелёный — 0,
+жёлтый — ≤1, красный — &gt;1.</p>
 {''.join(blocks)}"""
 
 
@@ -637,7 +723,7 @@ def main() -> int:
 {section_tldr(runs, profiles, refs, grid)}
 {section_method()}
 {section_objects(refs)}
-{section_results(profiles, refs)}
+{section_results(profiles, refs, runs)}
 {section_stability(profiles)}
 {section_findings(runs, profiles)}
 {section_validity(runs, profiles)}
