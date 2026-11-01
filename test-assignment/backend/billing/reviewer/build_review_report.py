@@ -422,9 +422,8 @@ def _quality_level(overall: float) -> str:
 
 
 def results_summary_block(profiles, refs, runs) -> str:
-    """Сводная таблица: место считается отдельно на каждом уровне thinking
-    (на max ранжируются все модели серии, на low/medium — только те, кто
-    на этих уровнях прогонялся)."""
+    """Сводная таблица: плоский рейтинг строк (модель × мышление × протокол),
+    отсортированный по итоговому |Δ|; «Место» — порядковый номер строки."""
     latest = latest_profiles(profiles)
 
     def axis_overall(prof):
@@ -481,98 +480,48 @@ def results_summary_block(profiles, refs, runs) -> str:
             for vals in [s["vals"][a]])
         return f'<td class=num>{marks}</td>'
 
-    # профили v2 по уровням thinking и v1 для сравнения
-    v2_levels = defaultdict(dict)   # thinking -> {model: prof}
-    v1_profs = {}
+    # строки рейтинга: профили с полным покрытием решений (≥3 из 4);
+    # протокол и уровень thinking подписаны в строке и не усредняются
+    ranked, partial = [], []
     for (model, protocol, thinking), prof in profiles.items():
-        if protocol == "v2":
-            v2_levels.setdefault(thinking, {})[model] = prof
-        elif protocol == "v1":
-            v1_profs[model] = prof
+        entry = {"model": model, "protocol": protocol, "thinking": thinking, "prof": prof,
+                 "d": axis_overall(prof)[0], "overall": axis_overall(prof)[1],
+                 "res": resources(model).get((protocol, thinking))}
+        if len(prof["per_slug"]) >= 3 and prof["n"] >= 3:
+            ranked.append(entry)
+        else:
+            partial.append(entry)
+    ranked.sort(key=lambda e: e["overall"])
 
-    def level_rank(thinking):
-        """Место и размер группы внутри одного уровня thinking."""
-        group = v2_levels.get(thinking, {})
-        ordered = sorted(group.items(), key=lambda kv: axis_overall(kv[1])[1])
-        return {m: (i + 1, len(group)) for i, (m, _p) in enumerate(ordered)}
-
-    def rankable(model):
-        prof = v2_levels.get("max", {}).get(model)
-        return bool(prof) and len(prof["per_slug"]) >= 3 and prof["n"] >= 3
-
-    def max_key(model):
-        prof = v2_levels.get("max", {}).get(model)
-        return axis_overall(prof)[1] if rankable(model) else 99
-
-    max_rank = level_rank("max")
-    low_rank = level_rank("low")
-    med_rank = level_rank("medium")
-
-    # порядок моделей: по итогу уровня max (ранжируемые), прочие — в конец
-    order = (sorted(v2_levels.get("max", {}), key=max_key)
-             + [m for m in latest if m not in v2_levels.get("max", {})])
+    def row_cells(entry, place, ranked_ok):
+        prof, d = entry["prof"], entry["d"]
+        model, protocol, thinking = entry["model"], entry["protocol"], entry["thinking"]
+        note = ""
+        if protocol == "v1":
+            note = "протокол v1 (с diff.patch — для сравнения)"
+        elif thinking != "max":
+            note = f"протокол v2 · thinking {thinking}"
+        else:
+            note = "протокол v2 · thinking max"
+        main_bold = ranked_ok
+        return (
+            f"<td class=num>{place}</td>"
+            f"<td>{'<b>' + esc(SHORT.get(model, model)) + '</b>' if main_bold else esc(SHORT.get(model, model))}"
+            f"<div class=sub>{note} · {_runs_word(prof['n'])}</div></td>"
+            f"<td class=num>{thinking}</td>"
+            + "".join(stack_cell(prof, slug) for slug in SLUG_ORDER)
+            + "".join(f"<td class='num {delta_class(d[a])}'>{d[a]:.2f}</td>" for a in AXES)
+            + f"<td class=num>{f'<b>{entry["overall"]:.2f}</b>' if main_bold else f'{entry["overall"]:.2f}'}</td>"
+            + res_cell(entry["res"])
+            + (f"<td>{_quality_level(entry['overall'])}</td>" if main_bold
+               else "<td><span class=sub>—</span></td></tr>"))
 
     rows = []
-    place = 0
-    for model in order:
-        main = v2_levels.get("max", {}).get(model)
-        ranked_ok = rankable(model)
-        if ranked_ok:
-            place += 1
-        if not main:
-            rows.append(
-                f"<tr class=neg><td class=num>—</td>"
-                f"<td>{esc(SHORT.get(model, model))}"
-                f"<div class=sub>нет зачётных прогонов на v2</div></td>"
-                f"<td class=num>—</td><td colspan=4>—</td><td class=num>—</td>"
-                "<td><span class=sub>вне зачёта: данных для ранжирования недостаточно</span></td></tr>")
-            continue
-        main_d, main_o = axis_overall(main)
-        place_txt = f"{max_rank[model][0]} из {max_rank[model][1]}"
-        rows.append(
-            f"<tr class={'top' if place == 1 else ''}>"
-            f"<td class=num>{place_txt}</td>"
-            f"<td><b>{esc(SHORT.get(model, model))}</b>"
-            f"<div class=sub>протокол v2 · {_runs_word(main['n'])}</div></td>"
-            f"<td class=num>max</td>"
-            + "".join(stack_cell(main, slug) for slug in SLUG_ORDER)
-            + "".join(f"<td class='num {delta_class(main_d[a])}'>{main_d[a]:.2f}</td>"
-                      for a in AXES)
-            + f"<td class=num><b>{main_o:.2f}</b></td>"
-            + res_cell(resources(model).get(("v2", "max")))
-            + f"<td>{_quality_level(main_o)}</td></tr>")
-        # сравнительные строки: уровни low и medium
-        for thinking, rank in (("low", low_rank), ("medium", med_rank)):
-            prof = v2_levels.get(thinking, {}).get(model)
-            if not prof:
-                continue
-            r, total = rank[model]
-            d, o = axis_overall(prof)
-            rows.append(
-                f"<tr class=neg><td class=num>{r} из {total}</td>"
-                f"<td>{esc(SHORT.get(model, model))}"
-                f"<div class=sub>уровень для сравнения</div></td>"
-                f"<td class=num>{thinking}</td>"
-                + "".join(stack_cell(prof, slug) for slug in SLUG_ORDER)
-                + "".join(f"<td class='num {delta_class(d[a])}'>{d[a]:.2f}</td>" for a in AXES)
-                + f"<td class=num>{o:.2f}</td>"
-                + res_cell(resources(model).get(("v2", thinking)))
-                + "<td><span class=sub>—</span></td></tr>")
-        # строка v1 для сравнения
-        if model in v1_profs:
-            prof = v1_profs[model]
-            d, o = axis_overall(prof)
-            rows.append(
-                f"<tr class=neg><td class=num>↳</td>"
-                f"<td>{esc(SHORT.get(model, model))}"
-                f"<div class=sub>протокол v1 (с diff.patch — для сравнения) · "
-                f"{_runs_word(prof['n'])}</div></td>"
-                f"<td class=num>max</td>"
-                + "".join(stack_cell(prof, slug) for slug in SLUG_ORDER)
-                + "".join(f"<td class='num {delta_class(d[a])}'>{d[a]:.2f}</td>" for a in AXES)
-                + f"<td class=num>{o:.2f}</td>"
-                + res_cell(resources(model).get(("v1", "max")))
-                + "<td><span class=sub>—</span></td></tr>")
+    for i, e in enumerate(ranked, 1):
+        cls = ' class="top"' if i == 1 else ""
+        rows.append(f"<tr{cls}>" + row_cells(e, str(i), True) + "</tr>")
+    for e in partial:
+        rows.append("<tr class=neg>" + row_cells(e, "—", False) + "</tr>")
 
     fail_rows = []
     orca_model = "orcarouter/Qwen3.8-27B-Uncensored:ctx100k"
@@ -587,7 +536,7 @@ def results_summary_block(profiles, refs, runs) -> str:
         f"<td><b>orca</b><div class=sub>{orca_n} прогонов: {orca_parts}</div></td>"
         f"<td class=num>max/low/<br>medium</td>"
         + "<td colspan=4>—</td>" + res_cells_stacked(orca_res)
-        + "<td colspan=2><span class=sub>вне зачёта: вердикт в заданном формате не выдан ни разу</span></td></tr>")
+        + "<td colspan=2><span class=sub>вне рейтинга: вердикт в заданном формате не выдан ни разу</span></td></tr>")
 
     def th_stack(slug):
         e = refs[slug]["expected"]
@@ -603,16 +552,15 @@ def results_summary_block(profiles, refs, runs) -> str:
                "<th>Уровень качества ревью</th></tr>"))
     return f"""
 <h3><span class=no>4.1.</span>Сводная таблица: качество ревью</h3>
-<p class=lead>Одна строка на модель и уровень мышления. В колонках решений — средние
-баллы по трём прогонам, стопкой A / B / F (эталоны — в шапке колонок). Итог |Δ| —
-средняя разница с эталоном по всем осям и решениям; чем меньше, тем точнее ревью.
-Уровень: до 0.6 — высокая точность, до 0.9 — средняя, выше — низкая. <b>Место
-считается отдельно на каждом уровне мышления</b>: на max ранжируются 4 модели,
-на low и medium — только 2 (уровни прогонялись для семейства qwen; у gemma
-thinking булев — уровни неразличимы). Протокол v1 и версии ресурсов не усредняются;
-строки v1 — для сравнения. Стоимость локального инференса — электричество и
-амортизация (₽35.85/ч, методика этапов 1–2). По-прогонные данные — в таблицах
-4.2 и далее.</p>
+<p class=lead>Рейтинг строк «модель × мышление × протокол», отсортированных по
+итоговому |Δ| (лучшие сверху); «Место» — порядковый номер строки. В колонках
+решений — средние баллы по трём прогонам, стопкой A / B / F (эталоны — в шапке
+колонок). Итог |Δ| — средняя разница с эталоном по всем осям и решениям. Уровень:
+до 0.6 — высокая точность, до 0.9 — средняя, выше — низкая. Уровни мышления и
+версии протокола не усредняются — каждая комбинация отдельная строка; строки v1
+(с diff.patch) — для сравнения. Время, токены и ₽/ревью — медианы по прогонам
+своей строки; стоимость локального инференса — электричество и амортизация
+(₽35.85/ч, методика этапов 1–2). По-прогонные данные — в таблицах 4.2 и далее.</p>
 <table>{head}{''.join(rows)}{''.join(fail_rows)}</table>"""
 
 
