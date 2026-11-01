@@ -308,9 +308,10 @@ psalm, scc, сводка по классам). Чего ревьюер не по
 <li><a href="#results">4. Результаты моделей</a></li>
 <li><a href="#stability">5. Повторяемость</a></li>
 <li><a href="#findings">6. Что нашли и что пропустили</a></li>
-<li><a href="#validity">7. Валидность прогонов</a></li>
-<li><a href="#runs">8. Прогоны и данные</a></li>
-<li><a href="#next">9. Что дальше</a></li>
+<li><a href="#notdone">7. Функциональная проверка: not_done против чекера</a></li>
+<li><a href="#validity">8. Валидность прогонов</a></li>
+<li><a href="#runs">9. Прогоны и данные</a></li>
+<li><a href="#next">10. Что дальше</a></li>
 </ul>
 </nav>"""
 
@@ -800,6 +801,148 @@ PR_DESCRIPTION — ссылку на несуществующий файл expec
 Полные списки дефектов с серьёзностью — в review.json каждого прогона (раздел 8).</p>"""
 
 
+def section_notdone(profiles, refs, runs) -> str:
+    """Функциональная проверка: перечни not_done моделей против фактов чекера."""
+    # семьи требований по ключевым словам перечня
+    def family(req: str) -> str:
+        r = req.lower()
+        if "миграц" in r or "чистой базе" in r or "чистая база" in r or "схема бд" in r:
+            return "схема БД из миграций"
+        if "commit_message" in r or "pr_description" in r or "артефакт" in r:
+            return "артефакты (COMMIT_MESSAGE/PR_DESCRIPTION)"
+        if "unrated" in r and ("stderr" in r or "строк" in r or "sboй" in r or "сбой" in r):
+            return "unrated-строки в stderr"
+        if "geterroroutput" in r:
+            return "unrated-строки в stderr"
+        if "reprice" in r or "ретро" in r:
+            return "бонус reprice"
+        if "округл" in r or "half_up" in r or "bcadd" in r or "точность вычислений" in r or "промежуточные вычисления" in r:
+            return "округление и точность денег"
+        if "дедупл" in r or "повторная доставка" in r or "идемпотентность" in r:
+            return "дедупликация приёма"
+        if "оф-пик" in r or "off_peak" in r or "скидк" in r:
+            return "оф-пиковая скидка"
+        if "сортиров" in r:
+            return "сортировка отчёта"
+        if "6 знаков" in r or "cost_usd" in r or "формат" in r and "отч" in r:
+            return "формат отчёта"
+        if "cache" in r or "кеш" in r or "кэш" in r:
+            return "cache-цены"
+        return "прочее"
+
+    # вердикты сверки: (семья) -> (итог, пояснение) — присвоены по результатам
+    # анализа: факты чекера + рантайм-разбор (см. раздел 6)
+    VERDICTS = {
+        "good": {
+            "схема БД из миграций": ("не подтверждено", "чекер прошёл все сценарии (11/11)"),
+            "unrated-строки в stderr": ("не подтверждено", "чекер сверил строки stderr и принял"),
+        },
+        "mid": {
+            "схема БД из миграций": ("не подтверждено", "чекер прошёл: принял альтернативный способ schema_update, разрешённый заданием"),
+            "unrated-строки в stderr": ("ложное", "рантайм работает: Symfony передаёт ConsoleOutput, у которого метод есть"),
+            "бонус reprice": ("подтверждено частично", "бонус действительно не реализован, но он не входит в обязательные"),
+            "дедупликация приёма": ("не подтверждено", "сценарий дубликатов чекером пройден"),
+            "сортировка отчёта": ("не подтверждено", "отчёты чекером приняты"),
+            "формат отчёта": ("не подтверждено", "отчёты чекером приняты"),
+        },
+        "tricky": {
+            "округление и точность денег": ("не подтверждено", "формула воспроизводит пример из задания; причина падений — оф-пик"),
+            "формат отчёта": ("не подтверждено", "сценарий с пустым отчётом в чекере отсутствует"),
+            "схема БД из миграций": ("не подтверждено", "чекер прошёл схему (fallback schema_update не при чём — суммы завышены оф-пиком)"),
+            "unrated-строки в stderr": ("не подтверждено", "unrated-сценарий чекером пройден"),
+        },
+        "bad": {
+            "артефакты (COMMIT_MESSAGE/PR_DESCRIPTION)": ("подтверждено", "сценарий artifacts_present упал: файлов нет"),
+            "схема БД из миграций": ("подтверждено как факт", "миграций действительно нет; чекер прошёл через fallback schema_update"),
+            "оф-пиковая скидка": ("подтверждено", "верифицированная причина завышенных отчётов (раздел 6)"),
+            "округление и точность денег": ("подтверждено", "рантайм-трассировка h02: bcadd без масштаба усёк накопление"),
+            "дедупликация приёма": ("не подтверждено как причина", "base и duplicates упали одинаково — падение в оф-пике"),
+            "unrated-строки в stderr": ("ложное", "рантайм работает: у ConsoleOutput метод есть"),
+            "бонус reprice": ("не подтверждено", "бонус не входит в обязательные — отсутствие не влияло на чекер"),
+        },
+    }
+
+    # агрегация перечней: только текущий контракт (v2 + prompt 2)
+    items = defaultdict(lambda: defaultdict(int))
+    examples = defaultdict(list)
+    sessions = defaultdict(int)
+    for rp in sorted((ROOT / "models").glob("*/backend/review-v3*/run-*/review.json")):
+        rj = rp.with_name("run.json")
+        if not rj.is_file():
+            continue
+        meta = json.loads(rj.read_text(encoding="utf-8"))
+        if not meta.get("parse_ok") or meta.get("protocol") != "v2" \
+                or meta.get("prompt_version") != 2:
+            continue
+        slug = meta.get("solution_slug")
+        sessions[slug] += 1
+        v = json.loads(rp.read_text(encoding="utf-8"))
+        for nd in v.get("not_done", []):
+            fam = family(nd.get("req", "") or nd.get("desc", ""))
+            state = nd.get("state", "?")
+            key = (fam, state)
+            items[slug][key] += 1
+            if len(examples[(slug, key)]) < 1:
+                examples[(slug, key)].append(
+                    f"{SHORT.get(meta.get('model'), meta.get('model'))}/{meta.get('thinking')}: "
+                    f"{(nd.get('desc') or '')[:90]}")
+
+    blocks = []
+    checker_facts = {
+        "good": "чекер: 11/11 обязательных + 2/2 бонус — всё принято",
+        "mid": "чекер: 11/11 обязательных, бонус 0/2 (не делало)",
+        "tricky": "чекер: 9/11 — отчёты завышены (оф-пик теряется при первом импорте провайдера), бонус не работает",
+        "bad": "чекер: 8/11 — отчёты завышены (та же причина), артефакты отсутствуют",
+    }
+    recall_note = {
+        "good": "перечни почти пусты — корректно, решение полное; два указанных «нарушения» чекером не подтверждены",
+        "mid": "перечни о миграциях строже чекера: чекер принял альтернативный способ развёртывания, ревьюеры требовали штатный; ложных срабатываний по рантайму — одно (getErrorOutput)",
+        "tricky": "главный дефект (оф-пик при первом импорте) не перечислен ни одной моделью ни на одном уровне — полный слепой проб статического ревьюа, подтверждено расследованием раздела 6",
+        "bad": "перечни поймали реальные пропуски: артефакты, пустые миграции, оф-пик при первом импорте (механизм), bcadd без масштаба; один ложный «фатальный» (getErrorOutput)",
+    }
+    for slug in SLUG_ORDER:
+        rows = []
+        fam_items = items.get(slug, {})
+        for (fam, state), n in sorted(fam_items.items(), key=lambda x: -x[1]):
+            verdict, comment = VERDICTS.get(slug, {}).get(
+                fam, ("не подтверждено", "чекер соответствующий сценарий не проверял или принял"))
+            vcls = {"подтверждено": "okmark", "подтверждено как факт": "okmark",
+                    "подтверждено частично": "okmark"}.get(verdict, "")
+            if verdict == "ложное":
+                vcls = "deadmark fab"
+            rows.append(
+                f"<tr{' class=neg' if verdict == 'ложное' else ''}>"
+                f"<td>{esc(fam)}<div class=sub>{esc(comment)}</div></td>"
+                f"<td class=num>{state}</td><td class=num>{n}</td>"
+                f"<td><span class='{vcls or 'okmark'}' title='сверка с фактами чекера и рантаймом'>{verdict}</span></td></tr>")
+        if not rows:
+            rows.append("<tr><td colspan=4 class=num>перечни not_done пусты во всех сессиях</td></tr>")
+        blocks.append(f"""
+<h3><span class=no>7.{SLUG_ORDER.index(slug)+1}.</span>{SLUG_TITLES[slug]} — {checker_facts[slug]}</h3>
+<p class=sub>{recall_note[slug]}. Сессий с вердиктом: {sessions.get(slug, 0)}.</p>
+<table>
+<tr><th>Требование (семья)</th><th class=narrow>Состояние по модели</th>
+<th class=narrow>Сессий</th><th>Сверка с чекером</th></tr>
+{''.join(rows)}
+</table>""")
+
+    return f"""
+<h2 id=notdone><span class=no>7.</span>Функциональная проверка: not_done против чекера</h2>
+<p class=lead>Контракт ревью требует перечислить, <b>что не сделано</b> (поле
+not_done: требование из TASK.md, состояние, детали) — балл F объявляется
+производной этого перечня. Ниже — агрегированные перечни всех зачётных сессий
+текущего контракта по каждому решению, сверенные с фактами чекера. Вердикты
+сверки присвоены по результатам анализа (факты чекера + рантайм-разбор
+раздела 6), это ручная разметка, не автоматическая.</p>
+{''.join(blocks)}
+<p class=sub>Итог по полноте: единственный случай, где сравнение «перечислено —
+подтверждено» работает честно в обе стороны, — «плохое» решение: модели поймали
+три из четырёх реальных пропусков. На «каверзном» — recall ноль у всех моделей
+и всех уровней мышления: дефект сидит в данных, а не в видимой логике.</p>"""
+
+
+
+
 def section_validity(runs, profiles) -> str:
     total = len(runs)
     valid = sum(1 for r in runs if r["valid"])
@@ -827,7 +970,7 @@ def section_validity(runs, profiles) -> str:
     orca_n = sum(1 for r in runs if r["model"] == "orcarouter/Qwen3.8-27B-Uncensored:ctx100k")
     burn_n = len(by_kind.get("burn", []))
     return f"""
-<h2 id=validity><span class=no>7.</span>Валидность прогонов</h2>
+<h2 id=validity><span class=no>8.</span>Валидность прогонов</h2>
 <p class=lead>Из <b>{total}</b> прогонов зачётных <b>{valid}</b>. Три автоматические
 проверки отбраковывают негодные прогоны: целостность рабочей копии (хэш-суммы до и
 после), факт чтения файлов (хотя бы одно обращение), вердикт в заданном формате JSON.
@@ -890,7 +1033,7 @@ def section_runs(runs, grid) -> str:
             f"<td class=num>{statistics.median(toks)/1e6:.2f}</td>"
             f"<td class=num>{min(toks)/1e6:.2f}–{max(toks)/1e6:.2f}</td></tr>")
     return f"""
-<h2 id=runs><span class=no>8.</span>Прогоны и данные</h2>
+<h2 id=runs><span class=no>9.</span>Прогоны и данные</h2>
 <p class=lead>Все {len(runs)} прогонов этапа (пилот + серия v1 + серия v2 + перезапуски).
 Время и токены фиксировались в run.json каждой сессии; сводка по моделям — ниже,
 по-прогонно — в свёрнутом списке. Артефакты: models/&lt;модель&gt;/backend/review/ (v1)
@@ -919,7 +1062,7 @@ review.json (вердикт + дефекты), review.md (сырой ответ)
 
 def section_next() -> str:
     return """
-<h2 id=next><span class=no>9.</span>Что дальше</h2>
+<h2 id=next><span class=no>10.</span>Что дальше</h2>
 <table>
 <tr><th style=width:34%>Направление</th><th>Смысл</th></tr>
 <tr><td><b>Расширение серии прогонов</b></td><td>Добавить оставшиеся локальные модели набора тем же
@@ -958,6 +1101,7 @@ def main() -> int:
 {section_results(profiles, refs, runs)}
 {section_stability(profiles)}
 {section_findings(runs, profiles)}
+{section_notdone(profiles, refs, runs)}
 {section_validity(runs, profiles)}
 {section_runs(runs, grid)}
 {section_next()}
