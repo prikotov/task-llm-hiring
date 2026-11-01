@@ -60,6 +60,45 @@ AXIS_NAMES = {"axis_a": "A «код и архитектура»", "axis_b": "B �
               "functional": "F «соответствие заданию»"}
 AXIS_NAMES_SHORT = {"axis_a": "A", "axis_b": "B", "functional": "F"}
 
+# Реальные функциональные пропуски решений (семьи требований) — по фактам
+# чекера и рантайм-разбору (раздел 6 отчёта). recall ревьюера = доля этих
+# семей, перечисленных им в not_done.
+REAL_MISSES = {
+    "tricky": ["оф-пиковая скидка"],
+    "bad": ["артефакты (COMMIT_MESSAGE/PR_DESCRIPTION)", "оф-пиковая скидка",
+            "схема БД из миграций", "округление и точность денег"],
+}
+REAL_MISSES_TOTAL = sum(len(v) for v in REAL_MISSES.values())
+
+
+def req_family(req: str) -> str:
+    """Семья требований по ключевым словам перечня not_done."""
+    r = (req or "").lower()
+    if "миграц" in r or "чистой базе" in r or "чистая база" in r or "схема бд" in r:
+        return "схема БД из миграций"
+    if "commit_message" in r or "pr_description" in r or "артефакт" in r:
+        return "артефакты (COMMIT_MESSAGE/PR_DESCRIPTION)"
+    if "unrated" in r and ("stderr" in r or "строк" in r or "сбой" in r):
+        return "unrated-строки в stderr"
+    if "geterroroutput" in r:
+        return "unrated-строки в stderr"
+    if "reprice" in r or "ретро" in r:
+        return "бонус reprice"
+    if "округл" in r or "half_up" in r or "bcadd" in r or "точность вычислений" in r \
+            or "промежуточные вычисления" in r:
+        return "округление и точность денег"
+    if "дедупл" in r or "повторная доставка" in r or "идемпотентность" in r:
+        return "дедупликация приёма"
+    if "оф-пик" in r or "off_peak" in r or "скидк" in r:
+        return "оф-пиковая скидка"
+    if "сортиров" in r:
+        return "сортировка отчёта"
+    if "6 знаков" in r or "cost_usd" in r or ("формат" in r and "отч" in r):
+        return "формат отчёта"
+    if "cache" in r or "кеш" in r or "кэш" in r:
+        return "cache-цены"
+    return "прочее"
+
 CSS = """
 :root{--ink:#1d2433;--mut:#66707f;--line:#e4e7ec;--bg:#fafbfc;--acc:#315f9e;--good:#2f7d54;--bad:#b3543f;--warn:#a15c00}
 *{box-sizing:border-box}
@@ -445,10 +484,11 @@ def _quality_level(overall: float) -> str:
 
 
 def results_summary_block(profiles, refs, runs) -> str:
-    """Сводная таблица: плоский рейтинг строк текущего контракта (протокол v2,
-    контракт с not_done), отсортированный по итоговому |Δ| по судейским осям
-    A+B; «Место» — порядковый номер строки. Серии с другими условиями (v1,
-    прежний контракт) — ниже, вне расстановки мест."""
+    """Сводная таблица: плоский рейтинг строк (модель × мышление) текущего
+    контракта. Итог — среднее из трёх объективных компонентов: |Δ|A и |Δ|B
+    (отличие от судьи яруса 3) и доля непойманных реальных пропусков решения
+    (1 − recall по not_done против фактов чекера). «Место» — порядковый
+    номер строки в этом рейтинге."""
     latest = latest_profiles(profiles)
 
     def axis_overall(prof):
@@ -510,6 +550,25 @@ def results_summary_block(profiles, refs, runs) -> str:
             for vals in [s["vals"][a]])
         return f'<td class=num>{marks}</td>'
 
+    # recall: семьи реальных пропусков решений, перечисленные моделью
+    # в not_done зачётных сессий (по уровням thinking, контракт с not_done)
+    caught = defaultdict(set)
+    for rp in sorted((ROOT / "models").glob("*/backend/review-v3*/run-*/review.json")):
+        rj = rp.with_name("run.json")
+        if not rj.is_file():
+            continue
+        meta = json.loads(rj.read_text(encoding="utf-8"))
+        if not meta.get("parse_ok") or meta.get("protocol") != "v2" \
+                or meta.get("prompt_version") != 2:
+            continue
+        slug = meta.get("solution_slug")
+        v = json.loads(rp.read_text(encoding="utf-8"))
+        key = (meta.get("model"), meta.get("thinking"))
+        for nd in v.get("not_done", []):
+            fam = req_family(nd.get("req", "") or nd.get("desc", ""))
+            if fam in REAL_MISSES.get(slug, []):
+                caught[key].add(fam)
+
     # профили по сериям: рейтинг — текущий контракт (протокол v2, контракт с
     # not_done); серии v1 и прежний контракт — для сравнения
     v2_levels = defaultdict(dict)   # thinking -> {model: prof}
@@ -523,89 +582,58 @@ def results_summary_block(profiles, refs, runs) -> str:
                     "протокол v2 · прежний контракт (без перечня not_done)")
             comparison[note].append((model, thinking, prof))
 
-    def level_rank(thinking):
-        """Место и размер группы внутри одного уровня thinking."""
-        group = v2_levels.get(thinking, {})
-        ordered = sorted(group.items(), key=lambda kv: axis_overall(kv[1])[1])
-        return {m: (i + 1, len(group)) for i, (m, _p) in enumerate(ordered)}
+    def combined(model, thinking, prof):
+        """Итог ранжирования: среднее из |Δ|A, |Δ|B и доли непойманных
+        реальных пропусков (1 − recall). Все три компонента объективны:
+        первые два — судья яруса 3, третий — чекер."""
+        d = axis_overall(prof)[0]
+        miss = 1 - len(caught.get((model, thinking), set())) / REAL_MISSES_TOTAL
+        return statistics.mean([d["axis_a"], d["axis_b"], miss]), miss, d
 
-    def rankable(model):
-        prof = v2_levels.get("max", {}).get(model)
-        return bool(prof) and len(prof["per_slug"]) >= 3 and prof["n"] >= 3
+    ranked = []
+    for thinking, models in v2_levels.items():
+        for model, prof in models.items():
+            c, miss, d = combined(model, thinking, prof)
+            ranked.append({"model": model, "thinking": thinking, "prof": prof,
+                           "combined": c, "miss": miss, "d": d,
+                           "caught": len(caught.get((model, thinking), set())),
+                           "res": resources(model).get(("v2", thinking, 2))})
+    ranked.sort(key=lambda e: e["combined"])
 
-    def max_key(model):
-        prof = v2_levels.get("max", {}).get(model)
-        return axis_overall(prof)[1] if rankable(model) else 99
-
-    max_rank = level_rank("max")
-    low_rank = level_rank("low")
-    med_rank = level_rank("medium")
-
-    # порядок моделей рейтинга: по итогу уровня max, ранжируемые — в начало
-    order = (sorted(v2_levels.get("max", {}), key=max_key)
-             + sorted(m for m in latest if m not in v2_levels.get("max", {})))
+    def row_html(e, place):
+        prof, d = e["prof"], e["d"]
+        model, thinking = e["model"], e["thinking"]
+        note = ("протокол v2 · thinking max" if thinking == "max"
+                else f"протокол v2 · thinking {thinking}")
+        return (
+            f"<tr class={'top' if place == 1 else ''}>"
+            f"<td class=num>{place}</td>"
+            f"<td><b>{esc(SHORT.get(model, model))}</b>"
+            f"<div class=sub>{note} · {_runs_word(prof['n'])}</div></td>"
+            f"<td class=num>{thinking}</td>"
+            + "".join(stack_cell(prof, slug) for slug in SLUG_ORDER)
+            + "".join(f"<td class='num {delta_class(d[a])}'>{d[a]:.2f}</td>" for a in AXES)
+            + f"<td class=num>{e['caught']} из {REAL_MISSES_TOTAL}</td>"
+            + f"<td class=num><b>{e['combined']:.2f}</b></td>"
+            + res_cell(e["res"])
+            + f"<td>{_quality_level(e['combined'])}</td></tr>")
 
     rows = []
-    place = 0
-    for model in order:
-        main = v2_levels.get("max", {}).get(model)
-        ranked_ok = rankable(model)
-        if ranked_ok:
-            place += 1
-        # основная строка — уровень max текущего контракта
-        if main:
-            main_d, main_o = axis_overall(main)
-            place_txt = (f"{max_rank[model][0]} из {max_rank[model][1]}"
-                         if ranked_ok else "—")
-            rows.append(
-                f"<tr class={'top' if ranked_ok and place == 1 else ''}>"
-                f"<td class=num>{place_txt}</td>"
-                f"<td>{'<b>' + esc(SHORT.get(model, model)) + '</b>' if ranked_ok else esc(SHORT.get(model, model))}"
-                f"<div class=sub>протокол v2 · {_runs_word(main['n'])}</div></td>"
-                f"<td class=num>max</td>"
-                + "".join(stack_cell(main, slug) for slug in SLUG_ORDER)
-                + "".join(f"<td class='num {delta_class(main_d[a])}'>{main_d[a]:.2f}</td>"
-                          for a in AXES)
-                + f"<td class=num>{f'<b>{main_o:.2f}</b>' if ranked_ok else '—'}</td>"
-                + res_cell(resources(model).get(("v2", "max", 2)))
-                + (f"<td>{_quality_level(main_o)}</td>" if ranked_ok
-                   else "<td><span class=sub>вне рейтинга: данных недостаточно</span></td></tr>"))
-        else:
-            rows.append(
-                f"<tr class=neg><td class=num>—</td>"
-                f"<td>{esc(SHORT.get(model, model))}"
-                f"<div class=sub>нет зачётных прогонов на текущем контракте</div></td>"
-                f"<td class=num>—</td><td colspan=4>—</td><td class=num>—</td>"
-                "<td><span class=sub>вне рейтинга</span></td></tr>")
-        # сравнительные строки уровней low и medium (текущий контракт)
-        for thinking, rank in (("low", low_rank), ("medium", med_rank)):
-            prof = v2_levels.get(thinking, {}).get(model)
-            if not prof:
-                continue
-            r, total = rank[model]
-            d, o = axis_overall(prof)
-            rows.append(
-                f"<tr><td class=num>{r} из {total}</td>"
-                f"<td>{esc(SHORT.get(model, model))}"
-                f"<div class=sub>уровень для сравнения</div></td>"
-                f"<td class=num>{thinking}</td>"
-                + "".join(stack_cell(prof, slug) for slug in SLUG_ORDER)
-                + "".join(f"<td class='num {delta_class(d[a])}'>{d[a]:.2f}</td>" for a in AXES)
-                + f"<td class=num>{o:.2f}</td>"
-                + res_cell(resources(model).get(("v2", thinking, 2)))
-                + "<td><span class=sub>—</span></td></tr>")
-    # серии с другими условиями: v1 и прежний контракт — вне рейтинга
+    for i, e in enumerate(ranked, 1):
+        rows.append(row_html(e, i))
+    # сравнительные серии: v1 и прежний контракт — вне рейтинга
     for note, items in comparison.items():
         for model, thinking, prof in items:
             d, o = axis_overall(prof)
             rows.append(
-                f"<tr class=neg><td class=num>—</td>"
+                f"<tr class=neg><td class=num>↳</td>"
                 f"<td>{esc(SHORT.get(model, model))}"
                 f"<div class=sub>{note} · thinking {thinking} · "
                 f"{_runs_word(prof['n'])}</div></td>"
                 f"<td class=num>{thinking}</td>"
                 + "".join(stack_cell(prof, slug) for slug in SLUG_ORDER)
                 + "".join(f"<td class='num {delta_class(d[a])}'>{d[a]:.2f}</td>" for a in AXES)
+                + "<td class=num title=\"прежний контракт: перечень not_done не собирался\">—</td>"
                 + f"<td class=num>{o:.2f}</td>"
                 + res_cell(resources(model).get((
                     "v1" if "протокол v1" in note else "v2", thinking,
@@ -635,26 +663,28 @@ def results_summary_block(profiles, refs, runs) -> str:
             "<th class=narrow>Мышление</th>"
             + "".join(th_stack(s) for s in SLUG_ORDER)
             + ("<th class=narrow>|Δ|A</th><th class=narrow>|Δ|B</th><th class=narrow>|Δ|F</th>"
-               "<th class=narrow>Итог |Δ|A+B</th>"
+               "<th class=narrow>Поймано пропусков</th>"
+               "<th class=narrow>Итог</th>"
                "<th class=narrow>Мин (мед.)</th><th class=narrow>М ток. (мед.)</th>"
                "<th class=narrow>₽/ревью</th>"
                "<th>Уровень качества ревью</th></tr>"))
     return f"""
 <h3><span class=no>4.1.</span>Сводная таблица: качество ревью</h3>
-<p class=lead>Рейтинг строк текущего контракта (протокол v2, контракт с перечнем
-not_done) «модель × мышление», отсортированных по итоговому |Δ|A+B (лучшие
-сверху); «Место» — порядковый номер строки. В колонках решений — средние баллы
-по трём прогонам, стопкой A / B / F (эталоны — в шапке колонок). Как считаются
-дельты: |Δ|A и |Δ|B — отличие от судьи (ярус 3, GLM-5.3-Flash с данными
-чекера) по его вердиктам; |Δ|F — отличие от детерминированного инструмента
-этапа 2 (эталон F = floor(8 × обязательных пройдено / обязательных всего) / 2 —
-доля обязательных сценариев чекера на шкале 0–4); судья ось F не оценивал,
-поэтому ранжирование и итог идут только по судейским осям A и B. Уровень:
-до 0.6 — высокая точность, до 0.9 — средняя, выше — низкая. Уровни мышления,
-версии протокола и контракта не усредняются — серии с другими условиями идут
-отдельными строками вне рейтинга. Стоимость локального инференса —
-электричество и амортизация (₽35.85/ч, методика этапов 1–2). По-прогонные
-данные — в таблицах 4.2 и далее.</p>
+<p class=lead>Плоский рейтинг строк текущего контракта (протокол v2, контракт
+с перечнем not_done), отсортированных по итогу (лучшие сверху); «Место» —
+порядковый номер строки. В колонках решений — средние баллы по трём прогонам,
+стопкой A / B / F (эталоны — в шапке колонок). <b>Итог — среднее трёх
+объективных компонентов:</b> |Δ|A и |Δ|B — отличие от судьи (ярус 3,
+GLM-5.3-Flash с данными чекера) по его вердиктам; «Поймано пропусков» —
+сколько из реальных функциональных пропусков решения (по фактам чекера и
+расследованию раздела 6: на «каверзном» — оф-пик при первом импорте, на
+«плохом» — артефакты, оф-пик, пустые миграции, bcadd без масштаба) модель
+перечислила в not_done. Уровень: до 0.6 — высокая точность, до 0.9 — средняя,
+выше — низкая. Уровни мышления, версии протокола и контракта не усредняются —
+серии с другими условиями идут отдельными строками вне рейтинга (строки v1 и
+прежнего контракта не могли перечислять not_done). Стоимость локального
+инференса — электричество и амортизация (₽35.85/ч, методика этапов 1–2).
+По-прогонные данные — в таблицах 4.2 и далее.</p>
 <table>{head}{''.join(rows)}{''.join(fail_rows)}</table>"""
 
 
