@@ -197,12 +197,17 @@ def build_workspace(ws: Path, target: Path) -> None:
     )
 
 
-def final_reply_and_usage(sess_dir: Path) -> tuple[str | None, dict, int]:
-    """Последний текст ассистента, суммарные токены и число tool-calls.
+def final_reply_and_usage(sess_dir: Path) -> tuple[str | None, dict, int, dict | None, str]:
+    """Текст ассистента с вердиктом, суммарные токены, число tool-calls,
+    распарсенный вердикт и его источник ("final" | "history").
 
-    Число tool-calls — гейт валидности: вердикт без единого чтения —
-    вербальная выдумка, не ревью (так ведёт себя e2b на пилоте)."""
-    reply: str | None = None
+    Вердикт ищется с конца: сначала в последнем сообщении ассистента, затем
+    в предыдущих — на низких уровнях thinking модель иногда отдаёт JSON
+    в середине диалога, а последнее сообщение занимает припиской
+    «ответ доставлен выше» (случай qwen v2-low). Число tool-calls — гейт
+    валидности: вердикт без единого чтения — вербальная выдумка, не ревью
+    (так ведёт себя e2b на пилоте)."""
+    texts: list[str] = []
     usage = {"input": 0, "output": 0, "totalTokens": 0}
     tool_calls = 0
     for f in sorted(sess_dir.glob("*.jsonl")) if sess_dir.is_dir() else []:
@@ -227,13 +232,22 @@ def final_reply_and_usage(sess_dir: Path) -> tuple[str | None, dict, int]:
             elif isinstance(content, str):
                 text = content
             if text.strip():
-                reply = text
+                texts.append(text)
             u = m.get("usage")
             if isinstance(u, dict):
                 usage["input"] += int(u.get("input") or 0)
                 usage["output"] += int(u.get("output") or 0)
                 usage["totalTokens"] += int(u.get("totalTokens") or 0)
-    return reply, usage, tool_calls
+    if not texts:
+        return None, usage, tool_calls, None, "final"
+    verdict = extract_verdict(texts[-1])
+    if verdict is not None:
+        return texts[-1], usage, tool_calls, verdict, "final"
+    for text in reversed(texts[:-1]):
+        verdict = extract_verdict(text)
+        if verdict is not None:
+            return text, usage, tool_calls, verdict, "history"
+    return texts[-1], usage, tool_calls, None, "final"
 
 
 def _repair_escapes(s: str) -> str:
@@ -462,10 +476,13 @@ def main() -> int:
         if changed:
             print(f"ЦЕЛОСТНОСТЬ НАРУШЕНА: {len(changed)} файл(ов) изменены — прогон compromised")
 
-        reply, usage, tool_calls = final_reply_and_usage(results / "pi-session")
+        reply, usage, tool_calls, verdict, verdict_source = final_reply_and_usage(
+            results / "pi-session")
         meta["tokens"] = usage
         meta["tool_calls"] = tool_calls
-        verdict = extract_verdict(reply) if reply and not args.smoke else None
+        if not args.smoke:
+            meta["verdict_source"] = verdict_source
+        verdict = verdict if reply and not args.smoke else None
         meta["parse_ok"] = verdict is not None
         if tool_calls == 0 and not args.smoke:
             meta["invalid_reason"] = "ни одного tool-call: вердикт без чтения кода"

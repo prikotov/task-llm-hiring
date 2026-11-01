@@ -228,7 +228,9 @@ def latest_profiles(profiles: dict) -> dict:
     out = {}
     for model, entries in latest.items():
         top = max(protocol for protocol, _th, _pr in entries)
-        out[model] = sorted((pr, th, p) for pr, th, p in entries if pr == top)
+        out[model] = sorted(
+            ((pr, th, p) for pr, th, p in entries if pr == top),
+            key=lambda e: (e[1] != "max", e[1]))  # thinking max — первым
     return out
 
 
@@ -512,11 +514,13 @@ def results_summary_block(profiles, refs, runs) -> str:
                else "<td><span class=sub>вне зачёта: данных для ранжирования недостаточно</span></td>"))
         # сравнительные строки: другие версии протокола и уровни thinking
         for (protocol, thinking, prof) in entries[1:]:
+            note = ("с diff.patch — для сравнения" if protocol != main_protocol
+                    else "другой уровень thinking — для сравнения")
             d, o = axis_overall(prof)
             rows.append(
                 f"<tr class=neg><td class=num>↳</td>"
                 f"<td>{esc(SHORT.get(model, model))}"
-                f"<div class=sub>протокол {protocol} (с diff.patch — для сравнения) · "
+                f"<div class=sub>протокол {protocol} ({note}) · "
                 f"thinking {thinking} · {_runs_word(prof['n'])}</div></td>"
                 + "".join(stack_cell(prof, slug) for slug in SLUG_ORDER)
                 + "".join(f"<td class='num {delta_class(d[a])}'>{d[a]:.2f}</td>" for a in AXES)
@@ -554,9 +558,10 @@ def results_summary_block(profiles, refs, runs) -> str:
 <p class=lead>Одна строка на модель. В колонках решений — средние баллы по трём
 прогонам, стопкой A / B / F (эталоны — в шапке колонок). Итог |Δ| — средняя разница
 с эталоном по всем осям и решениям; чем меньше, тем точнее ревью. Уровень: до 0.6 —
-высокая точность, до 0.9 — средняя, выше — низкая. Все прогоны серии выполнены на
-thinking max; версии протокола и уровни размышлений не усредняются — сравнительные
-строки (v1, другой уровень) идут отдельными строками с пометкой «для сравнения».
+высокая точность, до 0.9 — средняя, выше — низкая. Основная серия выполнена на
+thinking max; уровни low и medium (у моделей семейства qwen) и протокол v1
+прогнаны для сравнения и идут отдельными строками — версии протокола и уровни
+размышлений не усредняются.
 Время, токены и ₽/ревью — медианы по прогонам строго своей строки; стоимость
 локального инференса — электричество и амортизация (₽35.85/ч, методика этапов 1–2).
 По-прогонные данные — в таблицах 4.2 и далее.</p>
@@ -570,8 +575,11 @@ def section_results(profiles, refs, runs) -> str:
             "<th class=narrow>|Δ|A</th><th class=narrow>|Δ|B</th><th class=narrow>|Δ|F</th><th>Разброс A/B/F</th></tr>")
     n_shown = 0
     for model in MODEL_ORDER:
-        for protocol in ("v1", "v2"):
-            prof = profiles.get((model, protocol))
+        proto_keys = sorted(
+            {(pr, th) for (m, pr, th) in profiles if m == model},
+            key=lambda k: ({"v1": 1, "v2": 2}.get(k[0], 9), k[1] != "max", k[1]))
+        for protocol, thinking in proto_keys:
+            prof = profiles.get((model, protocol, thinking))
             if not prof:
                 continue
             n_shown += 1
@@ -594,7 +602,7 @@ def section_results(profiles, refs, runs) -> str:
             params = PARAMS.get(model, ("?", "?"))
             blocks.append(f"""
 <h3><span class=no>4.{n_shown + 1}.</span>{esc(SHORT.get(model, model))} — протокол {protocol}
-<span class=sub>{params[0]} · {params[1]} · thinking {prof["thinking"]} · контекст 102400 · {_runs_word(prof['n'])}</span></h3>
+<span class=sub>{params[0]} · {params[1]} · thinking {thinking} · контекст 102400 · {_runs_word(prof['n'])}</span></h3>
 <table>{head}{''.join(rows)}</table>""")
     summary = results_summary_block(profiles, refs, runs)
     return f"""
