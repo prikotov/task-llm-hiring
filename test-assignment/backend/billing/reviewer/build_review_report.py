@@ -517,8 +517,10 @@ def results_summary_block(profiles, refs, runs) -> str:
             note = ("с diff.patch — для сравнения" if protocol != main_protocol
                     else "другой уровень thinking — для сравнения")
             d, o = axis_overall(prof)
+            # v2-сравнительные строки наследуют место модели; ↳ — только v1
+            row_place = place if ranked_ok and protocol == main_protocol else "↳"
             rows.append(
-                f"<tr class=neg><td class=num>↳</td>"
+                f"<tr class=neg><td class=num>{row_place}</td>"
                 f"<td>{esc(SHORT.get(model, model))}"
                 f"<div class=sub>протокол {protocol} ({note}) · "
                 f"{_runs_word(prof['n'])}</div></td>"
