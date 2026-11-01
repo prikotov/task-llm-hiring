@@ -67,6 +67,11 @@ DEFAULT_TIMEOUT = 3600
 PROTOCOL = "v2"
 PROTOCOL_MATERIALS = ["TASK.md", "AGENTS.md", "solution/", "metrics.json", "MANIFEST.txt"]
 
+# Версия контракта вердикта. 1 — исходный (оси + defects + note);
+# 2 — добавлен перечень not_done (что не сделано), F объявлена производной
+# от этого перечня.
+PROMPT_VERSION = 2
+
 # System-prompt ревьюера: слепой протокол + дескрипторы рубрики яруса 3,
 # переписанные под слепоту (без ссылок на чекер), + JSON-контракт ответа.
 SYSTEM = """Ты — изолированный код-ревьюер тестового задания «биллинг LLM-токенов» (PHP 8 / Symfony / Doctrine / PostgreSQL). В рабочем каталоге материалы одного решения:
@@ -408,6 +413,7 @@ def main() -> int:
         "timeout_s": args.timeout,
         "stage": "review",
         "protocol": PROTOCOL,
+        "prompt_version": PROMPT_VERSION,
         "materials": PROTOCOL_MATERIALS,
         "smoke": args.smoke,
         "started_at": datetime.now(timezone.utc).isoformat(),
@@ -492,6 +498,21 @@ def main() -> int:
         if not args.smoke:
             meta["verdict_source"] = verdict_source
         verdict = verdict if reply and not args.smoke else None
+        # валидация контракта: вердикт обязан содержать перечень невыполненного
+        # и дефекты (F=4 ⇔ not_done пуст — смысловая пара «балл/основание»)
+        if verdict is not None and not args.smoke:
+            missing = [k for k in ("defects", "not_done")
+                       if not isinstance(verdict.get(k), list)]
+            if missing:
+                meta["invalid_reason"] = (
+                    f"вердикт не по контракту: нет {', '.join(missing)}")
+                verdict = None
+            elif (isinstance(verdict.get("functional"), (int, float))
+                  and verdict["functional"] < 4
+                  and not verdict.get("not_done")):
+                meta["invalid_reason"] = (
+                    "F<4 при пустом not_done: балл без перечня невыполненного")
+                verdict = None
         meta["parse_ok"] = verdict is not None
         if tool_calls == 0 and not args.smoke:
             meta["invalid_reason"] = "ни одного tool-call: вердикт без чтения кода"
