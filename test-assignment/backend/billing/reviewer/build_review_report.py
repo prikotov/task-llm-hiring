@@ -141,6 +141,7 @@ def load_runs() -> list[dict]:
             "path": str(rp.relative_to(MODELS)),
             "model": meta.get("model", "?"),
             "protocol": meta.get("protocol", "v1"),
+            "thinking": meta.get("thinking", "?"),
             "folder": meta["target"].split("/models/")[1].split("/backend")[0]
             if "target" in meta else "?",
             "slug": meta.get("solution_slug", "?"),
@@ -178,17 +179,19 @@ def fail_kind(run: dict) -> str:
 
 
 def aggregate(runs: list[dict], refs: dict) -> dict:
-    """(модель, протокол, решение) -> прогоны; профили по паре (модель, протокол)."""
+    """(модель, протокол, thinking, решение) -> прогоны; профили по тройке
+    (модель, протокол, thinking): усреднять уровни размышлений нельзя."""
     grid = defaultdict(list)
     for r in runs:
         if r["valid"]:
-            grid[(r["model"], r["protocol"], r["slug"])].append(r)
+            grid[(r["model"], r["protocol"], r["thinking"], r["slug"])].append(r)
     profiles = {}
     for model in MODEL_ORDER:
-        for protocol in sorted({p for (m, p, _s) in grid if m == model}):
+        for protocol, thinking in sorted(
+                {(p, th) for (m, p, th, _s) in grid if m == model}):
             per_slug, spreads, deltas, defects = {}, [], [], defaultdict(int)
             for slug in SLUG_ORDER:
-                rs = grid.get((model, protocol, slug), [])
+                rs = grid.get((model, protocol, thinking, slug), [])
                 if not rs:
                     continue
                 e = refs[slug]["expected"]
@@ -204,8 +207,9 @@ def aggregate(runs: list[dict], refs: dict) -> dict:
                     for d in r["defects"]:
                         defects[(d.get("severity") or "?").lower()] += 1
             if per_slug:
-                profiles[(model, protocol)] = {
+                profiles[(model, protocol, thinking)] = {
                     "per_slug": per_slug,
+                    "thinking": thinking,
                     "spread_mean": statistics.mean(spreads) if spreads else 0,
                     "delta_mean": statistics.mean(deltas) if deltas else 0,
                     "n": sum(p["n"] for p in per_slug.values()),
@@ -215,12 +219,17 @@ def aggregate(runs: list[dict], refs: dict) -> dict:
 
 
 def latest_profiles(profiles: dict) -> dict:
-    """Профиль каждой модели по её самой свежей версии протокола."""
+    """Профили каждой модели на её самой свежей версии протокола; если на
+    ней встречается несколько уровней thinking — отдельный элемент списка
+    на каждый уровень (усреднять уровни нельзя)."""
     latest = {}
-    for (model, protocol), prof in profiles.items():
-        if model not in latest or protocol > latest[model][0]:
-            latest[model] = (protocol, prof)
-    return {m: (p, pr) for m, (p, pr) in latest.items()}
+    for (model, protocol, thinking), prof in profiles.items():
+        latest.setdefault(model, []).append((protocol, thinking, prof))
+    out = {}
+    for model, entries in latest.items():
+        top = max(protocol for protocol, _th, _pr in entries)
+        out[model] = sorted((pr, th, p) for pr, th, p in entries if pr == top)
+    return out
 
 
 def num(v) -> str:
@@ -289,7 +298,8 @@ def section_tldr(runs, profiles, refs, grid) -> str:
     n_all = len(runs)
     latest = latest_profiles(profiles)
     blind = []
-    for model, (_protocol, prof) in latest.items():
+    for model, entries in latest.items():
+        _protocol, _th, prof = entries[0]
         t = prof["per_slug"].get("tricky")
         if t:
             blind.append((model, t["vals"]["axis_a"]))
@@ -410,14 +420,9 @@ def _quality_level(overall: float) -> str:
 
 
 def results_summary_block(profiles, refs, runs) -> str:
-    """Сводная таблица: одна строка на модель, сортировка по итоговому |Δ|."""
+    """Сводная таблица: строка на (модель, версия протокола, thinking),
+    ранжирование по основной (максимальной) версии протокола."""
     latest = latest_profiles(profiles)
-    ranked, excluded = [], []
-    for model, (protocol, prof) in latest.items():
-        if len(prof["per_slug"]) >= 3 and prof["n"] >= 3:
-            ranked.append((model, protocol, prof))
-        else:
-            excluded.append((model, protocol, prof))
 
     def axis_overall(prof):
         """Средний |Δ| по каждой оси (усреднение по решениям) и общий."""
@@ -425,21 +430,21 @@ def results_summary_block(profiles, refs, runs) -> str:
                       for a in AXES}
         return axis_delta, statistics.mean(axis_delta.values())
 
-    ranked.sort(key=lambda x: axis_overall(x[2])[1])
-
     def resources(model):
         """Медианы времени (мин), токенов (М) и стоимости (₽) — отдельно по
-        каждой версии протокола: вход ревьюера в v1 и v2 разный, версии
-        усреднять нельзя."""
+        каждой паре (версия протокола, thinking): вход ревьюера в версиях
+        разный, усреднять версии и уровни размышлений нельзя."""
         out = {}
         for protocol in ("v1", "v2"):
-            rs = [r for r in runs if r["model"] == model and r["protocol"] == protocol
-                  and r["duration_s"] and r["tokens"]]
-            if not rs:
-                continue
-            med_d = statistics.median(r["duration_s"] for r in rs)
-            med_t = statistics.median(r["tokens"] for r in rs)
-            out[protocol] = (med_d / 60, med_t / 1e6, med_d / 3600 * LOCAL_RUB_H)
+            for thinking in sorted({r["thinking"] for r in runs if r["model"] == model}):
+                rs = [r for r in runs if r["model"] == model and r["protocol"] == protocol
+                      and r["thinking"] == thinking
+                      and r["duration_s"] and r["tokens"]]
+                if not rs:
+                    continue
+                med_d = statistics.median(r["duration_s"] for r in rs)
+                med_t = statistics.median(r["tokens"] for r in rs)
+                out[(protocol, thinking)] = (med_d / 60, med_t / 1e6, med_d / 3600 * LOCAL_RUB_H)
         return out
 
     def res_cell(res):
@@ -449,63 +454,77 @@ def results_summary_block(profiles, refs, runs) -> str:
                 f"<td class=num>{res[1]:.2f}</td>"
                 f"<td class='num p-warn'>₽{res[2]:.1f}</td>")
 
-    def res_cells_stacked(res_by_protocol):
-        """Ресурсы обеих версий в одной ячейке: строка на версию."""
-        if not res_by_protocol:
+    def res_cells_stacked(res_by_key):
+        """Ресурсы по версиям/уровням в одной ячейке: строка на ключ."""
+        if not res_by_key:
             return '<td colspan=3 class=num>—</td>'
         cells = []
         for i, fmt in ((0, "{:.1f}"), (1, "{:.2f}"), (2, "₽{:.1f}")):
             lines = "".join(
-                f'<div class=sub>{pr}: {fmt.format(res[i])}</div>'
-                for pr, res in sorted(res_by_protocol.items()))
+                f'<div class=sub>{pr}/{th}: {fmt.format(res[i])}</div>'
+                for (pr, th), res in sorted(res_by_key.items()))
             cells.append(f"<td class=num>{lines}</td>")
         return "".join(cells)
 
+    # основной профиль модели = запись максимальной версии протокола;
+    # ранжирование — по нему
+    def rankable(model):
+        pr, th, prof = latest[model][0]
+        return len(prof["per_slug"]) >= 3 and prof["n"] >= 3
+
+    order = sorted(
+        latest,
+        key=lambda m: axis_overall(latest[m][0][2])[1] if rankable(m) else 99)
+
+    def stack_cell(prof, slug):
+        """Средние A/B/F по решениям — стопкой в одной ячейке."""
+        s = prof["per_slug"].get(slug)
+        if not s:
+            return '<td class=num>—</td>'
+        marks = "".join(
+            f'<div class="stack{" b" if a == "axis_a" else ""}">'
+            f'{AXIS_NAMES_SHORT[a]} {f"{statistics.mean(vals):.2f}".rstrip("0").rstrip(".")}</div>'
+            for a in AXES
+            for vals in [s["vals"][a]])
+        return f'<td class=num>{marks}</td>'
+
     rows = []
     place = 0
-    for model, main_protocol, main_prof in ranked:
-        place += 1
-        for protocol in ("v2", "v1"):
-            prof = profiles.get((model, protocol))
-            if not prof:
-                continue
-            axis_delta, overall = axis_overall(prof)
-            dcls = [delta_class(axis_delta[a]) for a in AXES]
-            is_main = protocol == main_protocol
-            proto_note = ("основной" if is_main else "с diff.patch — для сравнения")
-
-            def stack_cell(slug):
-                """Средние A/B/F по решениям — стопкой в одной ячейке."""
-                s = prof["per_slug"].get(slug)
-                if not s:
-                    return '<td class=num>—</td>'
-                marks = "".join(
-                    f'<div class="stack{" b" if a == "axis_a" else ""}">'
-                    f'{AXIS_NAMES_SHORT[a]} {f"{statistics.mean(vals):.2f}".rstrip("0").rstrip(".")}</div>'
-                    for a in AXES
-                    for vals in [s["vals"][a]])
-                return f'<td class=num>{marks}</td>'
-
+    for model in order:
+        entries = latest[model]
+        main_protocol, main_th, main = entries[0]
+        ranked_ok = len(main["per_slug"]) >= 3 and main["n"] >= 3
+        if ranked_ok:
+            place += 1
+        main_d, main_o = axis_overall(main)
+        rows.append(
+            f"<tr class={'top' if ranked_ok and place == 1 else ''}>"
+            f"<td class=num>{place if ranked_ok else '—'}</td>"
+            f"<td>{'<b>' + esc(SHORT.get(model, model)) + '</b>' if ranked_ok else esc(SHORT.get(model, model))}"
+            f"<div class=sub>протокол {main_protocol} · thinking {main_th} · "
+            f"{_runs_word(main['n'])}</div></td>"
+            + "".join(stack_cell(main, slug) for slug in SLUG_ORDER)
+            + "".join(f"<td class='num {delta_class(main_d[a])}'>{main_d[a]:.2f}</td>"
+                      for a in AXES)
+            + f"<td class=num>{f'<b>{main_o:.2f}</b>' if ranked_ok else '—'}</td>"
+            + res_cell(resources(model).get((main_protocol, main_th)))
+            + (f"<td>{_quality_level(main_o)}</td>" if ranked_ok
+               else "<td><span class=sub>вне зачёта: данных для ранжирования недостаточно</span></td>"))
+        # сравнительные строки: другие версии протокола и уровни thinking
+        for (protocol, thinking, prof) in entries[1:]:
+            d, o = axis_overall(prof)
             rows.append(
-                f"<tr class={'top' if place == 1 and is_main else ''}>"
-                f"<td class=num>{place if is_main else '↳'}</td>"
-                f"<td>{'<b>' + esc(SHORT.get(model, model)) + '</b>' if is_main else esc(SHORT.get(model, model))}"
-                f"<div class=sub>протокол {protocol} ({proto_note}) · {_runs_word(prof['n'])}</div></td>"
-                + "".join(stack_cell(slug) for slug in SLUG_ORDER)
-                + "".join(f"<td class='num {dcls[i]}'>{axis_delta[a]:.2f}</td>"
-                          for i, a in enumerate(AXES))
-                + f"<td class=num>{f'<b>{overall:.2f}</b>' if is_main else f'{overall:.2f}'}</td>"
-                + res_cell(resources(model).get(protocol))
-                + f"<td>{_quality_level(overall) if is_main else '<span class=sub>—</span>'}</td></tr>")
+                f"<tr class=neg><td class=num>↳</td>"
+                f"<td>{esc(SHORT.get(model, model))}"
+                f"<div class=sub>протокол {protocol} (с diff.patch — для сравнения) · "
+                f"thinking {thinking} · {_runs_word(prof['n'])}</div></td>"
+                + "".join(stack_cell(prof, slug) for slug in SLUG_ORDER)
+                + "".join(f"<td class='num {delta_class(d[a])}'>{d[a]:.2f}</td>" for a in AXES)
+                + f"<td class=num>{o:.2f}</td>"
+                + res_cell(resources(model).get((protocol, thinking)))
+                + "<td><span class=sub>—</span></td></tr>")
 
     fail_rows = []
-    for model, protocol, prof in excluded:
-        fail_rows.append(
-            f"<tr class=neg><td class=num>—</td>"
-            f"<td><b>{esc(SHORT.get(model, model))}</b>"
-            f"<div class=sub>{_runs_word(prof['n'])}</div></td>"
-            + "<td colspan=4>—</td>" + res_cells_stacked(resources(model))
-            + "<td colspan=2><span class=sub>вне зачёта: данных для ранжирования недостаточно</span></td></tr>")
     orca_model = "orcarouter/Qwen3.8-27B-Uncensored:ctx100k"
     orca_res = resources(orca_model)
     orca_n = sum(1 for r in runs if r["model"] == orca_model)
@@ -515,7 +534,7 @@ def results_summary_block(profiles, refs, runs) -> str:
         if any(r["model"] == orca_model and r["protocol"] == pr for r in runs))
     fail_rows.append(
         f"<tr class=neg><td class=num>—</td>"
-        f"<td><b>orca</b><div class=sub>{orca_n} прогона: {orca_parts}</div></td>"
+        f"<td><b>orca</b><div class=sub>{orca_n} прогонов: {orca_parts}</div></td>"
         + "<td colspan=4>—</td>" + res_cells_stacked(orca_res)
         + "<td colspan=2><span class=sub>вне зачёта: вердикт в заданном формате не выдан ни разу</span></td></tr>")
 
@@ -534,14 +553,13 @@ def results_summary_block(profiles, refs, runs) -> str:
 <h3><span class=no>4.1.</span>Сводная таблица: качество ревью</h3>
 <p class=lead>Одна строка на модель. В колонках решений — средние баллы по трём
 прогонам, стопкой A / B / F (эталоны — в шапке колонок). Итог |Δ| — средняя разница
-с эталоном по всем осям и решениям; чем меньше, тем точнее ревью. Уровень: до 0.6 — высокая точность, до 0.9 —
-средняя, выше — низкая. У каждой модели две строки: основная — по протоколу v2
-(без диффа, по ней место в рейтинге) и строка v1 (с diff.patch в материалах) —
-для сравнения. Время, токены и ₽/ревью — медианы по прогонам строго своей версии:
-вход ревьюера в v1 и v2 разный, поэтому версии не усредняются (у orca обе версии
-показаны по отдельности). Стоимость локального инференса — электричество и
-амортизация (₽35.85/ч, методика этапов 1–2). По-прогонные данные — в таблицах
-4.2 и далее.</p>
+с эталоном по всем осям и решениям; чем меньше, тем точнее ревью. Уровень: до 0.6 —
+высокая точность, до 0.9 — средняя, выше — низкая. Все прогоны серии выполнены на
+thinking max; версии протокола и уровни размышлений не усредняются — сравнительные
+строки (v1, другой уровень) идут отдельными строками с пометкой «для сравнения».
+Время, токены и ₽/ревью — медианы по прогонам строго своей строки; стоимость
+локального инференса — электричество и амортизация (₽35.85/ч, методика этапов 1–2).
+По-прогонные данные — в таблицах 4.2 и далее.</p>
 <table>{head}{''.join(rows)}{''.join(fail_rows)}</table>"""
 
 
@@ -576,7 +594,7 @@ def section_results(profiles, refs, runs) -> str:
             params = PARAMS.get(model, ("?", "?"))
             blocks.append(f"""
 <h3><span class=no>4.{n_shown + 1}.</span>{esc(SHORT.get(model, model))} — протокол {protocol}
-<span class=sub>{params[0]} · {params[1]} · thinking max · контекст 102400 · {_runs_word(prof['n'])}</span></h3>
+<span class=sub>{params[0]} · {params[1]} · thinking {prof["thinking"]} · контекст 102400 · {_runs_word(prof['n'])}</span></h3>
 <table>{head}{''.join(rows)}</table>""")
     summary = results_summary_block(profiles, refs, runs)
     return f"""
@@ -610,10 +628,11 @@ def _hbars_svg(rows: list[tuple[str, float]], vmax: float, title: str) -> str:
 
 def section_stability(profiles) -> str:
     multi = defaultdict(int)
-    for (m, _p) in profiles:
-        multi[m] += 1
-    rows = sorted(((SHORT.get(m, m) + (f" · {pr}" if multi[m] > 1 else ""), p["spread_mean"])
-                   for (m, pr), p in profiles.items()), key=lambda x: x[1])
+    for key in profiles:
+        multi[key[0]] += 1
+    rows = sorted(((SHORT.get(m, m) + (f" · {pr}" if multi[m] > 1 else ""),
+                    p["spread_mean"])
+                   for (m, pr, _th), p in profiles.items()), key=lambda x: x[1])
     chart = _hbars_svg(rows, 0.5, "Средний разброс вердикта между прогонами (оси A/B/F вместе), баллов")
     cards = f"""
 <div class="card g"><b>Трёх прогонов достаточно</b>В среднем по моделям и решениям разброс
@@ -749,6 +768,7 @@ def section_runs(runs, grid) -> str:
         rows.append(
             f"<tr{' class=neg' if not r['valid'] else ''}><td class=num>{esc(short)}</td>"
             f"<td class=num>{esc(r['dir'])}</td><td class=num>{esc(r['protocol'])}</td>"
+            f"<td class=num>{esc(r['thinking'])}</td>"
             f"<td>{SLUG_TITLES.get(r['slug'], r['slug'])}</td>"
             f"<td>{marks} <span class=num>{scores}</span></td>"
             f"<td class=num>{r['tool_calls']}</td><td class=num>{dur}</td><td class=num>{tok}</td></tr>")
@@ -794,7 +814,7 @@ review.json (вердикт + дефекты), review.md (сырой ответ)
 занимают, потому что файлы не читались.</p>
 <div class=alist><details><summary>Показать все прогоны ({len(runs)})</summary>
 <table>
-<tr><th>Модель</th><th class=narrow>Прогон</th><th class=narrow>Протокол</th><th>Решение</th><th>Вердикт</th><th class=narrow>Чтений</th><th class=narrow>Время</th><th class=narrow>Токены</th></tr>
+<tr><th>Модель</th><th class=narrow>Прогон</th><th class=narrow>Протокол</th><th class=narrow>Thinking</th><th>Решение</th><th>Вердикт</th><th class=narrow>Чтений</th><th class=narrow>Время</th><th class=narrow>Токены</th></tr>
 {''.join(rows)}
 </table></details></div>"""
 
