@@ -459,25 +459,33 @@ def results_summary_block(profiles, runs) -> str:
         return "".join(cells)
 
     rows = []
-    for place, (model, protocol, prof) in enumerate(ranked, 1):
-        per = prof["per_slug"]
-        a_means = []
-        for slug in SLUG_ORDER:
-            s = per.get(slug)
-            a_means.append(statistics.mean(s["vals"]["axis_a"]) if s else None)
-        axis_delta, overall = axis_overall(prof)
-        dcls = [delta_class(axis_delta[a]) for a in AXES]
-        rows.append(
-            f"<tr class={'top' if place == 1 else ''}>"
-            f"<td class=num>{place}</td>"
-            f"<td><b>{esc(SHORT.get(model, model))}</b>"
-            f"<div class=sub>протокол {protocol} · {_runs_word(prof['n'])}</div></td>"
-            + "".join(f"<td class=num>{'—' if v is None else f'{v:.1f}'}</td>" for v in a_means)
-            + "".join(f"<td class='num {dcls[i]}'>{axis_delta[a]:.2f}</td>"
-                      for i, a in enumerate(AXES))
-            + f"<td class=num><b>{overall:.2f}</b></td>"
-            + res_cell(resources(model).get(protocol))
-            + f"<td>{_quality_level(overall)}</td></tr>")
+    place = 0
+    for model, main_protocol, main_prof in ranked:
+        place += 1
+        for protocol in ("v2", "v1"):
+            prof = profiles.get((model, protocol))
+            if not prof:
+                continue
+            per = prof["per_slug"]
+            a_means = []
+            for slug in SLUG_ORDER:
+                s = per.get(slug)
+                a_means.append(statistics.mean(s["vals"]["axis_a"]) if s else None)
+            axis_delta, overall = axis_overall(prof)
+            dcls = [delta_class(axis_delta[a]) for a in AXES]
+            is_main = protocol == main_protocol
+            proto_note = ("основной" if is_main else "с diff.patch — для сравнения")
+            rows.append(
+                f"<tr class={'top' if place == 1 and is_main else ''}>"
+                f"<td class=num>{place if is_main else '↳'}</td>"
+                f"<td>{'<b>' + esc(SHORT.get(model, model)) + '</b>' if is_main else esc(SHORT.get(model, model))}"
+                f"<div class=sub>протокол {protocol} ({proto_note}) · {_runs_word(prof['n'])}</div></td>"
+                + "".join(f"<td class=num>{'—' if v is None else f'{v:.1f}'}</td>" for v in a_means)
+                + "".join(f"<td class='num {dcls[i]}'>{axis_delta[a]:.2f}</td>"
+                          for i, a in enumerate(AXES))
+                + f"<td class=num>{f'<b>{overall:.2f}</b>' if is_main else f'{overall:.2f}'}</td>"
+                + res_cell(resources(model).get(protocol))
+                + f"<td>{_quality_level(overall) if is_main else '<span class=sub>—</span>'}</td></tr>")
 
     fail_rows = []
     for model, protocol, prof in excluded:
@@ -513,11 +521,13 @@ def results_summary_block(profiles, runs) -> str:
 <p class=lead>Одна строка на модель. Баллы A — среднее по трём прогонам на каждом решении
 (эталоны: 3.5 / 2.5 / 2.5 / 1.5). Итог |Δ| — средняя разница с эталоном по всем осям и
 решениям; чем меньше, тем точнее ревью. Уровень: до 0.6 — высокая точность, до 0.9 —
-средняя, выше — низкая. Время, токены и ₽/ревью — медианы по прогонам строго своей
-версии протокола: вход ревьюера в v1 и v2 разный, поэтому версии не усредняются
-(у orca версии показаны по отдельности). Стоимость локального инференса —
-электричество и амортизация (₽35.85/ч, методика этапов 1–2). Таблица построена по
-протоколу v2 (без диффа); полные данные по версиям — в таблицах 4.2 и далее.</p>
+средняя, выше — низкая. У каждой модели две строки: основная — по протоколу v2
+(без диффа, по ней место в рейтинге) и строка v1 (с diff.patch в материалах) —
+для сравнения. Время, токены и ₽/ревью — медианы по прогонам строго своей версии:
+вход ревьюера в v1 и v2 разный, поэтому версии не усредняются (у orca обе версии
+показаны по отдельности). Стоимость локального инференса — электричество и
+амортизация (₽35.85/ч, методика этапов 1–2). По-прогонные данные — в таблицах
+4.2 и далее.</p>
 <table>{head}{''.join(rows)}{''.join(fail_rows)}</table>"""
 
 
