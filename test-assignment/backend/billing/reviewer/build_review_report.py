@@ -424,22 +424,39 @@ def results_summary_block(profiles, runs) -> str:
 
     ranked.sort(key=lambda x: axis_overall(x[2])[1])
 
-    def resources(model, protocol):
-        """Медианы времени (мин), токенов (М) и стоимости (₽) по прогонам."""
-        rs = [r for r in runs if r["model"] == model and r["protocol"] == protocol
-              and r["duration_s"] and r["tokens"]]
-        if not rs:
-            return None
-        med_d = statistics.median(r["duration_s"] for r in rs)
-        med_t = statistics.median(r["tokens"] for r in rs)
-        return (med_d / 60, med_t / 1e6, med_d / 3600 * LOCAL_RUB_H)
+    def resources(model):
+        """Медианы времени (мин), токенов (М) и стоимости (₽) — отдельно по
+        каждой версии протокола: вход ревьюера в v1 и v2 разный, версии
+        усреднять нельзя."""
+        out = {}
+        for protocol in ("v1", "v2"):
+            rs = [r for r in runs if r["model"] == model and r["protocol"] == protocol
+                  and r["duration_s"] and r["tokens"]]
+            if not rs:
+                continue
+            med_d = statistics.median(r["duration_s"] for r in rs)
+            med_t = statistics.median(r["tokens"] for r in rs)
+            out[protocol] = (med_d / 60, med_t / 1e6, med_d / 3600 * LOCAL_RUB_H)
+        return out
 
-    def res_cells(res):
+    def res_cell(res):
         if not res:
-            return "<td colspan=3 class=num>—</td>"
+            return "<td class=num>—</td>"
         return (f"<td class=num>{res[0]:.1f}</td>"
                 f"<td class=num>{res[1]:.2f}</td>"
                 f"<td class='num p-warn'>₽{res[2]:.1f}</td>")
+
+    def res_cells_stacked(res_by_protocol):
+        """Ресурсы обеих версий в одной ячейке: строка на версию."""
+        if not res_by_protocol:
+            return '<td colspan=3 class=num>—</td>'
+        cells = []
+        for i, fmt in ((0, "{:.1f}"), (1, "{:.2f}"), (2, "₽{:.1f}")):
+            lines = "".join(
+                f'<div class=sub>{pr}: {fmt.format(res[i])}</div>'
+                for pr, res in sorted(res_by_protocol.items()))
+            cells.append(f"<td class=num>{lines}</td>")
+        return "".join(cells)
 
     rows = []
     for place, (model, protocol, prof) in enumerate(ranked, 1):
@@ -459,25 +476,28 @@ def results_summary_block(profiles, runs) -> str:
             + "".join(f"<td class='num {dcls[i]}'>{axis_delta[a]:.2f}</td>"
                       for i, a in enumerate(AXES))
             + f"<td class=num><b>{overall:.2f}</b></td>"
-            + res_cells(resources(model, protocol))
+            + res_cell(resources(model).get(protocol))
             + f"<td>{_quality_level(overall)}</td></tr>")
 
     fail_rows = []
     for model, protocol, prof in excluded:
-        res = resources(model, protocol)
         fail_rows.append(
             f"<tr class=neg><td class=num>—</td>"
             f"<td><b>{esc(SHORT.get(model, model))}</b>"
             f"<div class=sub>{_runs_word(prof['n'])}</div></td>"
-            + "<td colspan=4>—</td>" + res_cells(res)
+            + "<td colspan=4>—</td>" + res_cells_stacked(resources(model))
             + "<td colspan=2><span class=sub>вне зачёта: данных для ранжирования недостаточно</span></td></tr>")
-    orca_runs = [r for r in runs if r["model"] == "orcarouter/Qwen3.8-27B-Uncensored:ctx100k"]
-    res = resources("orcarouter/Qwen3.8-27B-Uncensored:ctx100k",
-                    max(r["protocol"] for r in orca_runs)) if orca_runs else None
+    orca_model = "orcarouter/Qwen3.8-27B-Uncensored:ctx100k"
+    orca_res = resources(orca_model)
+    orca_n = sum(1 for r in runs if r["model"] == orca_model)
+    orca_parts = ", ".join(
+        f"{len([r for r in runs if r['model'] == orca_model and r['protocol'] == pr])} {pr}"
+        for pr in ("v1", "v2")
+        if any(r["model"] == orca_model and r["protocol"] == pr for r in runs))
     fail_rows.append(
         f"<tr class=neg><td class=num>—</td>"
-        f"<td><b>orca</b><div class=sub>{len(orca_runs)} прогона (v1 и v2)</div></td>"
-        + "<td colspan=4>—</td>" + res_cells(res)
+        f"<td><b>orca</b><div class=sub>{orca_n} прогона: {orca_parts}</div></td>"
+        + "<td colspan=4>—</td>" + res_cells_stacked(orca_res)
         + "<td colspan=2><span class=sub>вне зачёта: вердикт в заданном формате не выдан ни разу</span></td></tr>")
 
     head = ("<tr><th class=narrow>Место</th><th>Модель</th>"
@@ -493,10 +513,11 @@ def results_summary_block(profiles, runs) -> str:
 <p class=lead>Одна строка на модель. Баллы A — среднее по трём прогонам на каждом решении
 (эталоны: 3.5 / 2.5 / 2.5 / 1.5). Итог |Δ| — средняя разница с эталоном по всем осям и
 решениям; чем меньше, тем точнее ревью. Уровень: до 0.6 — высокая точность, до 0.9 —
-средняя, выше — низкая. Время, токены и ₽/ревью — медианы по прогонам модели; стоимость
-локального инференса — электричество и амортизация (₽35.85/ч, методика этапов 1–2).
-Таблица построена по протоколу v2 (без диффа); полные данные по версиям — в таблицах
-4.2 и далее.</p>
+средняя, выше — низкая. Время, токены и ₽/ревью — медианы по прогонам строго своей
+версии протокола: вход ревьюера в v1 и v2 разный, поэтому версии не усредняются
+(у orca версии показаны по отдельности). Стоимость локального инференса —
+электричество и амортизация (₽35.85/ч, методика этапов 1–2). Таблица построена по
+протоколу v2 (без диффа); полные данные по версиям — в таблицах 4.2 и далее.</p>
 <table>{head}{''.join(rows)}{''.join(fail_rows)}</table>"""
 
 
