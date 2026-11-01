@@ -503,8 +503,8 @@ def results_summary_block(profiles, refs, runs) -> str:
             f"<tr class={'top' if ranked_ok and place == 1 else ''}>"
             f"<td class=num>{place if ranked_ok else '—'}</td>"
             f"<td>{'<b>' + esc(SHORT.get(model, model)) + '</b>' if ranked_ok else esc(SHORT.get(model, model))}"
-            f"<div class=sub>протокол {main_protocol} · thinking {main_th} · "
-            f"{_runs_word(main['n'])}</div></td>"
+            f"<div class=sub>протокол {main_protocol} · {_runs_word(main['n'])}</div></td>"
+            f"<td class=num>{main_th}</td>"
             + "".join(stack_cell(main, slug) for slug in SLUG_ORDER)
             + "".join(f"<td class='num {delta_class(main_d[a])}'>{main_d[a]:.2f}</td>"
                       for a in AXES)
@@ -521,7 +521,8 @@ def results_summary_block(profiles, refs, runs) -> str:
                 f"<tr class=neg><td class=num>↳</td>"
                 f"<td>{esc(SHORT.get(model, model))}"
                 f"<div class=sub>протокол {protocol} ({note}) · "
-                f"thinking {thinking} · {_runs_word(prof['n'])}</div></td>"
+                f"{_runs_word(prof['n'])}</div></td>"
+                f"<td class=num>{thinking}</td>"
                 + "".join(stack_cell(prof, slug) for slug in SLUG_ORDER)
                 + "".join(f"<td class='num {delta_class(d[a])}'>{d[a]:.2f}</td>" for a in AXES)
                 + f"<td class=num>{o:.2f}</td>"
@@ -539,6 +540,7 @@ def results_summary_block(profiles, refs, runs) -> str:
     fail_rows.append(
         f"<tr class=neg><td class=num>—</td>"
         f"<td><b>orca</b><div class=sub>{orca_n} прогонов: {orca_parts}</div></td>"
+        + "<td class=num>max/low/<br>medium</td>"
         + "<td colspan=4>—</td>" + res_cells_stacked(orca_res)
         + "<td colspan=2><span class=sub>вне зачёта: вердикт в заданном формате не выдан ни разу</span></td></tr>")
 
@@ -547,6 +549,7 @@ def results_summary_block(profiles, refs, runs) -> str:
         return (f'<th class=narrow>{SLUG_TITLES[slug]}'
                 f'<div class=sub>этал. A {e["axis_a"]:g} · B {e["axis_b"]:g} · F {e["functional"]:g}</div></th>')
     head = ("<tr><th class=narrow>Место</th><th>Модель</th>"
+            "<th class=narrow>Мышление</th>"
             + "".join(th_stack(s) for s in SLUG_ORDER)
             + ("<th class=narrow>|Δ|A</th><th class=narrow>|Δ|B</th><th class=narrow>|Δ|F</th>"
                "<th class=narrow>Итог |Δ|</th>"
