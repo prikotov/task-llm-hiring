@@ -672,12 +672,38 @@ def section_runs(runs, grid) -> str:
             f"<td>{SLUG_TITLES.get(r['slug'], r['slug'])}</td>"
             f"<td>{marks} <span class=num>{scores}</span></td>"
             f"<td class=num>{r['tool_calls']}</td><td class=num>{dur}</td><td class=num>{tok}</td></tr>")
+    agg = defaultdict(list)
+    for r in runs:
+        if r["duration_s"] and r["tokens"]:
+            agg[(r["model"], r["protocol"])].append((r["duration_s"], r["tokens"]))
+    agg_rows = []
+    for (model, protocol), rs in sorted(agg.items()):
+        durs = [x[0] for x in rs]
+        toks = [x[1] for x in rs]
+        agg_rows.append(
+            f"<tr><td><b>{esc(SHORT.get(model, model))}</b></td><td class=num>{protocol}</td>"
+            f"<td class=num>{len(rs)}</td>"
+            f"<td class=num>{statistics.median(durs)/60:.1f}</td>"
+            f"<td class=num>{min(durs)/60:.1f}–{max(durs)/60:.1f}</td>"
+            f"<td class=num>{statistics.median(toks)/1e6:.2f}</td>"
+            f"<td class=num>{min(toks)/1e6:.2f}–{max(toks)/1e6:.2f}</td></tr>")
     return f"""
 <h2 id=runs><span class=no>8.</span>Прогоны и данные</h2>
-<p class=lead>Все {len(runs)} прогонов этапа (пилот + сетка + перезапуски). Артефакты:
-models/&lt;модель&gt;/backend/review/run-XX/ — run.json (условия, гейты, токены),
-review.json (вердикт + дефекты), review.md (сырой ответ), pi-session/ (полный след сессии),
-review-score.json (сверка с эталоном).</p>
+<p class=lead>Все {len(runs)} прогонов этапа (пилот + сетка v1 + сетка v2 + перезапуски).
+Время и токены фиксировались в run.json каждой сессии; сводка по моделям — ниже,
+по-прогонно — в свёрнутом списке. Артефакты: models/&lt;модель&gt;/backend/review/ (v1)
+и review-v2/ — run.json (условия, версия протокола, целостность, время, токены),
+review.json (вердикт + дефекты), review.md (сырой ответ), pi-session/ (полный след
+сессии), review-score.json (сверка с эталоном).</p>
+<table>
+<tr><th>Модель</th><th class=narrow>Протокол</th><th class=narrow>Прогонов</th>
+<th class=narrow>Медиана, мин</th><th class=narrow>Время, мин</th>
+<th class=narrow>Медиана, М ток.</th><th class=narrow>Токены, М</th></tr>
+{''.join(agg_rows)}
+</table>
+<p class=sub>Время и токены — по данным run.json каждой сессии (замер pi). Модели
+локальные: денежных затрат нет; ресурс — время и токены сервера. Прогоны e2b времени
+почти не занимают, потому что файлы не читались.</p>
 <div class=alist><details><summary>Показать все прогоны ({len(runs)})</summary>
 <table>
 <tr><th>Модель</th><th class=narrow>Прогон</th><th class=narrow>Протокол</th><th>Решение</th><th>Вердикт</th><th class=narrow>Чтений</th><th class=narrow>Время</th><th class=narrow>Токены</th></tr>
