@@ -480,14 +480,17 @@ def results_summary_block(profiles, refs, runs) -> str:
             for vals in [s["vals"][a]])
         return f'<td class=num>{marks}</td>'
 
-    # строки рейтинга: профили с полным покрытием решений (≥3 из 4);
-    # протокол и уровень thinking подписаны в строке и не усредняются
-    ranked, partial = [], []
+    # строки рейтинга — только протокол v2 с полным покрытием решений
+    # (≥3 из 4); v1 — другие условия (в материалах был diff.patch), в
+    # расстановку мест не входит и приводится ниже для сравнения
+    ranked, partial, v1_entries = [], [], []
     for (model, protocol, thinking), prof in profiles.items():
         entry = {"model": model, "protocol": protocol, "thinking": thinking, "prof": prof,
                  "d": axis_overall(prof)[0], "overall": axis_overall(prof)[1],
                  "res": resources(model).get((protocol, thinking))}
-        if len(prof["per_slug"]) >= 3 and prof["n"] >= 3:
+        if protocol == "v1":
+            v1_entries.append(entry)
+        elif len(prof["per_slug"]) >= 3 and prof["n"] >= 3:
             ranked.append(entry)
         else:
             partial.append(entry)
@@ -522,6 +525,9 @@ def results_summary_block(profiles, refs, runs) -> str:
         rows.append(f"<tr{cls}>" + row_cells(e, str(i), True) + "</tr>")
     for e in partial:
         rows.append("<tr class=neg>" + row_cells(e, "—", False) + "</tr>")
+    # v1: другие условия (diff.patch в материалах) — вне расстановки мест
+    for e in v1_entries:
+        rows.append("<tr class=neg>" + row_cells(e, "—", False) + "</tr>")
 
     fail_rows = []
     orca_model = "orcarouter/Qwen3.8-27B-Uncensored:ctx100k"
@@ -552,8 +558,10 @@ def results_summary_block(profiles, refs, runs) -> str:
                "<th>Уровень качества ревью</th></tr>"))
     return f"""
 <h3><span class=no>4.1.</span>Сводная таблица: качество ревью</h3>
-<p class=lead>Рейтинг строк «модель × мышление × протокол», отсортированных по
-итоговому |Δ| (лучшие сверху); «Место» — порядковый номер строки. В колонках
+<p class=lead>Рейтинг строк протокола v2 «модель × мышление», отсортированных по
+итоговому |Δ| (лучшие сверху); «Место» — порядковый номер строки. Строки v1 в
+расстановку мест не входят: у них другие условия (в материалах был diff.patch) —
+приведены ниже без места, для сравнения. В колонках
 решений — средние баллы по трём прогонам, стопкой A / B / F (эталоны — в шапке
 колонок). Итог |Δ| — средняя разница с эталоном по всем осям и решениям. Уровень:
 до 0.6 — высокая точность, до 0.9 — средняя, выше — низкая. Уровни мышления и
