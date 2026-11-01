@@ -102,8 +102,12 @@ solo-репо не может требовать аппрув второго ч�
   протокол, только чтение, метрики как запахи; эталон-карточки и сверка
   с судьёй — `REVIEWER.md`). Результаты: протокол v1 (с diff.patch в
   материалах) — `models/<модель>/backend/review/run-XX/`, протокол v2
-  (без diff) — `models/<модель>/backend/review-v2/run-XX/`; версия в
-  run.json.
+  (без diff) — `models/<модель>/backend/review-v2/run-XX/`, уровни
+  thinking low/medium протокола v2 — `review-v2-low/`, `review-v2-medium/`;
+  версия протокола и уровень thinking в run.json. Сравнение уровней —
+  только для моделей с немультитуловой шкалой thinking (семейство qwen:
+  low/medium/xhigh); у семейства gemma thinking булев — уровни
+  неразличимы.
 - `reports/` — кросс-модельные сводные отчёты и агрегаты
   (`judges-all.csv` — все вердикты всех судей, `COMPARE-judges.md`,
   `AUDIT-glm-flash.md`, будущий `REPORT.md` по моделям).

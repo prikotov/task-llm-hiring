@@ -46,7 +46,12 @@ metrics.json). Знание вердикта чекера превратило �
   Результаты — `models/<модель>/backend/review/run-XX/`, в run.json
   `"protocol": "v1"`. Данные сохранены для сравнения.
 - **v2** — текущий протокол: решение выдаётся целиком, без диффа. Результаты —
-  `models/<модель>/backend/review-v2/run-XX/`, в run.json `"protocol": "v2"`.
+  `models/<модель>/backend/review-v2/run-XX/` (thinking max),
+  `review-v2-low/` и `review-v2-medium/` (сравнение уровней размышлений),
+  в run.json `"protocol": "v2"` и `"thinking"`. Сравнение уровней имеет
+  смысл только для моделей с пошаговой шкалой thinking (семейство qwen:
+  low/medium/xhigh); у семейства gemma шкала булева (вкл/выкл) — уровни
+  low/medium неотличимы от max.
 
 ## Объекты ревью
 
