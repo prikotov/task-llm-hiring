@@ -12,7 +12,7 @@ JSON одной строкой (axis_a, axis_b, functional, defects, note).
 Целостность: sha256-манифест рабочей копии до и после прогона, любое
 изменение = прогон compromised (в свод не попадает).
 
---target обязан быть объектом эталон-сетки (references/*.json), иначе
+--target обязан быть решением из эталонного набора (references/*.json), иначе
 сверка с судьёй невозможна.
 
 Использование (из каталога reviewer/):
@@ -143,7 +143,7 @@ def load_reference(target: Path) -> dict:
             return card
     known = "\n".join(f"  {c['slug']}: {c['source_run']}" for c in cards)
     sys.exit(
-        f"прогон {target} — не объект эталон-сетки (references/).\n"
+        f"прогон {target} — не решение из эталонного набора (references/).\n"
         f"Ревьюировать можно только:\n{known}"
     )
 
@@ -347,7 +347,7 @@ def main() -> int:
     parser.add_argument("--provider", default="ollama", choices=["ollama", "deepseek"],
                         help="ollama (сервер моделей) / deepseek (родной API)")
     parser.add_argument("--target", required=True,
-                        help="каталог прогона этапа 2 (объект эталон-сетки)")
+                        help="каталог прогона этапа 2 (решение из эталонного набора)")
     parser.add_argument("--results", required=True, help="каталог результатов run-XX")
     parser.add_argument("--thinking", default="max", choices=PI_CHOICES)
     parser.add_argument("--context", type=int, default=DEFAULT_CONTEXT)
