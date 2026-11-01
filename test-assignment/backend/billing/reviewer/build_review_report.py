@@ -485,8 +485,12 @@ def results_summary_block(profiles, refs, runs) -> str:
     # расстановку мест не входит и приводится ниже для сравнения
     ranked, partial, v1_entries = [], [], []
     for (model, protocol, thinking), prof in profiles.items():
+        d_full = axis_overall(prof)[0]
         entry = {"model": model, "protocol": protocol, "thinking": thinking, "prof": prof,
-                 "d": axis_overall(prof)[0], "overall": axis_overall(prof)[1],
+                 "d": d_full, "overall": axis_overall(prof)[1],
+                 # ранжирование — только по судейским осям A и B: эталон F
+                 # выведен из чекера, а не судьёй (см. lead)
+                 "d_ab": statistics.mean([d_full["axis_a"], d_full["axis_b"]]),
                  "res": resources(model).get((protocol, thinking))}
         if protocol == "v1":
             v1_entries.append(entry)
@@ -494,7 +498,7 @@ def results_summary_block(profiles, refs, runs) -> str:
             ranked.append(entry)
         else:
             partial.append(entry)
-    ranked.sort(key=lambda e: e["overall"])
+    ranked.sort(key=lambda e: e["d_ab"])
 
     def row_cells(entry, place, ranked_ok):
         prof, d = entry["prof"], entry["d"]
@@ -514,9 +518,9 @@ def results_summary_block(profiles, refs, runs) -> str:
             f"<td class=num>{thinking}</td>"
             + "".join(stack_cell(prof, slug) for slug in SLUG_ORDER)
             + "".join(f"<td class='num {delta_class(d[a])}'>{d[a]:.2f}</td>" for a in AXES)
-            + f"<td class=num>{f'<b>{entry["overall"]:.2f}</b>' if main_bold else f'{entry["overall"]:.2f}'}</td>"
+            + f"<td class=num>{f'<b>{entry["d_ab"]:.2f}</b>' if main_bold else f'{entry["d_ab"]:.2f}'}</td>"
             + res_cell(entry["res"])
-            + (f"<td>{_quality_level(entry['overall'])}</td>" if main_bold
+            + (f"<td>{_quality_level(entry['d_ab'])}</td>" if main_bold
                else "<td><span class=sub>—</span></td></tr>"))
 
     rows = []
@@ -527,7 +531,7 @@ def results_summary_block(profiles, refs, runs) -> str:
         rows.append("<tr class=neg>" + row_cells(e, "—", False) + "</tr>")
     # v1: другие условия (diff.patch в материалах) — вне расстановки мест
     for e in v1_entries:
-        rows.append("<tr class=neg>" + row_cells(e, "—", False) + "</tr>")
+        rows.append("<tr>" + row_cells(e, "—", False) + "</tr>")
 
     fail_rows = []
     orca_model = "orcarouter/Qwen3.8-27B-Uncensored:ctx100k"
@@ -552,7 +556,7 @@ def results_summary_block(profiles, refs, runs) -> str:
             "<th class=narrow>Мышление</th>"
             + "".join(th_stack(s) for s in SLUG_ORDER)
             + ("<th class=narrow>|Δ|A</th><th class=narrow>|Δ|B</th><th class=narrow>|Δ|F</th>"
-               "<th class=narrow>Итог |Δ|</th>"
+               "<th class=narrow>Итог |Δ|A+B</th>"
                "<th class=narrow>Мин (мед.)</th><th class=narrow>М ток. (мед.)</th>"
                "<th class=narrow>₽/ревью</th>"
                "<th>Уровень качества ревью</th></tr>"))
@@ -563,7 +567,10 @@ def results_summary_block(profiles, refs, runs) -> str:
 расстановку мест не входят: у них другие условия (в материалах был diff.patch) —
 приведены ниже без места, для сравнения. В колонках
 решений — средние баллы по трём прогонам, стопкой A / B / F (эталоны — в шапке
-колонок). Итог |Δ| — средняя разница с эталоном по всем осям и решениям. Уровень:
+колонок). Как считаются дельты: |Δ|A и |Δ|B — отличие от судьи (ярус 3,
+GLM-5.3-Flash с данными чекера) по его вердиктам; |Δ|F — отличие от эталонной
+шкалы соответствия, выведенной из результатов чекера (судья ось F не оценивал),
+поэтому ранжирование и итог идут только по судейским осям A и B. Уровень:
 до 0.6 — высокая точность, до 0.9 — средняя, выше — низкая. Уровни мышления и
 версии протокола не усредняются — каждая комбинация отдельная строка; строки v1
 (с diff.patch) — для сравнения. Время, токены и ₽/ревью — медианы по прогонам
