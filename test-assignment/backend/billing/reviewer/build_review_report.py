@@ -120,10 +120,26 @@ td.p-bad{color:#b3543f;font-weight:600}
 """
 
 
+def f_deterministic(mandatory_passed: int, mandatory_total: int) -> float:
+    """Детерминированный эталон F из инструмента этапа 2 (чекер): доля
+    обязательных сценариев на шкале 0–4 с шагом 0.5, бонус не учитывается.
+    Формула воспроизводит замороженные эталонные баллы всех четырёх решений."""
+    import math
+    return math.floor(8 * mandatory_passed / mandatory_total) / 2
+
+
 def load_references() -> dict:
     refs = {}
     for p in sorted(glob.glob(str(HERE / "references" / "*.json"))):
         c = json.loads(Path(p).read_text(encoding="utf-8"))
+        # детерминированный F из чекера прогона-источника; сверка с замороженным
+        chk = ROOT / c["source_run"] / "check.json"
+        cj = json.loads(chk.read_text(encoding="utf-8"))
+        c["f_det"] = f_deterministic(cj["mandatory_passed"], cj["mandatory_total"])
+        frozen = c["expected"]["functional"]
+        if abs(c["f_det"] - frozen) > 1e-9:
+            print(f"ВНИМАНИЕ: {c['slug']}: детерминированный F {c['f_det']} != "
+                  f"замороженному {frozen}")
         refs[c["slug"]] = c
     return refs
 
@@ -383,7 +399,9 @@ def section_objects(refs) -> str:
             f"<tr><td><b>{SLUG_TITLES[slug]}</b><div class=sub>{esc(c['source_run'].split('/backend/')[0].split('models/')[1])}</div></td>"
             f"<td>{esc(b['checker'])}</td>"
             f"<td class=num>A {num(b['tier3']['axis_a'])} · B {num(b['tier3']['axis_b'])}<div class=sub>ярус 4 (без результатов проверки): A {num(b['tier4_blind']['axis_a'])}</div></td>"
-            f"<td class=num>{num(e['axis_a'])} · {num(e['axis_b'])} · {num(e['functional'])}</td>"
+            f"<td class=num>{num(e['axis_a'])} · {num(e['axis_b'])} · {num(e['functional'])}"
+              f"<div class=sub>F детерминированный: {num(c['f_det'])} "
+              f"(floor(8×пройдено/всего)/2 по чекеру)</div></td>"
             f"<td>{esc(fails)}</td></tr>")
     return f"""
 <h2 id=objects><span class=no>3.</span>Объекты ревью и эталоны</h2>
@@ -568,9 +586,11 @@ def results_summary_block(profiles, refs, runs) -> str:
 приведены ниже без места, для сравнения. В колонках
 решений — средние баллы по трём прогонам, стопкой A / B / F (эталоны — в шапке
 колонок). Как считаются дельты: |Δ|A и |Δ|B — отличие от судьи (ярус 3,
-GLM-5.3-Flash с данными чекера) по его вердиктам; |Δ|F — отличие от эталонной
-шкалы соответствия, выведенной из результатов чекера (судья ось F не оценивал),
-поэтому ранжирование и итог идут только по судейским осям A и B. Уровень:
+GLM-5.3-Flash с данными чекера) по его вердиктам; |Δ|F — отличие от
+детерминированного инструмента этапа 2: эталон F = floor(8 × обязательных
+пройдено / обязательных всего) / 2 — доля обязательных сценариев чекера на
+шкале 0–4 (судья ось F не оценивал), поэтому ранжирование и итог идут только
+по судейским осям A и B. Уровень:
 до 0.6 — высокая точность, до 0.9 — средняя, выше — низкая. Уровни мышления и
 версии протокола не усредняются — каждая комбинация отдельная строка; строки v1
 (с diff.patch) — для сравнения. Время, токены и ₽/ревью — медианы по прогонам

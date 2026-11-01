@@ -167,7 +167,7 @@ OutputInterface такого метода нет. Но Symfony передаёт 
 (изменения записаны в changelog карточек), эталонные баллы не менялись.</p>
 <table>
 <tr><th>Решение</th><th>Чекер</th><th>Судьи (A/B)</th><th class=narrow>Эталон A·B·F</th><th>Упавшие сценарии</th></tr>
-<tr><td><b>хорошее</b><div class=sub>huihui-ai-pi-100k</div></td><td>11/11 обязательных + 2/2 бонус</td><td class=num>A 3.5 · B 4<div class=sub>ярус 4 (без результатов проверки): A 3.5</div></td><td class=num>3.5 · 4 · 4</td><td>—</td></tr><tr><td><b>среднее</b><div class=sub>muse-glimmer</div></td><td>11/11 обязательных + 0/2 бонус</td><td class=num>A 2.5 · B 2.5<div class=sub>ярус 4 (без результатов проверки): A 2.5</div></td><td class=num>2.5 · 2.5 · 4</td><td>—</td></tr><tr><td><b>каверзное</b><div class=sub>qwen3.8-27b-pi-100k</div></td><td>9/11 обязательных + 0/2 бонус (падают report_base, report_duplicates, report_retro, reprice_output)</td><td class=num>A 2.5 · B 3<div class=sub>ярус 4 (без результатов проверки): A 4</div></td><td class=num>2.5 · 3 · 3</td><td>report_base, report_duplicates; reprice_output; report_retro</td></tr><tr><td><b>плохое</b><div class=sub>gemma4-31b-it-qat-pi-100k</div></td><td>8/11 обязательных + 0/2 бонус (падают report_base, report_duplicates, artifacts_present)</td><td class=num>A 1.5 · B 1<div class=sub>ярус 4 (без результатов проверки): A 2.5</div></td><td class=num>1.5 · 1 · 2.5</td><td>report_base, report_duplicates; artifacts_present</td></tr>
+<tr><td><b>хорошее</b><div class=sub>huihui-ai-pi-100k</div></td><td>11/11 обязательных + 2/2 бонус</td><td class=num>A 3.5 · B 4<div class=sub>ярус 4 (без результатов проверки): A 3.5</div></td><td class=num>3.5 · 4 · 4<div class=sub>F детерминированный: 4 (floor(8×пройдено/всего)/2 по чекеру)</div></td><td>—</td></tr><tr><td><b>среднее</b><div class=sub>muse-glimmer</div></td><td>11/11 обязательных + 0/2 бонус</td><td class=num>A 2.5 · B 2.5<div class=sub>ярус 4 (без результатов проверки): A 2.5</div></td><td class=num>2.5 · 2.5 · 4<div class=sub>F детерминированный: 4 (floor(8×пройдено/всего)/2 по чекеру)</div></td><td>—</td></tr><tr><td><b>каверзное</b><div class=sub>qwen3.8-27b-pi-100k</div></td><td>9/11 обязательных + 0/2 бонус (падают report_base, report_duplicates, report_retro, reprice_output)</td><td class=num>A 2.5 · B 3<div class=sub>ярус 4 (без результатов проверки): A 4</div></td><td class=num>2.5 · 3 · 3<div class=sub>F детерминированный: 3 (floor(8×пройдено/всего)/2 по чекеру)</div></td><td>report_base, report_duplicates; reprice_output; report_retro</td></tr><tr><td><b>плохое</b><div class=sub>gemma4-31b-it-qat-pi-100k</div></td><td>8/11 обязательных + 0/2 бонус (падают report_base, report_duplicates, artifacts_present)</td><td class=num>A 1.5 · B 1<div class=sub>ярус 4 (без результатов проверки): A 2.5</div></td><td class=num>1.5 · 1 · 2.5<div class=sub>F детерминированный: 2.5 (floor(8×пройдено/всего)/2 по чекеру)</div></td><td>report_base, report_duplicates; artifacts_present</td></tr>
 </table>
 <p class=sub>Судьи: ярус 3 — GLM-5.3-Flash, которому выдали результаты чекера и метрики;
 ярус 4 — то же ревью без результатов проверки, только по диффу. На «каверзном» и «плохом»
@@ -183,9 +183,11 @@ OutputInterface такого метода нет. Но Symfony передаёт 
 приведены ниже без места, для сравнения. В колонках
 решений — средние баллы по трём прогонам, стопкой A / B / F (эталоны — в шапке
 колонок). Как считаются дельты: |Δ|A и |Δ|B — отличие от судьи (ярус 3,
-GLM-5.3-Flash с данными чекера) по его вердиктам; |Δ|F — отличие от эталонной
-шкалы соответствия, выведенной из результатов чекера (судья ось F не оценивал),
-поэтому ранжирование и итог идут только по судейским осям A и B. Уровень:
+GLM-5.3-Flash с данными чекера) по его вердиктам; |Δ|F — отличие от
+детерминированного инструмента этапа 2: эталон F = floor(8 × обязательных
+пройдено / обязательных всего) / 2 — доля обязательных сценариев чекера на
+шкале 0–4 (судья ось F не оценивал), поэтому ранжирование и итог идут только
+по судейским осям A и B. Уровень:
 до 0.6 — высокая точность, до 0.9 — средняя, выше — низкая. Уровни мышления и
 версии протокола не усредняются — каждая комбинация отдельная строка; строки v1
 (с diff.patch) — для сравнения. Время, токены и ₽/ревью — медианы по прогонам
