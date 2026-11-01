@@ -58,6 +58,7 @@ SLUG_ORDER = ["good", "mid", "tricky", "bad"]
 AXES = ("axis_a", "axis_b", "functional")
 AXIS_NAMES = {"axis_a": "A «код и архитектура»", "axis_b": "B «процесс»",
               "functional": "F «соответствие заданию»"}
+AXIS_NAMES_SHORT = {"axis_a": "A", "axis_b": "B", "functional": "F"}
 
 CSS = """
 :root{--ink:#1d2433;--mut:#66707f;--line:#e4e7ec;--bg:#fafbfc;--acc:#315f9e;--good:#2f7d54;--bad:#b3543f;--warn:#a15c00}
@@ -108,6 +109,8 @@ td.p-bad{color:#b3543f;font-weight:600}
 .deadmark.contract{background:#efe9f7;color:#6b5b9e}
 .deadmark.fab{background:#fbeae6;color:#b3543f}
 .deadmark.burn{background:#fff4d6;color:#9a6b00}
+.stack{font-size:12.5px;line-height:1.45;white-space:nowrap}
+.stack.b{font-weight:600}
 .dchip{display:inline-block;margin:1px 2px 1px 0;padding:0 5px;border-radius:7px;background:#eef1f6;color:#315f9e;font-size:10.5px;font-weight:600;line-height:15px;white-space:nowrap}
 .alist details{margin:8px 0;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}
 .alist summary{cursor:pointer;padding:10px 16px;font-size:14.5px}
@@ -406,7 +409,7 @@ def _quality_level(overall: float) -> str:
     return '<span class="deadmark fab" title="средний |Δ| по всем осям и решениям">низкая точность</span>'
 
 
-def results_summary_block(profiles, runs) -> str:
+def results_summary_block(profiles, refs, runs) -> str:
     """Сводная таблица: одна строка на модель, сортировка по итоговому |Δ|."""
     latest = latest_profiles(profiles)
     ranked, excluded = [], []
@@ -466,21 +469,29 @@ def results_summary_block(profiles, runs) -> str:
             prof = profiles.get((model, protocol))
             if not prof:
                 continue
-            per = prof["per_slug"]
-            a_means = []
-            for slug in SLUG_ORDER:
-                s = per.get(slug)
-                a_means.append(statistics.mean(s["vals"]["axis_a"]) if s else None)
             axis_delta, overall = axis_overall(prof)
             dcls = [delta_class(axis_delta[a]) for a in AXES]
             is_main = protocol == main_protocol
             proto_note = ("основной" if is_main else "с diff.patch — для сравнения")
+
+            def stack_cell(slug):
+                """Средние A/B/F по решениям — стопкой в одной ячейке."""
+                s = prof["per_slug"].get(slug)
+                if not s:
+                    return '<td class=num>—</td>'
+                marks = "".join(
+                    f'<div class="stack{" b" if a == "axis_a" else ""}">'
+                    f'{AXIS_NAMES_SHORT[a]} {f"{statistics.mean(vals):.2f}".rstrip("0").rstrip(".")}</div>'
+                    for a in AXES
+                    for vals in [s["vals"][a]])
+                return f'<td class=num>{marks}</td>'
+
             rows.append(
                 f"<tr class={'top' if place == 1 and is_main else ''}>"
                 f"<td class=num>{place if is_main else '↳'}</td>"
                 f"<td>{'<b>' + esc(SHORT.get(model, model)) + '</b>' if is_main else esc(SHORT.get(model, model))}"
                 f"<div class=sub>протокол {protocol} ({proto_note}) · {_runs_word(prof['n'])}</div></td>"
-                + "".join(f"<td class=num>{'—' if v is None else f'{v:.1f}'}</td>" for v in a_means)
+                + "".join(stack_cell(slug) for slug in SLUG_ORDER)
                 + "".join(f"<td class='num {dcls[i]}'>{axis_delta[a]:.2f}</td>"
                           for i, a in enumerate(AXES))
                 + f"<td class=num>{f'<b>{overall:.2f}</b>' if is_main else f'{overall:.2f}'}</td>"
@@ -508,19 +519,22 @@ def results_summary_block(profiles, runs) -> str:
         + "<td colspan=4>—</td>" + res_cells_stacked(orca_res)
         + "<td colspan=2><span class=sub>вне зачёта: вердикт в заданном формате не выдан ни разу</span></td></tr>")
 
+    def th_stack(slug):
+        e = refs[slug]["expected"]
+        return (f'<th class=narrow>{SLUG_TITLES[slug]}'
+                f'<div class=sub>этал. A {e["axis_a"]:g} · B {e["axis_b"]:g} · F {e["functional"]:g}</div></th>')
     head = ("<tr><th class=narrow>Место</th><th>Модель</th>"
-            "<th class=narrow>A «хорош.»</th><th class=narrow>A «средн.»</th>"
-            "<th class=narrow>A «каверзн.»</th><th class=narrow>A «плох.»</th>"
-            "<th class=narrow>|Δ|A</th><th class=narrow>|Δ|B</th><th class=narrow>|Δ|F</th>"
-            "<th class=narrow>Итог |Δ|</th>"
-            "<th class=narrow>Мин (мед.)</th><th class=narrow>М ток. (мед.)</th>"
-            "<th class=narrow>₽/ревью</th>"
-            "<th>Уровень качества ревью</th></tr>")
+            + "".join(th_stack(s) for s in SLUG_ORDER)
+            + ("<th class=narrow>|Δ|A</th><th class=narrow>|Δ|B</th><th class=narrow>|Δ|F</th>"
+               "<th class=narrow>Итог |Δ|</th>"
+               "<th class=narrow>Мин (мед.)</th><th class=narrow>М ток. (мед.)</th>"
+               "<th class=narrow>₽/ревью</th>"
+               "<th>Уровень качества ревью</th></tr>"))
     return f"""
 <h3><span class=no>4.1.</span>Сводная таблица: качество ревью</h3>
-<p class=lead>Одна строка на модель. Баллы A — среднее по трём прогонам на каждом решении
-(эталоны: 3.5 / 2.5 / 2.5 / 1.5). Итог |Δ| — средняя разница с эталоном по всем осям и
-решениям; чем меньше, тем точнее ревью. Уровень: до 0.6 — высокая точность, до 0.9 —
+<p class=lead>Одна строка на модель. В колонках решений — средние баллы по трём
+прогонам, стопкой A / B / F (эталоны — в шапке колонок). Итог |Δ| — средняя разница
+с эталоном по всем осям и решениям; чем меньше, тем точнее ревью. Уровень: до 0.6 — высокая точность, до 0.9 —
 средняя, выше — низкая. У каждой модели две строки: основная — по протоколу v2
 (без диффа, по ней место в рейтинге) и строка v1 (с diff.patch в материалах) —
 для сравнения. Время, токены и ₽/ревью — медианы по прогонам строго своей версии:
@@ -564,7 +578,7 @@ def section_results(profiles, refs, runs) -> str:
 <h3><span class=no>4.{n_shown + 1}.</span>{esc(SHORT.get(model, model))} — протокол {protocol}
 <span class=sub>{params[0]} · {params[1]} · thinking max · контекст 102400 · {_runs_word(prof['n'])}</span></h3>
 <table>{head}{''.join(rows)}</table>""")
-    summary = results_summary_block(profiles, runs)
+    summary = results_summary_block(profiles, refs, runs)
     return f"""
 <h2 id=results><span class=no>4.</span>Результаты моделей</h2>
 {summary}
