@@ -564,17 +564,15 @@ def results_summary_block(profiles, refs, runs) -> str:
         slug = meta.get("solution_slug")
         v = json.loads(rp.read_text(encoding="utf-8"))
         key = (meta.get("model"), meta.get("thinking"))
-        # «поймано» = семья названа в not_done ИЛИ в defects с серьёзностью
-        # critical/major (нашла модель в любом случае; упоминание только
-        # в note — неподтверждённая проза, не считается)
+        # «поймано» = семья названа в not_done ИЛИ упомянута в defects
+        # (любая серьёзность — для recall важен факт «заметил область»;
+        # упоминание только в note — неподтверждённая проза, не считается)
         for nd in v.get("not_done", []):
             fam = req_family(nd.get("req", "") or nd.get("desc", ""))
             if fam in REAL_MISSES.get(slug, []):
                 caught[key].add((slug, fam))
         for d in v.get("defects", []):
-            if (d.get("severity") or "").lower() not in ("critical", "major"):
-                continue
-            fam = req_family((d.get("file", "") or "") + " " + (d.get("desc", "") or ""))
+            fam = req_family(json.dumps(d, ensure_ascii=False))
             if fam in REAL_MISSES.get(slug, []):
                 caught[key].add((slug, fam))
 
