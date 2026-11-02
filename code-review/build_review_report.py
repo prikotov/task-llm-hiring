@@ -775,8 +775,10 @@ def results_summary_block(profiles, refs, runs) -> str:
                 f"<div class=sub>по сырому тексту: {c} из {e['pparts'][3]}</div></td>"
                 f"<td class=num>{e['caught']} из {REAL_MISSES_TOTAL}"
                 f"<div class=sub>по сырому тексту</div></td>"
-                f"<td class=num>{len(e['arch'])} из {len(ARCH_THEMES)}"
-                f"<div class=sub style=\"white-space:normal\">{esc(', '.join(sorted(e['arch']))) or '—'}</div>"
+                + (f"<td class=num title=\"Названные темы: {esc(', '.join(sorted(e['arch'])))}\">"
+                   f"{len(e['arch'])} из {len(ARCH_THEMES)}</td>"
+                   if e['arch'] else
+                   f"<td class=num title=\"Тем не названо\">0 из {len(ARCH_THEMES)}</td>")
                 + res +
                 f"<td>{_quality_level(e['combined'])}"
                 f"<div class=sub style=\"white-space:normal\">формат: 0 из "
@@ -795,8 +797,10 @@ def results_summary_block(profiles, refs, runs) -> str:
                if e["pparts"][3] else
                "<td class=num title=\"существенных замечаний не названо\">—</td>")
             + f"<td class=num>{e['caught']} из {REAL_MISSES_TOTAL}</td>"
-            + f"<td class=num>{len(e['arch'])} из {len(ARCH_THEMES)}"
-              f"<div class=sub style=\"white-space:normal\">{esc(', '.join(sorted(e['arch']))) or '—'}</div></td>"
+            + (f"<td class=num title=\"Названные темы: {esc(', '.join(sorted(e['arch'])))}\">"
+               f"{len(e['arch'])} из {len(ARCH_THEMES)}</td>"
+               if e['arch'] else
+               f"<td class=num title=\"Тем не названо\">0 из {len(ARCH_THEMES)}</td>")
             + res_cell(e["res"])
             + f"<td>{_quality_level(e['combined'])}</td></tr>")
 
@@ -813,7 +817,7 @@ def results_summary_block(profiles, refs, runs) -> str:
             "<th class=narrow title=\"запусков серии отбраковано гейтами (формат вердикта); в итог не входит, справочно\">Отбрак.</th>"
             "<th class=narrow title=\"доля подтверждённых судьёй-оценщиком замечаний critical/major (раздел 8)\">Точность</th>"
             "<th class=narrow title=\"реальные пропуски решения, названные с механизмом (раздел 7)\">Поймано</th>"
-            "<th class=narrow title=\"архитектурно-качественные темы (11 проверенных оракулом, раздел 8.3), названные хотя бы раз за серию\">Арх. тем</th>"
+            "<th class=narrow title=\"Сколько из 11 тем качества кода и архитектуры (список тем — раздел 8.3, все подтверждены инструментами) модель назвала хотя бы раз за серию; перечень — в подсказке ячейки. Широта архитектурного ревью\">Архитектура</th>"
             "<th class=narrow>М ток. (мед.)</th>"
             "<th class=narrow>₽/ревью</th>"
             "<th>Применимость как ревьюера</th></tr>")
@@ -827,11 +831,11 @@ def results_summary_block(profiles, refs, runs) -> str:
 обе от верификации содержания, без судейских баллов — <b>неточность</b> (доля
 неподтверждённых замечаний critical/major по вердиктам судьи-оценщика, раздел 8,
 колонка «Точность») и <b>неполнота</b> (реальные пропуски, не названные с
-механизмом, раздел 7, колонка «Поймано»). «Арх. тем» — широта
-архитектурно-качественного ревьюа: сколько из 11 тем, проверенных
+механизмом, раздел 7, колонка «Поймано»). «Архитектура» — широта архитектурного
+ревьюа: сколько из 11 тем качества кода и архитектуры, проверенных
 инструментальным оракулом (8.3), строка назвала хотя бы раз — все заявленные
-темы подтвердились, поэтому широта здесь и есть качество; точность заявленного —
-см. 8.3. <b>Формат выдачи в итог не входит</b>:
+темы подтвердились, поэтому широта здесь и есть качество; перечень тем —
+в подсказке ячейки, точность заявленного — см. 8.3. <b>Формат выдачи в итог не входит</b>:
 роль ревьюера — текстовые замечания, несданный JSON — потеря данных для
 конвейера, а не дефект ревью (отбраковка — справочно в «Отбрак.»). Применимость:
 до 0.6 — применима;
