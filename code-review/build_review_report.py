@@ -795,49 +795,181 @@ bcRoundHalfUp для отрицательных сумм — в домене с�
 <table>{head}{''.join(rows)}{''.join(fail_rows)}</table>"""
 
 
+def _scatter_svg(points: list[dict], x_title: str, note: str) -> str:
+    """Карта моделей в стиле этапа 2: точка — строка рейтинга
+    (модель × уровень мышления). points: {x, y, label}; итог по Y — ниже лучше."""
+    W, H = 760, 330
+    L, R, T, B = 60, 24, 40, 46
+    x1 = max(p["x"] for p in points) * 1.15
+    y1 = max(p["y"] for p in points) * 1.18
+    def px(x): return L + (W - L - R) * x / x1
+    def py(y): return H - B - (H - T - B) * y / y1
+    parts = [f'<div class=chartbox><svg width="100%" viewBox="0 0 {W} {H}" '
+             f'role="img" aria-label="{esc(x_title)} против итога">']
+    yt = 0.2
+    while yt < y1:
+        parts.append(f'<line x1="{L}" y1="{py(yt):.1f}" x2="{W-R}" y2="{py(yt):.1f}" '
+                     f'stroke="#e4e7ec" stroke-width="1"/>')
+        parts.append(f'<text x="{L-8}" y="{py(yt)+4:.1f}" font-size="11.5" '
+                     f'fill="#66707f" text-anchor="end">{yt:.1f}</text>')
+        yt += 0.2
+    parts.append(f'<line x1="{L}" y1="{H-B}" x2="{W-R}" y2="{H-B}" stroke="#46536a" stroke-width="1.5"/>')
+    parts.append(f'<line x1="{L}" y1="{T-14}" x2="{L}" y2="{H-B}" stroke="#46536a" stroke-width="1.5"/>')
+    parts.append(f'<text x="{W-R}" y="{H-B+22}" font-size="12.5" fill="#46536a" '
+                 f'text-anchor="end">{esc(x_title)}</text>')
+    parts.append(f'<text x="{L}" y="{T-22}" font-size="12.5" fill="#46536a">итог, баллов — ниже лучше</text>')
+    parts.append(f'<text x="{L}" y="{T-6}" font-size="11.5" fill="#a15c00">{esc(note)}</text>')
+    for p in points:
+        cx, cy = px(p["x"]), py(p["y"])
+        parts.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="6" fill="#315f9e" opacity="0.75"/>')
+        parts.append(f'<text x="{cx+9:.1f}" y="{cy-7:.1f}" font-size="12" '
+                     f'font-weight="600" fill="#1d2433">{esc(p["label"])}</text>')
+        parts.append(f'<text x="{cx+9:.1f}" y="{cy+8:.1f}" font-size="11" fill="#66707f">'
+                     f'{p["y"]:.2f} · {p["x"]:.1f}</text>')
+    parts.append('</svg></div>')
+    return ''.join(parts)
+
+
+def _verdict_chip(dmax: float) -> str:
+    """Черновик зачёта сверки с эталоном (как в score_review):
+    max|Δ| ≤ 0.5 — зачёт, ≤ 1.0 — частично, выше — промах."""
+    if dmax <= 0.5:
+        return '<span class=okmark title="max |Δ| по осям ≤ 0.5">зачёт</span>'
+    if dmax <= 1.0:
+        return '<span class="deadmark burn" title="max |Δ| по осям ≤ 1.0">частично</span>'
+    return '<span class="deadmark fab" title="max |Δ| по осям &gt; 1.0">промах</span>'
+
+
+_FAIL_TEXT = {
+    "fab": "вердикт без чтения файлов (фабрикация)",
+    "integ": "нарушена целостность материалов",
+    "contract": "вердикт не по контракту",
+    "format": "вердикт в чужом формате",
+}
+
+
 def section_results(profiles, refs, runs) -> str:
-    blocks = []
-    head = ("<tr><th>Решение</th><th>n</th>"
-            "<th>A «код и архитектура»</th><th>B «процесс»</th><th>F «задание»</th>"
-            "<th class=narrow>|Δ|A</th><th class=narrow>|Δ|B</th><th class=narrow>|Δ|F</th><th>Разброс A/B/F</th></tr>")
-    n_shown = 0
-    for model in MODEL_ORDER:
-        proto_keys = sorted(
-            {(pr, th, pv) for (m, pr, th, pv) in profiles if m == model},
-            key=lambda k: ({"v1": 1, "v2": 2}.get(k[0], 9), k[2], k[1] != "max", k[1]))
-        for protocol, thinking, pv in proto_keys:
-            prof = profiles.get((model, protocol, thinking, pv))
-            if not prof:
-                continue
-            n_shown += 1
-            rows = []
-            for slug in SLUG_ORDER:
-                s = prof["per_slug"].get(slug)
-                if not s:
-                    continue
-                e = refs[slug]["expected"]
-                a, b, f = (AXES[0], AXES[1], AXES[2])
-                dcls = [delta_class(s["delta_mean"][x]) for x in AXES]
-                spread = f"{num(s['spread'][a])} / {num(s['spread'][b])} / {num(s['spread'][f])}"
-                rows.append(
-                    f"<tr><td><b>{SLUG_TITLES[slug]}</b></td><td class=num>{s['n']}</td>"
-                    f"<td>{runs_cell(s['vals'][a])}</td><td>{runs_cell(s['vals'][b])}</td><td>{runs_cell(s['vals'][f])}</td>"
-                    f"<td class='num {dcls[0]}'>{s['delta_mean'][a]:.2f}</td>"
-                    f"<td class='num {dcls[1]}'>{s['delta_mean'][b]:.2f}</td>"
-                    f"<td class='num {dcls[2]}'>{s['delta_mean'][f]:.2f}</td>"
-                    f"<td class=num>{spread}</td></tr>")
-            params = PARAMS.get(model, ("?", "?"))
-            blocks.append(f"""
-<h3><span class=no>4.{n_shown + 1}.</span>{esc(SHORT.get(model, model))} — протокол {protocol}
-<span class=sub>{params[0]} · {params[1]} · thinking {thinking} · контекст 102400 · контракт {pv} · {_runs_word(prof['n'])}</span></h3>
-<table>{head}{''.join(rows)}</table>""")
+    """Раздел 4: сводная таблица 4.1, карты «итог—цена» и «итог—время»
+    (приём этапа 2), затем по-модельные секции — одна таблица на модель,
+    строка = отдельный прогон."""
     summary = results_summary_block(profiles, refs, runs)
+
+    # медианные ресурсы строки рейтинга (текущий контракт) для карт
+    def med(model, thinking):
+        rs = [r for r in runs if r["model"] == model and r["protocol"] == "v2"
+              and r["thinking"] == thinking and r["prompt_version"] == 2
+              and r["duration_s"] and r["tokens"]]
+        if not rs:
+            return None
+        ds = sorted(r["duration_s"] for r in rs)
+        m = len(ds) // 2
+        med_d = ds[m] if len(ds) % 2 else (ds[m - 1] + ds[m]) / 2
+        return (med_d / 60, med_d / 3600 * LOCAL_RUB_H)
+
+    def combined_of(model, thinking):
+        prof = profiles.get((model, "v2", thinking, 2))
+        if not prof:
+            return None
+        d = {a: statistics.mean(s["delta_mean"][a] for s in prof["per_slug"].values())
+             for a in AXES}
+        return statistics.mean(d.values())
+
+    map_points = []
+    for model, thinking in sorted({(r["model"], r["thinking"]) for r in runs
+                                   if r["protocol"] == "v2" and r["prompt_version"] == 2}):
+        c, res = combined_of(model, thinking), med(model, thinking)
+        if c is not None and res is not None:
+            map_points.append({"label": f"{SHORT.get(model, model)} {thinking}",
+                               "y": c, "rub": res[1], "min": res[0]})
+
+    map_price = _scatter_svg(
+        [{"x": p["rub"], "y": p["y"], "label": p["label"]} for p in map_points],
+        "₽ за ревью (медиана строки)", "правый нижний угол — дёшево и точно")
+    map_speed = _scatter_svg(
+        [{"x": p["min"], "y": p["y"], "label": p["label"]} for p in map_points],
+        "минут на ревью (медиана строки)", "левый нижний угол — быстро и точно")
+
+    # по-модельные секции
+    model_runs = defaultdict(list)
+    for r in runs:
+        model_runs[r["model"]].append(r)
+    head = ("<tr><th class=narrow>Прогон</th><th class=narrow>Решение</th>"
+            "<th class=narrow>Мышл.</th><th class=narrow>Протокол</th>"
+            "<th class=narrow>A</th><th class=narrow>B</th><th class=narrow>F</th>"
+            "<th class=narrow>ΔA</th><th class=narrow>ΔB</th><th class=narrow>ΔF</th>"
+            "<th class=narrow>Сверка</th><th class=narrow>Дефекты<br>K/M/m</th>"
+            "<th class=narrow>М ток.</th><th class=narrow>Мин</th><th>Примечание</th></tr>")
+    blocks = []
+    for model in MODEL_ORDER:
+        rs = sorted(model_runs.get(model, []), key=lambda r: r["dir"])
+        if not rs:
+            continue
+        rows = []
+        for r in rs:
+            v = r["verdict"] or {}
+            slug = r["slug"]
+            exp = refs.get(slug, {}).get("expected")
+            cells = [f"<td class=narrow>{r['dir']}</td>",
+                     f"<td class=narrow>{SLUG_TITLES.get(slug, slug)}</td>",
+                     f"<td class=narrow>{r['thinking']}</td>"]
+            key = r["protocol"] if r["protocol"] == "v1" else (r["protocol"], r["prompt_version"])
+            cells.append(f"<td class=narrow>{'v1' if r['protocol'] == 'v1' else 'v2·к%d' % r['prompt_version']}</td>")
+            if all(isinstance(v.get(a), (int, float)) for a in AXES):
+                cells += [f"<td class=num>{num(v[a])}</td>" for a in AXES]
+                if exp:
+                    deltas = [v[a] - exp[a] for a in AXES]
+                    cells += [f"<td class='num {delta_class(abs(d))}'>"
+                              f"{f'{d:+.1f}'.replace('+0.0', '0').replace('-0.0', '0')}</td>"
+                              for d in deltas]
+                    cells.append(f"<td class=num>{_verdict_chip(max(abs(d) for d in deltas))}</td>")
+                else:
+                    cells += ["<td class=num>—</td>"] * 4
+            else:
+                cells += ["<td class=num>—</td>"] * 7
+            nd = r.get("defects") or []
+            if v:
+                sev = [sum(1 for d in nd if d.get("severity") == s)
+                       for s in ("critical", "major", "minor")]
+                cells.append(f"<td class=num>{sev[0]}/{sev[1]}/{sev[2]}</td>")
+            else:
+                cells.append("<td class=num>—</td>")
+            cells.append(f"<td class=num>{r['tokens']/1e6:.2f}M</td>" if r["tokens"]
+                         else "<td class=num>—</td>")
+            cells.append(f"<td class=num>{r['duration_s']/60:.1f}</td>" if r["duration_s"]
+                         else "<td class=num>—</td>")
+            if r["valid"] and r.get("parse_ok") is not False:
+                cells.append("<td></td>")
+            else:
+                note = (_FAIL_TEXT.get(r.get("fail_kind"))
+                        or r.get("invalid_reason") or "отбракован")
+                cells.append(f"<td class=sub>{esc(str(note)[:90])}</td>")
+            rows.append("<tr>" + "".join(cells) + "</tr>")
+        params = PARAMS.get(model, ("?", "?"))
+        n_valid = sum(1 for r in rs if r["valid"])
+        waves = defaultdict(int)
+        for r in rs:
+            waves["v1" if r["protocol"] == "v1" else f'v2/к{r["prompt_version"]}'] += 1
+        waves_txt = " · ".join(f"{k} — {n}" for k, n in sorted(waves.items()))
+        blocks.append(f"""
+<h3>{esc(SHORT.get(model, model))}</h3>
+<p class=sub>{esc(model)} · {params[0]} · {params[1]} · прогонов: {len(rs)} (зачётных {n_valid})
+· серии: {waves_txt}</p>
+<table>{head}{''.join(rows)}</table>""")
+
     return f"""
 <h2 id=results><span class=no>4.</span>Результаты моделей</h2>
 {summary}
-<p class=lead>Детали по каждой модели: вердикты по прогонам (каждая ячейка — отдельный
-изолированный прогон), средние |Δ| к эталону и разброс max−min. Цвет |Δ|: зелёный — 0,
-жёлтый — ≤1, красный — &gt;1.</p>
+<h3>Карта моделей: итог и цена</h3>
+<p class=lead>Точка — строка рейтинга (модель × уровень мышления, текущий контракт).
+Вертикаль — итог из таблицы 4.1 (среднее |Δ|A, |Δ|B, непойманных пропусков и
+отбракованных прогонов), горизонталь — медианная стоимость одного ревью строки.</p>
+{map_price}
+<h3>Карта моделей: итог и время</h3>
+{map_speed}
+<p class=lead>Детали по каждой модели: строка таблицы — отдельный изолированный прогон.
+ΔA/ΔB/ΔF — отличие балла прогона от эталона решения (зелёный 0, жёлтый ≤1, красный &gt;1);
+«Сверка» — черновик зачёта по максимальному |Δ|: до 0.5 зачёт, до 1 частично, выше промах.
+«Отбракован» — прогон не зачтён и входит модели в минус как надёжность (4.1).</p>
 {''.join(blocks)}"""
 
 
@@ -883,7 +1015,8 @@ def section_stability(profiles) -> str:
 <h2 id=stability><span class=no>5.</span>Повторяемость</h2>
 <p class=lead>Каждая пара «модель × решение» ревьюилась тремя независимыми прогонами
 (qwen3.8 — один пилотный прогон; у gemma4:26b на «среднем» — два, две сессии не выдали
-ответ). Разброс max−min по осям — в таблицах раздела 4, свод по моделям — ниже.</p>
+ответ). Средний разброс по моделям — на графике ниже; по-прогонные баллы каждой модели —
+в её таблице раздела 4.</p>
 {chart}
 <div class=cards>{cards}</div>"""
 
