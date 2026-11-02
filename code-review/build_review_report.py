@@ -173,6 +173,7 @@ td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top;font-
 tr:last-child td{border-bottom:none}
 tr.neg td{background:#fdf6f4}
 tr.top td{background:#eef6ef}
+tr.na td{background:#f7e2dc}
 td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
 td.p-good{color:#2f7d54;font-weight:600}
 td.p-warn{color:#a15c00;font-weight:600}
@@ -762,8 +763,9 @@ def results_summary_block(profiles, refs, runs) -> str:
             res = (f"<td class=num>{e['res'][1]:.2f}</td>"
                    f"<td class='num p-warn'>₽{e['res'][2]:.1f}</td>") if e["res"] \
                 else '<td colspan=2 class=num>—</td>'
+            cls = "top" if e["combined"] <= 0.6 else ("na" if e["combined"] > 0.9 else "")
             return (
-                f"<tr class={'top' if e['combined'] <= 0.6 else ''}>"
+                f"<tr class={cls}>"
                 f"<td class=num>{place}</td>"
                 f"<td><b>orca</b></td>"
                 f"<td class=num>{thinking}</td>"
@@ -781,14 +783,12 @@ def results_summary_block(profiles, refs, runs) -> str:
                    f"{len(e['arch'])} из {len(ARCH_THEMES)}</td>"
                    if e['arch'] else
                    f"<td class=num title=\"Тем не названо\">0 из {len(ARCH_THEMES)}</td>")
-                + res +
-                f"<td>{_quality_level(e['combined'])}"
-                f"<div class=sub style=\"white-space:normal\">формат: 0 из "
-                f"{e['n_rs']} валидных</div></td></tr>")
+                + res + "</tr>")
+        # фон строки — граница качества: зелёный <= 0.6 (применима),
+        # красный > 0.9 (не применима), средняя зона без подсветки
+        cls = "top" if e["combined"] <= 0.6 else ("na" if e["combined"] > 0.9 else "")
         return (
-            # зелёный фон — вся строка, прошедшая границу качества
-            # (итог <= 0.6, «применима»), а не только первое место
-            f"<tr class={'top' if e['combined'] <= 0.6 else ''}>"
+            f"<tr class={cls}>"
             f"<td class=num>{place}</td>"
             f"<td><b>{esc(SHORT.get(model, model))}</b></td>"
             f"<td class=num>{thinking}</td>"
@@ -803,8 +803,7 @@ def results_summary_block(profiles, refs, runs) -> str:
                f"{len(e['arch'])} из {len(ARCH_THEMES)}</td>"
                if e['arch'] else
                f"<td class=num title=\"Тем не названо\">0 из {len(ARCH_THEMES)}</td>")
-            + res_cell(e["res"])
-            + f"<td>{_quality_level(e['combined'])}</td></tr>")
+            + res_cell(e["res"]) + "</tr>")
 
     rows = []
     for i, e in enumerate(ranked, 1):
@@ -822,7 +821,7 @@ def results_summary_block(profiles, refs, runs) -> str:
             "<th class=narrow title=\"Сколько из 11 тем качества кода и архитектуры (список тем — раздел 8.3, все подтверждены инструментами) модель назвала хотя бы раз за серию; перечень — в подсказке ячейки. Широта архитектурного ревью\">Архитектура</th>"
             "<th class=narrow>Токены<div class=sub>медиана</div></th>"
             "<th class=narrow>₽/ревью</th>"
-            "<th>Применимость как ревьюера</th></tr>")
+            "</tr>")
     return f"""
 <h3><span class=no>4.1.</span>Сводная таблица: качество ревью</h3>
 <p class=lead>Плоский рейтинг строк текущего контракта (протокол v2, контракт
