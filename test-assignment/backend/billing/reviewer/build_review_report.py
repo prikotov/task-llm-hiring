@@ -531,10 +531,11 @@ def _quality_level(overall: float) -> str:
 
 def results_summary_block(profiles, refs, runs) -> str:
     """Сводная таблица: плоский рейтинг строк (модель × мышление) текущего
-    контракта. Итог — среднее из трёх объективных компонентов: |Δ|A и |Δ|B
-    (отличие от судьи яруса 3) и доля непойманных реальных пропусков решения
-    (1 − recall по not_done против фактов чекера). «Место» — порядковый
-    номер строки в этом рейтинге."""
+    контракта. Итог — среднее из четырёх объективных компонентов: |Δ|A и |Δ|B
+    (отличие от судьи яруса 3), доля непойманных реальных пропусков решения
+    (1 − recall по not_done против фактов чекера) и доля отбракованных
+    гейтом прогонов (надёжность выдачи вердикта по контракту). «Место» —
+    порядковый номер строки в этом рейтинге."""
     latest = latest_profiles(profiles)
 
     def axis_overall(prof):
@@ -604,6 +605,15 @@ def results_summary_block(profiles, refs, runs) -> str:
     # caught — только подтверждённые по механизму (ручная разметка
     # MECH_CAUGHT: сверка каждого упоминания с разделом 6 и кодом решения).
     caught, fam_caught = defaultdict(set), defaultdict(set)
+    # надёжность: все запуски серии (модель × thinking) против зачётных —
+    # сессия, завершившаяся некорректно (вердикт не по контракту), идёт
+    # модели в минус, а не выбрасывается
+    attempted = defaultdict(int)
+    for rp in sorted((ROOT / "models").glob("*/backend/review-v3*/run-*/run.json")):
+        meta = json.loads(rp.read_text(encoding="utf-8"))
+        if meta.get("protocol") != "v2" or meta.get("prompt_version") != 2:
+            continue
+        attempted[(meta.get("model"), meta.get("thinking"))] += 1
     for rp in sorted((ROOT / "models").glob("*/backend/review-v3*/run-*/review.json")):
         rj = rp.with_name("run.json")
         if not rj.is_file():
@@ -642,28 +652,37 @@ def results_summary_block(profiles, refs, runs) -> str:
             comparison[note].append((model, thinking, prof))
 
     def combined(model, thinking, prof):
-        """Итог ранжирования: среднее из |Δ|A, |Δ|B и доли непойманных
-        реальных пропусков (1 − recall). Все три компонента объективны:
-        первые два — судья яруса 3, третий — чекер."""
+        """Итог ранжирования: среднее из |Δ|A, |Δ|B, доли непойманных
+        реальных пропусков (1 − recall) и доли отбракованных прогонов.
+        Все четыре компонента объективны: первые два — судья яруса 3,
+        третий — чекер, четвёртый — гейт валидности (некорректное
+        завершение ревью — минус ревьюеру, а не потерянный прогон)."""
         d = axis_overall(prof)[0]
         miss = 1 - len(caught.get((model, thinking), set())) / REAL_MISSES_TOTAL
-        return statistics.mean([d["axis_a"], d["axis_b"], miss]), miss, d
+        att = attempted.get((model, thinking), prof["n"])
+        fail = 1 - prof["n"] / att if att else 1.0
+        return statistics.mean([d["axis_a"], d["axis_b"], miss, fail]), miss, d, fail
 
     ranked = []
     for thinking, models in v2_levels.items():
         for model, prof in models.items():
-            c, miss, d = combined(model, thinking, prof)
+            c, miss, d, fail = combined(model, thinking, prof)
             ranked.append({"model": model, "thinking": thinking, "prof": prof,
-                           "combined": c, "miss": miss, "d": d,
+                           "combined": c, "miss": miss, "d": d, "fail": fail,
+                           "dropped": attempted.get((model, thinking), prof["n"]) - prof["n"],
                            "caught": len(caught.get((model, thinking), set())),
                            "res": resources(model).get(("v2", thinking, 2))})
     ranked.sort(key=lambda e: e["combined"])
 
-    def runs_cell(prof):
+    def runs_cell(e):
         """Зачётные прогоны строки и раскладка по решениям: план — 3 ревью
-        на каждое решение, видно, где гейт отбраковал сессию."""
+        на каждое решение; отбракованные сессии показаны рядом — они
+        входят в итог как надёжность."""
+        prof = e["prof"]
         per = " · ".join(f"{SLUG_TITLES[s]} {prof['per_slug'][s]['n']}"
                          for s in SLUG_ORDER if s in prof["per_slug"])
+        if e["dropped"]:
+            per += f" · отбраковано {e['dropped']}"
         return (f"<td class=num>{prof['n']}"
                 f"<div class=sub style=\"white-space:normal\">{per}</div></td>")
 
@@ -678,7 +697,7 @@ def results_summary_block(profiles, refs, runs) -> str:
             f"<td><b>{esc(SHORT.get(model, model))}</b>"
             f"<div class=sub>протокол v2</div></td>"
             f"<td class=num>{thinking}</td>"
-            + runs_cell(prof)
+            + runs_cell(e)
             + "".join(stack_cell(prof, slug) for slug in SLUG_ORDER)
             + "".join(f"<td class='num {delta_class(d[a])}'>{d[a]:.2f}</td>" for a in AXES)
             + f"<td class=num>{e['caught']} из {REAL_MISSES_TOTAL}</td>"
@@ -698,7 +717,7 @@ def results_summary_block(profiles, refs, runs) -> str:
                 f"<td>{esc(SHORT.get(model, model))}"
                 f"<div class=sub>{note}</div></td>"
                 f"<td class=num>{thinking}</td>"
-                + runs_cell(prof)
+                + runs_cell({"prof": prof, "dropped": 0})
                 + "".join(stack_cell(prof, slug) for slug in SLUG_ORDER)
                 + "".join(f"<td class='num {delta_class(d[a])}'>{d[a]:.2f}</td>" for a in AXES)
                 + "<td class=num title=\"прежний контракт: перечень not_done не собирался\">—</td>"
@@ -750,7 +769,7 @@ def results_summary_block(profiles, refs, runs) -> str:
 если часть прогонов отбракована гейтами валидности. По ним считаны
 средние баллы, медианы ресурсов и пойманные пропуски. В колонках решений —
 средние баллы по трём прогонам,
-стопкой A / B / F (эталоны — в шапке колонок). <b>Итог — среднее трёх
+стопкой A / B / F (эталоны — в шапке колонок). <b>Итог — среднее четырёх
 объективных компонентов:</b> |Δ|A и |Δ|B — отличие от судьи (ярус 3,
 GLM-5.3-Flash с данными чекера) по его вердиктам; «Поймано пропусков» —
 сколько из реальных функциональных пропусков решения (по фактам чекера и
@@ -758,7 +777,10 @@ GLM-5.3-Flash с данными чекера) по его вердиктам; «
 «плохом» — артефакты, оф-пик, пустые миграции, bcadd без масштаба) модель
 назвала <b>с реальным механизмом</b> — не просто слово из той же области,
 а сам дефект, который роняет сценарий чекера (сверка каждого упоминания
-вручную, разметка в коде отчёта). Примеры, которые в зачёт не идут:
+вручную, разметка в коде отчёта); <b>надёжность</b> — доля прогонов,
+отбракованных гейтом (сессия, завершившаяся некорректно — вердикт не по
+контракту, — это минус ревьюеру, хотя точность её баллов посчитать нельзя:
+данных в заданной форме нет). Примеры упоминаний, которые в зачёт не идут:
 заметка про таймзону оф-пик-окна — другой дефект той же области;
 bcRoundHalfUp для отрицательных сумм — в домене суммы неотрицательны;
 оставленный debug_round.php — не функциональный дефект. Разбор каждого
