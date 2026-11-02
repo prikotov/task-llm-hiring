@@ -659,6 +659,14 @@ def results_summary_block(profiles, refs, runs) -> str:
                            "res": resources(model).get(("v2", thinking, 2))})
     ranked.sort(key=lambda e: e["combined"])
 
+    def runs_cell(prof):
+        """Зачётные прогоны строки и раскладка по решениям: план — 3 ревью
+        на каждое решение, видно, где гейт отбраковал сессию."""
+        per = " · ".join(f"{SLUG_TITLES[s]} {prof['per_slug'][s]['n']}"
+                         for s in SLUG_ORDER if s in prof["per_slug"])
+        return (f"<td class=num>{prof['n']}"
+                f"<div class=sub style=\"white-space:normal\">{per}</div></td>")
+
     def row_html(e, place):
         prof, d = e["prof"], e["d"]
         model, thinking = e["model"], e["thinking"]
@@ -670,7 +678,7 @@ def results_summary_block(profiles, refs, runs) -> str:
             f"<td><b>{esc(SHORT.get(model, model))}</b>"
             f"<div class=sub>протокол v2</div></td>"
             f"<td class=num>{thinking}</td>"
-            f"<td class=num>{prof['n']}</td>"
+            + runs_cell(prof)
             + "".join(stack_cell(prof, slug) for slug in SLUG_ORDER)
             + "".join(f"<td class='num {delta_class(d[a])}'>{d[a]:.2f}</td>" for a in AXES)
             + f"<td class=num>{e['caught']} из {REAL_MISSES_TOTAL}</td>"
@@ -690,7 +698,7 @@ def results_summary_block(profiles, refs, runs) -> str:
                 f"<td>{esc(SHORT.get(model, model))}"
                 f"<div class=sub>{note}</div></td>"
                 f"<td class=num>{thinking}</td>"
-                f"<td class=num>{prof['n']}</td>"
+                + runs_cell(prof)
                 + "".join(stack_cell(prof, slug) for slug in SLUG_ORDER)
                 + "".join(f"<td class='num {delta_class(d[a])}'>{d[a]:.2f}</td>" for a in AXES)
                 + "<td class=num title=\"прежний контракт: перечень not_done не собирался\">—</td>"
