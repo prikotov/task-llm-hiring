@@ -190,6 +190,9 @@ td.p-bad{color:#b3543f;font-weight:600}
 .deadmark.contract{background:#efe9f7;color:#6b5b9e}
 .deadmark.fab{background:#fbeae6;color:#b3543f}
 .deadmark.burn{background:#fff4d6;color:#9a6b00}
+.tip{position:relative;cursor:help;border-bottom:1px dotted currentColor}
+.tip .tipbox{display:none;position:absolute;z-index:40;left:calc(100% + 10px);top:50%;transform:translateY(-50%);width:330px;background:#1d2433;color:#fff;font-size:12px;line-height:1.55;font-weight:400;padding:9px 12px;border-radius:9px;box-shadow:0 8px 22px rgba(20,30,50,.32);text-align:left;white-space:normal}
+.tip:hover .tipbox{display:block}
 .stack{font-size:12.5px;line-height:1.45;white-space:nowrap}
 .stack.b{font-weight:600}
 .dchip{display:inline-block;margin:1px 2px 1px 0;padding:0 5px;border-radius:7px;background:#eef1f6;color:#315f9e;font-size:10.5px;font-weight:600;line-height:15px;white-space:nowrap}
@@ -724,13 +727,14 @@ def results_summary_block(profiles, refs, runs) -> str:
         n = e.get("dropped", 0)
         if not n:
             return '<td class=num>0</td>'
-        # детали — видимым текстом под числом: нативные тултипы во
-        # встроенном просмотрщике не показываются
+        # детали — CSS-тултипом при наведении на число (нативные title
+        # во встроенном просмотрщике не показываются)
         whys = dropped_why.get((e["model"], e["thinking"]), [])
-        lines = "".join(
-            f'<div class="sub" style="white-space:normal">{esc(w)}</div>'
-            for w in whys) or '<div class=sub>детали — в по-модельной таблице</div>'
-        return f'<td class="num p-bad">{n}{lines}</td>'
+        body = "<br>".join(esc(w) for w in whys) \
+            or "детали — в по-модельной таблице"
+        return (f'<td class="num p-bad"><span class=tip>{n}'
+                f'<span class=tipbox><b>Отбраковано гейтами</b> — некорректное '
+                f'завершение ревью; входит в итог как надёжность:<br>{body}</span></span></td>')
 
     def row_html(e, place):
         prof, d = e["prof"], e["d"]
