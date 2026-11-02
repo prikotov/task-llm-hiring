@@ -749,8 +749,9 @@ def results_summary_block(profiles, refs, runs) -> str:
     # их вердикты судьёй не верифицировались, а по-прогонные данные видны
     # в по-модельных таблицах ниже (протокол — в строке прогона)
 
-    # orca — поуровнево, как остальные: зачётных прогонов ноль,
-    # все запуски отбракованы гейтом формата
+    # orca — поуровнево, как остальные: зачётных прогонов ноль, все запуски
+    # отбракованы гейтом формата; точность и полнота — из ручной разметки
+    # сырых текстов (ORCA_TRIAGE/ORCA_CAUGHT, раздел 8.2)
     fail_rows = []
     orca_model = "orcarouter/Qwen3.8-27B-Uncensored:ctx100k"
     for th in ("max", "low", "medium"):
@@ -767,6 +768,7 @@ def results_summary_block(profiles, refs, runs) -> str:
                    f"<td class='num p-warn'>₽{med_d / 3600 * LOCAL_RUB_H:.1f}</td>")
         else:
             res = '<td colspan=2 class=num>—</td>'
+        c, z, o = ORCA_TRIAGE[th]
         fail_rows.append(
             f"<tr class=neg><td class=num>—</td>"
             f"<td><b>orca</b></td>"
@@ -775,7 +777,10 @@ def results_summary_block(profiles, refs, runs) -> str:
             f"<td class=\"num p-bad\"><span class=tip>{len(rs)}"
             f"<span class=tipbox><b>Отбраковано гейтами</b> — все запуски: вердикт "
             f"в собственном формате (шкала 0–5) вместо заданного JSON</span></span></td>"
-            f"<td class=num>—</td><td class=num>—</td>"
+            f"<td class=num>{c / (c + z + o):.0%}"
+            f"<div class=sub>по сырому тексту</div></td>"
+            f"<td class=num>{ORCA_CAUGHT[th]} из {REAL_MISSES_TOTAL}"
+            f"<div class=sub>по сырому тексту</div></td>"
             + res +
             f"<td><span class=sub>не применима</span></td></tr>")
 
@@ -1330,6 +1335,10 @@ _VERDICT_CLS = {"подтверждено": "okmark", "серьёзность з
 # наход: run-08 (каверзное, max) — единственный за серию названный механизм
 # оф-пика при первом импорте. (подтверждено, завышена, опровергнуто) на уровень.
 ORCA_TRIAGE = {"max": (28, 2, 0), "low": (7, 2, 0), "medium": (6, 1, 2)}
+# полнота orca по сырым текстам (из 5 реальных пропусков): max — оф-пик
+# «каверзного» (run-08) + миграции и артефакты «плохого»; medium — миграции
+# и артефакты «плохого»; low — 0: её прогоны на bad/tricky дали обрывы JSON
+ORCA_CAUGHT = {"max": 3, "low": 0, "medium": 2}
 
 
 def defect_precision(runs) -> dict:
@@ -1441,7 +1450,9 @@ max) — единственный за всю серию названный ме
 сохраняется для NEW-провайдера, setOffPeak() только в update-ветке» — дословно
 верифицированная причина из раздела 6, которую не назвал ни один зачётный
 ревьюер. Оценка вне контракта: валидного вердикта у orca нет, в рейтинг 4.1 её
-баллы не вошли, точность ниже — справочная.</p>
+баллы не вошли — точность и полнота ниже показаны с пометкой «по сырому тексту».
+Полнота: max — 3 из 5 (оф-пик, миграции, артефакты), medium — 2 из 5, low — 0
+(её прогоны на bad/tricky дали обрывы JSON вместо разборов).</p>
 <table>
 <tr><th>Модель × мышление</th><th class=narrow>Размечено</th><th class=narrow>Подтв.</th>
 <th class=narrow>Завышена</th><th class=narrow>Опроверг.</th><th class=narrow>Точность</th></tr>
