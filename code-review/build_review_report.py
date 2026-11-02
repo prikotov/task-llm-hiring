@@ -217,6 +217,8 @@ def load_references() -> dict:
         chk = ROOT / c["source_run"] / "check.json"
         cj = json.loads(chk.read_text(encoding="utf-8"))
         c["f_det"] = f_deterministic(cj["mandatory_passed"], cj["mandatory_total"])
+        c["mand_passed"] = cj["mandatory_passed"]
+        c["mand_total"] = cj["mandatory_total"]
         frozen = c["expected"]["functional"]
         if abs(c["f_det"] - frozen) > 1e-9:
             print(f"ВНИМАНИЕ: {c['slug']}: детерминированный F {c['f_det']} != "
@@ -495,8 +497,8 @@ def section_objects(refs) -> str:
             f"<td>{esc(b['checker'])}</td>"
             f"<td class=num>A {num(b['tier3']['axis_a'])} · B {num(b['tier3']['axis_b'])}<div class=sub>ярус 4 (без результатов проверки): A {num(b['tier4_blind']['axis_a'])}</div></td>"
             f"<td class=num>{num(e['axis_a'])} · {num(e['axis_b'])} · {num(e['functional'])}"
-              f"<div class=sub>F детерминированный: {num(c['f_det'])} "
-              f"(floor(8×пройдено/всего)/2 по чекеру)</div></td>"
+              f"<div class=sub>F = floor(8×{c.get('mand_passed', '?')}/{c.get('mand_total', '?')})/2 = "
+              f"{num(c['f_det'])} — пересчёт чекера, бонус не входит</div></td>"
             f"<td>{esc(fails)}</td></tr>")
     return f"""
 <h2 id=objects><span class=no>3.</span>Объекты ревью и эталоны</h2>
@@ -685,15 +687,19 @@ def results_summary_block(profiles, refs, runs) -> str:
 
     def runs_cell(e):
         """Зачётные прогоны строки и раскладка по решениям: план — 3 ревью
-        на каждое решение; отбракованные сессии показаны рядом — они
-        входят в итог как надёжность."""
+        на каждое решение. Отбракованные — отдельной колонкой."""
         prof = e["prof"]
         per = " · ".join(f"{SLUG_TITLES[s]} {prof['per_slug'][s]['n']}"
                          for s in SLUG_ORDER if s in prof["per_slug"])
-        if e["dropped"]:
-            per += f" · отбраковано {e['dropped']}"
         return (f"<td class=num>{prof['n']}"
                 f"<div class=sub style=\"white-space:normal\">{per}</div></td>")
+
+    def dropped_cell(e):
+        n = e.get("dropped", 0)
+        if not n:
+            return '<td class=num title="все запуски серии прошли гейты">0</td>'
+        return (f'<td class="num p-bad" title="запусков отбраковано гейтами '
+                f'(некорректное завершение ревью); входит в итог как надёжность">{n}</td>')
 
     def row_html(e, place):
         prof, d = e["prof"], e["d"]
@@ -707,6 +713,7 @@ def results_summary_block(profiles, refs, runs) -> str:
             f"<div class=sub>протокол v2</div></td>"
             f"<td class=num>{thinking}</td>"
             + runs_cell(e)
+            + dropped_cell(e)
             + "".join(stack_cell(prof, slug) for slug in SLUG_ORDER)
             + "".join(f"<td class='num {delta_class(d[a])}'>{d[a]:.2f}</td>" for a in AXES)
             + f"<td class=num>{e['caught']} из {REAL_MISSES_TOTAL}</td>"
@@ -727,6 +734,7 @@ def results_summary_block(profiles, refs, runs) -> str:
                 f"<div class=sub>{note}</div></td>"
                 f"<td class=num>{thinking}</td>"
                 + runs_cell({"prof": prof, "dropped": 0})
+                + '<td class=num title="для серий сравнения отбраковка в итог не входит">—</td>'
                 + "".join(stack_cell(prof, slug) for slug in SLUG_ORDER)
                 + "".join(f"<td class='num {delta_class(d[a])}'>{d[a]:.2f}</td>" for a in AXES)
                 + "<td class=num title=\"прежний контракт: перечень not_done не собирался\">—</td>"
@@ -749,6 +757,7 @@ def results_summary_block(profiles, refs, runs) -> str:
         f"<td><b>orca</b><div class=sub>{orca_n} прогонов: {orca_parts}</div></td>"
         f"<td class=num>max/low/<br>medium</td>"
         + "<td class=num title=\"зачётных прогонов нет\">0</td>"
+        + f"<td class=\"num p-bad\" title=\"все запуски отбракованы гейтом формата\">{orca_n}</td>"
         + "<td colspan=4>—</td><td colspan=3>—</td>"
         + "<td colspan=2><span class=sub>вне рейтинга: вердикт в заданном формате не выдан ни разу</span></td>"
         + res_cells_stacked(orca_res)
@@ -756,11 +765,15 @@ def results_summary_block(profiles, refs, runs) -> str:
 
     def th_stack(slug):
         e = refs[slug]["expected"]
+        f_src = (f' (чекер {refs[slug]["mand_passed"]}/{refs[slug]["mand_total"]} об.)'
+                 if "mand_total" in refs[slug] else "")
         return (f'<th class=narrow>{SLUG_TITLES[slug]}'
-                f'<div class=sub>этал. A {e["axis_a"]:g} · B {e["axis_b"]:g} · F {e["functional"]:g}</div></th>')
+                f'<div class=sub>этал. A {e["axis_a"]:g} · B {e["axis_b"]:g} · '
+                f'F {e["functional"]:g}{f_src}</div></th>')
     head = ("<tr><th class=narrow>Место</th><th>Модель</th>"
             "<th class=narrow>Мышление</th>"
             "<th class=narrow title=\"зачётных прогонов в серии: по ним средние баллы, медианы и пойманные пропуски\">Прогонов</th>"
+            "<th class=narrow title=\"запусков серии отбраковано гейтами — некорректное завершение ревью; в итог входит как надёжность\">Отбрак.</th>"
             + "".join(th_stack(s) for s in SLUG_ORDER)
             + ("<th class=narrow>|Δ|A</th><th class=narrow>|Δ|B</th><th class=narrow>|Δ|F</th>"
                "<th class=narrow>Поймано пропусков (механизм)</th>"
@@ -778,7 +791,12 @@ def results_summary_block(profiles, refs, runs) -> str:
 если часть прогонов отбракована гейтами валидности. По ним считаны
 средние баллы, медианы ресурсов и пойманные пропуски. В колонках решений —
 средние баллы по трём прогонам,
-стопкой A / B / F (эталоны — в шапке колонок). <b>Итог — среднее четырёх
+стопкой A / B / F (эталоны — в шапке колонок). <b>Эталон F — не мнение судьи,
+а пересчёт чекера этапа 2 в шкалу 0–4:</b> floor(8 × принято обязательных сценариев /
+всего обязательных) / 2; бонусные сценарии не входят. По решениям: 11/11 → 4.0
+(«хорошее»), 11/11 → 4.0 («среднее»), 9/11 → 3.0 («каверзное»), 8/11 → 2.5 («плохое»).
+Балл F ревьюера — его оценка той же доли обязательных требований; |Δ|F — отличие
+от пересчёта чекера. <b>Итог — среднее четырёх
 объективных компонентов:</b> |Δ|A и |Δ|B — отличие от судьи (ярус 3,
 GLM-5.3-Flash с данными чекера) по его вердиктам; «Поймано пропусков» —
 сколько из реальных функциональных пропусков решения (по фактам чекера и
