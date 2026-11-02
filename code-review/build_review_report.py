@@ -432,8 +432,9 @@ def section_tldr(runs, profiles, refs, grid) -> str:
 проверка всегда стартует с пустой базы, где провайдеров ещё нет. Пример расчёта из
 TASK.md при этом сходится, поэтому ошибка не видна при чтении кода. Тот же дефект
 пропустил и судья яруса 4, поставив решению A 4.0. Единственный, кто назвал механизм
-за всю серию, — orca в сыром тексте вне заданного формата (раздел 8.2); её вердикты
-невалидны, в рейтинг она не входит. Баллы ревьюеров по A (эталон 2.5):
+за всю серию, — orca в сыром тексте вне заданного формата (раздел 8.2). Она
+включена в рейтинг 4.1 по ручной разметке содержания: качество замечаний высшее
+(93% на max), но ненадёжность 1.0 — ни один вердикт не прошёл гейт формата. Баллы ревьюеров по A (эталон 2.5):
 {esc(blind_txt)}.</p>
 <p class=lead>Не все модели выдержали порядок ревью. orca во всех {orca_n} прогонах
 (протоколы v1 и v2) читала файлы и писала разборы, но ни разу не выдала вердикт в
@@ -701,6 +702,32 @@ def results_summary_block(profiles, refs, runs) -> str:
                            "dropped": attempted.get((model, thinking), prof["n"]) - prof["n"],
                            "caught": len(caught.get((model, thinking), set())),
                            "res": resources(model).get(("v2", thinking, 2))})
+    # orca — по сырому тексту (8.2): неточность и неполнота из ручной
+    # разметки, ненадёжность 1.0 — все прогоны отбракованы гейтом формата
+    orca_model = "orcarouter/Qwen3.8-27B-Uncensored:ctx100k"
+    for th in ("max", "low", "medium"):
+        rs = [r for r in runs if r["model"] == orca_model
+              and r["thinking"] == th and r["protocol"] == "v2"]
+        if not rs:
+            continue
+        pc, pz, po = ORCA_TRIAGE[th]
+        ptot = pc + pz + po
+        prec_o = pc / ptot if ptot else 0.0
+        miss_o = 1 - ORCA_CAUGHT[th] / REAL_MISSES_TOTAL
+        ds = sorted(r["duration_s"] for r in rs if r["duration_s"])
+        toks = sorted(r["tokens"] for r in rs if r["tokens"])
+        med_t = med_r = None
+        if ds and toks:
+            m = len(ds) // 2
+            med_d = ds[m] if len(ds) % 2 else (ds[m - 1] + ds[m]) / 2
+            med_t = toks[len(toks) // 2] / 1e6
+            med_r = med_d / 3600 * LOCAL_RUB_H
+        ranked.append({
+            "model": orca_model, "thinking": th, "orca": True, "n_rs": len(rs),
+            "combined": statistics.mean([1 - prec_o, miss_o, 1.0]),
+            "prec": prec_o, "pparts": (pc, pz, po, ptot),
+            "caught": ORCA_CAUGHT[th], "dropped": len(rs),
+            "res": (None, med_t, med_r) if med_t else None})
     ranked.sort(key=lambda e: e["combined"])
 
     def runs_cell(e):
@@ -725,6 +752,29 @@ def results_summary_block(profiles, refs, runs) -> str:
 
     def row_html(e, place):
         model, thinking = e["model"], e["thinking"]
+        if e.get("orca"):
+            # итог по сырому тексту; формат виден в «Прогонов»/«Отбрак.»
+            c, z, o, tot = e["pparts"]
+            res = (f"<td class=num>{e['res'][1]:.2f}</td>"
+                   f"<td class='num p-warn'>₽{e['res'][2]:.1f}</td>") if e["res"] \
+                else '<td colspan=2 class=num>—</td>'
+            return (
+                f"<tr class={'top' if e['combined'] <= 0.6 else ''}>"
+                f"<td class=num>{place}</td>"
+                f"<td><b>orca</b></td>"
+                f"<td class=num>{thinking}</td>"
+                f"<td class=num title=\"зачётных прогонов нет\">0</td>"
+                f"<td class=\"num p-bad\"><span class=tip>{e['n_rs']}"
+                f"<span class=tipbox><b>Отбраковано гейтами</b> — все запуски: вердикт "
+                f"в собственном формате вместо заданного JSON</span></span></td>"
+                f"<td class=num>{e['prec']:.0%}"
+                f"<div class=sub>по сырому тексту: {c} из {e['pparts'][3]}</div></td>"
+                f"<td class=num>{e['caught']} из {REAL_MISSES_TOTAL}"
+                f"<div class=sub>по сырому тексту</div></td>"
+                + res +
+                f"<td>{_quality_level(e['combined'])}"
+                f"<div class=sub style=\"white-space:normal\">формат: 0 из "
+                f"{e['n_rs']} валидных</div></td></tr>")
         return (
             # зелёный фон — вся строка, прошедшая границу качества
             # (итог <= 0.6, «применима»), а не только первое место
@@ -748,41 +798,6 @@ def results_summary_block(profiles, refs, runs) -> str:
     # сравнительные серии (v1, прежний контракт) в сводную не выводятся:
     # их вердикты судьёй не верифицировались, а по-прогонные данные видны
     # в по-модельных таблицах ниже (протокол — в строке прогона)
-
-    # orca — поуровнево, как остальные: зачётных прогонов ноль, все запуски
-    # отбракованы гейтом формата; точность и полнота — из ручной разметки
-    # сырых текстов (ORCA_TRIAGE/ORCA_CAUGHT, раздел 8.2)
-    fail_rows = []
-    orca_model = "orcarouter/Qwen3.8-27B-Uncensored:ctx100k"
-    for th in ("max", "low", "medium"):
-        rs = [r for r in runs if r["model"] == orca_model
-              and r["thinking"] == th and r["protocol"] == "v2"]
-        if not rs:
-            continue
-        ds = sorted(r["duration_s"] for r in rs if r["duration_s"])
-        toks = sorted(r["tokens"] for r in rs if r["tokens"])
-        if ds and toks:
-            m = len(ds) // 2
-            med_d = ds[m] if len(ds) % 2 else (ds[m - 1] + ds[m]) / 2
-            res = (f"<td class=num>{toks[len(toks) // 2]/1e6:.2f}</td>"
-                   f"<td class='num p-warn'>₽{med_d / 3600 * LOCAL_RUB_H:.1f}</td>")
-        else:
-            res = '<td colspan=2 class=num>—</td>'
-        c, z, o = ORCA_TRIAGE[th]
-        fail_rows.append(
-            f"<tr class=neg><td class=num>—</td>"
-            f"<td><b>orca</b></td>"
-            f"<td class=num>{th}</td>"
-            f"<td class=num title=\"зачётных прогонов нет\">0</td>"
-            f"<td class=\"num p-bad\"><span class=tip>{len(rs)}"
-            f"<span class=tipbox><b>Отбраковано гейтами</b> — все запуски: вердикт "
-            f"в собственном формате (шкала 0–5) вместо заданного JSON</span></span></td>"
-            f"<td class=num>{c / (c + z + o):.0%}"
-            f"<div class=sub>по сырому тексту</div></td>"
-            f"<td class=num>{ORCA_CAUGHT[th]} из {REAL_MISSES_TOTAL}"
-            f"<div class=sub>по сырому тексту</div></td>"
-            + res +
-            f"<td><span class=sub>не применима</span></td></tr>")
 
     head = ("<tr><th class=narrow>Место</th><th>Модель</th>"
             "<th class=narrow>Мышление</th>"
@@ -809,9 +824,12 @@ def results_summary_block(profiles, refs, runs) -> str:
 с судьёй (|Δ|) и время прогонов в сводную не вынесены — по-прогонные баллы, Δ и
 время видны в по-модельных таблицах ниже; серии v1 и прежнего контракта в
 сводную не входят, их прогоны — там же (протокол указан в строке прогона).
+orca включена в рейтинг по ручной разметке сырых текстов (8.2): неточность и
+неполнота — по ним, ненадёжность = 1.0 (ни один вердикт не прошёл гейт формата);
+у её строк пометки «по сырому тексту» и «формат: 0 из N валидных».
 «Прогонов» — зачётные прогоны строки: 3 независимых ревью каждого из 4 решений,
 максимум 12. Стоимость — электричество и амортизация (₽35.85/ч).</p>
-<table>{head}{''.join(rows)}{''.join(fail_rows)}</table>"""
+<table>{head}{''.join(rows)}</table>"""
 
 
 def _scatter_svg(points: list[dict], x_title: str, note: str) -> str:
@@ -1449,10 +1467,11 @@ docker psql). В этой серии прогон выполнен вручну�
 max) — единственный за всю серию названный механизм оф-пика</b>: «оф-пик не
 сохраняется для NEW-провайдера, setOffPeak() только в update-ветке» — дословно
 верифицированная причина из раздела 6, которую не назвал ни один зачётный
-ревьюер. Оценка вне контракта: валидного вердикта у orca нет, в рейтинг 4.1 её
-баллы не вошли — точность и полнота ниже показаны с пометкой «по сырому тексту».
-Полнота: max — 3 из 5 (оф-пик, миграции, артефакты), medium — 2 из 5, low — 0
-(её прогоны на bad/tricky дали обрывы JSON вместо разборов).</p>
+ревьюер. Оценка вне контракта: валидного вердикта у orca нет, поэтому в 4.1 её итог
+считается из этих чисел — неточность и неполнота по сырому тексту, ненадёжность
+1.0 (все прогоны отбракованы гейтом формата): orca max — 7-е место, medium — 9-е,
+low — 10-е. Полнота: max — 3 из 5 (оф-пик, миграции, артефакты), medium — 2 из 5,
+low — 0 (её прогоны на bad/tricky дали обрывы JSON вместо разборов).</p>
 <table>
 <tr><th>Модель × мышление</th><th class=narrow>Размечено</th><th class=narrow>Подтв.</th>
 <th class=narrow>Завышена</th><th class=narrow>Опроверг.</th><th class=narrow>Точность</th></tr>
