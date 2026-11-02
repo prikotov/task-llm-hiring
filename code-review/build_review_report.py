@@ -219,6 +219,8 @@ def load_references() -> dict:
         c["f_det"] = f_deterministic(cj["mandatory_passed"], cj["mandatory_total"])
         c["mand_passed"] = cj["mandatory_passed"]
         c["mand_total"] = cj["mandatory_total"]
+        c["bonus_passed"] = cj.get("bonus_passed")
+        c["bonus_total"] = cj.get("bonus_total")
         frozen = c["expected"]["functional"]
         if abs(c["f_det"] - frozen) > 1e-9:
             print(f"ВНИМАНИЕ: {c['slug']}: детерминированный F {c['f_det']} != "
@@ -492,13 +494,20 @@ def section_objects(refs) -> str:
         b = c["basis"]
         e = c["expected"]
         fails = "; ".join(f["scenario"] for f in c.get("checker_failures", [])) or "—"
+        if c.get("bonus_total"):
+            bonus_txt = f" + бонус {c['bonus_passed']}/{c['bonus_total']}"
+        elif "bonus_total" in c:
+            bonus_txt = " + бонус 0/?"
+        else:
+            bonus_txt = ""
         rows.append(
             f"<tr><td><b>{SLUG_TITLES[slug]}</b><div class=sub>{esc(c['source_run'].split('/backend/')[0].split('models/')[1])}</div></td>"
             f"<td>{esc(b['checker'])}</td>"
             f"<td class=num>A {num(b['tier3']['axis_a'])} · B {num(b['tier3']['axis_b'])}<div class=sub>ярус 4 (без результатов проверки): A {num(b['tier4_blind']['axis_a'])}</div></td>"
-            f"<td class=num>{num(e['axis_a'])} · {num(e['axis_b'])} · {num(e['functional'])}"
-              f"<div class=sub>F = floor(8×{c.get('mand_passed', '?')}/{c.get('mand_total', '?')})/2 = "
-              f"{num(c['f_det'])} — пересчёт чекера, бонус не входит</div></td>"
+            f"<td class=num>{num(e['axis_a'])} · {num(e['axis_b'])} · "
+              f"F {c.get('mand_passed', '?')}/{c.get('mand_total', '?')} об.{bonus_txt}"
+              f"<div class=sub>F в шкале 0–4: floor(8×{c.get('mand_passed', '?')}/"
+              f"{c.get('mand_total', '?')})/2 = {num(c['f_det'])} — пересчёт чекера</div></td>"
             f"<td>{esc(fails)}</td></tr>")
     return f"""
 <h2 id=objects><span class=no>3.</span>Объекты ревью и эталоны</h2>
@@ -765,11 +774,14 @@ def results_summary_block(profiles, refs, runs) -> str:
 
     def th_stack(slug):
         e = refs[slug]["expected"]
-        f_src = (f' (чекер {refs[slug]["mand_passed"]}/{refs[slug]["mand_total"]} об.)'
-                 if "mand_total" in refs[slug] else "")
+        c = refs[slug]
+        if "mand_total" in c:
+            f_src = (f'F {c["mand_passed"]}/{c["mand_total"]} об.'
+                     f'<div class=sub>в шкале 0–4: {e["functional"]:g}</div>')
+        else:
+            f_src = f'F {e["functional"]:g}'
         return (f'<th class=narrow>{SLUG_TITLES[slug]}'
-                f'<div class=sub>этал. A {e["axis_a"]:g} · B {e["axis_b"]:g} · '
-                f'F {e["functional"]:g}{f_src}</div></th>')
+                f'<div class=sub>этал. A {e["axis_a"]:g} · B {e["axis_b"]:g} · {f_src}</div></th>')
     head = ("<tr><th class=narrow>Место</th><th>Модель</th>"
             "<th class=narrow>Мышление</th>"
             "<th class=narrow title=\"зачётных прогонов в серии: по ним средние баллы, медианы и пойманные пропуски\">Прогонов</th>"
@@ -791,12 +803,13 @@ def results_summary_block(profiles, refs, runs) -> str:
 если часть прогонов отбракована гейтами валидности. По ним считаны
 средние баллы, медианы ресурсов и пойманные пропуски. В колонках решений —
 средние баллы по трём прогонам,
-стопкой A / B / F (эталоны — в шапке колонок). <b>Эталон F — не мнение судьи,
-а пересчёт чекера этапа 2 в шкалу 0–4:</b> floor(8 × принято обязательных сценариев /
-всего обязательных) / 2; бонусные сценарии не входят. По решениям: 11/11 → 4.0
-(«хорошее»), 11/11 → 4.0 («среднее»), 9/11 → 3.0 («каверзное»), 8/11 → 2.5 («плохое»).
-Балл F ревьюера — его оценка той же доли обязательных требований; |Δ|F — отличие
-от пересчёта чекера. <b>Итог — среднее четырёх
+стопкой A / B / F (эталоны — в шапке колонок). <b>Эталон F — результат чекера
+этапа 2, как в оригинальном тестовом:</b> сколько обязательных сценариев принято —
+11/11 («хорошее»), 11/11 («среднее»), 9/11 («каверзное»), 8/11 («плохое»); бонусные
+сценарии в F не входят. Чтобы сравнивать с баллами ревьюера, эта доля пересчитывается
+в служебный балл шкалы 0–4: floor(8 × принято / всего) / 2 → 4.0, 4.0, 3.0, 2.5.
+Балл F ревьюера — оценка той же доли на шкале 0–4; |Δ|F — отличие от пересчёта
+чекера. <b>Итог — среднее четырёх
 объективных компонентов:</b> |Δ|A и |Δ|B — отличие от судьи (ярус 3,
 GLM-5.3-Flash с данными чекера) по его вердиктам; «Поймано пропусков» —
 сколько из реальных функциональных пропусков решения (по фактам чекера и
@@ -922,7 +935,9 @@ def section_results(profiles, refs, runs) -> str:
         model_runs[r["model"]].append(r)
     head = ("<tr><th class=narrow>Прогон</th><th class=narrow>Решение</th>"
             "<th class=narrow>Мышл.</th><th class=narrow>Протокол</th>"
-            "<th class=narrow>A</th><th class=narrow>B</th><th class=narrow>F</th>"
+            "<th class=narrow>A</th><th class=narrow>B</th>"
+            "<th class=narrow title=\"балл ревьюера по контракту, шкала 0–4; "
+            "эталон решения — дробь чекера, см. раздел 3\">F 0–4</th>"
             "<th class=narrow>ΔA</th><th class=narrow>ΔB</th><th class=narrow>ΔF</th>"
             "<th class=narrow>Сверка</th><th class=narrow>Дефекты<br>K/M/m</th>"
             "<th class=narrow>М ток.</th><th class=narrow>Мин</th><th>Примечание</th></tr>")
