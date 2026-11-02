@@ -11,7 +11,7 @@
 
 Использование:
 
-    python3 score_review.py models/<модель>/backend/review/run-01 [run-02 ...]
+    python3 score_review.py models/<модель>/backend/code-review/run-01 [run-02 ...]
 """
 
 from __future__ import annotations

@@ -19,7 +19,7 @@ JSON одной строкой (axis_a, axis_b, functional, defects, note).
 
     python3 runner_reviewer.py --model qwen3.8:27b-pi-100k \
         --target models/huihui-ai-pi-100k/backend/test-assignment/run-02 \
-        --results models/qwen3.8-27b-pi-100k/backend/review/run-01
+        --results models/qwen3.8-27b-pi-100k/backend/code-review/run-01
 
 Опции: --thinking (default max), --context (default 102400), --timeout
 секунд (default 3600), --provider deepseek (для будущего сравнения),

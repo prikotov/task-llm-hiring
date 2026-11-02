@@ -43,15 +43,17 @@ metrics.json). Знание вердикта чекера превратило �
 Версии протокола (решение владельца, 2026-10-31):
 - **v1** — серия 2026-10-31 (56 прогонов): в материалах лежал diff.patch
   вспомогательным файлом; читали его мало, основной объект — файлы solution/.
-  Результаты — `models/<модель>/backend/review/run-XX/`, в run.json
-  `"protocol": "v1"`. Данные сохранены для сравнения.
-- **v2** — текущий протокол: решение выдаётся целиком, без диффа. Результаты —
-  `models/<модель>/backend/review-v2/run-XX/` (thinking max),
-  `review-v2-low/` и `review-v2-medium/` (сравнение уровней размышлений),
-  в run.json `"protocol": "v2"` и `"thinking"`. Сравнение уровней имеет
-  смысл только для моделей с пошаговой шкалой thinking (семейство qwen:
-  low/medium/xhigh); у семейства gemma шкала булева (вкл/выкл) — уровни
-  low/medium неотличимы от max.
+  Данные сохранены для сравнения.
+- **v2** — текущий протокол: решение выдаётся целиком, без диффа; версия
+  контракта (промпта) — 1 без перечня not_done, 2 с перечнем.
+
+Каталог результатов один для всех версий —
+`models/<модель>/backend/code-review/run-XX/`, нумерация сквозная
+хронологическая; версия протокола, контракта и уровень thinking читаются
+из run.json (`"protocol"`, `"prompt_version"`, `"thinking"`). Сравнение
+уровней мышления имеет смысл только для моделей с пошаговой шкалой
+(семейство qwen: low/medium/xhigh); у семейства gemma шкала булева
+(вкл/выкл) — уровни low/medium неотличимы от max.
 
 ## Объекты ревью
 
@@ -128,11 +130,11 @@ TASK.md не сделаны или сделаны неверно): балл бе
 ## Прогон
 
 ```bash
-cd test-assignment/backend/billing/reviewer
+cd code-review
 
 python3 runner_reviewer.py --model qwen3.8:27b-pi-100k \
   --target models/huihui-ai-pi-100k/backend/test-assignment/run-02 \
-  --results models/qwen3.8-27b-pi-100k/backend/review/run-01
+  --results models/qwen3.8-27b-pi-100k/backend/code-review/run-01
 ```
 
 - `--target` обязан быть решением из эталонного набора (иначе сверка невозможна);
@@ -141,8 +143,7 @@ python3 runner_reviewer.py --model qwen3.8:27b-pi-100k \
 - опции: `--thinking`, `--context`, `--timeout`, `--max-tokens`, `--smoke`,
   `--keep`; провайдер `--provider deepseek` — для будущего сравнения
   (облачные в эту серию не входят);
-- результат: для v1 — `models/<модель-ревьюер>/backend/review/run-XX/`,
-  для v2 — `models/<модель-ревьюер>/backend/review-v2/run-XX/`:
+- результат: `models/<модель-ревьюер>/backend/code-review/run-XX/` —
   `run.json` (параметры, версия протокола, целостность, токены, parse_ok),
   `pi-session/`, `pi-run.log`, `review.json` (распарсенный вердикт),
   `review.md` (сырой финальный ответ).
@@ -150,7 +151,7 @@ python3 runner_reviewer.py --model qwen3.8:27b-pi-100k \
 ## Сверка с судьёй (эталоном)
 
 ```bash
-python3 score_review.py models/qwen3.8-27b-pi-100k/backend/review/run-01 [...]
+python3 score_review.py models/qwen3.8-27b-pi-100k/backend/code-review/run-01 [...]
 ```
 
 - автоматически: |ΔA|, |ΔB|, |ΔF| против `references/*.json`; черновик

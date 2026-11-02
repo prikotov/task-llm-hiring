@@ -4,9 +4,9 @@
 Стиль — как у отчётов этапов 1 и 2: светлый документ, нумерованные секции,
 таблицы с бейджами и барами, самописные SVG без внешних зависимостей.
 Все числа — из артефактов прогонов (run.json, review.json) в
-models/<модель>/backend/review/ и эталон-карточек references/*.json.
+models/<модель>/backend/code-review/ и эталон-карточек references/*.json.
 
-Запуск: python3 test-assignment/backend/billing/reviewer/build_review_report.py
+Запуск: python3 code-review/build_review_report.py
 Выход: reports/REVIEW-report.html
 """
 import glob
@@ -16,7 +16,7 @@ from collections import defaultdict
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[3]
+ROOT = HERE.parents[0].resolve()
 MODELS = ROOT / "models"
 OUT = ROOT / "reports" / "REVIEW-report.html"
 
@@ -228,7 +228,7 @@ def load_references() -> dict:
 def load_runs() -> list[dict]:
     """Все прогоны ревью (протоколы v1 и v2) с полями вердикта/валидности."""
     runs = []
-    for rp in sorted(MODELS.glob("*/backend/review*/run-*")):
+    for rp in sorted(MODELS.glob("*/backend/code-review/run-*")):
         rj, vj = rp / "run.json", rp / "review.json"
         if not rj.is_file():
             continue
@@ -378,7 +378,7 @@ psalm, scc, сводка по классам). Чего ревьюер не по
 перечисляет найденные дефекты с файлами и строками. Исполнять и изменять код
 нельзя: инструмент в pi — только чтение файлов. Целостность копии проверяется
 хэш-суммами всех файлов до и после прогона; расхождение — прогон отбраковывается.</p>
-<p>Отчёт собран из артефактов прогонов: models/&lt;модель&gt;/backend/review/run-XX/.</p>
+<p>Отчёт собран из артефактов прогонов: models/&lt;модель&gt;/backend/code-review/run-XX/.</p>
 </header>
 <nav class=toc>
 <div class=toc-title>Содержание</div>
@@ -470,7 +470,7 @@ def section_method() -> str:
 <tr><td><b>Запрет правок и запуска</b></td><td>pi запускается с единственным инструментом — чтением файлов; edit, write, bash отключены. В копии нет vendor — код нечем исполнить. Хэш-суммы всех файлов до и после прогона; изменение — прогон отбраковывается.</td></tr>
 <tr><td><b>Изоляция прогонов</b></td><td>Каждый прогон получает свой временный каталог с копией материалов и свой pi-home. После прогона модель выгружается из памяти сервера: следующий прогон не наследует от предыдущего ничего.</td></tr>
 <tr><td><b>Сравнение с эталоном</b></td><td>Разница |Δ| между баллом ревьюера и эталонным баллом по каждой шкале. Черновик зачёта: |Δ| ≤ 0.5 — зачёт, ≤ 1.0 — частично, выше — промах. Спорные расхождения проверяются кодом и рантаймом (раздел 6.2).</td></tr>
-<tr><td><b>Версии протокола</b></td><td><b>v1</b> — серия от 2026-10-31: помимо решения в материалах лежал diff.patch как вспомогательный файл (56 прогонов, каталог review/). <b>v2</b> — текущий: решение целиком, без диффа. Версия указана в run.json каждого прогона; в разделе 4 таблицы разбиты по версиям — старые данные сохранены для сравнения. Протоколов два; цифра в имени каталога — не версия протокола, а волна прогонов: review/ — волна 1 (протокол v1), review-v2*/ — волна 2 (протокол v2, контракт без перечня not_done), review-v3*/ — волна 3, пересборка с контрактом not_done (протокол тот же v2, версия промпта 2).</td></tr>
+<tr><td><b>Версии протокола</b></td><td><b>v1</b> — серия от 2026-10-31: помимо решения в материалах лежал diff.patch как вспомогательный файл (56 прогонов). <b>v2</b> — текущий: решение целиком, без диффа; версия контракта (промпта) — 1 без перечня not_done, 2 с перечнем. Все версии записаны в run.json каждого прогона; каталог результатов один — <code>models/&lt;модель&gt;/backend/code-review/run-XX/</code>, нумерация сквозная хронологическая. В разделе 4 таблицы разбиты по версиям — старые данные сохранены для сравнения.</td></tr>
 </table>"""
 
 
@@ -609,12 +609,12 @@ def results_summary_block(profiles, refs, runs) -> str:
     # сессия, завершившаяся некорректно (вердикт не по контракту), идёт
     # модели в минус, а не выбрасывается
     attempted = defaultdict(int)
-    for rp in sorted((ROOT / "models").glob("*/backend/review-v3*/run-*/run.json")):
+    for rp in sorted((ROOT / "models").glob("*/backend/code-review/run-*/run.json")):
         meta = json.loads(rp.read_text(encoding="utf-8"))
         if meta.get("protocol") != "v2" or meta.get("prompt_version") != 2:
             continue
         attempted[(meta.get("model"), meta.get("thinking"))] += 1
-    for rp in sorted((ROOT / "models").glob("*/backend/review-v3*/run-*/review.json")):
+    for rp in sorted((ROOT / "models").glob("*/backend/code-review/run-*/review.json")):
         rj = rp.with_name("run.json")
         if not rj.is_file():
             continue
@@ -1004,7 +1004,7 @@ def section_notdone(profiles, refs, runs) -> str:
     items = defaultdict(lambda: defaultdict(int))
     examples = defaultdict(list)
     sessions = defaultdict(int)
-    for rp in sorted((ROOT / "models").glob("*/backend/review-v3*/run-*/review.json")):
+    for rp in sorted((ROOT / "models").glob("*/backend/code-review/run-*/review.json")):
         rj = rp.with_name("run.json")
         if not rj.is_file():
             continue
@@ -1179,8 +1179,9 @@ def section_runs(runs, grid) -> str:
 <h2 id=runs><span class=no>9.</span>Прогоны и данные</h2>
 <p class=lead>Все {len(runs)} прогонов этапа (пилот + серия v1 + серия v2 + перезапуски).
 Время и токены фиксировались в run.json каждой сессии; сводка по моделям — ниже,
-по-прогонно — в свёрнутом списке. Артефакты: models/&lt;модель&gt;/backend/review/ (v1)
-и review-v2/ — run.json (условия, версия протокола, целостность, время, токены),
+по-прогонно — в свёрнутом списке. Артефакты:
+models/&lt;модель&gt;/backend/code-review/run-XX/ — run.json (условия, версия
+протокола, целостность, время, токены),
 review.json (вердикт + дефекты), review.md (сырой ответ), pi-session/ (полный след
 сессии), review-score.json (сверка с эталоном).</p>
 <table>
@@ -1249,7 +1250,7 @@ def main() -> int:
 {section_runs(runs, grid)}
 {section_next()}
 <div class=footer>Этап 3 методики «Модели»: код-ревью решений этапа 2. Отчёт собран
-из артефактов models/&lt;модель&gt;/backend/review/run-XX/ (run.json, review.json) и
+из артефактов models/&lt;модель&gt;/backend/code-review/run-XX/ (run.json, review.json) и
 эталон-карточек reviewer/references/. Билдер: reviewer/build_review_report.py.
 Методика: reviewer/REVIEWER.md. Дата сборки: {__import__('datetime').date.today().isoformat()}.</div>
 </div></body></html>"""

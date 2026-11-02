@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Свод серии ревью (этап 3): повторяемость и близость к эталону.
 
-Читает все прогоны models/<модель>/backend/review/run-*/, отбрасывает
+Читает все прогоны models/<модель>/backend/code-review/run-*/, отбрасывает
 невалидные (нет tool-calls / нет вердикта / целостность нарушена),
 агрегирует по паре (модель, решение): вердикты по прогонам, средние |Δ|
 к эталону и разброс (max-min) по осям.
@@ -20,7 +20,7 @@ from collections import defaultdict
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-MODELS = HERE.parent.parent.parent.parent / "models"  # корень репозитория/models
+MODELS = HERE.parent.parent / "models"  # корень репозитория/models
 
 AXES = ("axis_a", "axis_b", "functional")
 
@@ -33,7 +33,7 @@ def main() -> None:
 
     data: dict[tuple, list] = defaultdict(list)
     skipped = 0
-    for rp in sorted((MODELS).glob("*/backend/review*/run-*")):
+    for rp in sorted((MODELS).glob("*/backend/code-review/run-*")):
         rj, vj = rp / "run.json", rp / "review.json"
         if not (rj.is_file() and vj.is_file()):
             continue

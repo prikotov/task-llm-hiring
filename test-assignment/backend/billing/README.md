@@ -140,16 +140,16 @@ skeleton "$RESULTS/solution"`.)
 Решения этапа 2 ревьюируются локальными моделями в среде pi при слепом
 протоколе: без чекера и golden, только чтение (`--tools read`), метрики —
 как указатели, где смотреть. Методика, объекты ревью (4 решения: good /
-mid / tricky / bad), изоляция и сверка с судьёй — `reviewer/REVIEWER.md`.
+mid / tricky / bad), изоляция и сверка с судьёй — `code-review/REVIEWER.md` (в корне workspace).
 
 ```bash
-python3 test-assignment/backend/billing/reviewer/runner_reviewer.py \
+python3 code-review/runner_reviewer.py \
   --model qwen3.8:27b-pi-100k \
   --target models/huihui-ai-pi-100k/backend/test-assignment/run-02 \
-  --results models/qwen3.8-27b-pi-100k/backend/review/run-01
+  --results models/qwen3.8-27b-pi-100k/backend/code-review/run-01
 ```
 
-Результаты — `models/<модель>/backend/review/run-XX/` (run.json с
+Результаты — `models/<модель>/backend/code-review/run-XX/` (run.json с
 целостностью, pi-session, review.json + review.md, review-score.json —
 сверка с эталоном).
 
