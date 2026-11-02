@@ -1585,6 +1585,39 @@ user-сообщении. Изменения — одинаковые для вс
 </table>"""
 
 
+TIP_JS = """
+<script>
+(function(){
+  var box = document.createElement('div');
+  box.style.cssText = 'position:fixed;z-index:99;display:none;max-width:360px;'
+    + 'background:#1d2433;color:#fff;font:12px/1.55 "Segoe UI",system-ui,sans-serif;'
+    + 'padding:9px 12px;border-radius:9px;box-shadow:0 8px 22px rgba(20,30,50,.32);'
+    + 'pointer-events:none;white-space:normal';
+  document.body.appendChild(box);
+  document.addEventListener('mouseover', function(e){
+    var el = e.target.closest && e.target.closest('[title],[data-tip]');
+    if (!el) { box.style.display = 'none'; return; }
+    var t = el.getAttribute('data-tip') || el.getAttribute('title');
+    if (!t) { box.style.display = 'none'; return; }
+    if (el.hasAttribute('title')) { el.setAttribute('data-tip', t); el.removeAttribute('title'); }
+    box.textContent = t;
+    box.style.display = 'block';
+    box.style.left = '0px'; box.style.top = '0px';
+    var r = el.getBoundingClientRect();
+    var w = box.offsetWidth, h = box.offsetHeight;
+    var x = Math.min(r.left, window.innerWidth - w - 8);
+    var y = r.bottom + 6;
+    if (y + h > window.innerHeight - 8) y = r.top - h - 6;
+    if (y < 8) y = Math.max(8, r.top + (r.height - h) / 2);
+    box.style.left = Math.max(8, x) + 'px';
+    box.style.top = y + 'px';
+  });
+  document.addEventListener('scroll', function(){ box.style.display = 'none'; }, true);
+})();
+</script>
+"""
+
+
 def main() -> int:
     refs = load_references()
     runs = load_runs()
@@ -1612,6 +1645,7 @@ def main() -> int:
 эталон-карточек code-review/references/. Билдер: code-review/build_review_report.py.
 Методика: code-review/REVIEWER.md. Дата сборки: {__import__('datetime').date.today().isoformat()}.</div>
 </div></body></html>"""
+    html = html.replace("</body>", TIP_JS + "</body>")
     OUT.write_text(html, encoding="utf-8")
     n_valid = sum(1 for r in runs if r["valid"])
     print(f"отчёт: {OUT} ({len(html)/1024:.0f} КиБ); прогонов {len(runs)}, валидных {n_valid}")
