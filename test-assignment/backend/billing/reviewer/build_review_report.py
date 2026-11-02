@@ -650,7 +650,6 @@ def results_summary_block(profiles, refs, runs) -> str:
             ranked.append({"model": model, "thinking": thinking, "prof": prof,
                            "combined": c, "miss": miss, "d": d,
                            "caught": len(caught.get((model, thinking), set())),
-                           "famcaught": len(fam_caught.get((model, thinking), set())),
                            "res": resources(model).get(("v2", thinking, 2))})
     ranked.sort(key=lambda e: e["combined"])
 
@@ -667,8 +666,7 @@ def results_summary_block(profiles, refs, runs) -> str:
             f"<td class=num>{thinking}</td>"
             + "".join(stack_cell(prof, slug) for slug in SLUG_ORDER)
             + "".join(f"<td class='num {delta_class(d[a])}'>{d[a]:.2f}</td>" for a in AXES)
-            + f"<td class=num>{e['caught']} из {REAL_MISSES_TOTAL}"
-              f"<div class=sub>по ключевым словам: {e['famcaught']}</div></td>"
+            + f"<td class=num>{e['caught']} из {REAL_MISSES_TOTAL}</td>"
             + f"<td class=num><b>{e['combined']:.2f}</b></td>"
             + res_cell(e["res"])
             + f"<td>{_quality_level(e['combined'])}</td></tr>")
@@ -739,10 +737,8 @@ GLM-5.3-Flash с данными чекера) по его вердиктам; «
 вручную, разметка в коде отчёта). Примеры, которые в зачёт не идут:
 заметка про таймзону оф-пик-окна — другой дефект той же области;
 bcRoundHalfUp для отрицательных сумм — в домене суммы неотрицательны;
-оставленный debug_round.php — не функциональный дефект. Число под ним —
-сколько тем модель упомянула по ключевым словам, без сверки механизма:
-разрыв с основной цифрой — упоминания области вместо найденного дефекта.
-Уровень: до 0.6 — высокая
+оставленный debug_round.php — не функциональный дефект. Разбор каждого
+упоминания — в разделе 7. Уровень: до 0.6 — высокая
 точность, до 0.9 — средняя, выше — низкая. Уровни мышления, версии
 протокола и контракта не усредняются — серии с другими условиями идут
 отдельными строками вне рейтинга (строки v1 и прежнего контракта не могли
