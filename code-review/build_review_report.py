@@ -596,18 +596,6 @@ def results_summary_block(profiles, refs, runs) -> str:
         return (f"<td class=num>{res[1]:.2f}</td>"
                 f"<td class='num p-warn'>₽{res[2]:.1f}</td>")
 
-    def res_cells_stacked(res_by_key):
-        """Ресурсы по сериям в одной ячейке: строка на ключ."""
-        if not res_by_key:
-            return '<td colspan=2 class=num>—</td>'
-        cells = []
-        for i, fmt in ((1, "{:.2f}"), (2, "₽{:.1f}")):
-            lines = "".join(
-                f'<div class=sub>{pr}/{th}{"" if pv == 2 else "/п1"}: {fmt.format(res[i])}</div>'
-                for (pr, th, pv), res in sorted(res_by_key.items()))
-            cells.append(f"<td class=num>{lines}</td>")
-        return "".join(cells)
-
     def stack_cell(prof, slug):
         """Средние A/B/F по решениям — стопкой в одной ячейке."""
         s = prof["per_slug"].get(slug)
@@ -759,19 +747,35 @@ def results_summary_block(profiles, refs, runs) -> str:
     # их вердикты судьёй не верифицировались, а по-прогонные данные видны
     # в по-модельных таблицах ниже (протокол — в строке прогона)
 
+    # orca — поуровнево, как остальные: зачётных прогонов ноль,
+    # все запуски отбракованы гейтом формата
     fail_rows = []
     orca_model = "orcarouter/Qwen3.8-27B-Uncensored:ctx100k"
-    orca_res = resources(orca_model)
-    orca_n = sum(1 for r in runs if r["model"] == orca_model)
-    fail_rows.append(
-        f"<tr class=neg><td class=num>—</td>"
-        f"<td><b>orca</b><div class=sub>{orca_n} прогонов</div></td>"
-        f"<td class=num>max/low/<br>medium</td>"
-        + "<td class=num title=\"зачётных прогонов нет\">0</td>"
-        + f"<td class=\"num p-bad\" title=\"все запуски отбракованы гейтом формата\">{orca_n}</td>"
-        + "<td colspan=2><span class=sub>вне рейтинга: вердикт в заданном формате не выдан ни разу</span></td>"
-        + res_cells_stacked(orca_res)
-        + "<td><span class=sub>не применима</span></td></tr>")
+    for th in ("max", "low", "medium"):
+        rs = [r for r in runs if r["model"] == orca_model
+              and r["thinking"] == th and r["protocol"] == "v2"]
+        if not rs:
+            continue
+        ds = sorted(r["duration_s"] for r in rs if r["duration_s"])
+        toks = sorted(r["tokens"] for r in rs if r["tokens"])
+        if ds and toks:
+            m = len(ds) // 2
+            med_d = ds[m] if len(ds) % 2 else (ds[m - 1] + ds[m]) / 2
+            res = (f"<td class=num>{toks[len(toks) // 2]/1e6:.2f}</td>"
+                   f"<td class='num p-warn'>₽{med_d / 3600 * LOCAL_RUB_H:.1f}</td>")
+        else:
+            res = '<td colspan=2 class=num>—</td>'
+        fail_rows.append(
+            f"<tr class=neg><td class=num>—</td>"
+            f"<td><b>orca</b></td>"
+            f"<td class=num>{th}</td>"
+            f"<td class=num title=\"зачётных прогонов нет\">0</td>"
+            f"<td class=\"num p-bad\"><span class=tip>{len(rs)}"
+            f"<span class=tipbox><b>Отбраковано гейтами</b> — все запуски: вердикт "
+            f"в собственном формате (шкала 0–5) вместо заданного JSON</span></span></td>"
+            f"<td class=num>—</td><td class=num>—</td>"
+            + res +
+            f"<td><span class=sub>не применима</span></td></tr>")
 
     head = ("<tr><th class=narrow>Место</th><th>Модель</th>"
             "<th class=narrow>Мышление</th>"
