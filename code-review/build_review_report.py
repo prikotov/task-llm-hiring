@@ -672,24 +672,32 @@ def results_summary_block(profiles, refs, runs) -> str:
                     "протокол v2 · прежний контракт (без перечня not_done)")
             comparison[note].append((model, thinking, prof))
 
+    prec = defect_precision(runs)
+
     def combined(model, thinking, prof):
-        """Итог ранжирования: среднее из |Δ|A, |Δ|B, доли непойманных
-        реальных пропусков (1 − recall) и доли отбракованных прогонов.
-        Все четыре компонента объективны: первые два — судья яруса 3,
-        третий — чекер, четвёртый — гейт валидности (некорректное
-        завершение ревью — минус ревьюеру, а не потерянный прогон)."""
-        d = axis_overall(prof)[0]
+        """Итог ранжирования — среднее трёх долей ошибок, все три от
+        верификации, без судейских баллов: неточность замечаний (1 − точность
+        critical/major по вердиктам судьи-оценщика, раздел 8), неполнота
+        (доля реальных пропусков без названного механизма, раздел 7),
+        ненадёжность (доля прогонов, отбракованных гейтами). Числовое
+        сравнение |Δ| — согласие с судьёй — второстепенный сигнал, в итог
+        не входит: эталонные баллы сам судья и назначил."""
         miss = 1 - len(caught.get((model, thinking), set())) / REAL_MISSES_TOTAL
         att = attempted.get((model, thinking), prof["n"])
         fail = 1 - prof["n"] / att if att else 1.0
-        return statistics.mean([d["axis_a"], d["axis_b"], miss, fail]), miss, d, fail
+        pc, pz, po = prec.get((model, thinking), [0, 0, 0])
+        ptot = pc + pz + po
+        p = pc / ptot if ptot else 0.0
+        итог = statistics.mean([1 - p, miss, fail])
+        return (итог, miss, fail, p, (pc, pz, po, ptot), axis_overall(prof)[0])
 
     ranked = []
     for thinking, models in v2_levels.items():
         for model, prof in models.items():
-            c, miss, d, fail = combined(model, thinking, prof)
+            c, miss, fail, p, pparts, d = combined(model, thinking, prof)
             ranked.append({"model": model, "thinking": thinking, "prof": prof,
-                           "combined": c, "miss": miss, "d": d, "fail": fail,
+                           "combined": c, "miss": miss, "d": d,
+                           "prec": p, "pparts": pparts,
                            "dropped": attempted.get((model, thinking), prof["n"]) - prof["n"],
                            "caught": len(caught.get((model, thinking), set())),
                            "res": resources(model).get(("v2", thinking, 2))})
@@ -724,9 +732,14 @@ def results_summary_block(profiles, refs, runs) -> str:
             f"<td class=num>{thinking}</td>"
             + runs_cell(e)
             + dropped_cell(e)
-            + "".join(stack_cell(prof, slug) for slug in SLUG_ORDER)
-            + "".join(f"<td class='num {delta_class(d[a])}'>{d[a]:.2f}</td>" for a in AXES)
+            + (f"<td class=num>{e['prec']:.0%}"
+               f"<div class=sub>{e['pparts'][0]} из {e['pparts'][3]} подтв.</div></td>"
+               if e["pparts"][3] else
+               "<td class=num title=\"существенных замечаний не названо\">—</td>")
             + f"<td class=num>{e['caught']} из {REAL_MISSES_TOTAL}</td>"
+            + "".join(f"<td class='num {delta_class(d[a])}' "
+                      f"title=\"согласие с судьёй — второстепенный сигнал\">{d[a]:.2f}</td>"
+                      for a in AXES)
             + f"<td class=num><b>{e['combined']:.2f}</b></td>"
             + res_cell(e["res"])
             + f"<td>{_quality_level(e['combined'])}</td></tr>")
@@ -744,15 +757,15 @@ def results_summary_block(profiles, refs, runs) -> str:
                 f"<div class=sub>{note}</div></td>"
                 f"<td class=num>{thinking}</td>"
                 + runs_cell({"prof": prof, "dropped": 0})
-                + '<td class=num title="для серий сравнения отбраковка в итог не входит">—</td>'
-                + "".join(stack_cell(prof, slug) for slug in SLUG_ORDER)
+                + '<td class=num title="для серий сравнения отбраковка не считалась">—</td>'
+                + '<td class=num title="замечания серий сравнения судьёй не верифицировались">—</td>'
+                + '<td class=num title="перечень not_done не собирался">—</td>'
                 + "".join(f"<td class='num {delta_class(d[a])}'>{d[a]:.2f}</td>" for a in AXES)
-                + "<td class=num title=\"прежний контракт: перечень not_done не собирался\">—</td>"
-                + f"<td class=num>{o:.2f}</td>"
+                + '<td class=num title="итог считается только по текущему контракту">—</td>'
                 + res_cell(resources(model).get((
                     "v1" if "протокол v1" in note else "v2", thinking,
                     1 if "прежний" in note else 2)))
-                + "<td><span class=sub>—</span></td></tr>")
+                + "<td><span class=sub>для сравнения</span></td></tr>")
 
     fail_rows = []
     orca_model = "orcarouter/Qwen3.8-27B-Uncensored:ctx100k"
@@ -768,72 +781,42 @@ def results_summary_block(profiles, refs, runs) -> str:
         f"<td class=num>max/low/<br>medium</td>"
         + "<td class=num title=\"зачётных прогонов нет\">0</td>"
         + f"<td class=\"num p-bad\" title=\"все запуски отбракованы гейтом формата\">{orca_n}</td>"
-        + "<td colspan=4>—</td><td colspan=3>—</td>"
-        + "<td colspan=2><span class=sub>вне рейтинга: вердикт в заданном формате не выдан ни разу</span></td>"
+        + "<td colspan=6><span class=sub>вне рейтинга: вердикт в заданном формате не выдан ни разу</span></td>"
         + res_cells_stacked(orca_res)
         + "<td><span class=sub>не применима</span></td></tr>")
 
-    def th_stack(slug):
-        e = refs[slug]["expected"]
-        c = refs[slug]
-        if "mand_total" in c:
-            f_src = (f'F {c["mand_passed"]}/{c["mand_total"]} об.'
-                     f'<div class=sub>в шкале 0–4: {e["functional"]:g}</div>')
-        else:
-            f_src = f'F {e["functional"]:g}'
-        return (f'<th class=narrow>{SLUG_TITLES[slug]}'
-                f'<div class=sub>этал. A {e["axis_a"]:g} · B {e["axis_b"]:g} · {f_src}</div></th>')
     head = ("<tr><th class=narrow>Место</th><th>Модель</th>"
             "<th class=narrow>Мышление</th>"
             "<th class=narrow title=\"зачётных прогонов в серии: по ним средние баллы, медианы и пойманные пропуски\">Прогонов</th>"
             "<th class=narrow title=\"запусков серии отбраковано гейтами — некорректное завершение ревью; в итог входит как надёжность\">Отбрак.</th>"
-            + "".join(th_stack(s) for s in SLUG_ORDER)
-            + ("<th class=narrow>|Δ|A</th><th class=narrow>|Δ|B</th><th class=narrow>|Δ|F</th>"
-               "<th class=narrow>Поймано пропусков (механизм)</th>"
-               "<th class=narrow>Итог</th>"
-               "<th class=narrow>Мин (мед.)</th><th class=narrow>М ток. (мед.)</th>"
-               "<th class=narrow>₽/ревью</th>"
-               "<th>Применимость как ревьюера</th></tr>"))
+            "<th class=narrow title=\"доля подтверждённых судьёй-оценщиком замечаний critical/major (раздел 8)\">Точность</th>"
+            "<th class=narrow title=\"реальные пропуски решения, названные с механизмом (раздел 7)\">Поймано</th>"
+            "<th class=narrow title=\"согласие с судьёй — второстепенный сигнал, в итог не входит\">|Δ|A</th>"
+            "<th class=narrow title=\"согласие с судьёй — второстепенный сигнал, в итог не входит\">|Δ|B</th>"
+            "<th class=narrow title=\"согласие с судьёй — второстепенный сигнал, в итог не входит\">|Δ|F</th>"
+            "<th class=narrow>Итог</th>"
+            "<th class=narrow>Мин (мед.)</th><th class=narrow>М ток. (мед.)</th>"
+            "<th class=narrow>₽/ревью</th>"
+            "<th>Применимость как ревьюера</th></tr>")
     return f"""
 <h3><span class=no>4.1.</span>Сводная таблица: качество ревью</h3>
 <p class=lead>Плоский рейтинг строк текущего контракта (протокол v2, контракт
-с перечнем not_done), отсортированных по итогу (лучшие сверху); «Место» —
-порядковый номер строки, зелёная подсветка — только место 1, не признак
-пригодности. «Прогонов» — зачётные прогоны строки: по правилу повторяемости
-3 независимых ревью каждого из 4 решений, то есть максимум 12; меньше —
-если часть прогонов отбракована гейтами валидности. По ним считаны
-средние баллы, медианы ресурсов и пойманные пропуски. В колонках решений —
-средние баллы по трём прогонам,
-стопкой A / B / F (эталоны — в шапке колонок). <b>Эталон F — результат чекера
-этапа 2, как в оригинальном тестовом:</b> сколько обязательных сценариев принято —
-11/11 («хорошее»), 11/11 («среднее»), 9/11 («каверзное»), 8/11 («плохое»); бонусные
-сценарии в F не входят. Чтобы сравнивать с баллами ревьюера, эта доля пересчитывается
-в служебный балл шкалы 0–4: floor(8 × принято / всего) / 2 → 4.0, 4.0, 3.0, 2.5.
-Балл F ревьюера — оценка той же доли на шкале 0–4; |Δ|F — отличие от пересчёта
-чекера. <b>Итог — среднее четырёх
-компонентов.</b> |Δ|A и |Δ|B — согласие с судьёй (ярус 3, GLM-5.3-Flash
-с данными чекера) — сигнал второстепенный: ценность ревью — в замечаниях,
-они верифицируются судьёй-оценщиком (разделы 7–8); «Поймано пропусков» —
-сколько из реальных функциональных пропусков решения (по фактам чекера и
-расследованию раздела 6: на «каверзном» — оф-пик при первом импорте, на
-«плохом» — артефакты, оф-пик, пустые миграции, bcadd без масштаба) модель
-назвала <b>с реальным механизмом</b> — не просто слово из той же области,
-а сам дефект, который роняет сценарий чекера (сверка каждого упоминания
-вручную, разметка в коде отчёта); <b>надёжность</b> — доля прогонов,
-отбракованных гейтом (сессия, завершившаяся некорректно — вердикт не по
-контракту, — это минус ревьюеру, хотя точность её баллов посчитать нельзя:
-данных в заданной форме нет). Примеры упоминаний, которые в зачёт не идут:
-заметка про таймзону оф-пик-окна — другой дефект той же области;
-bcRoundHalfUp для отрицательных сумм — в домене суммы неотрицательны;
-оставленный debug_round.php — не функциональный дефект. Разбор каждого
-упоминания — в разделе 7. <b>Применимость</b> (последняя колонка) — по
-итогу: до 0.6 — применима; до 0.9 — применима с оговорками (баллы сверять
-с чекером); выше — не применима. Уровни мышления, версии
-протокола и контракта не усредняются — серии с другими условиями идут
-отдельными строками вне рейтинга (строки v1 и прежнего контракта не могли
-перечислять not_done). Стоимость локального инференса — электричество и
-амортизация (₽35.85/ч, методика этапов 1–2). По-прогонные данные — в
-таблицах 4.2 и далее.</p>
+с перечнем not_done), отсортированных по итогу (лучшие сверху); зелёная
+подсветка — место 1, «Место» — порядковый номер строки. <b>Итог — среднее трёх
+долей ошибок, все три — от верификации, без судейских баллов:</b> <b>неточность</b> —
+доля неподтверждённых замечаний critical/major (вердикты судьи-оценщика:
+подтверждено / серьёзность завышена / опровергнуто — раздел 8); <b>неполнота</b> —
+доля реальных пропусков решения, не названных с механизмом (раздел 7);
+<b>ненадёжность</b> — доля прогонов, отбракованных гейтами. Числовое сравнение
+|Δ|A/|Δ|B/|Δ|F — согласие с судьёй — показано как второстепенный сигнал и в итог
+не входит: эталонные баллы сам судья и назначил. Эталоны решений (раздел 3):
+A/B — судья яруса 3, F — пересчёт чекера (11/11, 11/11, 9/11, 8/11 обязательных).
+«Прогонов» — зачётные прогоны строки: 3 независимых ревью каждого из 4 решений,
+максимум 12. <b>Применимость</b> по итогу: до 0.6 — применима; до 0.9 — с
+оговорками (баллы сверять с чекером); выше — не применима. Уровни мышления,
+версии протокола и контракта не усредняются — другие серии идут строками вне
+рейтинга. Стоимость локального инференса — электричество и амортизация
+(₽35.85/ч). По-прогонные баллы каждой модели — в её таблице ниже.</p>
 <table>{head}{''.join(rows)}{''.join(fail_rows)}</table>"""
 
 
@@ -1345,12 +1328,32 @@ _VERDICT_CLS = {"подтверждено": "okmark", "серьёзность з
                 "опровергнуто": "deadmark fab"}
 
 
+def defect_precision(runs) -> dict:
+    """Точность замечаний critical/major зачётных прогонов текущего
+    контракта: (model, thinking) -> [подтверждено, серьёзность завышена,
+    опровергнуто] — по вердиктам судьи-оценщика (_DEF_VERDICTS)."""
+    cnt = defaultdict(lambda: [0, 0, 0])
+    for r in runs:
+        if r["protocol"] != "v2" or r["prompt_version"] != 2 \
+                or not r["valid"] or r.get("parse_ok") is False:
+            continue
+        for d in r.get("defects") or []:
+            if d.get("severity") not in ("critical", "major"):
+                continue
+            cl = _def_cluster(r["slug"], d.get("file", ""), d.get("desc", ""))
+            v = _DEF_VERDICTS.get(r["slug"], {}).get(cl)
+            if v:
+                cnt[(r["model"], r["thinking"])]\
+                    [{"подтверждено": 0, "серьёзность завышена": 1,
+                      "опровергнуто": 2}[v[0]]] += 1
+    return cnt
+
+
 def section_precision(runs) -> str:
     """Раздел 8: сверка замечаний (defects critical/major) с кодом решений
     и фактами чекера — точность ревью, дополнение recall раздела 7."""
     per = defaultdict(int)              # (slug, cluster) -> замечаний
     who = defaultdict(set)              # (slug, cluster) -> модели
-    rows_cnt = defaultdict(lambda: [0, 0, 0])   # (model, th) -> [подтв, завыш, опроверг]
     for r in runs:
         if r["protocol"] != "v2" or r["prompt_version"] != 2 \
                 or not r["valid"] or r.get("parse_ok") is False:
@@ -1362,10 +1365,7 @@ def section_precision(runs) -> str:
             cl = _def_cluster(slug, d.get("file", ""), d.get("desc", ""))
             per[(slug, cl)] += 1
             who[(slug, cl)].add(SHORT.get(r["model"], r["model"]))
-            v = _DEF_VERDICTS.get(slug, {}).get(cl)
-            if v:
-                i = {"подтверждено": 0, "серьёзность завышена": 1, "опровергнуто": 2}[v[0]]
-                rows_cnt[(r["model"], r["thinking"])][i] += 1
+    rows_cnt = defect_precision(runs)
     rows = []
     unmapped = 0
     for slug in SLUG_ORDER:
@@ -1417,8 +1417,8 @@ docker psql). В этой серии прогон выполнен вручну�
 <h3><span class=no>8.1.</span>Точность по строкам рейтинга</h3>
 <p class=lead>Итог по серии: подтверждено {n_c}, серьёзность завышена {n_z},
 опровергнуто {n_o}. Точность = подтверждённые / все critical+major замечания строки.
-В итог рейтинга (4.1) точность пока не входит — колонка для сравнения; включение
-в итог — отдельное решение.</p>
+Точность входит в итог 4.1 компонентом «неточность» (1 − точность);
+согласие с судьёй |Δ| — вне итога, как второстепенный сигнал.</p>
 <table>
 <tr><th>Модель × мышление</th><th class=narrow>Замечаний</th><th class=narrow>Подтв.</th>
 <th class=narrow>Завышена</th><th class=narrow>Опроверг.</th><th class=narrow>Точность</th></tr>
