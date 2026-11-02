@@ -11,6 +11,7 @@ models/<модель>/backend/code-review/ и эталон-карточек refe
 """
 import glob
 import json
+import re
 import statistics
 from collections import defaultdict
 from pathlib import Path
@@ -675,6 +676,7 @@ def results_summary_block(profiles, refs, runs) -> str:
             comparison[note].append((model, thinking, prof))
 
     prec = defect_precision(runs)
+    arch = arch_coverage(runs)
 
     def combined(model, thinking, prof):
         """Итог ранжирования — среднее двух долей ошибок, обе от верификации
@@ -701,6 +703,7 @@ def results_summary_block(profiles, refs, runs) -> str:
                            "prec": p, "pparts": pparts,
                            "dropped": attempted.get((model, thinking), prof["n"]) - prof["n"],
                            "caught": len(caught.get((model, thinking), set())),
+                           "arch": arch.get((model, thinking), set()),
                            "res": resources(model).get(("v2", thinking, 2))})
     # orca — по сырому тексту (8.2): неточность и неполнота из ручной
     # разметки; формат в итог не входит (роль ревьюера — текстовые замечания)
@@ -727,6 +730,7 @@ def results_summary_block(profiles, refs, runs) -> str:
             "combined": statistics.mean([1 - prec_o, miss_o]),
             "prec": prec_o, "pparts": (pc, pz, po, ptot),
             "caught": ORCA_CAUGHT[th], "dropped": len(rs),
+            "arch": arch.get((orca_model, th), set()),
             "res": (None, med_t, med_r) if med_t else None})
     ranked.sort(key=lambda e: e["combined"])
 
@@ -771,6 +775,8 @@ def results_summary_block(profiles, refs, runs) -> str:
                 f"<div class=sub>по сырому тексту: {c} из {e['pparts'][3]}</div></td>"
                 f"<td class=num>{e['caught']} из {REAL_MISSES_TOTAL}"
                 f"<div class=sub>по сырому тексту</div></td>"
+                f"<td class=num>{len(e['arch'])} из {len(ARCH_THEMES)}"
+                f"<div class=sub style=\"white-space:normal\">{esc(', '.join(sorted(e['arch']))) or '—'}</div>"
                 + res +
                 f"<td>{_quality_level(e['combined'])}"
                 f"<div class=sub style=\"white-space:normal\">формат: 0 из "
@@ -789,6 +795,8 @@ def results_summary_block(profiles, refs, runs) -> str:
                if e["pparts"][3] else
                "<td class=num title=\"существенных замечаний не названо\">—</td>")
             + f"<td class=num>{e['caught']} из {REAL_MISSES_TOTAL}</td>"
+            + f"<td class=num>{len(e['arch'])} из {len(ARCH_THEMES)}"
+              f"<div class=sub style=\"white-space:normal\">{esc(', '.join(sorted(e['arch']))) or '—'}</div></td>"
             + res_cell(e["res"])
             + f"<td>{_quality_level(e['combined'])}</td></tr>")
 
@@ -805,6 +813,7 @@ def results_summary_block(profiles, refs, runs) -> str:
             "<th class=narrow title=\"запусков серии отбраковано гейтами (формат вердикта); в итог не входит, справочно\">Отбрак.</th>"
             "<th class=narrow title=\"доля подтверждённых судьёй-оценщиком замечаний critical/major (раздел 8)\">Точность</th>"
             "<th class=narrow title=\"реальные пропуски решения, названные с механизмом (раздел 7)\">Поймано</th>"
+            "<th class=narrow title=\"архитектурно-качественные темы (11 проверенных оракулом, раздел 8.3), названные хотя бы раз за серию\">Арх. тем</th>"
             "<th class=narrow>М ток. (мед.)</th>"
             "<th class=narrow>₽/ревью</th>"
             "<th>Применимость как ревьюера</th></tr>")
@@ -818,7 +827,11 @@ def results_summary_block(profiles, refs, runs) -> str:
 обе от верификации содержания, без судейских баллов — <b>неточность</b> (доля
 неподтверждённых замечаний critical/major по вердиктам судьи-оценщика, раздел 8,
 колонка «Точность») и <b>неполнота</b> (реальные пропуски, не названные с
-механизмом, раздел 7, колонка «Поймано»). <b>Формат выдачи в итог не входит</b>:
+механизмом, раздел 7, колонка «Поймано»). «Арх. тем» — широта
+архитектурно-качественного ревьюа: сколько из 11 тем, проверенных
+инструментальным оракулом (8.3), строка назвала хотя бы раз — все заявленные
+темы подтвердились, поэтому широта здесь и есть качество; точность заявленного —
+см. 8.3. <b>Формат выдачи в итог не входит</b>:
 роль ревьюера — текстовые замечания, несданный JSON — потеря данных для
 конвейера, а не дефект ревью (отбраковка — справочно в «Отбрак.»). Применимость:
 до 0.6 — применима;
@@ -1393,6 +1406,51 @@ ARCH_ORACLE = [
      "рантайм php 8.5 (раздел 6.2)", "bccomp работает; isZero корректен, но обоснование ложно",
      "подтверждено"),
 ]
+
+# Темы архитектурно-качественного ревью (совпадают с 8.3) — покрытие считаем
+# по всем замечаниям, включая minor; у orca — по сырым текстам review.md.
+ARCH_THEMES = [
+    ("длинный метод",  r"excessivemethodlength|buildcsv|9[148] строк"),
+    ("TOKEN_COLS",     r"token_cols"),
+    ("типизация object", r"\?object|object \$price|undefined method.*object|getunit\(\)"),
+    ("тесты нет",      r"тест.{0,30}(отсутств|нет|0 )|0 тест|no tests|tests/ (пуст|только)"),
+    ("покрытие %",     r"покрыт|coverage"),
+    ("статанализ",     r"phpstan|psalm|phpmd|phpcs"),
+    ("strict_types",   r"strict_types"),
+    ("CSV-экран",      r"csv.{0,40}(экран|запят|quote|escap)|экранирован"),
+    ("N+1",            r"n\+1"),
+    ("домен в командах", r"доменн|анемичн|domain layer|доменного слоя|в команд"),
+    ("bccomp-комментарий", r"bccomp.{0,80}(сломан|не подтвержд|необоснован|сомнител)|(не подтвержд|необоснован|сомнител).{0,80}bccomp"),
+]
+_ARCH_RX = [(n, re.compile(p, re.I)) for n, p in ARCH_THEMES]
+
+
+def arch_coverage(runs) -> dict:
+    """(model, thinking) -> множество названных архитектурно-качественных тем."""
+    res = defaultdict(set)
+    for r in runs:
+        if r["protocol"] != "v2" or not r["valid"] or r.get("parse_ok") is False:
+            continue
+        v = r.get("verdict")
+        if not v:
+            continue
+        import json as _json
+        rp = MODELS / r["path"] / "review.json"
+        full = _json.loads(rp.read_text(encoding="utf-8")) if rp.is_file() else {}
+        joined = " || ".join(_json.dumps(d, ensure_ascii=False)
+                             for d in full.get("defects", [])) \
+            + " || " + str(full.get("note", ""))
+        for name, rx in _ARCH_RX:
+            if rx.search(joined, re.I):
+                res[(r["model"], r["thinking"])].add(name)
+    for rp in sorted((MODELS).glob("orcarouter-*/backend/code-review/run-*/review.md")):
+        meta = json.loads(rp.with_name("run.json").read_text(encoding="utf-8"))
+        txt = rp.read_text(encoding="utf-8")
+        for name, rx in _ARCH_RX:
+            if rx.search(txt, re.I):
+                res[(meta["model"], meta["thinking"])].add(name)
+    return res
+
 
 
 def defect_precision(runs) -> dict:
