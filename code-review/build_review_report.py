@@ -1360,6 +1360,40 @@ ORCA_TRIAGE = {"max": (28, 2, 0), "low": (7, 2, 0), "medium": (6, 1, 2)}
 # и артефакты «плохого»; low — 0: её прогоны на bad/tricky дали обрывы JSON
 ORCA_CAUGHT = {"max": 3, "low": 0, "medium": 2}
 
+# Архитектурные и качественные замечания против инструментального оракула
+# (метрики этапа 2: phpstan/phpmd/phpcs/psalm/phpunit/AST — metrics-raw
+# каждого решения; файловые проверки — grep по solution). Верификация 2026-11-02.
+# (тема, где заявлено, оракул, факт, вердикт)
+ARCH_ORACLE = [
+    ("buildCsv ~98 строк / execute() 91–94 — ExcessiveMethodLength",
+     "qwen, huihui, gemma31, orca",
+     "phpmd-raw", "good: buildCsv 98; mid: execute 94; bad: execute 91 — все в phpmd",
+     "подтверждено"),
+    ("TOKEN_COLS объявлена и не используется", "qwen, huihui, orca",
+     "phpstan-raw (tricky)", "TOKEN_COLS в первой ошибке phpstan", "подтверждено"),
+    ("findPriceForEvent(): ?object — phpstan undefined method getUnit/getRate*",
+     "qwen, gemma31, orca", "phpstan-raw (mid)",
+     "5 ошибок 'on object', getUnit в сообщениях", "подтверждено"),
+    ("Тестов нет", "qwen, huihui, gemma31, orca", "phpunit",
+     "bad и mid: tests=0, coverage нет", "подтверждено"),
+    ("Покрытие 26.4% (good) / 9.4% (tricky)", "orca, qwen", "phpunit coverage",
+     "26.39 и 9.37 — совпадает", "подтверждено"),
+    ("Шум статанализа: phpstan 49 (good/tricky), 24 (mid), 19 (bad)",
+     "все модели", "metrics.json", "числа совпадают точно", "подтверждено"),
+    ("Нет declare(strict_types=1)", "orca (mid)", "grep по src/",
+     "mid: 8 из 9 файлов без declare (в остальных решениях — во всех)", "подтверждено"),
+    ("CSV собирается без экранирования полей", "qwen, orca", "grep fputcsv по src/",
+     "fputcsv нет ни в одном решении — sprintf-конкатенация", "подтверждено"),
+    ("N+1: запрос цены и провайдера на каждое событие", "qwen, orca",
+     "код rate-команд", "DQL findOneBy в цикле по событиям", "подтверждено"),
+    ("Доменная логика живёт в Command, доменного слоя нет", "qwen, orca",
+     "структура src/ + AST", "mid: wmc_worst = BillingRateCommand, src/Domain нет",
+     "подтверждено"),
+    ("Комментарий «bccomp в этой сборке сломан» неверен", "qwen, orca",
+     "рантайм php 8.5 (раздел 6.2)", "bccomp работает; isZero корректен, но обоснование ложно",
+     "подтверждено"),
+]
+
 
 def defect_precision(runs) -> dict:
     """Точность замечаний critical/major зачётных прогонов текущего
@@ -1483,7 +1517,30 @@ low — 0 (её прогоны на bad/tricky дали обрывы JSON вме
          for th, (c, z, o) in ORCA_TRIAGE.items())}
 </table>
 <p class=sub>Разметка ручная, зафиксирована в коде отчёта (ORCA_TRIAGE); метод и
-примеры — в комментарии к ней.</p>"""
+примеры — в комментарии к ней.</p>
+<h3><span class=no>8.3.</span>Архитектурные и качественные замечания против инструментов</h3>
+<p class=lead>Утверждение «у архитектурных замечаний нет оракула» неверно: оракул —
+те же инструменты этапа 2, чьи данные лежат в metrics.json каждого решения
+(phpstan, phpmd, phpcs, psalm, phpunit, AST-метрики), плюс файловые проверки
+по решению. Каждая уникальная тема такого рода из всех разобранных замечаний
+(включая minor) сверена с фактом:</p>
+<table>
+<tr><th>Замечание (тема)</th><th>Кто заявлял</th><th class=narrow>Оракул</th>
+<th>Факт</th><th class=narrow>Вердикт</th></tr>
+{''.join(
+    f"<tr><td>{esc(t)}</td><td class=sub>{esc(w)}</td>"
+    f"<td class=sub>{esc(o)}</td><td class=sub>{esc(f)}</td>"
+    f"<td><span class='{_VERDICT_CLS[v]}'>{v}</span></td></tr>"
+    for t, w, o, f, v in ARCH_ORACLE)}
+</table>
+<p class=sub>{len(ARCH_ORACLE)} тем из {len(ARCH_ORACLE)} подтверждены инструментами и кодом;
+опровергнутых нет. Две оговорки. Числовые темы (счётчики phpstan, покрытие,
+длина метода) модели частично пересказывали из выданного им metrics.json —
+сверка подтверждает соответствие фактам, но не самостоятельность находки;
+зато предметные (мёртвая строка, отсутствие fputcsv, strict_types, N+1) —
+результат собственного чтения кода. И верифицированность темы не равна её
+важности: подтверждённое «нет strict_types» — это гигиена, а не дефект
+обязательного поведения.</p>"""
 
 
 def section_validity(runs, profiles) -> str:

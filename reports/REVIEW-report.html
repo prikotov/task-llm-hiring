@@ -413,6 +413,25 @@ low — 0 (её прогоны на bad/tricky дали обрывы JSON вме
 </table>
 <p class=sub>Разметка ручная, зафиксирована в коде отчёта (ORCA_TRIAGE); метод и
 примеры — в комментарии к ней.</p>
+<h3><span class=no>8.3.</span>Архитектурные и качественные замечания против инструментов</h3>
+<p class=lead>Утверждение «у архитектурных замечаний нет оракула» неверно: оракул —
+те же инструменты этапа 2, чьи данные лежат в metrics.json каждого решения
+(phpstan, phpmd, phpcs, psalm, phpunit, AST-метрики), плюс файловые проверки
+по решению. Каждая уникальная тема такого рода из всех разобранных замечаний
+(включая minor) сверена с фактом:</p>
+<table>
+<tr><th>Замечание (тема)</th><th>Кто заявлял</th><th class=narrow>Оракул</th>
+<th>Факт</th><th class=narrow>Вердикт</th></tr>
+<tr><td>buildCsv ~98 строк / execute() 91–94 — ExcessiveMethodLength</td><td class=sub>qwen, huihui, gemma31, orca</td><td class=sub>phpmd-raw</td><td class=sub>good: buildCsv 98; mid: execute 94; bad: execute 91 — все в phpmd</td><td><span class='okmark'>подтверждено</span></td></tr><tr><td>TOKEN_COLS объявлена и не используется</td><td class=sub>qwen, huihui, orca</td><td class=sub>phpstan-raw (tricky)</td><td class=sub>TOKEN_COLS в первой ошибке phpstan</td><td><span class='okmark'>подтверждено</span></td></tr><tr><td>findPriceForEvent(): ?object — phpstan undefined method getUnit/getRate*</td><td class=sub>qwen, gemma31, orca</td><td class=sub>phpstan-raw (mid)</td><td class=sub>5 ошибок 'on object', getUnit в сообщениях</td><td><span class='okmark'>подтверждено</span></td></tr><tr><td>Тестов нет</td><td class=sub>qwen, huihui, gemma31, orca</td><td class=sub>phpunit</td><td class=sub>bad и mid: tests=0, coverage нет</td><td><span class='okmark'>подтверждено</span></td></tr><tr><td>Покрытие 26.4% (good) / 9.4% (tricky)</td><td class=sub>orca, qwen</td><td class=sub>phpunit coverage</td><td class=sub>26.39 и 9.37 — совпадает</td><td><span class='okmark'>подтверждено</span></td></tr><tr><td>Шум статанализа: phpstan 49 (good/tricky), 24 (mid), 19 (bad)</td><td class=sub>все модели</td><td class=sub>metrics.json</td><td class=sub>числа совпадают точно</td><td><span class='okmark'>подтверждено</span></td></tr><tr><td>Нет declare(strict_types=1)</td><td class=sub>orca (mid)</td><td class=sub>grep по src/</td><td class=sub>mid: 8 из 9 файлов без declare (в остальных решениях — во всех)</td><td><span class='okmark'>подтверждено</span></td></tr><tr><td>CSV собирается без экранирования полей</td><td class=sub>qwen, orca</td><td class=sub>grep fputcsv по src/</td><td class=sub>fputcsv нет ни в одном решении — sprintf-конкатенация</td><td><span class='okmark'>подтверждено</span></td></tr><tr><td>N+1: запрос цены и провайдера на каждое событие</td><td class=sub>qwen, orca</td><td class=sub>код rate-команд</td><td class=sub>DQL findOneBy в цикле по событиям</td><td><span class='okmark'>подтверждено</span></td></tr><tr><td>Доменная логика живёт в Command, доменного слоя нет</td><td class=sub>qwen, orca</td><td class=sub>структура src/ + AST</td><td class=sub>mid: wmc_worst = BillingRateCommand, src/Domain нет</td><td><span class='okmark'>подтверждено</span></td></tr><tr><td>Комментарий «bccomp в этой сборке сломан» неверен</td><td class=sub>qwen, orca</td><td class=sub>рантайм php 8.5 (раздел 6.2)</td><td class=sub>bccomp работает; isZero корректен, но обоснование ложно</td><td><span class='okmark'>подтверждено</span></td></tr>
+</table>
+<p class=sub>11 тем из 11 подтверждены инструментами и кодом;
+опровергнутых нет. Две оговорки. Числовые темы (счётчики phpstan, покрытие,
+длина метода) модели частично пересказывали из выданного им metrics.json —
+сверка подтверждает соответствие фактам, но не самостоятельность находки;
+зато предметные (мёртвая строка, отсутствие fputcsv, strict_types, N+1) —
+результат собственного чтения кода. И верифицированность темы не равна её
+важности: подтверждённое «нет strict_types» — это гигиена, а не дефект
+обязательного поведения.</p>
 
 <h2 id=validity><span class=no>9.</span>Валидность прогонов</h2>
 <p class=lead>Из <b>284</b> прогонов зачётных <b>214</b>. Три автоматические
