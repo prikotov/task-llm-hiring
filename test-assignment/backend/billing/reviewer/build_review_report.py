@@ -567,7 +567,9 @@ def results_summary_block(profiles, refs, runs) -> str:
 
     def res_cell(res):
         if not res:
-            return "<td class=num>—</td>"
+            # замеров нет (часть прогонов v1 собрана без таймингов) —
+            # заглушка на все три колонки ресурсов
+            return '<td colspan=3 class=num title="замеров времени и токенов нет">—</td>'
         return (f"<td class=num>{res[0]:.1f}</td>"
                 f"<td class=num>{res[1]:.2f}</td>"
                 f"<td class='num p-warn'>₽{res[2]:.1f}</td>")
@@ -666,8 +668,9 @@ def results_summary_block(profiles, refs, runs) -> str:
             f"<tr class={'top' if place == 1 else ''}>"
             f"<td class=num>{place}</td>"
             f"<td><b>{esc(SHORT.get(model, model))}</b>"
-            f"<div class=sub>{note} · {_runs_word(prof['n'])}</div></td>"
+            f"<div class=sub>протокол v2</div></td>"
             f"<td class=num>{thinking}</td>"
+            f"<td class=num>{prof['n']}</td>"
             + "".join(stack_cell(prof, slug) for slug in SLUG_ORDER)
             + "".join(f"<td class='num {delta_class(d[a])}'>{d[a]:.2f}</td>" for a in AXES)
             + f"<td class=num>{e['caught']} из {REAL_MISSES_TOTAL}</td>"
@@ -685,9 +688,9 @@ def results_summary_block(profiles, refs, runs) -> str:
             rows.append(
                 f"<tr class=neg><td class=num>↳</td>"
                 f"<td>{esc(SHORT.get(model, model))}"
-                f"<div class=sub>{note} · thinking {thinking} · "
-                f"{_runs_word(prof['n'])}</div></td>"
+                f"<div class=sub>{note}</div></td>"
                 f"<td class=num>{thinking}</td>"
+                f"<td class=num>{prof['n']}</td>"
                 + "".join(stack_cell(prof, slug) for slug in SLUG_ORDER)
                 + "".join(f"<td class='num {delta_class(d[a])}'>{d[a]:.2f}</td>" for a in AXES)
                 + "<td class=num title=\"прежний контракт: перечень not_done не собирался\">—</td>"
@@ -709,8 +712,11 @@ def results_summary_block(profiles, refs, runs) -> str:
         f"<tr class=neg><td class=num>—</td>"
         f"<td><b>orca</b><div class=sub>{orca_n} прогонов: {orca_parts}</div></td>"
         f"<td class=num>max/low/<br>medium</td>"
-        + "<td colspan=4>—</td>" + res_cells_stacked(orca_res)
-        + "<td colspan=2><span class=sub>вне рейтинга: вердикт в заданном формате не выдан ни разу</span></td></tr>")
+        + "<td class=num title=\"зачётных прогонов нет\">0</td>"
+        + "<td colspan=4>—</td><td colspan=3>—</td>"
+        + "<td colspan=2><span class=sub>вне рейтинга: вердикт в заданном формате не выдан ни разу</span></td>"
+        + res_cells_stacked(orca_res)
+        + "<td><span class=sub>не применима</span></td></tr>")
 
     def th_stack(slug):
         e = refs[slug]["expected"]
@@ -718,6 +724,7 @@ def results_summary_block(profiles, refs, runs) -> str:
                 f'<div class=sub>этал. A {e["axis_a"]:g} · B {e["axis_b"]:g} · F {e["functional"]:g}</div></th>')
     head = ("<tr><th class=narrow>Место</th><th>Модель</th>"
             "<th class=narrow>Мышление</th>"
+            "<th class=narrow title=\"зачётных прогонов в серии: по ним средние баллы, медианы и пойманные пропуски\">Прогонов</th>"
             + "".join(th_stack(s) for s in SLUG_ORDER)
             + ("<th class=narrow>|Δ|A</th><th class=narrow>|Δ|B</th><th class=narrow>|Δ|F</th>"
                "<th class=narrow>Поймано пропусков (механизм)</th>"
@@ -730,7 +737,9 @@ def results_summary_block(profiles, refs, runs) -> str:
 <p class=lead>Плоский рейтинг строк текущего контракта (протокол v2, контракт
 с перечнем not_done), отсортированных по итогу (лучшие сверху); «Место» —
 порядковый номер строки, зелёная подсветка — только место 1, не признак
-пригодности. В колонках решений — средние баллы по трём прогонам,
+пригодности. «Прогонов» — число зачётных прогонов строки: по ним считаны
+средние баллы, медианы ресурсов и пойманные пропуски. В колонках решений —
+средние баллы по трём прогонам,
 стопкой A / B / F (эталоны — в шапке колонок). <b>Итог — среднее трёх
 объективных компонентов:</b> |Δ|A и |Δ|B — отличие от судьи (ярус 3,
 GLM-5.3-Flash с данными чекера) по его вердиктам; «Поймано пропусков» —
