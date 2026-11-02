@@ -598,7 +598,7 @@ def results_summary_block(profiles, refs, runs) -> str:
     def res_cell(res):
         if not res:
             return '<td colspan=2 class=num title="замеров токенов нет">—</td>'
-        return (f"<td class=num>{res[1]:.2f}</td>"
+        return (f"<td class=num>{res[1]:.2f}M</td>"
                 f"<td class='num p-warn'>₽{res[2]:.1f}</td>")
 
     def stack_cell(prof, slug):
@@ -819,7 +819,7 @@ def results_summary_block(profiles, refs, runs) -> str:
             "<th class=narrow title=\"доля подтверждённых судьёй-оценщиком замечаний critical/major (раздел 8)\">Точность</th>"
             "<th class=narrow title=\"реальные пропуски решения, названные с механизмом (раздел 7)\">Поймано</th>"
             "<th class=narrow title=\"Сколько из 11 тем качества кода и архитектуры (список тем — раздел 8.3, все подтверждены инструментами) модель назвала хотя бы раз за серию; перечень — в подсказке ячейки. Широта архитектурного ревью\">Архитектура</th>"
-            "<th class=narrow>Токены<div class=sub>млн · медиана</div></th>"
+            "<th class=narrow>Токены<div class=sub>медиана</div></th>"
             "<th class=narrow>₽/ревью</th>"
             "<th>Применимость как ревьюера</th></tr>")
     return f"""
