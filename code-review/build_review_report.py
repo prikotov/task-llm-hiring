@@ -394,9 +394,10 @@ psalm, scc, сводка по классам). Чего ревьюер не по
 <li><a href="#stability">5. Повторяемость</a></li>
 <li><a href="#findings">6. Что нашли и что пропустили</a></li>
 <li><a href="#notdone">7. Функциональная проверка: not_done против чекера</a></li>
-<li><a href="#validity">8. Валидность прогонов</a></li>
-<li><a href="#runs">9. Прогоны и данные</a></li>
-<li><a href="#next">10. Что дальше</a></li>
+<li><a href="#precision">8. Качество замечаний</a></li>
+<li><a href="#validity">9. Валидность прогонов</a></li>
+<li><a href="#runs">10. Прогоны и данные</a></li>
+<li><a href="#next">11. Что дальше</a></li>
 </ul>
 </nav>"""
 
@@ -1113,7 +1114,7 @@ REVIEWER.md — менять его задним числом нельзя, ср
 показатель LCOM4 из метрик («артефакт value-объектов») и нашла фактическую ошибку в
 PR_DESCRIPTION — ссылку на несуществующий файл expected_report.csv; huihui и gemma4:31b
 независимо указали на несоответствие формата cost_usd и на отладочный мусор в диффе.
-Полные списки дефектов с серьёзностью — в review.json каждого прогона (раздел 8).</p>"""
+Полные списки дефектов с серьёзностью — в review.json каждого прогона (раздел 10).</p>"""
 
 
 def section_notdone(profiles, refs, runs) -> str:
@@ -1263,6 +1264,165 @@ not_done: требование из TASK.md, состояние, детали) �
 
 
 
+
+def _def_cluster(slug: str, file: str, text: str) -> str:
+    """Тема замечания critical/major: файл + ключевые слова описания."""
+    f = (file or "").lower()
+    t = (text or "").lower()
+    if slug == "bad":
+        if "billingratingservice" in f:
+            return "bcadd без масштаба"
+        if "priceimportservice" in f:
+            return "оф-пик при первом импорте"
+        if "usageimportservice" in f:
+            return "дедупликация внутри одного файла"
+        if "миграц" in t or "makefile" in f or ".gitkeep" in f:
+            return "миграции отсутствуют"
+        if ("commit" in f or "pr_description" in f or "артефакт" in t
+                or "корень" in f or "root" in f or not f):
+            return "артефакты COMMIT/PR отсутствуют"
+        return "getErrorOutput → фатал на unrated"
+    if slug == "mid":
+        if "дедупл" in t or "findoneby" in t or "дубл" in t:
+            return "дедупликация внутри одного файла"
+        if "доменн" in t or "логика тарификации" in t:
+            return "доменная логика в команде"
+        if "geterroroutput" in t or "geterroroutput" in f:
+            return "getErrorOutput → фатал на unrated"
+        if "version2026" in f or "миграц" in t:
+            return "diff-миграции без CREATE TABLE"
+        if "float" in t:
+            return "float в totalCost"
+        return "прочее"
+    if slug == "good":
+        if "reprice" in f:
+            return "ключ 0 у новых строк бонуса"
+        return "guard платформы миграции"
+    return "формат ts при вставке"
+
+
+# вердикты сверки замечаний: код решений + факты чекера + расследования раздела 6
+_DEF_VERDICTS = {
+    "bad": {
+        "миграции отсутствуют": ("подтверждено",
+            "рабочего способа развёртывания схемы в решении нет: каталог миграций пуст, make migrate — no-op; чекер развернул схему своим fallback-механизмом"),
+        "артефакты COMMIT/PR отсутствуют": ("подтверждено",
+            "файлов нет в дереве решения; сценарий artifacts_present чекера упал"),
+        "bcadd без масштаба": ("подтверждено",
+            "BillingRatingService:70–73 — слагаемые усекаются до целых; сценарий h02: 3.312495 против эталонных 3.312496"),
+        "оф-пик при первом импорте": ("подтверждено",
+            "верифицированный механизм (раздел 6): новый Provider создаётся без off-peak-полей"),
+        "дедупликация внутри одного файла": ("подтверждено",
+            "код: findOneBy в цикле, flush один в конце — дубль внутри файла ловит unique-индекс вместо тихого skip; сценарий чекера кросс-файловый и этого пути не задевал"),
+        "getErrorOutput → фатал на unrated": ("опровергнуто",
+            "Symfony передаёт в команду ConsoleOutput, у которого метод есть; unrated-сценарий чекера на решении пройден"),
+    },
+    "mid": {
+        "дедупликация внутри одного файла": ("подтверждено",
+            "тот же паттерн (findOneBy в цикле, flush в конце); сценарий чекера кросс-файловый — на приёмку не влияло"),
+        "доменная логика в команде": ("подтверждено",
+            "архитектурное наблюдение верно; соответствует эталону A 2.5 («среднее» — архитектурно слабое)"),
+        "getErrorOutput → фатал на unrated": ("опровергнуто",
+            "рантайм работает (Symfony передаёт ConsoleOutput); чекер прошёл 11/11"),
+        "diff-миграции без CREATE TABLE": ("серьёзность завышена",
+            "факт верен: миграции — diff по существующей схеме; но чекер развернул схему альтернативным, разрешённым заданием способом"),
+        "float в totalCost": ("серьёзность завышена",
+            "float-каст есть, но строка мёртвая: тут же перезаписывается bc-форматированием; потери точности итога нет"),
+    },
+    "good": {
+        "ключ 0 у новых строк бонуса": ("серьёзность завышена",
+            "паттерн кода верен, но последствий нет: бонус reprice работает — чекер 2/2; коллизия ключей не проявляется"),
+        "guard платформы миграции": ("опровергнуто",
+            "приёмка чекера на PostgreSQL 17 прошла, миграция выполнилась; заявленного класса PostgreSQL170Platform в зафиксированном DBAL нет"),
+    },
+    "tricky": {
+        "формат ts при вставке": ("опровергнуто",
+            "импорт чекера прошёл; сама модель пометила замечание как «вероятно» и рантайм не проверяла"),
+    },
+}
+_VERDICT_CLS = {"подтверждено": "okmark", "серьёзность завышена": "deadmark burn",
+                "опровергнуто": "deadmark fab"}
+
+
+def section_precision(runs) -> str:
+    """Раздел 8: сверка замечаний (defects critical/major) с кодом решений
+    и фактами чекера — точность ревью, дополнение recall раздела 7."""
+    per = defaultdict(int)              # (slug, cluster) -> замечаний
+    who = defaultdict(set)              # (slug, cluster) -> модели
+    rows_cnt = defaultdict(lambda: [0, 0, 0])   # (model, th) -> [подтв, завыш, опроверг]
+    for r in runs:
+        if r["protocol"] != "v2" or r["prompt_version"] != 2 \
+                or not r["valid"] or r.get("parse_ok") is False:
+            continue
+        for d in r.get("defects") or []:
+            if d.get("severity") not in ("critical", "major"):
+                continue
+            slug = r["slug"]
+            cl = _def_cluster(slug, d.get("file", ""), d.get("desc", ""))
+            per[(slug, cl)] += 1
+            who[(slug, cl)].add(SHORT.get(r["model"], r["model"]))
+            v = _DEF_VERDICTS.get(slug, {}).get(cl)
+            if v:
+                i = {"подтверждено": 0, "серьёзность завышена": 1, "опровергнуто": 2}[v[0]]
+                rows_cnt[(r["model"], r["thinking"])][i] += 1
+    rows = []
+    unmapped = 0
+    for slug in SLUG_ORDER:
+        cls = [(k, n) for (s, k), n in per.items() if s == slug]
+        for cl, n in sorted(cls, key=lambda x: -x[1]):
+            verdict, comment = _DEF_VERDICTS.get(slug, {}).get(cl, ("не размечено", ""))
+            if verdict == "не размечено":
+                unmapped += n
+            rows.append(
+                f"<tr{' class=neg' if verdict == 'опровергнуто' else ''}>"
+                f"<td><b>{SLUG_TITLES[slug]}</b></td><td>{esc(cl)}</td>"
+                f"<td class=num>{n}</td>"
+                f"<td class=sub>{esc(', '.join(sorted(who[(slug, cl)])))}</td>"
+                f"<td><span class='{_VERDICT_CLS.get(verdict, 'deadmark burn')}'>{verdict}</span></td>"
+                f"<td class=sub>{esc(comment)}</td></tr>")
+    pres = []
+    for (model, th), (c, z, o) in rows_cnt.items():
+        pres.append((model, th, c, z, o, c + z + o))
+    pres.sort(key=lambda e: (-(e[2] / e[5] if e[5] else 0), -e[5]))
+    prow = []
+    for model, th, c, z, o, tot in pres:
+        prc = c / tot if tot else 0
+        prow.append(
+            f"<tr><td><b>{esc(SHORT.get(model, model))}</b>"
+            f"<div class=sub>thinking {th}</div></td>"
+            f"<td class=num>{tot}</td><td class=num>{c}</td>"
+            f"<td class=num>{z}</td><td class='num {delta_class(o)}'>{o}</td>"
+            f"<td class=num><b>{prc:.0%}</b></td></tr>")
+    n_all = sum(e[5] for e in pres)
+    n_c, n_z, n_o = (sum(e[i] for e in pres) for i in (2, 3, 4))
+    note_unmapped = (f" Не размечено вручную: {unmapped} замечаний тем, не покрытых"
+                     f" таблицей — сверить отдельно." if unmapped else "")
+    return f"""
+<h2 id=precision><span class=no>8.</span>Качество замечаний: точность против кода и чекера</h2>
+<p class=lead>Ревью ценно не баллами, а замечаниями. Все замечания серьёзностей
+critical и major зачётных прогонов текущего контракта ({n_all} штук) сгруппированы по
+теме и сверены с кодом решений, фактами чекера и расследованиями раздела 6 — так же
+вручную, как not_done в разделе 7. Три исхода: <b>подтверждено</b> — факт и заявленные
+последствия верны; <b>серьёзность завышена</b> — наблюдение о коде верно, заявленных
+последствий нет; <b>опровергнуто</b> — заявленный дефект не работает. Мелкие (minor)
+не размечались: это стилистика и предупреждения статанализаторов.{note_unmapped}</p>
+<table>
+<tr><th class=narrow>Решение</th><th>Тема замечания</th><th class=narrow>Сессий</th>
+<th>Кто называл</th><th class=narrow>Вердикт</th><th>Комментарий</th></tr>
+{''.join(rows)}
+</table>
+<h3><span class=no>8.1.</span>Точность по строкам рейтинга</h3>
+<p class=lead>Итог по серии: подтверждено {n_c}, серьёзность завышена {n_z},
+опровергнуто {n_o}. Точность = подтверждённые / все critical+major замечания строки.
+В итог рейтинга (4.1) точность пока не входит — колонка для сравнения; включение
+в итог — отдельное решение.</p>
+<table>
+<tr><th>Модель × мышление</th><th class=narrow>Замечаний</th><th class=narrow>Подтв.</th>
+<th class=narrow>Завышена</th><th class=narrow>Опроверг.</th><th class=narrow>Точность</th></tr>
+{''.join(prow)}
+</table>"""
+
+
 def section_validity(runs, profiles) -> str:
     total = len(runs)
     valid = sum(1 for r in runs if r["valid"])
@@ -1290,7 +1450,7 @@ def section_validity(runs, profiles) -> str:
     orca_n = sum(1 for r in runs if r["model"] == "orcarouter/Qwen3.8-27B-Uncensored:ctx100k")
     burn_n = len(by_kind.get("burn", []))
     return f"""
-<h2 id=validity><span class=no>8.</span>Валидность прогонов</h2>
+<h2 id=validity><span class=no>9.</span>Валидность прогонов</h2>
 <p class=lead>Из <b>{total}</b> прогонов зачётных <b>{valid}</b>. Три автоматические
 проверки отбраковывают негодные прогоны: целостность рабочей копии (хэш-суммы до и
 после), факт чтения файлов (хотя бы одно обращение), вердикт в заданном формате JSON.
@@ -1353,7 +1513,7 @@ def section_runs(runs, grid) -> str:
             f"<td class=num>{statistics.median(toks)/1e6:.2f}</td>"
             f"<td class=num>{min(toks)/1e6:.2f}–{max(toks)/1e6:.2f}</td></tr>")
     return f"""
-<h2 id=runs><span class=no>9.</span>Прогоны и данные</h2>
+<h2 id=runs><span class=no>10.</span>Прогоны и данные</h2>
 <p class=lead>Все {len(runs)} прогонов этапа (пилот + серия v1 + серия v2 + перезапуски).
 Время и токены фиксировались в run.json каждой сессии; сводка по моделям — ниже,
 по-прогонно — в свёрнутом списке. Артефакты:
@@ -1383,7 +1543,7 @@ review.json (вердикт + дефекты), review.md (сырой ответ)
 
 def section_next() -> str:
     return """
-<h2 id=next><span class=no>10.</span>Что дальше</h2>
+<h2 id=next><span class=no>11.</span>Что дальше</h2>
 <table>
 <tr><th style=width:34%>Направление</th><th>Смысл</th></tr>
 <tr><td><b>Расширение серии прогонов</b></td><td>Добавить оставшиеся локальные модели набора тем же
@@ -1423,13 +1583,14 @@ def main() -> int:
 {section_stability(profiles)}
 {section_findings(runs, profiles)}
 {section_notdone(profiles, refs, runs)}
+{section_precision(runs)}
 {section_validity(runs, profiles)}
 {section_runs(runs, grid)}
 {section_next()}
 <div class=footer>Этап 3 методики «Модели»: код-ревью решений этапа 2. Отчёт собран
 из артефактов models/&lt;модель&gt;/backend/code-review/run-XX/ (run.json, review.json) и
-эталон-карточек reviewer/references/. Билдер: reviewer/build_review_report.py.
-Методика: reviewer/REVIEWER.md. Дата сборки: {__import__('datetime').date.today().isoformat()}.</div>
+эталон-карточек code-review/references/. Билдер: code-review/build_review_report.py.
+Методика: code-review/REVIEWER.md. Дата сборки: {__import__('datetime').date.today().isoformat()}.</div>
 </div></body></html>"""
     OUT.write_text(html, encoding="utf-8")
     n_valid = sum(1 for r in runs if r["valid"])
