@@ -723,11 +723,14 @@ def results_summary_block(profiles, refs, runs) -> str:
     def dropped_cell(e):
         n = e.get("dropped", 0)
         if not n:
-            return '<td class=num title="все запуски серии прошли гейты">0</td>'
-        why = "; ".join(dropped_why.get((e["model"], e["thinking"]), [])) \
-            or "детали — в по-модельной таблице"
-        return (f'<td class="num p-bad" title="отбраковано гейтами '
-                f'(некорректное завершение ревью); входит в итог как надёжность. {esc(why)}">{n}</td>')
+            return '<td class=num>0</td>'
+        # детали — видимым текстом под числом: нативные тултипы во
+        # встроенном просмотрщике не показываются
+        whys = dropped_why.get((e["model"], e["thinking"]), [])
+        lines = "".join(
+            f'<div class="sub" style="white-space:normal">{esc(w)}</div>'
+            for w in whys) or '<div class=sub>детали — в по-модельной таблице</div>'
+        return f'<td class="num p-bad">{n}{lines}</td>'
 
     def row_html(e, place):
         prof, d = e["prof"], e["d"]
