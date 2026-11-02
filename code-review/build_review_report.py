@@ -635,6 +635,16 @@ def results_summary_block(profiles, refs, runs) -> str:
         if meta.get("protocol") != "v2" or meta.get("prompt_version") != 2:
             continue
         attempted[(meta.get("model"), meta.get("thinking"))] += 1
+    # что именно отбраковано в каждой строке — для тултипа колонки «Отбрак.»
+    dropped_why = defaultdict(list)
+    for r in runs:
+        if r["protocol"] != "v2" or r["prompt_version"] != 2:
+            continue
+        if r["valid"] and r.get("parse_ok") is not False:
+            continue
+        reason = r.get("invalid_reason") or _FAIL_TEXT.get(r.get("fail_kind"), "отбракован")
+        dropped_why[(r["model"], r["thinking"])].append(
+            f"{r['dir']} ({SLUG_TITLES.get(r['slug'], r['slug'])}): {str(reason).split(':')[0][:70]}")
     for rp in sorted((ROOT / "models").glob("*/backend/code-review/run-*/review.json")):
         rj = rp.with_name("run.json")
         if not rj.is_file():
@@ -704,20 +714,20 @@ def results_summary_block(profiles, refs, runs) -> str:
     ranked.sort(key=lambda e: e["combined"])
 
     def runs_cell(e):
-        """Зачётные прогоны строки и раскладка по решениям: план — 3 ревью
-        на каждое решение. Отбракованные — отдельной колонкой."""
+        """Зачётные прогоны строки — только количество (план: 3 ревью ×
+        4 решения = 12). Детали — в по-модельных таблицах раздела 4."""
         prof = e["prof"]
-        per = " · ".join(f"{SLUG_TITLES[s]} {prof['per_slug'][s]['n']}"
-                         for s in SLUG_ORDER if s in prof["per_slug"])
-        return (f"<td class=num>{prof['n']}"
-                f"<div class=sub style=\"white-space:normal\">{per}</div></td>")
+        return (f'<td class=num title="зачётных прогонов; план серии — '
+                f'3 ревью каждого из 4 решений (12)">{prof["n"]}</td>')
 
     def dropped_cell(e):
         n = e.get("dropped", 0)
         if not n:
             return '<td class=num title="все запуски серии прошли гейты">0</td>'
-        return (f'<td class="num p-bad" title="запусков отбраковано гейтами '
-                f'(некорректное завершение ревью); входит в итог как надёжность">{n}</td>')
+        why = "; ".join(dropped_why.get((e["model"], e["thinking"]), [])) \
+            or "детали — в по-модельной таблице"
+        return (f'<td class="num p-bad" title="отбраковано гейтами '
+                f'(некорректное завершение ревью); входит в итог как надёжность. {esc(why)}">{n}</td>')
 
     def row_html(e, place):
         prof, d = e["prof"], e["d"]
