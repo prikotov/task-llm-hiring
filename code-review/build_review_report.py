@@ -740,8 +740,7 @@ def results_summary_block(profiles, refs, runs) -> str:
             # (итог <= 0.6, «применима»), а не только первое место
             f"<tr class={'top' if e['combined'] <= 0.6 else ''}>"
             f"<td class=num>{place}</td>"
-            f"<td><b>{esc(SHORT.get(model, model))}</b>"
-            f"<div class=sub>протокол v2</div></td>"
+            f"<td><b>{esc(SHORT.get(model, model))}</b></td>"
             f"<td class=num>{thinking}</td>"
             + runs_cell(e)
             + dropped_cell(e)
@@ -764,13 +763,9 @@ def results_summary_block(profiles, refs, runs) -> str:
     orca_model = "orcarouter/Qwen3.8-27B-Uncensored:ctx100k"
     orca_res = resources(orca_model)
     orca_n = sum(1 for r in runs if r["model"] == orca_model)
-    orca_parts = ", ".join(
-        f"{len([r for r in runs if r['model'] == orca_model and r['protocol'] == pr])} {pr}"
-        for pr in ("v1", "v2")
-        if any(r["model"] == orca_model and r["protocol"] == pr for r in runs))
     fail_rows.append(
         f"<tr class=neg><td class=num>—</td>"
-        f"<td><b>orca</b><div class=sub>{orca_n} прогонов: {orca_parts}</div></td>"
+        f"<td><b>orca</b><div class=sub>{orca_n} прогонов</div></td>"
         f"<td class=num>max/low/<br>medium</td>"
         + "<td class=num title=\"зачётных прогонов нет\">0</td>"
         + f"<td class=\"num p-bad\" title=\"все запуски отбракованы гейтом формата\">{orca_n}</td>"
