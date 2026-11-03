@@ -758,55 +758,43 @@ def results_summary_block(profiles, refs, runs) -> str:
                 f'для конвейера потеряны (в итог не входит):<br>{body}</span></span></td>')
 
     def row_html(e, place):
+        """Единая схема строки для всех моделей, включая orca —
+        различаются только подсказки источников данных."""
         model, thinking = e["model"], e["thinking"]
-        if e.get("orca"):
-            # итог по сырому тексту; формат виден в «Прогонов»/«Отбрак.»
-            c, z, o, tot = e["pparts"]
-            res = (f"<td class=num>{e['res'][1]:.2f}M</td>"
-                   f"<td class=num>{e['res'][0]:.1f} мин</td>"
-                   f"<td class='num p-warn'>₽{e['res'][2]:.1f}</td>") if e["res"] \
-                else '<td colspan=3 class=num>—</td>'
-            cls = "top" if e["combined"] <= 0.6 else ("na" if e["combined"] > 0.9 else "")
-            return (
-                f"<tr class={cls}>"
-                f"<td class=num>{place}</td>"
-                f"<td><b>orca</b></td>"
-                f"<td class=num>{thinking}</td>"
-                f"<td class=num title=\"Все {e['n_rs']} запусков — содержательные разборы "
-                f"в собственном формате; по ним посчитаны точность и полнота (8.2)\">{e['n_rs']}</td>"
-                f"<td class=\"num p-bad\"><span class=tip>{e['n_rs']}"
-                f"<span class=tipbox><b>Отбраковано по формату вердикта</b> — все запуски: "
-                f"вердикт в собственном формате вместо заданного JSON</span></span></td>"
-                f"<td class=num title=\"Оценено судьёй по текстам разборов orca, "
-                f"вне контракта (раздел 8.2): {c} из {e['pparts'][3]} подтверждено\">"
-                f"{e['prec']:.0%}</td>"
-                f"<td class=num title=\"Оценено по текстам разборов orca (раздел 8.2)\">"
-                f"{e['caught']} из {REAL_MISSES_TOTAL}</td>"
-                + (f"<td class=num title=\"Названные темы: {esc(', '.join(sorted(e['arch'])))}\">"
-                   f"{len(e['arch'])} из {len(ARCH_THEMES)}</td>"
-                   if e['arch'] else
-                   f"<td class=num title=\"Тем не названо\">0 из {len(ARCH_THEMES)}</td>")
-                + res + "</tr>")
-        # фон строки — граница качества: зелёный <= 0.6 (применима),
-        # красный > 0.9 (не применима), средняя зона без подсветки
         cls = "top" if e["combined"] <= 0.6 else ("na" if e["combined"] > 0.9 else "")
+        if e.get("orca"):
+            runs = (f'<td class=num title="Все {e["n_rs"]} запусков — содержательные '
+                    f'разборы в собственном формате, по ним посчитаны точность и '
+                    f'полнота (8.2)">{e["n_rs"]}</td>')
+            prec_tip = (f"Оценено судьёй по текстам разборов orca, вне контракта "
+                        f"(раздел 8.2): {e['pparts'][0]} из {e['pparts'][3]} подтверждено")
+            caught_tip = "Оценено по текстам разборов orca (раздел 8.2)"
+        else:
+            runs = runs_cell(e)
+            prec_tip = (f"{e['pparts'][0]} из {e['pparts'][3]} подтверждено судьёй"
+                        if e["pparts"][3] else "существенных замечаний не названо")
+            caught_tip = "реальные пропуски, названные с механизмом (раздел 7)"
+        prec_cell = (f"<td class=num title=\"{prec_tip}\">{e['prec']:.0%}</td>"
+                     if e["pparts"][3] else
+                     f"<td class=num title=\"{prec_tip}\">—</td>")
+        caught_cell = (f"<td class=num title=\"{caught_tip}\">{e['caught']} "
+                       f"из {REAL_MISSES_TOTAL}</td>")
+        arch_cell = (f"<td class=num title=\"Названные темы: "
+                     f"{esc(', '.join(sorted(e['arch'])))}\">{len(e['arch'])} "
+                     f"из {len(ARCH_THEMES)}</td>" if e['arch'] else
+                     f"<td class=num title=\"Тем не названо\">0 из {len(ARCH_THEMES)}</td>")
         return (
             f"<tr class={cls}>"
             f"<td class=num>{place}</td>"
             f"<td><b>{esc(SHORT.get(model, model))}</b></td>"
             f"<td class=num>{thinking}</td>"
-            + runs_cell(e)
+            + runs
             + dropped_cell(e)
-            + (f"<td class=num>{e['prec']:.0%}"
-               f"<div class=sub>{e['pparts'][0]} из {e['pparts'][3]} подтв.</div></td>"
-               if e["pparts"][3] else
-               "<td class=num title=\"существенных замечаний не названо\">—</td>")
-            + f"<td class=num>{e['caught']} из {REAL_MISSES_TOTAL}</td>"
-            + (f"<td class=num title=\"Названные темы: {esc(', '.join(sorted(e['arch'])))}\">"
-               f"{len(e['arch'])} из {len(ARCH_THEMES)}</td>"
-               if e['arch'] else
-               f"<td class=num title=\"Тем не названо\">0 из {len(ARCH_THEMES)}</td>")
-            + res_cell(e["res"]) + "</tr>")
+            + prec_cell
+            + caught_cell
+            + arch_cell
+            + res_cell(e["res"])
+            + "</tr>")
 
     rows = []
     for i, e in enumerate(ranked, 1):
