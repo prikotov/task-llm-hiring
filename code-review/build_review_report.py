@@ -598,8 +598,9 @@ def results_summary_block(profiles, refs, runs) -> str:
 
     def res_cell(res):
         if not res:
-            return '<td colspan=2 class=num title="замеров токенов нет">—</td>'
+            return '<td colspan=3 class=num title="замеров времени и токенов нет">—</td>'
         return (f"<td class=num>{res[1]:.2f}M</td>"
+                f"<td class=num>{res[0]:.1f}</td>"
                 f"<td class='num p-warn'>₽{res[2]:.1f}</td>")
 
     def stack_cell(prof, slug):
@@ -720,10 +721,11 @@ def results_summary_block(profiles, refs, runs) -> str:
         miss_o = 1 - ORCA_CAUGHT[th] / REAL_MISSES_TOTAL
         ds = sorted(r["duration_s"] for r in rs if r["duration_s"])
         toks = sorted(r["tokens"] for r in rs if r["tokens"])
-        med_t = med_r = None
+        med_min = med_t = med_r = None
         if ds and toks:
             m = len(ds) // 2
             med_d = ds[m] if len(ds) % 2 else (ds[m - 1] + ds[m]) / 2
+            med_min = med_d / 60
             med_t = toks[len(toks) // 2] / 1e6
             med_r = med_d / 3600 * LOCAL_RUB_H
         ranked.append({
@@ -732,7 +734,7 @@ def results_summary_block(profiles, refs, runs) -> str:
             "prec": prec_o, "pparts": (pc, pz, po, ptot),
             "caught": ORCA_CAUGHT[th], "dropped": len(rs),
             "arch": arch.get((orca_model, th), set()),
-            "res": (None, med_t, med_r) if med_t else None})
+            "res": (med_min, med_t, med_r) if med_t else None})
     ranked.sort(key=lambda e: e["combined"])
 
     def runs_cell(e):
@@ -760,9 +762,10 @@ def results_summary_block(profiles, refs, runs) -> str:
         if e.get("orca"):
             # итог по сырому тексту; формат виден в «Прогонов»/«Отбрак.»
             c, z, o, tot = e["pparts"]
-            res = (f"<td class=num>{e['res'][1]:.2f}</td>"
+            res = (f"<td class=num>{e['res'][1]:.2f}M</td>"
+                   f"<td class=num>{e['res'][0]:.1f}</td>"
                    f"<td class='num p-warn'>₽{e['res'][2]:.1f}</td>") if e["res"] \
-                else '<td colspan=2 class=num>—</td>'
+                else '<td colspan=3 class=num>—</td>'
             cls = "top" if e["combined"] <= 0.6 else ("na" if e["combined"] > 0.9 else "")
             return (
                 f"<tr class={cls}>"
@@ -820,6 +823,7 @@ def results_summary_block(profiles, refs, runs) -> str:
             "<th class=narrow title=\"реальные пропуски решения, названные с механизмом (раздел 7)\">Поймано</th>"
             "<th class=narrow title=\"Сколько из 11 тем качества кода и архитектуры (список тем — раздел 8.3, все подтверждены инструментами) модель назвала хотя бы раз за серию; перечень — в подсказке ячейки. Широта архитектурного ревью\">Архитектура</th>"
             "<th class=narrow>Токены<div class=sub>медиана</div></th>"
+            "<th class=narrow>Время<div class=sub>мин · медиана</div></th>"
             "<th class=narrow>₽/ревью</th>"
             "</tr>")
     return f"""
@@ -841,9 +845,9 @@ def results_summary_block(profiles, refs, runs) -> str:
 конвейера, а не дефект ревью (отбраковка — справочно в «Отбрак.»). Применимость:
 до 0.6 — применима;
 до 0.9 — с оговорками (баллы сверять с чекером); выше — не применима. Согласие
-с судьёй (|Δ|) и время прогонов в сводную не вынесены — по-прогонные баллы, Δ и
-время видны в по-модельных таблицах ниже; серии v1 и прежнего контракта в
-сводную не входят, их прогоны — там же (протокол указан в строке прогона).
+с судьёй (|Δ|) в сводную не вынесено — по-прогонные баллы и Δ видны в
+по-модельных таблицах ниже; серии v1 и прежнего контракта в сводную не входят,
+их прогоны — там же (протокол указан в строке прогона).
 orca включена в рейтинг по ручной разметке сырых текстов (8.2): неточность и
 неполнота — по ручной
 разметке её разборов; в «Отбрак.» — все 48 прогонов не сдали формат.
