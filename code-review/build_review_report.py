@@ -600,7 +600,7 @@ def results_summary_block(profiles, refs, runs) -> str:
         if not res:
             return '<td colspan=3 class=num title="замеров времени и токенов нет">—</td>'
         return (f"<td class=num>{res[1]:.2f}M</td>"
-                f"<td class=num>{res[0]:.1f}</td>"
+                f"<td class=num>{res[0]:.1f} мин</td>"
                 f"<td class='num p-warn'>₽{res[2]:.1f}</td>")
 
     def stack_cell(prof, slug):
@@ -763,7 +763,7 @@ def results_summary_block(profiles, refs, runs) -> str:
             # итог по сырому тексту; формат виден в «Прогонов»/«Отбрак.»
             c, z, o, tot = e["pparts"]
             res = (f"<td class=num>{e['res'][1]:.2f}M</td>"
-                   f"<td class=num>{e['res'][0]:.1f}</td>"
+                   f"<td class=num>{e['res'][0]:.1f} мин</td>"
                    f"<td class='num p-warn'>₽{e['res'][2]:.1f}</td>") if e["res"] \
                 else '<td colspan=3 class=num>—</td>'
             cls = "top" if e["combined"] <= 0.6 else ("na" if e["combined"] > 0.9 else "")
@@ -823,7 +823,7 @@ def results_summary_block(profiles, refs, runs) -> str:
             "<th class=narrow title=\"реальные пропуски решения, названные с механизмом (раздел 7)\">Поймано</th>"
             "<th class=narrow title=\"Сколько из 11 тем качества кода и архитектуры (список тем — раздел 8.3, все подтверждены инструментами) модель назвала хотя бы раз за серию; перечень — в подсказке ячейки. Широта архитектурного ревью\">Архитектура</th>"
             "<th class=narrow>Токены<div class=sub>медиана</div></th>"
-            "<th class=narrow>Время<div class=sub>мин · медиана</div></th>"
+            "<th class=narrow>Время<div class=sub>медиана</div></th>"
             "<th class=narrow>₽/ревью</th>"
             "</tr>")
     return f"""
