@@ -560,22 +560,26 @@ def _quality_level(overall: float) -> str:
     return f'<span class="deadmark fab" title="{tip}">не применима</span>'
 
 
-def results_summary_block(profiles, refs, runs) -> str:
-    """Сводная таблица: плоский рейтинг строк (модель × мышление) текущего
-    контракта. Порядок и фон строки задаёт колонка «Сумма» = Точность +
-    Поймано (сортировка по убыванию; зелёная строка ≥ 80%, красная < 20%).
-    Сумма — обратная запись итога, среднего двух долей ошибок (неточность
-    замечаний 1 − точность по судье-оценщику; неполнота 1 − recall по
-    not_done против чекера): итог = 1 − Сумма/2. Формат выдачи в оценку
-    не входит — роль ревьюера текстовая; отбраковка гейтом — справочная
-    колонка «Отбрак.». «Место» — порядковый номер строки в этом рейтинге."""
-    latest = latest_profiles(profiles)
+def ranking_entries(profiles, runs):
+    """Рейтинг строк сводной 4.1: запись = модель × уровень мышления,
+    текущий контракт (протокол v2, контракт с not_done). Итог ранжирования —
+    среднее трёх долей ошибок, все от объективной верификации, без судейских
+    баллов: неточность замечаний (1 − точность critical/major по вердиктам
+    судьи-оценщика, раздел 8), неполнота (доля реальных пропусков без
+    названного механизма, раздел 7) и непокрытие арх. тем (1 − темы из
+    инструментального оракула, 8.3). Обратная запись — колонка «Сумма» 4.1:
+    Точность + Поймано + Архитектура, итог = 1 − Сумма/3. Формат выдачи
+    в итог не входит: роль ревьюера — текстовые замечания, несданный JSON —
+    потеря данных для конвейера (колонка «Отбрак.»), а не дефект ревью.
+    Числовое сравнение |Δ| — согласие с судьёй — вне итога: эталонные баллы
+    сам судья и назначил. orca — итог по ручной разметке текстов разборов
+    (8.2). Возвращает (ranked, attempted, dropped_why) — ranked
+    отсортирован по возрастанию итога (лучшие сверху)."""
 
     def axis_overall(prof):
-        """Средний |Δ| по каждой оси (усреднение по решениям) и общий."""
-        axis_delta = {a: statistics.mean(s["delta_mean"][a] for s in prof["per_slug"].values())
-                      for a in AXES}
-        return axis_delta, statistics.mean(axis_delta.values())
+        """Средний |Δ| по каждой оси (усреднение по решениям)."""
+        return {a: statistics.mean(s["delta_mean"][a] for s in prof["per_slug"].values())
+                for a in AXES}
 
     def resources(model):
         """Медианы времени (мин), токенов (М) и стоимости (₽) — отдельно по
@@ -598,25 +602,6 @@ def results_summary_block(profiles, refs, runs) -> str:
                     out[(protocol, thinking, pv)] = (med_d / 60, med_t / 1e6,
                                                      med_d / 3600 * LOCAL_RUB_H)
         return out
-
-    def res_cell(res):
-        if not res:
-            return '<td colspan=3 class=num title="замеров времени и токенов нет">—</td>'
-        return (f"<td class=num>{res[1]:.2f}M</td>"
-                f"<td class=num>{res[0]:.1f} мин</td>"
-                f"<td class='num p-warn'>₽{res[2]:.1f}</td>")
-
-    def stack_cell(prof, slug):
-        """Средние A/B/F по решениям — стопкой в одной ячейке."""
-        s = prof["per_slug"].get(slug)
-        if not s:
-            return '<td class=num>—</td>'
-        marks = "".join(
-            f'<div class="stack{" b" if a == "axis_a" else ""}">'
-            f'{AXIS_NAMES_SHORT[a]} {f"{statistics.mean(vals):.2f}".rstrip("0").rstrip(".")}</div>'
-            for a in AXES
-            for vals in [s["vals"][a]])
-        return f'<td class=num>{marks}</td>'
 
     # recall: семьи реальных пропусков решений, перечисленные моделью
     # в not_done зачётных сессий (по уровням thinking, контракт с not_done).
@@ -667,49 +652,37 @@ def results_summary_block(profiles, refs, runs) -> str:
                 if (slug, fam) in MECH_CAUGHT.get(key, set()):
                     caught[key].add((slug, fam))
 
-    # профили по сериям: рейтинг — текущий контракт (протокол v2, контракт с
-    # not_done); серии v1 и прежний контракт — для сравнения
+    # рейтинг — только текущий контракт; серии v1 и прежнего контракта
+    # вне рейтинга (их вердикты судьёй не верифицировались, по-прогонные
+    # данные — в по-модельных таблицах)
     v2_levels = defaultdict(dict)   # thinking -> {model: prof}
-    comparison = defaultdict(list)  # подпись серии -> [(model, thinking, prof)]
     for (model, protocol, thinking, pv), prof in profiles.items():
         if protocol == "v2" and pv == 2:
             v2_levels.setdefault(thinking, {})[model] = prof
-        else:
-            note = (f"протокол {protocol} (с diff.patch — для сравнения)"
-                    if protocol == "v1" else
-                    "протокол v2 · прежний контракт (без перечня not_done)")
-            comparison[note].append((model, thinking, prof))
 
     prec = defect_precision(runs)
     arch = arch_coverage(runs)
 
-    def combined(model, thinking, prof):
-        """Итог ранжирования — среднее двух долей ошибок, обе от верификации
-        содержания, без судейских баллов: неточность замечаний (1 − точность
-        critical/major по вердиктам судьи-оценщика, раздел 8) и неполнота
-        (доля реальных пропусков без названного механизма, раздел 7).
-        Формат выдачи в итог не входит: роль ревьюера — текстовые замечания,
-        несданный JSON — потеря данных для конвейера (колонка «Отбрак.»),
-        а не дефект ревью. Числовое сравнение |Δ| — согласие с судьёй —
-        тоже вне итога: эталонные баллы сам судья и назначил."""
+    def combined(model, thinking, prof, arch_n):
         miss = 1 - len(caught.get((model, thinking), set())) / REAL_MISSES_TOTAL
         pc, pz, po = prec.get((model, thinking), [0, 0, 0])
         ptot = pc + pz + po
         p = pc / ptot if ptot else 0.0
-        итог = statistics.mean([1 - p, miss])
-        return (итог, miss, p, (pc, pz, po, ptot), axis_overall(prof)[0])
+        итог = statistics.mean([1 - p, miss, 1 - arch_n / len(ARCH_THEMES)])
+        return (итог, miss, p, (pc, pz, po, ptot), axis_overall(prof))
 
     ranked = []
     for thinking, models in v2_levels.items():
         for model, prof in models.items():
-            c, miss, p, pparts, d = combined(model, thinking, prof)
+            arch_s = arch.get((model, thinking), set())
+            c, miss, p, pparts, d = combined(model, thinking, prof, len(arch_s))
             ranked.append({"model": model, "thinking": thinking, "prof": prof,
                            "combined": c, "miss": miss, "d": d,
                            "prec": p, "pparts": pparts,
                            "dropped": attempted.get((model, thinking), prof["n"]) - prof["n"],
                            "caught": len(caught.get((model, thinking), set())),
                            "caught_fams": sorted(caught.get((model, thinking), set())),
-                           "arch": arch.get((model, thinking), set()),
+                           "arch": arch_s,
                            "res": resources(model).get(("v2", thinking, 2))})
     # orca — по сырому тексту (8.2): неточность и неполнота из ручной
     # разметки; формат в итог не входит (роль ревьюера — текстовые замечания)
@@ -723,6 +696,7 @@ def results_summary_block(profiles, refs, runs) -> str:
         ptot = pc + pz + po
         prec_o = pc / ptot if ptot else 0.0
         miss_o = 1 - ORCA_CAUGHT[th] / REAL_MISSES_TOTAL
+        arch_s = arch.get((orca_model, th), set())
         ds = sorted(r["duration_s"] for r in rs if r["duration_s"])
         toks = sorted(r["tokens"] for r in rs if r["tokens"])
         med_min = med_t = med_r = None
@@ -734,12 +708,31 @@ def results_summary_block(profiles, refs, runs) -> str:
             med_r = med_d / 3600 * LOCAL_RUB_H
         ranked.append({
             "model": orca_model, "thinking": th, "orca": True, "n_rs": len(rs),
-            "combined": statistics.mean([1 - prec_o, miss_o]),
+            "combined": statistics.mean([1 - prec_o, miss_o,
+                                         1 - len(arch_s) / len(ARCH_THEMES)]),
             "prec": prec_o, "pparts": (pc, pz, po, ptot),
             "caught": ORCA_CAUGHT[th], "dropped": len(rs),
-            "arch": arch.get((orca_model, th), set()),
+            "arch": arch_s,
             "res": (med_min, med_t, med_r) if med_t else None})
     ranked.sort(key=lambda e: e["combined"])
+    return ranked, attempted, dropped_why
+
+
+def results_summary_block(profiles, runs) -> str:
+    """Сводная таблица: плоский рейтинг строк (модель × мышление) текущего
+    контракта. Порядок и фон строки задаёт колонка «Сумма» = Точность +
+    Поймано + Архитектура (сортировка по убыванию; зелёная строка ≥ 120%,
+    красная — только при функциональном провале Точность + Поймано < 20%).
+    Формула итога — в ranking_entries(). «Место» — порядковый номер строки
+    в этом рейтинге."""
+    ranked, attempted, dropped_why = ranking_entries(profiles, runs)
+
+    def res_cell(res):
+        if not res:
+            return '<td colspan=3 class=num title="замеров времени и токенов нет">—</td>'
+        return (f"<td class=num>{res[1]:.2f}M</td>"
+                f"<td class=num>{res[0]:.1f} мин</td>"
+                f"<td class='num p-warn'>₽{res[2]:.1f}</td>")
 
     def runs_cell(e):
         """Все запуски серии строки (план: 3 ревью × 4 решения = 12)."""
@@ -762,12 +755,16 @@ def results_summary_block(profiles, refs, runs) -> str:
 
     def row_html(e, place):
         """Единая схема строки для всех моделей, включая orca —
-        различаются только подсказки источников данных. Порядок и фон
-        строки — по «Сумме» = Точность + Поймано."""
+        различаются только подсказки источников данных. Порядок — по
+        «Сумме» = Точность + Поймано + Архитектура; красная строка — только
+        по функциональному провалу (Точность + Поймано < 20%), арх. темы
+        её не спасают."""
         model, thinking = e["model"], e["thinking"]
         caught_pct = e['caught'] / REAL_MISSES_TOTAL
-        s = e['prec'] + caught_pct
-        cls = "top" if s >= 0.8 else ("na" if s < 0.2 else "")
+        arch_pct = len(e['arch']) / len(ARCH_THEMES)
+        s = e['prec'] + caught_pct + arch_pct
+        cls = ("top" if s >= 1.2 else
+               ("na" if e['prec'] + caught_pct < 0.2 else ""))
         pc, pz, po, ptot = e['pparts']
         if e.get("orca"):
             runs = (f'<td class=num title="Все {e["n_rs"]} запусков — содержательные '
@@ -794,14 +791,18 @@ def results_summary_block(profiles, refs, runs) -> str:
                      if ptot else
                      f"<td class=num title=\"{prec_tip}\">—</td>")
         caught_cell = f"<td class=num title=\"{caught_tip}\">{caught_pct:.0%}</td>"
-        sum_tip = (f"Сумма = Точность + Поймано = {e['prec']:.0%} + "
-                   f"{caught_pct:.0%} = {s:.0%}. По сумме — порядок строк и фон: "
-                   f"≥ 80% — зелёная (применима), < 20% — красная (не применима)")
+        sum_tip = (f"Сумма = Точность + Поймано + Архитектура = {e['prec']:.0%} + "
+                   f"{caught_pct:.0%} + {arch_pct:.0%} = {s:.0%} (максимум 300%). "
+                   f"По сумме — порядок строк и фон: ≥ 120% — зелёная (применима); "
+                   f"красная — только при функциональном провале, Точность + "
+                   f"Поймано < 20% (арх. темы её не спасают)")
         sum_cell = f"<td class=num title=\"{sum_tip}\"><b>{s:.0%}</b></td>"
-        arch_cell = (f"<td class=num title=\"Названные темы: "
-                     f"{esc(', '.join(sorted(e['arch'])))}\">{len(e['arch'])} "
-                     f"из {len(ARCH_THEMES)}</td>" if e['arch'] else
-                     f"<td class=num title=\"Тем не названо\">0 из {len(ARCH_THEMES)}</td>")
+        arch_tip = (f"{len(e['arch'])} из {len(ARCH_THEMES)} тем инструментального "
+                    f"оракула (раздел 8.3): {esc(', '.join(sorted(e['arch'])))}. "
+                    f"{len(e['arch'])}/{len(ARCH_THEMES)} = {arch_pct:.0%}"
+                    if e['arch'] else
+                    f"Ни одной из {len(ARCH_THEMES)} тем инструментального оракула (раздел 8.3)")
+        arch_cell = f"<td class=num title=\"{arch_tip}\">{arch_pct:.0%}</td>"
         return (
             f"<tr class={cls}>"
             f"<td class=num>{place}</td>"
@@ -829,7 +830,7 @@ def results_summary_block(profiles, refs, runs) -> str:
             "<th class=narrow title=\"Запуски, не сдавшие формат вердикта; в итог не входит — потеря данных для конвейера, не дефект ревью. Детали по прогонам — в подсказках ячеек\">Отбрак.<sup>2</sup><div class=sub>по формату</div></th>"
             "<th class=narrow title=\"Доля подтверждённых судьёй-оценщиком замечаний critical/major (раздел 8)\">Точность<sup>3</sup></th>"
             "<th class=narrow title=\"Реальные пропуски решения (всего 5, раздел 7), названные с механизмом дефекта, в процентах от 5; какие — в подсказке ячейки\">Поймано<sup>4</sup></th>"
-            "<th class=narrow title=\"Точность + Поймано. По сумме отсортированы строки и окрашен фон: ≥ 80% — зелёная (применима), < 20% — красная (не применима)\">Сумма<sup>7</sup></th>"
+            "<th class=narrow title=\"Точность + Поймано + Архитектура (каждая в % от своего максимума, максимум 300%). По сумме отсортированы строки и окрашен фон: ≥ 120% — зелёная (применима); красная — только при провале по функционалу (Точность + Поймано < 20%)\">Сумма<sup>7</sup></th>"
             "<th class=narrow title=\"Из 11 тем качества кода и архитектуры, проверенных инструментальным оракулом (раздел 8.3): сколько названо за серию; перечень — в подсказке ячейки\">Архитектура<sup>5</sup></th>"
             "<th class=narrow>Токены<sup>6</sup><div class=sub>медиана</div></th>"
             "<th class=narrow>Время<sup>6</sup><div class=sub>медиана</div></th>"
@@ -841,12 +842,14 @@ def results_summary_block(profiles, refs, runs) -> str:
 замечаний. Одна строка = модель × уровень мышления; «Место» — порядковый
 номер строки в этом рейтинге.</p>
 <p class=lead>Порядок и фон строки задаёт колонка <b>«Сумма»</b> = Точность +
-Поймано: чем выше, тем лучше — строки отсортированы по ней. Обе доли получены
-верификацией содержания замечаний, без судейских баллов; как получен каждый
-процент — в подсказках ячеек (сноски 3 и 4).</p>
+Поймано + Архитектура: чем выше, тем лучше — строки отсортированы по ней.
+Все три доли получены объективной верификацией содержания (судья-оценщик,
+механизм дефекта, инструментальный оракул — сноски 3–5), без судейских
+баллов; как получен каждый процент — в подсказках ячеек.</p>
 <p class=lead><b>Фон строки — граница применимости модели как ревьюера:</b>
-зелёный — сумма ≥ 80% (применима), без подсветки — средняя зона, красный —
-сумма < 20% (не применима).</p>
+зелёный — сумма ≥ 120% (применима), без подсветки — средняя зона, красный —
+функциональный провал: Точность + Поймано < 20% (арх. темы его не
+компенсируют — ревьюер обязан замечать дефекты поведения решения).</p>
 <p class=lead>В рейтинге — основная серия прогонов (протокол v2: ревьюер
 видит полное решение и перечисляет, что из задания не сделано). Серии
 с другими условиями (протокол v1, прежний контракт) в него не входят —
@@ -858,9 +861,9 @@ def results_summary_block(profiles, refs, runs) -> str:
 <sup>2</sup> Отбрак. по формату — запуски, не сдавшие формат вердикта. В итог не входит: потеря данных для конвейера, а не дефект ревью. Детали по прогонам — в подсказках ячеек.<br>
 <sup>3</sup> Точность — доля подтверждённых судьёй-оценщиком замечаний critical/major (раздел 8); расчёт — в подсказке ячейки.<br>
 <sup>4</sup> Поймано — реальные пропуски решения, названные с механизмом дефекта (раздел 7), в процентах от пяти; какие пойманы — в подсказке ячейки.<br>
-<sup>5</sup> Архитектура — из 11 тем качества кода и архитектуры, проверенных инструментальным оракулом (раздел 8.3); перечень названных тем — в подсказке ячейки.<br>
+<sup>5</sup> Архитектура — из 11 тем качества кода и архитектуры, проверенных инструментальным оракулом (раздел 8.3), в процентах от 11; перечень названных тем — в подсказке ячейки. Часть числовых тем — пересказ выданного metrics.json (оговорка 8.3), поэтому вклад — как у одной из трёх долей, не больше.<br>
 <sup>6</sup> Токены, Время, ₽/ревью — медианы строки; стоимость локального инференса — электричество и амортизация (₽35.85/ч, методика этапов 1–2).<br>
-<sup>7</sup> Сумма = Точность + Поймано; по ней отсортированы строки и окрашен фон. «Итог» на картах ниже — обратная запись той же оценки: средняя доля ошибок = 1 − Сумма/2.<br>
+<sup>7</sup> Сумма = Точность + Поймано + Архитектура (максимум 300%); по ней отсортированы строки и окрашен фон: ≥ 120% — зелёная, красная — при Точность + Поймано < 20%. «Итог» на картах ниже — обратная запись той же оценки: средняя доля ошибок = 1 − Сумма/3.<br>
 orca — вердиктов в заданном формате нет: её точность и полнота посчитаны судьёй по текстам разборов вручную (раздел 8.2).</div>"""
 
 
@@ -921,7 +924,7 @@ def section_results(profiles, refs, runs) -> str:
     """Раздел 4: сводная таблица 4.1, карты «итог—цена» и «итог—время»
     (приём этапа 2), затем по-модельные секции — одна таблица на модель,
     строка = отдельный прогон."""
-    summary = results_summary_block(profiles, refs, runs)
+    summary = results_summary_block(profiles, runs)
 
     # медианные ресурсы строки рейтинга (текущий контракт) для карт
     def med(model, thinking):
@@ -935,18 +938,14 @@ def section_results(profiles, refs, runs) -> str:
         med_d = ds[m] if len(ds) % 2 else (ds[m - 1] + ds[m]) / 2
         return (med_d / 60, med_d / 3600 * LOCAL_RUB_H)
 
-    def combined_of(model, thinking):
-        prof = profiles.get((model, "v2", thinking, 2))
-        if not prof:
-            return None
-        d = {a: statistics.mean(s["delta_mean"][a] for s in prof["per_slug"].values())
-             for a in AXES}
-        return statistics.mean(d.values())
+    # итог для карт — тот же рейтинг, что в таблице 4.1 (ranking_entries)
+    ranked_of = {(e["model"], e["thinking"]): e["combined"]
+                 for e in ranking_entries(profiles, runs)[0]}
 
     map_points = []
     for model, thinking in sorted({(r["model"], r["thinking"]) for r in runs
                                    if r["protocol"] == "v2" and r["prompt_version"] == 2}):
-        c, res = combined_of(model, thinking), med(model, thinking)
+        c, res = ranked_of.get((model, thinking)), med(model, thinking)
         if c is not None and res is not None:
             map_points.append({"label": f"{SHORT.get(model, model)} {thinking}",
                                "y": c, "rub": res[1], "min": res[0]})
@@ -1033,7 +1032,7 @@ def section_results(profiles, refs, runs) -> str:
 {summary}
 <h3>Карта моделей: итог и цена</h3>
 <p class=lead>Точка — строка рейтинга (модель × уровень мышления, текущий контракт).
-Вертикаль — итог из таблицы 4.1 (средняя доля ошибок = 1 − Сумма/2, сноска 7),
+Вертикаль — итог из таблицы 4.1 (средняя доля ошибок = 1 − Сумма/3, сноска 7),
 горизонталь — медианная стоимость одного ревью строки.</p>
 {map_price}
 <h3>Карта моделей: итог и время</h3>
@@ -1580,8 +1579,9 @@ max) — единственный за всю серию названный ме
 сохраняется для NEW-провайдера, setOffPeak() только в update-ветке» — дословно
 верифицированная причина из раздела 6, которую не назвал ни один зачётный
 ревьюер. Оценка вне контракта: валидного вердикта у orca нет, поэтому в 4.1 её итог
-считается из этих чисел — неточность и неполнота по ручной разметке разборов
-(формат в итог не входит): orca max — 1-е место, medium — 4-е, low — 8-е. Полнота: max — 3 из 5 (оф-пик, миграции, артефакты), medium — 2 из 5,
+считается из этих чисел — неточность, неполнота и арх. покрытие по ручной
+разметке разборов (формат в итог не входит): orca max — 1-е место,
+medium — 2-е (11 из 11 арх. тем), low — 8-е. Полнота: max — 3 из 5 (оф-пик, миграции, артефакты), medium — 2 из 5,
 low — 0 (её прогоны на bad/tricky дали обрывы JSON вместо разборов).</p>
 <table>
 <tr><th>Модель × мышление</th><th class=narrow>Размечено</th><th class=narrow>Подтв.</th>
