@@ -47,7 +47,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-BILLING = HERE.parent
+BILLING = HERE.parent / "test-assignment" / "backend" / "billing"
 sys.path.insert(0, str(BILLING))
 
 from runner_pi import (  # noqa: E402
@@ -162,18 +162,27 @@ def load_reference(target: Path) -> dict:
     )
 
 
+_TMP_REPO_RX = re.compile(r"^/tmp/[^/]+/repo/")
+
+
 def sanitize_metrics(data: dict, secrets: list[str]) -> dict:
-    """Метрики без провенанса: абсолютные пути хоста и рабочей машины вырезаются."""
+    """Метрики без провенанса: пути хоста и рабочей машины вырезаются,
+    путь файла внутри решения сохраняется (readability материалов).
+
+    Порядок: секреты (пути репозитория/прогона) -> "<вырезано>";
+    эфемерный префикс прогона метрик /tmp/<...>/repo/ срезается — остаётся
+    путь внутри решения (src/...); хостовые пути — только имя файла."""
     def redact(value):
         if isinstance(value, str):
             for s in secrets:
                 if s and s in value:
                     value = value.replace(s, "<вырезано>")
+            value = _TMP_REPO_RX.sub("", value)
             if value.startswith("/"):
-                value = Path(value).name  # остаётся имя файла, путь не нужен
+                value = Path(value).name  # хостовый путь — имя файла, путь не нужен
             return value
         if isinstance(value, dict):
-            return {k: redact(v) for k, v in value.items()}
+            return {k: redact(v) for k, v in value.items() if k != "repo"}
         if isinstance(value, list):
             return [redact(v) for v in value]
         return value
