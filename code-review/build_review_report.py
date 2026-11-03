@@ -164,6 +164,10 @@ h3 .no{color:var(--mut);font-weight:400;margin-right:8px}
 p{margin:10px 0}
 .sub{font-size:12.5px;color:var(--mut);margin-top:3px;line-height:1.5}
 code{font-size:12.5px;background:#eef1f6;border-radius:5px;padding:1px 5px}
+details.promptbox{margin:10px 0;border:1px solid var(--line);border-radius:10px;background:#fff}
+details.promptbox summary{cursor:pointer;padding:9px 14px;font-size:14px;color:var(--mut)}
+details.promptbox[open] summary{border-bottom:1px solid var(--line)}
+pre.prompt{white-space:pre-wrap;word-break:break-word;margin:0;padding:12px 14px;font-size:12.5px;line-height:1.5;font-family:ui-monospace,SFMono-Regular,monospace}
 .excap{font-size:15px;color:var(--ink);margin:12px 0 -4px;line-height:1.5}
 .excap.sb{font-weight:700;margin-top:26px}
 table{border-collapse:collapse;width:100%;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 2px rgba(20,30,50,.07);margin:14px 0}
@@ -471,8 +475,26 @@ OutputInterface такого метода нет. Но Symfony передаёт 
 </div>"""
 
 
+def _runner_prompts() -> tuple[str, str]:
+    """SYSTEM и REVIEW_PROMPT из runner_reviewer.py — единственный источник
+    текста промптов, отчёт не держит свою копию (дрейф исключён)."""
+    import ast as _ast
+    src = (HERE / "runner_reviewer.py").read_text(encoding="utf-8")
+    found: dict[str, str] = {}
+    for node in _ast.parse(src).body:
+        if isinstance(node, _ast.Assign):
+            for t in node.targets:
+                if isinstance(t, _ast.Name) and t.id in ("SYSTEM", "REVIEW_PROMPT"):
+                    found[t.id] = _ast.literal_eval(node.value)
+    missing = {"SYSTEM", "REVIEW_PROMPT"} - found.keys()
+    if missing:
+        sys.exit(f"в runner_reviewer.py не найдены промпты: {', '.join(sorted(missing))}")
+    return found["SYSTEM"], found["REVIEW_PROMPT"]
+
+
 def section_method() -> str:
-    return """
+    system_prompt, review_prompt = _runner_prompts()
+    return f"""
 <h2 id=method><span class=no>2.</span>Методика</h2>
 <p class=lead>Каждая модель-участница выступает код-ревьюером решений тестового
 задания этапа 2. На вход ревьюер получает материалы решения, на выходе сдаёт
@@ -488,6 +510,40 @@ def section_method() -> str:
 бы вычислить автора. Знание вердикта чекера превратило бы ревью в пересказ
 готового ответа.</p>
 
+<p class=lead><b>Как ревьюер получает материалы.</b> Раннер серии
+(<code>runner_reviewer.py</code>) перед каждым прогоном собирает ревьюеру
+свежий рабочий каталог во временном каталоге. Туда копируются TASK.md
+и AGENTS.md из каркаса задания, дерево <code>solution/</code> целиком
+из прогона этапа 2 и санированный metrics.json этого прогона: абсолютные
+пути и имена хостов заменены на «вырезано». Из скопированного дерева
+генерируется MANIFEST.txt — список файлов с размерами. В копии нет vendor,
+поэтому код нечем исполнить. Ревьюер работает только в этом каталоге,
+оригинальные материалы прогона ему недоступны.</p>
+
+<p class=lead><b>Как запускается pi.</b> Один вызов на прогон, из рабочего
+каталога:</p>
+<pre class=prompt>pi -p --session-dir &lt;каталог результатов&gt; --model &lt;модель&gt; \\
+  --thinking &lt;уровень мышления&gt; --system-prompt &lt;системный промпт&gt; \\
+  --tools read "&lt;пользовательский промпт&gt;"</pre>
+<p class=lead>Флаг <code>--tools read</code> оставляет агенту единственный
+инструмент — чтение файлов: править и запускать нечем. Изоляция: pi-home
+перенаправляется во временный каталог (<code>PI_CODING_AGENT_DIR</code>),
+глобальный конфиг не читается, доступ в сеть отключён; контекст — 102 400
+токенов, таймаут прогона — один час. После завершения pi раннер забирает
+след сессии (JSONL), лог и финальный ответ модели.</p>
+
+<p class=lead><b>С какими промптами.</b> Промпта два. Системный — задаёт роль
+слепого ревьюера, порядок работы, дескрипторы трёх шкал и JSON-контракт
+финального ответа (оценки, not_done, defects, note). Пользовательский —
+короткое стартовое задание: провести ревью, материалы перечислены
+в рабочем каталоге, финал — только JSON. Промпты одни и те же для всех
+моделей, уровней мышления и решений; правки под конкретную модель запрещены —
+сравниваем базовую способность, а не подгонку. Полные тексты:</p>
+<details class=promptbox><summary>Системный промпт — полный текст</summary>
+<pre class=prompt>{esc(system_prompt)}</pre></details>
+<details class=promptbox><summary>Пользовательский промпт — полный текст</summary>
+<pre class=prompt>{esc(review_prompt)}</pre></details>
+
 <p class=lead><b>Что сдаёт ревьюер.</b> Список дефектов: каждый с файлом,
 строками и серьёзностью critical, major или minor; при сомнении — minor
 и формулировка «подозрение». Перечень not_done: что из задания, по мнению
@@ -495,11 +551,14 @@ def section_method() -> str:
 и архитектура», B «процесс и коммуникация», F «соответствие заданию».
 Дескрипторы шкал — рубрика яруса 3, переписанная без ссылок на чекер.</p>
 
-<p class=lead><b>Только чтение — никаких правок и запусков.</b> Ревьюер не
-может изменить решение и не может исполнить код: pi запускается с единственным
-инструментом — чтением файлов, правка и запись отключены. В копии материалов
-нет vendor, поэтому код нечем исполнить. Хэш-суммы всех файлов снимаются до
-и после прогона; расхождение — прогон отбраковывается.</p>
+<p class=lead><b>Когда прогон засчитывается.</b> Вердикт обязан быть JSON
+по контракту: три оценки, перечень not_done, список дефектов. Прогон идёт
+в зачёт, только если JSON распознан, ревьюер сделал хотя бы одно чтение
+файла (вердикт без единого обращения к коду — вербальная выдумка) и хэш-суммы
+всех файлов рабочего каталога до и после прогона совпали. Дополнительная
+пара: F &lt; 4 требует непустого not_done — балл обязан иметь перечень
+оснований. Не прошедшие гейты прогоны отбраковываются — колонка «Отбрак.»
+в таблице 4.1.</p>
 
 <p class=lead><b>Изоляция прогонов.</b> Каждый прогон получает собственный
 временный каталог с копией материалов и собственный pi-home. После прогона
