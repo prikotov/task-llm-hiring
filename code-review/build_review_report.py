@@ -1149,10 +1149,14 @@ def section_results(profiles, refs, runs) -> str:
         ds = sorted(r["duration_s"] for r in rs)
         m = len(ds) // 2
         med_d = ds[m] if len(ds) % 2 else (ds[m - 1] + ds[m]) / 2
-        return (med_d / 60, med_d / 3600 * LOCAL_RUB_H)
+        med_t = sorted(r["tokens"] for r in rs if r["tokens"])
+        mt = len(med_t) // 2
+        med_tok = (med_t[mt] if len(med_t) % 2 else (med_t[mt - 1] + med_t[mt]) / 2) / 1e6
+        return (med_d / 60, med_d / 3600 * LOCAL_RUB_H, med_tok)
 
     # вертикаль карт — Оценка из таблицы 4.1 (= 1 − итог): выше лучше,
-    # как балл на картах этапа 2; диаметр точки — подтверждённых замечаний
+    # как балл на картах этапа 2; диаметр — подтверждённые замечания
+    # (карта цены) и потреблённые токены (карта скорости)
     ranked_list, attempted, _ = ranking_entries(profiles, runs)
     ranked_of = {}
     for e in ranked_list:
@@ -1169,22 +1173,23 @@ def section_results(profiles, refs, runs) -> str:
         if entry is not None and res is not None:
             c, confirmed, ptot = entry
             map_points.append({"label": f"{SHORT.get(model, model)} {thinking}",
-                               "y": c, "rub": res[1], "min": res[0],
+                               "y": c, "rub": res[1], "min": res[0], "tok": res[2],
                                "confirmed": confirmed, "ptot": ptot})
     max_conf = max((p["confirmed"] for p in map_points), default=0) or 1
+    max_tok = max((p["tok"] for p in map_points), default=0) or 1
     for p in map_points:
-        p["r"] = 6 + 7.5 * p["confirmed"] / max_conf  # диаметр — как на этапе 2: 6–13.5
+        p["r_conf"] = 6 + 7.5 * p["confirmed"] / max_conf  # диаметр 6–13.5
+        p["r_tok"] = 6 + 7.5 * p["tok"] / max_tok
 
     map_price = _scatter_map(
-        [{"x": p["rub"], "y": p["y"], "label": p["label"], "r": p["r"],
+        [{"x": p["rub"], "y": p["y"], "label": p["label"], "r": p["r_conf"],
           "xtip": f"₽{p['rub']:.1f} за ревью · подтверждено замечаний: "
                   f"{p['confirmed']} из {p['ptot']}"} for p in map_points],
         "₽ за ревью (медиана строки)", lambda v: f"₽{v:.1f}",
         "Оценка против медианной цены ревью", "дёшево", "дорого")
     map_speed = _scatter_map(
-        [{"x": p["min"], "y": p["y"], "label": p["label"], "r": p["r"],
-          "xtip": f"{p['min']:.1f} мин на ревью · подтверждено замечаний: "
-                  f"{p['confirmed']} из {p['ptot']}"} for p in map_points],
+        [{"x": p["min"], "y": p["y"], "label": p["label"], "r": p["r_tok"],
+          "xtip": f"{p['min']:.1f} мин на ревью · токенов {p['tok']:.1f}M"} for p in map_points],
         "минуты на ревью (медиана строки)", lambda v: f"{v:.0f} мин",
         "Оценка против медианного времени ревью", "быстро", "медленно")
 
@@ -1269,7 +1274,12 @@ def section_results(profiles, refs, runs) -> str:
 модель справилась с ролью ревьюера. Диаметр точки — подтверждённые замечания
 critical/major (шт.): сколько реальных находок ревьюер принёс за серию.</p>
 {map_price}
-<h3>Карта моделей: оценка и время</h3>
+<h3>Карта моделей: качество и скорость</h3>
+<p class=lead>Точка — строка рейтинга (модель × уровень мышления, текущий контракт).
+Вертикаль — Оценка из таблицы 4.1 (сноска 6), выше — лучше; горизонталь — медианное
+время одного ревью строки. Серый пунктир — порог применимости: Оценка ≥ 0.4.
+Диаметр точки — потреблённые токены (медиана, М): сколько «раздумий» стоило
+ревью.</p>
 {map_speed}
 <p class=lead>Детали по каждой модели: строка таблицы — отдельный изолированный прогон.
 ΔA/ΔB/ΔF — отличие балла прогона от эталона решения (зелёный 0, жёлтый ≤1, красный &gt;1);
