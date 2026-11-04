@@ -169,6 +169,10 @@ details.promptbox summary{cursor:pointer;padding:9px 14px;font-size:14px;color:v
 details.promptbox[open] summary{border-bottom:1px solid var(--line)}
 pre.prompt{white-space:pre-wrap;word-break:break-word;margin:10px 0;padding:12px 14px;font-size:12.5px;line-height:1.55;font-family:ui-monospace,SFMono-Regular,monospace;background:#f6f8fa;border:1px solid var(--line);border-radius:10px}
 details.promptbox pre.prompt{margin:0;border:none;border-radius:0}
+.flow{display:flex;flex-wrap:wrap;gap:6px;align-items:stretch;margin:15px 0}
+.step{background:#fff;border:2px solid var(--acc);border-radius:12px;padding:10px 13px;flex:1;min-width:150px;font-size:13.5px}
+.step.hot{border-color:var(--bad)}
+.arrow{align-self:center;color:var(--mut);font-size:19px}
 .excap{font-size:15px;color:var(--ink);margin:12px 0 -4px;line-height:1.5}
 .excap.sb{font-weight:700;margin-top:26px}
 table{border-collapse:collapse;width:100%;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 2px rgba(20,30,50,.07);margin:14px 0}
@@ -531,6 +535,17 @@ def section_method() -> str:
 версия протокола, строки вне рейтинга текущей.</p>
 
 <h3><span class=no>2.2.</span>Прогон: материалы, запуск, изоляция</h3>
+<div class=flow>
+<div class=step><b>1 · Раннер</b>слепой рабочий каталог: TASK.md, AGENTS.md, solution/, metrics.json, MANIFEST</div>
+<div class=arrow>→</div>
+<div class=step><b>2 · pi</b>один вызов, tools=read, промпт общий для всех моделей</div>
+<div class=arrow>→</div>
+<div class=step><b>3 · Вердикт</b>JSON одной строкой: баллы A/B/F, not_done, defects</div>
+<div class=arrow>→</div>
+<div class=step><b>4 · Проверки</b>JSON распознан, чтения были, хэш-суммы целы</div>
+<div class=arrow>→</div>
+<div class="step hot"><b>5 · Зачёт</b>в рейтинг 4.1; не прошедшие проверки — «Отбрак.»</div>
+</div>
 <p class=lead><b>Как ревьюер получает материалы.</b> Раннер серии
 (<code>runner_reviewer.py</code>) перед каждым прогоном собирает ревьюеру
 свежий рабочий каталог во временном каталоге. Туда копируются TASK.md
@@ -595,6 +610,17 @@ F &lt; 4 требует непустого not_done — сниженный ба�
 опроверглось. Пересказывать цифры не нужно.</p>
 
 <h3><span class=no>2.4.</span>Как ревьюера оценивают</h3>
+<div class=flow>
+<div class=step><b>1 · Вердикт</b>замечания critical/major, not_done, баллы A/B/F</div>
+<div class=arrow>→</div>
+<div class=step><b>2 · Судья-оценщик</b>каждое замечание — по коду решения, с рантайм-проверками (php 8.5, psql)</div>
+<div class=arrow>→</div>
+<div class=step><b>3 · Чекер</b>сверка not_done: названы ли реальные пропуски с механизмом</div>
+<div class=arrow>→</div>
+<div class=step><b>4 · Инструменты этапа 2</b>архитектурно-качественные темы против phpstan/phpmd/phpunit/AST</div>
+<div class=arrow>→</div>
+<div class="step hot"><b>5 · Оценка</b>0.4·Точность + 0.4·Поймано + 0.2·Архитектура; |Δ| к судье — вторичный сигнал</div>
+</div>
 <p class=lead><b>Судья-оценщик замечаний — первичная оценка.</b> Ревью ценно
 замечаниями, а не баллами, поэтому качество ревьюера измеряется по содержанию
 замечаний. Судья яруса 3 знает проект, TASK.md, метрики и результаты чекера;
