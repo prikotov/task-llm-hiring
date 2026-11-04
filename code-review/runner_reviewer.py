@@ -72,6 +72,12 @@ PROTOCOL_MATERIALS = ["TASK.md", "AGENTS.md", "solution/", "metrics.json", "MANI
 # от этого перечня.
 PROMPT_VERSION = 2
 
+# Версия санитизации metrics.json в материалах. 1 — до 2026-11-04: находки
+# инструментов резались до имени файла (серия 284 прогонов). 2 — сохраняется
+# путь внутри решения (src/…). Часть замороженных материалов серии: новая
+# модель добавляется в сравнение на версии серии, не на последней.
+SANITIZER_VERSION = 2
+
 # System-prompt ревьюера: слепой протокол + дескрипторы рубрики яруса 3,
 # переписанные под слепоту (без ссылок на чекер), + JSON-контракт ответа.
 SYSTEM = """Ты — изолированный код-ревьюер тестового задания «биллинг LLM-токенов» (PHP 8 / Symfony / Doctrine / PostgreSQL). В рабочем каталоге материалы одного решения:
@@ -423,6 +429,7 @@ def main() -> int:
         "stage": "review",
         "protocol": PROTOCOL,
         "prompt_version": PROMPT_VERSION,
+        "sanitizer_version": SANITIZER_VERSION,
         "materials": PROTOCOL_MATERIALS,
         "smoke": args.smoke,
         "started_at": datetime.now(timezone.utc).isoformat(),
