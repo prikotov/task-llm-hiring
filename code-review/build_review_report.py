@@ -170,7 +170,7 @@ details.promptbox[open] summary{border-bottom:1px solid var(--line)}
 pre.prompt{white-space:pre-wrap;word-break:break-word;margin:10px 0;padding:12px 14px;font-size:12.5px;line-height:1.55;font-family:ui-monospace,SFMono-Regular,monospace;background:#f6f8fa;border:1px solid var(--line);border-radius:10px}
 details.promptbox pre.prompt{margin:0;border:none;border-radius:0}
 .flow{display:flex;flex-wrap:wrap;gap:6px;align-items:stretch;margin:15px 0}
-.step{background:#fff;border:2px solid var(--acc);border-radius:12px;padding:10px 13px;flex:1;min-width:150px;font-size:13.5px}
+.step{background:#fff;border:2px solid var(--acc);border-radius:12px;padding:10px 13px;flex:1;min-width:150px;font-size:13.5px;overflow-wrap:anywhere}
 .step b{color:var(--acc);display:block;margin-bottom:4px}
 .step.hot{border-color:var(--bad)}
 .step.hot b{color:var(--bad)}
@@ -619,7 +619,7 @@ F &lt; 4 требует непустого not_done — сниженный ба�
 <div class=arrow>→</div>
 <div class=step><b>3 · Чекер</b>сверка not_done: названы ли реальные пропуски с механизмом</div>
 <div class=arrow>→</div>
-<div class=step><b>4 · Инструменты этапа 2</b>архитектурно-качественные темы против phpstan/phpmd/phpunit/AST</div>
+<div class=step><b>4 · Инструменты этапа 2</b>арх.-качественные темы против phpstan / phpmd / phpunit / AST</div>
 <div class=arrow>→</div>
 <div class="step hot"><b>5 · Оценка</b>0.4·Точность + 0.4·Поймано + 0.2·Архитектура; |Δ| к судье — вторичный сигнал</div>
 </div>
