@@ -167,7 +167,8 @@ code{font-size:12.5px;background:#eef1f6;border-radius:5px;padding:1px 5px}
 details.promptbox{margin:10px 0;border:1px solid var(--line);border-radius:10px;background:#fff}
 details.promptbox summary{cursor:pointer;padding:9px 14px;font-size:14px;color:var(--mut)}
 details.promptbox[open] summary{border-bottom:1px solid var(--line)}
-pre.prompt{white-space:pre-wrap;word-break:break-word;margin:0;padding:12px 14px;font-size:12.5px;line-height:1.5;font-family:ui-monospace,SFMono-Regular,monospace}
+pre.prompt{white-space:pre-wrap;word-break:break-word;margin:10px 0;padding:12px 14px;font-size:12.5px;line-height:1.55;font-family:ui-monospace,SFMono-Regular,monospace;background:#f6f8fa;border:1px solid var(--line);border-radius:10px}
+details.promptbox pre.prompt{margin:0;border:none;border-radius:0}
 .excap{font-size:15px;color:var(--ink);margin:12px 0 -4px;line-height:1.5}
 .excap.sb{font-weight:700;margin-top:26px}
 table{border-collapse:collapse;width:100%;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 2px rgba(20,30,50,.07);margin:14px 0}
@@ -534,8 +535,13 @@ def section_method() -> str:
 <pre class=prompt>pi -p --session-dir &lt;каталог результатов&gt; --model &lt;модель&gt; \\
   --thinking &lt;уровень мышления&gt; --system-prompt &lt;системный промпт&gt; \\
   --tools read "&lt;пользовательский промпт&gt;"</pre>
-<p class=lead>Флаг <code>--tools read</code> оставляет агенту единственный
-инструмент — чтение файлов: править и запускать нечем. Изоляция: pi-home
+<p class=lead>Флаг <code>--system-prompt</code> подменяет встроенный системный
+промпт pi («универсальный кодинг-агент») текстом ревьюера — полным текстом из
+свёрнутого блока ниже. Это часть заморозки: у всех моделей один и тот же
+собственный промпт, а не дефолт агента со своими правилами и упоминанием
+инструментов, которых у ревьюера нет. Флаг <code>--tools read</code> оставляет
+агенту единственный инструмент — чтение файлов: править и запускать нечем.
+Изоляция: pi-home
 перенаправляется во временный каталог (<code>PI_CODING_AGENT_DIR</code>),
 глобальный конфиг не читается, доступ в сеть отключён; контекст — 102 400
 токенов, таймаут прогона — один час. После завершения pi раннер забирает
