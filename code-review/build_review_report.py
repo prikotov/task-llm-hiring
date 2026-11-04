@@ -175,6 +175,13 @@ details.promptbox pre.prompt{margin:0;border:none;border-radius:0}
 .step.hot{border-color:var(--bad)}
 .step.hot b{color:var(--bad)}
 .arrow{align-self:center;color:var(--mut);font-size:19px}
+.chartbox .ctbar{position:absolute;top:6px;right:8px;display:flex;gap:6px;z-index:5}
+.chartbox .ctbar button{border:1px solid #cfd6df;background:#fff;border-radius:8px;padding:3px 10px;font-size:12px;cursor:pointer;color:#46536a}
+.chartbox .ctbar button:hover{background:#eef2f7}
+.chartbox.full{position:fixed;inset:10px;z-index:200;background:#fff;box-shadow:0 10px 44px rgba(20,30,50,.4);padding:6px;display:flex;flex-direction:column}
+.chartbox.full .ctbar{top:10px;right:16px}
+.chartbox.full svg{width:100%;height:100%;max-width:none;flex:1}
+.scatter .dot{cursor:pointer}
 .excap{font-size:15px;color:var(--ink);margin:12px 0 -4px;line-height:1.5}
 .excap.sb{font-weight:700;margin-top:26px}
 table{border-collapse:collapse;width:100%;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 2px rgba(20,30,50,.07);margin:14px 0}
@@ -1032,37 +1039,60 @@ def results_summary_block(profiles, runs) -> str:
 <sup>9</sup> ₽/ревью — медианное время прогона × ₽35.85/ч: электричество и амортизация сервера (методика этапов 1–2).</div>"""
 
 
-def _scatter_svg(points: list[dict], x_title: str, note: str) -> str:
-    """Карта моделей в стиле этапа 2: точка — строка рейтинга
-    (модель × уровень мышления). points: {x, y, label}; итог по Y — ниже лучше."""
-    W, H = 760, 330
-    L, R, T, B = 60, 24, 40, 46
-    x1 = max(p["x"] for p in points) * 1.15
-    y1 = max(p["y"] for p in points) * 1.18
-    def px(x): return L + (W - L - R) * x / x1
-    def py(y): return H - B - (H - T - B) * y / y1
-    parts = [f'<div class=chartbox><svg width="100%" viewBox="0 0 {W} {H}" '
-             f'role="img" aria-label="{esc(x_title)} против итога">']
-    yt = 0.2
-    while yt < y1:
+def _scatter_map(points: list[dict], x_title: str, x_fmt, aria: str) -> str:
+    """Интерактивная карта моделей как на этапе 2: 1080×600, тулбар
+    «во весь экран» и «сброс», зум колесом (к курсору), пан перетаскиванием,
+    тултип по наведению. points: {x, y, label, color, xtip}; итог по Y —
+    ниже лучше; пунктир — порог применимости (итог 0.4)."""
+    W, H = 1080, 600
+    L, R, T, B = 84, 40, 40, 60
+    ymax = int(max(p["y"] for p in points) * 10) / 10 + 0.2
+    xmax = max(p["x"] for p in points) * 1.15
+    def px(x): return L + (W - L - R) * x / xmax
+    def py(y): return H - B - (H - T - B) * y / ymax
+    parts = ['<div class=chartbox>'
+             '<div class=ctbar><button class=fsb type=button>⛶ во весь экран</button>'
+             '<button class=rst type=button>⟲ сброс</button></div>'
+             f'<svg class="scatter" width="{W}" height="{H}" viewBox="0 0 {W} {H}" '
+             f'style="max-width:100%" role="img" aria-label="{esc(aria)}">']
+    yt = 0.0
+    while yt <= ymax + 1e-9:
         parts.append(f'<line x1="{L}" y1="{py(yt):.1f}" x2="{W-R}" y2="{py(yt):.1f}" '
                      f'stroke="#e4e7ec" stroke-width="1"/>')
-        parts.append(f'<text x="{L-8}" y="{py(yt)+4:.1f}" font-size="11.5" '
+        parts.append(f'<text x="{L-10}" y="{py(yt)+4:.1f}" font-size="13" '
                      f'fill="#66707f" text-anchor="end">{yt:.1f}</text>')
         yt += 0.2
-    parts.append(f'<line x1="{L}" y1="{H-B}" x2="{W-R}" y2="{H-B}" stroke="#46536a" stroke-width="1.5"/>')
-    parts.append(f'<line x1="{L}" y1="{T-14}" x2="{L}" y2="{H-B}" stroke="#46536a" stroke-width="1.5"/>')
-    parts.append(f'<text x="{W-R}" y="{H-B+22}" font-size="12.5" fill="#46536a" '
+    step = next(s for s in (0.5, 1, 2, 2.5, 5, 10, 20, 50) if xmax / s <= 9)
+    xt = 0.0
+    while xt <= xmax + 1e-9:
+        parts.append(f'<line x1="{px(xt):.1f}" y1="{H-B}" x2="{px(xt):.1f}" y2="{T}" '
+                     f'stroke="#e4e7ec" stroke-width="1"/>')
+        parts.append(f'<text x="{px(xt):.1f}" y="{H-B+22}" font-size="13" '
+                     f'fill="#66707f" text-anchor="middle">{esc(x_fmt(xt))}</text>')
+        xt += step
+    parts.append(f'<line x1="{L}" y1="{H-B}" x2="{W-R}" y2="{H-B}" '
+                 f'stroke="#46536a" stroke-width="1.5"/>')
+    parts.append(f'<line x1="{L}" y1="{T}" x2="{L}" y2="{H-B}" '
+                 f'stroke="#46536a" stroke-width="1.5"/>')
+    parts.append(f'<line x1="{L}" y1="{py(0.4):.1f}" x2="{W-R}" y2="{py(0.4):.1f}" '
+                 f'stroke="#b3543f" stroke-width="1.5" stroke-dasharray="8 6"/>')
+    parts.append(f'<text x="{W-R}" y="{py(0.4)-8:.1f}" font-size="13" fill="#b3543f" '
+                 f'text-anchor="end">порог применимости — итог 0.4</text>')
+    parts.append(f'<text x="{L}" y="{T-14}" font-size="13.5" fill="#46536a">'
+                 f'итог (средневзвешенная доля ошибок) — ниже лучше</text>')
+    parts.append(f'<text x="{W-R}" y="{H-B+44}" font-size="13.5" fill="#46536a" '
                  f'text-anchor="end">{esc(x_title)}</text>')
-    parts.append(f'<text x="{L}" y="{T-22}" font-size="12.5" fill="#46536a">итог (средняя доля ошибок) — ниже лучше</text>')
-    parts.append(f'<text x="{L}" y="{T-6}" font-size="11.5" fill="#a15c00">{esc(note)}</text>')
     for p in points:
         cx, cy = px(p["x"]), py(p["y"])
-        parts.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="6" fill="#315f9e" opacity="0.75"/>')
-        parts.append(f'<text x="{cx+9:.1f}" y="{cy-7:.1f}" font-size="12" '
-                     f'font-weight="600" fill="#1d2433">{esc(p["label"])}</text>')
-        parts.append(f'<text x="{cx+9:.1f}" y="{cy+8:.1f}" font-size="11" fill="#66707f">'
-                     f'{p["y"]:.2f} · {p["x"]:.1f}</text>')
+        anchor = "end" if cx > W - 260 else "start"
+        lx = cx - 14 if anchor == "end" else cx + 14
+        tip = f'{p["label"]} · итог {p["y"]:.2f} · {p["xtip"]}'
+        parts.append(
+            f'<g class="pt"><circle class="dot" cx="{cx:.1f}" cy="{cy:.1f}" r="10" '
+            f'fill="{p["color"]}" fill-opacity="0.85" stroke="#fff" stroke-width="1.5">'
+            f'<title>{esc(tip)}</title></circle>'
+            f'<text x="{lx:.1f}" y="{cy - 12:.1f}" font-size="14.5" font-weight="600" '
+            f'fill="#1d2433" text-anchor="{anchor}">{esc(p["label"])}</text></g>')
     parts.append('</svg></div>')
     return ''.join(parts)
 
@@ -1104,23 +1134,35 @@ def section_results(profiles, refs, runs) -> str:
         return (med_d / 60, med_d / 3600 * LOCAL_RUB_H)
 
     # итог для карт — тот же рейтинг, что в таблице 4.1 (ranking_entries)
-    ranked_of = {(e["model"], e["thinking"]): e["combined"]
-                 for e in ranking_entries(profiles, runs)[0]}
+    ranked_of = {}
+    for e in ranking_entries(profiles, runs)[0]:
+        s = (RANK_WEIGHTS["prec"] * e["prec"]
+             + RANK_WEIGHTS["caught"] * e["caught"] / REAL_MISSES_TOTAL
+             + RANK_WEIGHTS["arch"] * len(e["arch"]) / len(ARCH_THEMES))
+        color = ("#2f7d54" if s >= 0.4 else
+                 "#b3543f" if e["prec"] + e["caught"] / REAL_MISSES_TOTAL < 0.2
+                 else "#a15c00")
+        ranked_of[(e["model"], e["thinking"])] = (e["combined"], color)
 
     map_points = []
     for model, thinking in sorted({(r["model"], r["thinking"]) for r in runs
                                    if r["protocol"] == "v2" and r["prompt_version"] == 2}):
-        c, res = ranked_of.get((model, thinking)), med(model, thinking)
-        if c is not None and res is not None:
+        entry, res = ranked_of.get((model, thinking)), med(model, thinking)
+        if entry is not None and res is not None:
+            c, color = entry
             map_points.append({"label": f"{SHORT.get(model, model)} {thinking}",
-                               "y": c, "rub": res[1], "min": res[0]})
+                               "y": c, "rub": res[1], "min": res[0], "color": color})
 
-    map_price = _scatter_svg(
-        [{"x": p["rub"], "y": p["y"], "label": p["label"]} for p in map_points],
-        "₽ за ревью (медиана строки)", "правый нижний угол — дёшево и точно")
-    map_speed = _scatter_svg(
-        [{"x": p["min"], "y": p["y"], "label": p["label"]} for p in map_points],
-        "минут на ревью (медиана строки)", "левый нижний угол — быстро и точно")
+    map_price = _scatter_map(
+        [{"x": p["rub"], "y": p["y"], "label": p["label"], "color": p["color"],
+          "xtip": f"₽{p['rub']:.1f} за ревью"} for p in map_points],
+        "₽ за ревью (медиана строки)", lambda v: f"₽{v:.1f}",
+        "итог против медианной цены ревью")
+    map_speed = _scatter_map(
+        [{"x": p["min"], "y": p["y"], "label": p["label"], "color": p["color"],
+          "xtip": f"{p['min']:.1f} мин на ревью"} for p in map_points],
+        "минуты на ревью (медиана строки)", lambda v: f"{v:.0f} мин",
+        "итог против медианного времени ревью")
 
     # по-модельные секции
     model_runs = defaultdict(list)
@@ -1979,6 +2021,110 @@ TIP_JS = """
 </script>
 """
 
+# Карты раздела 4 (как на этапе 2): тултипы точек, зум колесом к курсору,
+# пан перетаскиванием, сброс двойным кликом или кнопкой, «во весь экран».
+MAP_JS = """
+<script>
+(function () {
+  document.querySelectorAll('.chartbox').forEach(function (box) {
+    var fs = box.querySelector('.fsb');
+    if (fs) fs.addEventListener('click', function () {
+      box.classList.toggle('full');
+      fs.textContent = box.classList.contains('full') ? '✕ выйти' : '⛶ во весь экран';
+    });
+    var svg = box.querySelector('svg');
+    if (!svg || !svg.getAttribute('viewBox')) return;
+    var vb0 = svg.getAttribute('viewBox').split(/\\s+/).map(Number);
+    var vb = vb0.slice();
+    var KMAX = 8;
+    function apply() { svg.setAttribute('viewBox', vb.join(' ')); }
+    function scale() {
+      var rc = svg.getBoundingClientRect();
+      return Math.min(rc.width / vb[2], rc.height / vb[3]);
+    }
+    function toSvg(cx, cy) {
+      var rc = svg.getBoundingClientRect();
+      var s = Math.min(rc.width / vb[2], rc.height / vb[3]);
+      var ox = (rc.width - vb[2] * s) / 2, oy = (rc.height - vb[3] * s) / 2;
+      return [vb[0] + (cx - rc.left - ox) / s, vb[1] + (cy - rc.top - oy) / s];
+    }
+    svg.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      var k = e.deltaY > 0 ? 1.15 : 1 / 1.15;
+      var w0 = vb[2], nw = Math.min(vb0[2], Math.max(vb0[2] / KMAX, w0 * k));
+      if (nw === w0) return;
+      var p = toSvg(e.clientX, e.clientY);
+      vb[0] = p[0] - (p[0] - vb[0]) * nw / w0;
+      vb[1] = p[1] - (p[1] - vb[1]) * nw / w0;
+      vb[2] = nw; vb[3] = vb0[3] * nw / vb0[2];
+      apply();
+    }, {passive: false});
+    var drag = null;
+    svg.addEventListener('pointerdown', function (e) {
+      drag = {x: e.clientX, y: e.clientY, vb: vb.slice()};
+      try { svg.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    svg.addEventListener('pointermove', function (e) {
+      if (!drag) return;
+      var s = scale();
+      vb[0] = Math.max(vb0[0] - vb0[2] * 0.5, Math.min(vb0[0] + vb0[2] * 0.5,
+                   drag.vb[0] - (e.clientX - drag.x) / s));
+      vb[1] = Math.max(vb0[1] - vb0[3] * 0.5, Math.min(vb0[1] + vb0[3] * 0.5,
+                   drag.vb[1] - (e.clientY - drag.y) / s));
+      apply();
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) {
+      svg.addEventListener(ev, function () { drag = null; });
+    });
+    svg.addEventListener('dblclick', function () { vb = vb0.slice(); apply(); });
+    var rst = box.querySelector('.rst');
+    if (rst) rst.addEventListener('click', function () { vb = vb0.slice(); apply(); });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    document.querySelectorAll('.chartbox.full').forEach(function (b) {
+      b.classList.remove('full');
+      var f = b.querySelector('.fsb');
+      if (f) f.textContent = '⛶ во весь экран';
+    });
+  });
+})();
+// Тултипы SVG-элементов: <title> переносится в data-tip и рисуется сам
+// (нативные подсказки в части вьюверов нестабильны).
+(function () {
+  document.querySelectorAll('svg title').forEach(function (t) {
+    var host = t.parentNode;
+    if (!host) return;
+    host.setAttribute('data-tip', t.textContent);
+    t.remove();
+  });
+  var tip = document.createElement('div');
+  tip.style.cssText = 'position:fixed;z-index:99;pointer-events:none;display:none;'
+    + 'background:#1d2433;color:#fff;font:12.5px/1.45 system-ui,sans-serif;'
+    + 'padding:5px 10px;border-radius:7px;white-space:nowrap;'
+    + 'box-shadow:0 2px 10px rgba(20,30,50,.35)';
+  document.body.appendChild(tip);
+  var cur = null;
+  document.addEventListener('mousemove', function (e) {
+    var t = e.target;
+    var el = null;
+    if (t && t.namespaceURI === 'http://www.w3.org/2000/svg') {
+      el = t;
+      while (el && el.getAttribute && !el.getAttribute('data-tip')) el = el.parentNode;
+      if (!el || !el.getAttribute || !el.getAttribute('data-tip')) el = null;
+    }
+    if (el) {
+      if (cur !== el) { tip.textContent = el.getAttribute('data-tip'); cur = el; }
+      tip.style.display = 'block';
+      var w = tip.offsetWidth, h = tip.offsetHeight;
+      tip.style.left = Math.min(e.clientX + 14, window.innerWidth - w - 6) + 'px';
+      tip.style.top = Math.min(e.clientY + 16, window.innerHeight - h - 6) + 'px';
+    } else if (cur) { tip.style.display = 'none'; cur = null; }
+  }, { passive: true });
+})();
+</script>
+"""
+
 
 def main() -> int:
     refs = load_references()
@@ -2007,7 +2153,7 @@ def main() -> int:
 эталон-карточек code-review/references/. Билдер: code-review/build_review_report.py.
 Методика: code-review/REVIEWER.md. Дата сборки: {__import__('datetime').date.today().isoformat()}.</div>
 </div></body></html>"""
-    html = html.replace("</body>", TIP_JS + "</body>")
+    html = html.replace("</body>", TIP_JS + MAP_JS + "</body>")
     OUT.write_text(html, encoding="utf-8")
     n_valid = sum(1 for r in runs if r["valid"])
     print(f"отчёт: {OUT} ({len(html)/1024:.0f} КиБ); прогонов {len(runs)}, валидных {n_valid}")
