@@ -1152,37 +1152,39 @@ def section_results(profiles, refs, runs) -> str:
         return (med_d / 60, med_d / 3600 * LOCAL_RUB_H)
 
     # вертикаль карт — Оценка из таблицы 4.1 (= 1 − итог): выше лучше,
-    # как балл на картах этапа 2; диаметр точки — прогонов в строке
+    # как балл на картах этапа 2; диаметр точки — подтверждённых замечаний
     ranked_list, attempted, _ = ranking_entries(profiles, runs)
     ranked_of = {}
     for e in ranked_list:
         s = (RANK_WEIGHTS["prec"] * e["prec"]
              + RANK_WEIGHTS["caught"] * e["caught"] / REAL_MISSES_TOTAL
              + RANK_WEIGHTS["arch"] * len(e["arch"]) / len(ARCH_THEMES))
-        fallback_n = e["prof"]["n"] if "prof" in e else e.get("n_rs", 0)
-        ranked_of[(e["model"], e["thinking"])] = (s, attempted.get(
-            (e["model"], e["thinking"]), fallback_n))
+        confirmed = e["pparts"][0]
+        ranked_of[(e["model"], e["thinking"])] = (s, confirmed, e["pparts"][3])
 
     map_points = []
     for model, thinking in sorted({(r["model"], r["thinking"]) for r in runs
                                    if r["protocol"] == "v2" and r["prompt_version"] == 2}):
         entry, res = ranked_of.get((model, thinking)), med(model, thinking)
         if entry is not None and res is not None:
-            c, n_runs = entry
+            c, confirmed, ptot = entry
             map_points.append({"label": f"{SHORT.get(model, model)} {thinking}",
-                               "y": c, "rub": res[1], "min": res[0], "runs": n_runs})
-    max_runs = max(p["runs"] for p in map_points)
+                               "y": c, "rub": res[1], "min": res[0],
+                               "confirmed": confirmed, "ptot": ptot})
+    max_conf = max((p["confirmed"] for p in map_points), default=0) or 1
     for p in map_points:
-        p["r"] = 6 + 7.5 * p["runs"] / max_runs  # диаметр — как на этапе 2: 6–13.5
+        p["r"] = 6 + 7.5 * p["confirmed"] / max_conf  # диаметр — как на этапе 2: 6–13.5
 
     map_price = _scatter_map(
         [{"x": p["rub"], "y": p["y"], "label": p["label"], "r": p["r"],
-          "xtip": f"₽{p['rub']:.1f} за ревью · прогонов {p['runs']}"} for p in map_points],
+          "xtip": f"₽{p['rub']:.1f} за ревью · подтверждено замечаний: "
+                  f"{p['confirmed']} из {p['ptot']}"} for p in map_points],
         "₽ за ревью (медиана строки)", lambda v: f"₽{v:.1f}",
         "Оценка против медианной цены ревью", "дёшево", "дорого")
     map_speed = _scatter_map(
         [{"x": p["min"], "y": p["y"], "label": p["label"], "r": p["r"],
-          "xtip": f"{p['min']:.1f} мин на ревью · прогонов {p['runs']}"} for p in map_points],
+          "xtip": f"{p['min']:.1f} мин на ревью · подтверждено замечаний: "
+                  f"{p['confirmed']} из {p['ptot']}"} for p in map_points],
         "минуты на ревью (медиана строки)", lambda v: f"{v:.0f} мин",
         "Оценка против медианного времени ревью", "быстро", "медленно")
 
@@ -1264,7 +1266,8 @@ def section_results(profiles, refs, runs) -> str:
 Вертикаль — Оценка из таблицы 4.1 (0.4·Точность + 0.4·Поймано + 0.2·Архитектура,
 сноска 6), выше — лучше, как балл на картах этапа 2; горизонталь — медианная
 стоимость одного ревью строки. Серый пунктир — порог применимости: Оценка ≥ 0.4,
-модель справилась с ролью ревьюера. Диаметр точки — число прогонов строки.</p>
+модель справилась с ролью ревьюера. Диаметр точки — подтверждённые замечания
+critical/major (шт.): сколько реальных находок ревьюер принёс за серию.</p>
 {map_price}
 <h3>Карта моделей: оценка и время</h3>
 {map_speed}
