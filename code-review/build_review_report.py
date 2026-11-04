@@ -1043,9 +1043,9 @@ def _scatter_map(points: list[dict], x_title: str, x_fmt, aria: str,
                  cheap: str, fast: str) -> str:
     """Интерактивная карта моделей как на этапе 2: 1080×600, тулбар
     «во весь экран» и «сброс», зум колесом (к курсору), пан перетаскиванием,
-    тултип по наведению. points: {x, y, label, xtip}; итог по Y — ниже
-    лучше; серый пунктир — порог применимости (итог 0.4), подписи зон
-    по углам поля (cheap/fast — слово для горизонтальной оси)."""
+    тултип по наведению. points: {x, y, label, xtip}; по Y — Оценка,
+    выше лучше; серый пунктир — порог применимости (Оценка 0.4), подписи
+    зон «хорошо/плохо» по углам поля (cheap/fast — слово для горизонтали)."""
     W, H = 1080, 600
     L, R, T, B = 84, 40, 40, 60
     ymax = int(max(p["y"] for p in points) * 10) / 10 + 0.2
@@ -1081,19 +1081,19 @@ def _scatter_map(points: list[dict], x_title: str, x_fmt, aria: str,
                  f'stroke="#aab3bf" stroke-width="1.5" stroke-dasharray="8 6"/>')
     # подписи зон по углам поля — как на этапе 2
     for txt, x, anchor in (
-            (f"применимо и {cheap}", L + 10, "start"),
-            (f"применимо и {fast}", W - R - 10, "end")):
+            (f"хорошо и {cheap}", L + 10, "start"),
+            (f"хорошо и {fast}", W - R - 10, "end")):
         parts.append(f'<text x="{x}" y="{T + 14}" font-size="14.5" fill="#9aa4b0" '
                      f'font-style="italic" text-anchor="{anchor}">{esc(txt)}</text>')
     for txt, x, anchor in (
-            (f"неприменимо и {cheap}", L + 10, "start"),
-            (f"неприменимо и {fast}", W - R - 10, "end")):
+            (f"плохо и {cheap}", L + 10, "start"),
+            (f"плохо и {fast}", W - R - 10, "end")):
         parts.append(f'<text x="{x}" y="{H - B - 10}" font-size="14.5" fill="#9aa4b0" '
                      f'font-style="italic" text-anchor="{anchor}">{esc(txt)}</text>')
     # повёрнутая подпись оси Y — как на этапе 2
     parts.append(f'<text transform="rotate(-90 26 {py(0.4):.0f})" x="26" y="{py(0.4):.0f}" '
                  f'font-size="13.5" fill="#46536a" text-anchor="middle">'
-                 f'итог (средневзвешенная доля ошибок) — ниже лучше</text>')
+                 f'Оценка (0.4·Точность + 0.4·Поймано + 0.2·Архитектура) — выше лучше</text>')
     parts.append(f'<text x="{W-R}" y="{H-B+44}" font-size="13.5" fill="#46536a" '
                  f'text-anchor="end">{esc(x_title)}</text>')
     for p in points:
@@ -1103,7 +1103,7 @@ def _scatter_map(points: list[dict], x_title: str, x_fmt, aria: str,
         ly = cy - 12
         leader = (f'<line x1="{cx - 12:.1f}" y1="{cy:.1f}" x2="{lx + 5:.1f}" y2="{ly + 4:.1f}" '
                   f'stroke="#aab3bf" stroke-width="1"/>') if anchor == "end" else ""
-        tip = f'{p["label"]} · итог {p["y"]:.2f} · {p["xtip"]}'
+        tip = f'{p["label"]} · Оценка {p["y"]:.2f} · {p["xtip"]}'
         parts.append(
             f'<g class="pt"><circle class="dot" cx="{cx:.1f}" cy="{cy:.1f}" r="11" '
             f'fill="#2f7d54" fill-opacity="0.85" stroke="#fff" stroke-width="1.5">'
@@ -1151,9 +1151,14 @@ def section_results(profiles, refs, runs) -> str:
         med_d = ds[m] if len(ds) % 2 else (ds[m - 1] + ds[m]) / 2
         return (med_d / 60, med_d / 3600 * LOCAL_RUB_H)
 
-    # итог для карт — тот же рейтинг, что в таблице 4.1 (ranking_entries)
-    ranked_of = {(e["model"], e["thinking"]): e["combined"]
-                 for e in ranking_entries(profiles, runs)[0]}
+    # вертикаль карт — Оценка из таблицы 4.1 (= 1 − итог): выше лучше,
+    # как балл на картах этапа 2
+    ranked_of = {}
+    for e in ranking_entries(profiles, runs)[0]:
+        s = (RANK_WEIGHTS["prec"] * e["prec"]
+             + RANK_WEIGHTS["caught"] * e["caught"] / REAL_MISSES_TOTAL
+             + RANK_WEIGHTS["arch"] * len(e["arch"]) / len(ARCH_THEMES))
+        ranked_of[(e["model"], e["thinking"])] = s
 
     map_points = []
     for model, thinking in sorted({(r["model"], r["thinking"]) for r in runs
@@ -1167,12 +1172,12 @@ def section_results(profiles, refs, runs) -> str:
         [{"x": p["rub"], "y": p["y"], "label": p["label"],
           "xtip": f"₽{p['rub']:.1f} за ревью"} for p in map_points],
         "₽ за ревью (медиана строки)", lambda v: f"₽{v:.1f}",
-        "итог против медианной цены ревью", "дёшево", "дорого")
+        "Оценка против медианной цены ревью", "дёшево", "дорого")
     map_speed = _scatter_map(
         [{"x": p["min"], "y": p["y"], "label": p["label"],
           "xtip": f"{p['min']:.1f} мин на ревью"} for p in map_points],
         "минуты на ревью (медиана строки)", lambda v: f"{v:.0f} мин",
-        "итог против медианного времени ревью", "быстро", "медленно")
+        "Оценка против медианного времени ревью", "быстро", "медленно")
 
     # по-модельные секции
     model_runs = defaultdict(list)
@@ -1247,14 +1252,14 @@ def section_results(profiles, refs, runs) -> str:
     return f"""
 <h2 id=results><span class=no>4.</span>Результаты моделей</h2>
 {summary}
-<h3>Карта моделей: итог и цена</h3>
+<h3>Карта моделей: оценка и цена</h3>
 <p class=lead>Точка — строка рейтинга (модель × уровень мышления, текущий контракт).
-Вертикаль — итог из таблицы 4.1 (средневзвешенная доля ошибок = 1 − Оценка,
-сноска 6), горизонталь — медианная стоимость одного ревью строки. Серый
-пунктир делит поле на зоны: ниже него итог ≤ 0.4 — модель применима как
-ревьюер, выше — нет.</p>
+Вертикаль — Оценка из таблицы 4.1 (0.4·Точность + 0.4·Поймано + 0.2·Архитектура,
+сноска 6), выше — лучше, как балл на картах этапа 2; горизонталь — медианная
+стоимость одного ревью строки. Серый пунктир — порог применимости: Оценка ≥ 0.4,
+модель справилась с ролью ревьюера.</p>
 {map_price}
-<h3>Карта моделей: итог и время</h3>
+<h3>Карта моделей: оценка и время</h3>
 {map_speed}
 <p class=lead>Детали по каждой модели: строка таблицы — отдельный изолированный прогон.
 ΔA/ΔB/ΔF — отличие балла прогона от эталона решения (зелёный 0, жёлтый ≤1, красный &gt;1);
