@@ -75,7 +75,8 @@ PROMPT_VERSION = 2
 # Версия санитизации metrics.json в материалах. 1 — до 2026-11-04: находки
 # инструментов резались до имени файла (серия 284 прогонов). 2 — сохраняется
 # путь внутри решения (src/…). Часть замороженных материалов серии: новая
-# модель добавляется в сравнение на версии серии, не на последней.
+# модель добавляется в сравнение на версии серии (--sanitizer 1), не на
+# последней. Дефолт для новых серий — SANITIZER_VERSION.
 SANITIZER_VERSION = 2
 
 # System-prompt ревьюера: слепой протокол + дескрипторы рубрики яруса 3,
@@ -171,19 +172,20 @@ def load_reference(target: Path) -> dict:
 _TMP_REPO_RX = re.compile(r"^/tmp/[^/]+/repo/")
 
 
-def sanitize_metrics(data: dict, secrets: list[str]) -> dict:
-    """Метрики без провенанса: пути хоста и рабочей машины вырезаются,
-    путь файла внутри решения сохраняется (readability материалов).
+def sanitize_metrics(data: dict, secrets: list[str], version: int = 2) -> dict:
+    """Метрики без провенанса; версия = часть замороженных материалов серии.
 
-    Порядок: секреты (пути репозитория/прогона) -> "<вырезано>";
-    эфемерный префикс прогона метрик /tmp/<...>/repo/ срезается — остаётся
-    путь внутри решения (src/...); хостовые пути — только имя файла."""
+    1 (серия 2026-11): пути хоста и машины вырезаются, находки инструментов —
+    до имени файла. 2: эфемерный префикс прогона метрик /tmp/<...>/repo/
+    срезается — остаётся путь внутри решения (src/…); хостовые пути — только
+    имя файла. Секреты (пути репозитория/прогона) -> "<вырезано>" в обеих."""
     def redact(value):
         if isinstance(value, str):
             for s in secrets:
                 if s and s in value:
                     value = value.replace(s, "<вырезано>")
-            value = _TMP_REPO_RX.sub("", value)
+            if version >= 2:
+                value = _TMP_REPO_RX.sub("", value)
             if value.startswith("/"):
                 value = Path(value).name  # хостовый путь — имя файла, путь не нужен
             return value
@@ -204,14 +206,15 @@ def tree_manifest(root: Path) -> dict[str, str]:
     }
 
 
-def build_workspace(ws: Path, target: Path) -> None:
+def build_workspace(ws: Path, target: Path, sanitizer_version: int) -> None:
     """Слепой набор материалов ревьюера в чистом каталоге."""
     shutil.copy(BILLING / "skeleton" / "TASK.md", ws / "TASK.md")
     shutil.copy(BILLING / "skeleton" / "AGENTS.md", ws / "AGENTS.md")
     metrics = json.loads((target / "metrics.json").read_text(encoding="utf-8"))
     secrets = [str(models_repo()), str(target.resolve()), str(target)]
     (ws / "metrics.json").write_text(
-        json.dumps(sanitize_metrics(metrics, secrets), ensure_ascii=False, indent=2),
+        json.dumps(sanitize_metrics(metrics, secrets, sanitizer_version),
+                   ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
     shutil.copytree(target / "solution", ws / "solution")
@@ -393,6 +396,9 @@ def main() -> int:
                         help="каталог прогона этапа 2 (решение из эталонного набора)")
     parser.add_argument("--results", required=True, help="каталог результатов run-XX")
     parser.add_argument("--thinking", default="max", choices=PI_CHOICES)
+    parser.add_argument("--sanitizer", type=int, choices=[1, 2], default=SANITIZER_VERSION,
+                        help="версия санитизации metrics.json: 1 — серия 2026-11 "
+                             "(до имени файла), 2 — с путём src/… (новые серии)")
     parser.add_argument("--context", type=int, default=DEFAULT_CONTEXT)
     parser.add_argument("--max-tokens", type=int, default=8192)
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
@@ -429,7 +435,7 @@ def main() -> int:
         "stage": "review",
         "protocol": PROTOCOL,
         "prompt_version": PROMPT_VERSION,
-        "sanitizer_version": SANITIZER_VERSION,
+        "sanitizer_version": args.sanitizer,
         "materials": PROTOCOL_MATERIALS,
         "smoke": args.smoke,
         "started_at": datetime.now(timezone.utc).isoformat(),
@@ -454,7 +460,7 @@ def main() -> int:
             shutil.copy(BILLING / "skeleton" / "TASK.md", ws / "TASK.md")
             prompt = SMOKE_PROMPT
         else:
-            build_workspace(ws, target)
+            build_workspace(ws, target, args.sanitizer)
             prompt = REVIEW_PROMPT
         before = tree_manifest(ws)
 
