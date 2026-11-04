@@ -1,0 +1,2220 @@
+#!/usr/bin/env python3
+"""Генератор отчёта этапа 3 (код-ревью решений этапа 2 локальными моделями).
+
+Стиль — как у отчётов этапов 1 и 2: светлый документ, нумерованные секции,
+таблицы с бейджами и барами, самописные SVG без внешних зависимостей.
+Все числа — из артефактов прогонов (run.json, review.json) в
+models/<модель>/backend/code-review/ и эталон-карточек references/*.json.
+
+Запуск: python3 code-review/build_review_report.py
+Выход: reports/REVIEW-report.html
+"""
+import glob
+import json
+import re
+import statistics
+from collections import defaultdict
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parents[0].resolve()
+MODELS = ROOT / "models"
+OUT = ROOT / "reports" / "REVIEW-report.html"
+
+# Стоимость локального инференса — методика отчётов этапов 1-2
+# (billing/build_report.py): 550 Вт в момент генерации при ₽7.07/кВт·ч
+# (тариф с 01.10.2026) плюс амортизация железа (₽600 000 минус остаточные
+# 30% за 13 140 часов) — итого ₽35.85/ч чистой генерации; нижняя граница —
+# только электричество ₽3.89/ч
+LOCAL_RUB_H = 0.55 * 7.07 + (600_000 * 0.70) / (3 * 365 * 12)   # ₽35.85/ч
+ELEC_RUB_H = 0.55 * 7.07   # только электричество
+
+SHORT = {
+    "qwen3.8:27b-pi-100k": "qwen3.8",
+    "huihui-ai:pi-100k": "huihui",
+    "orcarouter/Qwen3.8-27B-Uncensored:ctx100k": "orca",
+    "gemma4:31b-it-qat-pi-100k": "gemma4:31b",
+    "gemma4:26b-pi-100k": "gemma4:26b",
+    "gemma4:e2b-ctx100k": "e2b",
+}
+PARAMS = {
+    "qwen3.8:27b-pi-100k": ("27.3B", "Q4_K_M"),
+    "huihui-ai:pi-100k": ("27.3B", "Q4_K_M"),
+    "orcarouter/Qwen3.8-27B-Uncensored:ctx100k": ("27.3B", "Q4_K_M"),
+    "gemma4:31b-it-qat-pi-100k": ("30.7B", "Q4_0"),
+    "gemma4:26b-pi-100k": ("25.2B", "Q4_K_M"),
+    "gemma4:e2b-ctx100k": ("4.6B", "Q4_K_M"),
+}
+# порядок: семейство qwen, семейство gemma
+MODEL_ORDER = [
+    "qwen3.8:27b-pi-100k",
+    "huihui-ai:pi-100k",
+    "orcarouter/Qwen3.8-27B-Uncensored:ctx100k",
+    "gemma4:31b-it-qat-pi-100k",
+    "gemma4:26b-pi-100k",
+    "gemma4:e2b-ctx100k",
+]
+SLUG_TITLES = {"good": "хорошее", "mid": "среднее", "tricky": "каверзное", "bad": "плохое"}
+SLUG_ORDER = ["good", "mid", "tricky", "bad"]
+AXES = ("axis_a", "axis_b", "functional")
+AXIS_NAMES = {"axis_a": "A «код и архитектура»", "axis_b": "B «процесс»",
+              "functional": "F «соответствие заданию»"}
+AXIS_NAMES_SHORT = {"axis_a": "A", "axis_b": "B", "functional": "F"}
+
+# Реальные функциональные пропуски решений (семьи требований) — по фактам
+# чекера и рантайм-разбору (раздел 6 отчёта). recall ревьюера = доля этих
+# семей, перечисленных им в not_done.
+REAL_MISSES = {
+    "tricky": ["оф-пиковая скидка"],
+    "bad": ["артефакты (COMMIT_MESSAGE/PR_DESCRIPTION)", "оф-пиковая скидка",
+            "схема БД из миграций", "округление и точность денег"],
+}
+REAL_MISSES_TOTAL = sum(len(v) for v in REAL_MISSES.values())
+
+# Ручная разметка «поймано по механизму»: каждое упоминание, совпавшее с
+# семьёй по ключевым словам, сверено с реальным механизмом дефекта
+# (раздел 6 + код решения). Зачёт — только если назван сам механизм:
+# «оф-пик» = провайдер при первом импорте создаётся без off-peak-полей
+# (updateProvider только в else-ветке PriceImportService), «округление» =
+# bcadd накопления без третьего аргумента-масштаба (bcmath усекает дробную
+# часть). Совпадение слова без механизма не зачитывается: заметки про
+# таймзону OffPeak::applies() и пустое окно window_start==window_end —
+# другие дефекты той же области; про bcRoundHalfUp для отрицательных —
+# в домене значения неотрицательны; про оставленный debug_round.php —
+# не функциональный дефект.
+MECH_CAUGHT = {
+    ("huihui-ai:pi-100k", "max"): {
+        ("bad", "артефакты (COMMIT_MESSAGE/PR_DESCRIPTION)"),
+        ("bad", "схема БД из миграций"),
+        ("bad", "округление и точность денег"),
+    },
+    ("huihui-ai:pi-100k", "medium"): {
+        ("bad", "артефакты (COMMIT_MESSAGE/PR_DESCRIPTION)"),
+        ("bad", "схема БД из миграций"),
+    },
+    ("huihui-ai:pi-100k", "low"): {
+        ("bad", "схема БД из миграций"),
+        ("bad", "оф-пиковая скидка"),
+    },
+    ("qwen3.8:27b-pi-100k", "max"): {
+        ("bad", "артефакты (COMMIT_MESSAGE/PR_DESCRIPTION)"),
+        ("bad", "схема БД из миграций"),
+    },
+    ("qwen3.8:27b-pi-100k", "medium"): {
+        ("bad", "артефакты (COMMIT_MESSAGE/PR_DESCRIPTION)"),
+        ("bad", "схема БД из миграций"),
+    },
+    ("qwen3.8:27b-pi-100k", "low"): {
+        ("bad", "артефакты (COMMIT_MESSAGE/PR_DESCRIPTION)"),
+        ("bad", "схема БД из миграций"),
+    },
+    ("gemma4:31b-it-qat-pi-100k", "max"): {
+        ("bad", "артефакты (COMMIT_MESSAGE/PR_DESCRIPTION)"),
+    },
+}
+
+
+def req_family(req: str) -> str:
+    """Семья требований по ключевым словам перечня not_done."""
+    r = (req or "").lower()
+    if "миграц" in r or "чистой базе" in r or "чистая база" in r or "схема бд" in r:
+        return "схема БД из миграций"
+    if "commit_message" in r or "pr_description" in r or "артефакт" in r:
+        return "артефакты (COMMIT_MESSAGE/PR_DESCRIPTION)"
+    if "unrated" in r and ("stderr" in r or "строк" in r or "сбой" in r):
+        return "unrated-строки в stderr"
+    if "geterroroutput" in r:
+        return "unrated-строки в stderr"
+    if "reprice" in r or "ретро" in r:
+        return "бонус reprice"
+    if "округл" in r or "half_up" in r or "bcadd" in r or "точность вычислений" in r \
+            or "промежуточные вычисления" in r:
+        return "округление и точность денег"
+    if "дедупл" in r or "повторная доставка" in r or "идемпотентность" in r:
+        return "дедупликация приёма"
+    if "оф-пик" in r or "off_peak" in r or "скидк" in r:
+        return "оф-пиковая скидка"
+    if "сортиров" in r:
+        return "сортировка отчёта"
+    if "6 знаков" in r or "cost_usd" in r or ("формат" in r and "отч" in r):
+        return "формат отчёта"
+    if "cache" in r or "кеш" in r or "кэш" in r:
+        return "cache-цены"
+    return "прочее"
+
+CSS = """
+:root{--ink:#1d2433;--mut:#66707f;--line:#e4e7ec;--bg:#fafbfc;--acc:#315f9e;--good:#2f7d54;--bad:#b3543f;--warn:#a15c00}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.62 "Segoe UI",system-ui,-apple-system,"Helvetica Neue",sans-serif;color:var(--ink);background:var(--bg)}
+.wrap{max-width:1040px;margin:0 auto;padding:26px 22px 90px}
+header{background:linear-gradient(140deg,#1d2c46 0%,#315f9e 90%);color:#fff;border-radius:16px;padding:34px 40px 30px;margin-bottom:22px}
+header h1{margin:0 0 12px;font-size:31px;line-height:1.22;letter-spacing:-.01em}
+header p{margin:5px 0;opacity:.93;max-width:76ch}
+.toc{margin:20px 0 4px}
+.toc-title{font-size:13px;text-transform:uppercase;letter-spacing:.09em;color:var(--mut);margin-bottom:9px}
+.toc ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:5px 28px}
+.toc a{color:var(--acc);text-decoration:none}
+.toc a:hover{text-decoration:underline}
+h2{font-size:24px;margin:44px 0 10px;letter-spacing:-.01em}
+h2 .no{color:var(--mut);font-weight:400;margin-right:8px}
+h3{font-size:17.5px;margin:26px 0 2px}
+h3 .no{color:var(--mut);font-weight:400;margin-right:8px}
+.lead{color:var(--mut);margin:8px 0 14px;font-size:15px}
+p{margin:10px 0}
+.sub{font-size:12.5px;color:var(--mut);margin-top:3px;line-height:1.5}
+code{font-size:12.5px;background:#eef1f6;border-radius:5px;padding:1px 5px}
+details.promptbox{margin:10px 0;border:1px solid var(--line);border-radius:10px;background:#fff}
+details.promptbox summary{cursor:pointer;padding:9px 14px;font-size:14px;color:var(--mut)}
+details.promptbox[open] summary{border-bottom:1px solid var(--line)}
+pre.prompt{white-space:pre-wrap;word-break:break-word;margin:10px 0;padding:12px 14px;font-size:12.5px;line-height:1.55;font-family:ui-monospace,SFMono-Regular,monospace;background:#f6f8fa;border:1px solid var(--line);border-radius:10px}
+details.promptbox pre.prompt{margin:0;border:none;border-radius:0}
+.flow{display:flex;flex-wrap:wrap;gap:6px;align-items:stretch;margin:15px 0}
+.step{background:#fff;border:2px solid var(--acc);border-radius:12px;padding:10px 13px;flex:1;min-width:150px;font-size:13.5px;overflow-wrap:anywhere}
+.step b{color:var(--acc);display:block;margin-bottom:4px}
+.step.hot{border-color:var(--bad)}
+.step.hot b{color:var(--bad)}
+.arrow{align-self:center;color:var(--mut);font-size:19px}
+.chartbox .ctbar{position:absolute;top:6px;right:8px;display:flex;gap:6px;z-index:5}
+.chartbox .ctbar button{border:1px solid #cfd6df;background:#fff;border-radius:8px;padding:3px 10px;font-size:12px;cursor:pointer;color:#46536a}
+.chartbox .ctbar button:hover{background:#eef2f7}
+.chartbox.full{position:fixed;inset:10px;z-index:200;background:#fff;box-shadow:0 10px 44px rgba(20,30,50,.4);padding:6px;display:flex;flex-direction:column}
+.chartbox.full .ctbar{top:10px;right:16px}
+.chartbox.full svg{width:100%;height:100%;max-width:none;flex:1}
+.scatter .dot{cursor:pointer}
+.excap{font-size:15px;color:var(--ink);margin:12px 0 -4px;line-height:1.5}
+.excap.sb{font-weight:700;margin-top:26px}
+table{border-collapse:collapse;width:100%;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 2px rgba(20,30,50,.07);margin:14px 0}
+th{background:#eef1f6;text-align:left;font-size:12.5px;text-transform:uppercase;letter-spacing:.03em;color:#46536a;padding:10px 12px;border-bottom:2px solid var(--line)}
+th.narrow,td.narrow{padding-left:5px;padding-right:5px}
+th .sub{text-transform:none;font-weight:400;letter-spacing:0}
+td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top;font-size:14.5px}
+tr:last-child td{border-bottom:none}
+tr.neg td{background:#fdf6f4}
+tr.top td{background:#eef6ef}
+tr.na td{background:#f7e2dc}
+.note{background:#fff9e8;border:1px solid #eedd9f;border-radius:12px;padding:13px 17px;font-size:14.5px;margin:14px 0}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+td.p-good{color:#2f7d54;font-weight:600}
+td.p-warn{color:#a15c00;font-weight:600}
+td.p-bad{color:#b3543f;font-weight:600}
+.barwrap{position:relative;background:#eef0f4;border-radius:6px;min-width:92px;max-width:110px;height:21px}
+.barwrap .bar{position:absolute;left:0;top:3px;bottom:3px;border-radius:5px;min-width:3px;opacity:.3}
+.barwrap>span{position:absolute;left:7px;top:0;font-size:12.5px;line-height:21px;font-weight:600;color:var(--ink)}
+.barwrap+.barwrap{margin-top:2px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(295px,1fr));gap:13px;margin:16px 0}
+.card{background:#fff;border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:12px;padding:15px 17px;font-size:14.5px}
+.card b{display:block;margin-bottom:5px}
+.card.b{border-left-color:var(--bad)}
+.card.g{border-left-color:var(--good)}
+.card.w{border-left-color:var(--warn)}
+.okmark{display:inline-block;margin-left:-6px;padding:0 6px;border-radius:9px;background:#e9f1ec;color:#2f7d54;font-size:12px;font-weight:700;line-height:18px;cursor:help;white-space:nowrap}
+.deadmark{display:inline-block;margin-left:-6px;padding:0 6px;border-radius:9px;font-size:12px;font-weight:700;line-height:18px;cursor:help;white-space:nowrap}
+.deadmark.contract{background:#efe9f7;color:#6b5b9e}
+.deadmark.fab{background:#fbeae6;color:#b3543f}
+.deadmark.burn{background:#fff4d6;color:#9a6b00}
+.tip{position:relative;cursor:help;border-bottom:1px dotted currentColor}
+.tip .tipbox{display:none;position:absolute;z-index:40;left:calc(100% + 10px);top:50%;transform:translateY(-50%);width:330px;background:#1d2433;color:#fff;font-size:12px;line-height:1.55;font-weight:400;padding:9px 12px;border-radius:9px;box-shadow:0 8px 22px rgba(20,30,50,.32);text-align:left;white-space:normal}
+.tip:hover .tipbox{display:block}
+.stack{font-size:12.5px;line-height:1.45;white-space:nowrap}
+.stack.b{font-weight:600}
+.dchip{display:inline-block;margin:1px 2px 1px 0;padding:0 5px;border-radius:7px;background:#eef1f6;color:#315f9e;font-size:10.5px;font-weight:600;line-height:15px;white-space:nowrap}
+.alist details{margin:8px 0;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}
+.alist summary{cursor:pointer;padding:10px 16px;font-size:14.5px}
+.alist details[open]>summary{border-bottom:1px solid var(--line)}
+.alist table{margin:0}
+.footer{margin-top:56px;color:var(--mut);font-size:12.5px;border-top:1px solid var(--line);padding-top:14px}
+"""
+
+
+def f_deterministic(mandatory_passed: int, mandatory_total: int) -> float:
+    """Детерминированный эталон F из инструмента этапа 2 (чекер): доля
+    обязательных сценариев на шкале 0–4 с шагом 0.5, бонус не учитывается.
+    Формула воспроизводит замороженные эталонные баллы всех четырёх решений."""
+    import math
+    return math.floor(8 * mandatory_passed / mandatory_total) / 2
+
+
+def load_references() -> dict:
+    refs = {}
+    for p in sorted(glob.glob(str(HERE / "references" / "*.json"))):
+        c = json.loads(Path(p).read_text(encoding="utf-8"))
+        # детерминированный F из чекера прогона-источника; сверка с замороженным
+        chk = ROOT / c["source_run"] / "check.json"
+        cj = json.loads(chk.read_text(encoding="utf-8"))
+        c["f_det"] = f_deterministic(cj["mandatory_passed"], cj["mandatory_total"])
+        c["mand_passed"] = cj["mandatory_passed"]
+        c["mand_total"] = cj["mandatory_total"]
+        c["bonus_passed"] = cj.get("bonus_passed")
+        c["bonus_total"] = cj.get("bonus_total")
+        frozen = c["expected"]["functional"]
+        if abs(c["f_det"] - frozen) > 1e-9:
+            print(f"ВНИМАНИЕ: {c['slug']}: детерминированный F {c['f_det']} != "
+                  f"замороженному {frozen}")
+        refs[c["slug"]] = c
+    return refs
+
+
+def load_runs() -> list[dict]:
+    """Все прогоны ревью (протоколы v1 и v2) с полями вердикта/валидности."""
+    runs = []
+    for rp in sorted(MODELS.glob("*/backend/code-review/run-*")):
+        rj, vj = rp / "run.json", rp / "review.json"
+        if not rj.is_file():
+            continue
+        meta = json.loads(rj.read_text(encoding="utf-8"))
+        run = {
+            "dir": rp.name,
+            "path": str(rp.relative_to(MODELS)),
+            "model": meta.get("model", "?"),
+            "protocol": meta.get("protocol", "v1"),
+            "thinking": meta.get("thinking", "?"),
+            "prompt_version": meta.get("prompt_version", 1),
+            "folder": meta["target"].split("/models/")[1].split("/backend")[0]
+            if "target" in meta else "?",
+            "slug": meta.get("solution_slug", "?"),
+            "tool_calls": meta.get("tool_calls", 0),
+            "duration_s": meta.get("duration_s"),
+            "tokens": meta.get("tokens", {}).get("totalTokens"),
+            "integrity": meta.get("integrity", {}).get("status"),
+            "parse_ok": meta.get("parse_ok"),
+            "invalid_reason": meta.get("invalid_reason"),
+            "verdict": None, "defects": None, "note": None,
+        }
+        if vj.is_file():
+            v = json.loads(vj.read_text(encoding="utf-8"))
+            run["verdict"] = {k: v.get(k) for k in AXES}
+            run["defects"] = v.get("defects") or []
+            run["note"] = v.get("note")
+        run["valid"] = bool(
+            run["tool_calls"] > 0 and run["integrity"] == "ok"
+            and all(isinstance(run["verdict"].get(k), (int, float)) for k in AXES)
+        ) if run["verdict"] else False
+        if not run["valid"]:
+            run["fail_kind"] = fail_kind(run)
+        runs.append(run)
+    return runs
+
+
+def fail_kind(run: dict) -> str:
+    if run["tool_calls"] == 0:
+        return "fab"       # вердикт без чтения
+    if run["integrity"] != "ok":
+        return "integ"     # целостность нарушена
+    if run["verdict"] and all(isinstance(run["verdict"].get(k), (int, float)) for k in AXES):
+        return ""
+    return "contract"      # вердикт не по контракту / не распознан
+
+
+def aggregate(runs: list[dict], refs: dict) -> dict:
+    """(модель, протокол, thinking, контракт, решение) -> прогоны; профили
+    по четвёрке: усреднять уровни размышлений и версии контракта нельзя."""
+    grid = defaultdict(list)
+    for r in runs:
+        if r["valid"]:
+            grid[(r["model"], r["protocol"], r["thinking"], r["prompt_version"],
+                  r["slug"])].append(r)
+    profiles = {}
+    for model in MODEL_ORDER:
+        for protocol, thinking, pv in sorted(
+                {(p, th, pv) for (m, p, th, pv, _s) in grid if m == model}):
+            per_slug, spreads, deltas, defects = {}, [], [], defaultdict(int)
+            for slug in SLUG_ORDER:
+                rs = grid.get((model, protocol, thinking, pv, slug), [])
+                if not rs:
+                    continue
+                e = refs[slug]["expected"]
+                vals = {a: [r["verdict"][a] for r in rs] for a in AXES}
+                per_slug[slug] = {
+                    "vals": vals, "n": len(rs),
+                    "delta_mean": {a: statistics.mean(abs(v - e[a]) for v in vals[a]) for a in AXES},
+                    "spread": {a: max(vals[a]) - min(vals[a]) for a in AXES},
+                }
+                spreads.append(statistics.mean(per_slug[slug]["spread"].values()))
+                deltas.append(statistics.mean(per_slug[slug]["delta_mean"].values()))
+                for r in rs:
+                    for d in r["defects"]:
+                        defects[(d.get("severity") or "?").lower()] += 1
+            if per_slug:
+                profiles[(model, protocol, thinking, pv)] = {
+                    "per_slug": per_slug,
+                    "thinking": thinking,
+                    "spread_mean": statistics.mean(spreads) if spreads else 0,
+                    "delta_mean": statistics.mean(deltas) if deltas else 0,
+                    "n": sum(p["n"] for p in per_slug.values()),
+                    "defects": dict(defects),
+                }
+    return grid, profiles
+
+
+def latest_profiles(profiles: dict) -> dict:
+    """Профили каждой модели на её самой свежей паре (протокол, контракт);
+    на каждом уровне thinking — отдельный элемент списка (усреднять уровни
+    размышлений и версии контракта нельзя)."""
+    prank = {"v1": 1, "v2": 2}
+    latest = {}
+    for (model, protocol, thinking, pv), prof in profiles.items():
+        latest.setdefault(model, []).append((protocol, thinking, pv, prof))
+    out = {}
+    for model, entries in latest.items():
+        top = max(prank.get(pr, 9) for pr, _th, _pv, _p in entries)
+        out[model] = sorted(
+            ((pr, th, pv, p) for pr, th, pv, p in entries
+             if prank.get(pr, 9) == top),
+            key=lambda e: (e[2] != max(x[2] for x in entries), e[1] != "max", e[1]))
+    return out
+
+
+def num(v) -> str:
+    return f"{v:g}" if isinstance(v, (int, float)) else "—"
+
+
+def delta_class(d: float) -> str:
+    return "p-good" if d == 0 else ("p-warn" if d <= 1 else "p-bad")
+
+
+def runs_cell(vals: list) -> str:
+    return " · ".join(num(v) for v in vals)
+
+
+def score_bar(v: float, vmax: float = 4.0) -> str:
+    pct = max(3, round(100 * (v or 0) / vmax))
+    return (f'<div class=barwrap><div class=bar style="width:{pct}%;background:var(--acc)"></div>'
+            f'<span>{num(v)}</span></div>')
+
+
+def esc(s) -> str:
+    return (str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+
+
+# --- секции -----------------------------------------------------------------
+
+def section_header(n_runs: int) -> str:
+    return f"""
+<header>
+<h1>Этап 3: код-ревью решений этапа 2 локальными моделями</h1>
+<p>На этапе 2 модели выполняли тестовое задание «биллинг LLM-токенов» в среде pi.
+На этапе 3 другие модели проверяют эти решения в роли код-ревьюеров. Предмет
+этапа — способность ревьюить код чтением: слепо, без исполнения и правок;
+работа с инструментами — предмет этапа 2. Каждое ревью — отдельная сессия pi;
+всего прогонов в отчёте: {n_runs}.</p>
+<p>Что получает ревьюер: текст задания (TASK.md), AGENTS.md,
+код решения целиком и метрики качества (phpstan, phpmd, phpcs,
+psalm, scc, сводка по классам). Чего ревьюер не получает: имя модели-автора и
+результатов проверки — чекера, эталонных файлов, скрытых фикстур. Метрики
+показывают, куда смотреть; каждый сигнал ревьюер обязан проверить по коду, а не
+пересказать.</p>
+<p>Что делает ревьюер: читает задание и код, проверяет выполнение требований по
+коду, проверяет сигналы метрик, ставит три балла по шкале 0–4 (A — код и
+архитектура, B — процесс и коммуникация, F — соответствие заданию) и
+перечисляет найденные дефекты с файлами и строками. Исполнять и изменять код
+нельзя: инструмент в pi — только чтение файлов. Целостность копии проверяется
+хэш-суммами всех файлов до и после прогона; расхождение — прогон отбраковывается.</p>
+<p>Отчёт собран из артефактов прогонов: models/&lt;модель&gt;/backend/code-review/run-XX/.</p>
+</header>
+<nav class=toc>
+<div class=toc-title>Содержание</div>
+<ul>
+<li><a href="#tldr">1. Главные выводы</a></li>
+<li><a href="#method">2. Методика</a></li>
+<li><a href="#objects">3. Объекты ревью и эталоны</a></li>
+<li><a href="#results">4. Результаты моделей</a></li>
+<li><a href="#runs">5. Прогоны и данные</a></li>
+<li><a href="#findings">6. Что нашли и что пропустили</a></li>
+<li><a href="#notdone">7. Функциональная проверка: not_done против чекера</a></li>
+<li><a href="#precision">8. Качество замечаний</a></li>
+<li><a href="#validity">9. Валидность прогонов</a></li>
+<li><a href="#next">10. Что дальше</a></li>
+</ul>
+</nav>"""
+
+
+def section_tldr(runs, profiles, refs, grid) -> str:
+    n_valid = sum(1 for r in runs if r["valid"])
+    n_all = len(runs)
+    latest = latest_profiles(profiles)
+    blind = []
+    for model, entries in latest.items():
+        _protocol, _th, _pv, prof = entries[0]
+        t = prof["per_slug"].get("tricky")
+        if t:
+            blind.append((model, t["vals"]["axis_a"]))
+    blind_txt = "; ".join(f"{SHORT.get(m, m)} — {runs_cell(v)}" for m, v in blind)
+    orca_n = sum(1 for r in runs if r["model"] == "orcarouter/Qwen3.8-27B-Uncensored:ctx100k")
+    return f"""
+<h2 id=tldr><span class=no>1.</span>Главные выводы</h2>
+<p class=lead>Этап 3 меряет способность ревьюить код чтением: слепо, без запуска
+и правок. Работа с инструментами — предмет этапа 2, поэтому всё ниже — про
+чтение. Почему ограничение выбрано и какова его цена — раздел 2, абзац
+«Ограничение серии».</p>
+<p class=lead>Точнее всех к эталону — huihui: на «хорошем» решении A 3.5 (эталон 3.5),
+на «среднем» A 2.5 (эталон 2.5). Обе сборки gemma завышают: «хорошему» и «каверзному»
+ставят A 4.0 при эталонах 3.5 и 2.5. Разницу между «хорошим» и «плохим» решением в баллах
+показывают huihui (3.5 → 2.5) и qwen3.8 (3.5 → 2.5); gemma4:26b сжимает её до 1–1.5 балла
+(4.0 → 2.5–3).</p>
+<p class=lead>Повторяемость высокая у всех моделей: в трёх независимых прогонах разброс
+не превысил 1 балла ни по одной оси, в среднем 0–0.3 балла. Вердикт ревьюера —
+устойчивый результат; трёх прогонов достаточно.</p>
+<p class=lead>Главный дефект «каверзного» решения не нашёл ни один зачётный ревьюер.
+Причина дефекта: оф-пиковая скидка не записывается при первом импорте провайдера, а
+проверка всегда стартует с пустой базы, где провайдеров ещё нет. Пример расчёта из
+TASK.md при этом сходится, поэтому ошибка не видна при чтении кода. Тот же дефект
+пропустил и судья яруса 4, поставив решению A 4.0. Единственный, кто назвал механизм
+за всю серию, — orca в сыром тексте вне заданного формата (раздел 8.2). Она
+включена в рейтинг 4.1 по содержанию её разборов: качество замечаний высшее
+(точность 0.93 на max). Её прогонам не засчитан формат — на качество ревьюера он не влияет, роли играет только содержание. Баллы ревьюеров по A (эталон 2.5):
+{esc(blind_txt)}.</p>
+<p class=lead>Не все модели выдержали порядок ревью. orca во всех {orca_n} прогонах
+(протоколы v1 и v2) читала файлы и писала разборы, но ни разу не выдала вердикт в
+заданном формате JSON — свой формат со шкалой 0–5. e2b в пилоте трижды выдала
+вердикт, не прочитав ни одного файла. Такие прогоны отбраковываются: из {n_all}
+прогонов зачётных {n_valid}.</p>
+<p class=lead>Эталон тоже ошибался. В эталоне «плохого» решения дефектом значилось
+«усечение вместо HALF_UP». Ревью qwen пересчитало пример из задания и показало, что
+округление работает. Проверка на php 8.5 подтвердила ревью. Настоящие причины неверных
+отчётов: оф-пиковая скидка не записывается при первом импорте провайдера (оба решения
+с падающими отчётами) и bcadd без масштаба в накоплении (только «плохое»).
+Эталон-карточки исправили; эталонные баллы не меняли.</p>
+<p class="excap sb">Наблюдения</p>
+<div class=cards>
+<div class="card g"><b>Ревью в 7–10 раз быстрее написания кода</b>Сессия ревью занимает
+от 0.5 до 6.5 минут (0.3–1 млн токенов); сессия написания решения на этапе 2 —
+25–45 минут. Серия из 48 сессий заняла около трёх часов серверного времени.</div>
+<div class="card"><b>Писать код и проверять код — разные навыки</b>huihui — лидер этапа 2
+(13 из 13 сценариев) и здесь точнее всех. orca на этапе 2 тоже набрала 13 из 13, но как
+ревьюер ни разу не выдала вердикт в заданном формате. gemma4:26b на этапе 2 писала
+средне, здесь завышает баллы всем решениям.</div>
+<div class="card w"><b>Единственный крупный промах — вывод из типа параметра</b>На
+«среднем» решении qwen назвала критическим вызов $output-&gt;getErrorOutput(): у
+OutputInterface такого метода нет. Но Symfony передаёт в команду ConsoleOutput, у
+которого метод есть, — решение работало (чекер 11 из 11). Балл F 2.5 при эталоне 4.0.</div>
+<div class="card b"><b>gemma4:31b наказывает отсутствие артефактов минимумом шкалы</b>За
+отсутствующие COMMIT_MESSAGE.md и PR_DESCRIPTION.md она ставит «плохому» решению B 0 во
+всех трёх прогонах — эталон 1.0, судья строже. На остальных решениях её B 3.5–4:
+занижения дальше нет.</div>
+</div>"""
+
+
+def _runner_review_prompt() -> str:
+    """REVIEW_PROMPT из runner_reviewer.py — user-промпт контракта v3,
+    единственный источник текста (дрейф исключён)."""
+    import ast as _ast
+    src = (HERE / "runner_reviewer.py").read_text(encoding="utf-8")
+    for node in _ast.parse(src).body:
+        if isinstance(node, _ast.Assign):
+            for t in node.targets:
+                if isinstance(t, _ast.Name) and t.id == "REVIEW_PROMPT":
+                    return _ast.literal_eval(node.value)
+    sys.exit("в runner_reviewer.py не найден REVIEW_PROMPT")
+
+
+def section_method() -> str:
+    review_prompt_v3 = _runner_review_prompt()
+    return f"""
+<h2 id=method><span class=no>2.</span>Методика</h2>
+<p class=lead>Каждая модель-участница выступает код-ревьюером решений тестового
+задания этапа 2. На вход ревьюер получает материалы решения, на выходе сдаёт
+разбор: замечания с серьёзностями и оценки по трём шкалам. Полные правила
+серии — <a href="https://github.com/prikotov/task-llm-hiring/blob/main/code-review/REVIEWER.md"><code>code-review/REVIEWER.md</code></a>;
+ниже — суть методики.</p>
+
+<h3><span class=no>2.1.</span>Условия: слепое статическое ревью</h3>
+<p class=lead><b>Что получает ревьюер.</b> Задание TASK.md, AGENTS.md,
+дерево решения целиком, список файлов и метрики качества. Ревью слепое:
+ревьюеру не сообщается, чьё это решение, — знание вердикта чекера превратило
+бы ревью в пересказ готового ответа. Скрыты имя модели-автора, результаты
+проверки (чекер, эталонные файлы, скрытые фикстуры) и чужие разборы этого
+решения. Из metrics.json вырезаны пути хоста и рабочей машины — по ним можно
+было бы вычислить автора; пути файлов внутри решения остаются.</p>
+
+<p class=lead><b>Ограничение серии: ревью статическое.</b> По правилам серии
+модель не запускает код и тесты — функциональность она проверяет только
+чтением и рассуждением. Запрет — не недосмотр, а условие измерения.
+Во-первых, слепота: приёмка из TASK.md и тесты — те же проверки, что
+у чекера; модель, способная их запустить, узнаёт вердикт и пересказывает
+его вместо ревью — метрики точности и полноты обнуляются. Во-вторых,
+измеряемый навык: работа с инструментами уже измерена этапом 2 (агентная
+сессия в pi), здесь меряется способность ревьюить чтением. Цена этого
+выбора: часть реальных дефектов решений — логические, они проявляются только
+при исполнении (не сходится пример расчёта, отчёт завышен), и статическим
+ревью они не находятся. Главный пример — оф-пик при первом импорте на
+«каверзном» решении: его не нашла ни одна модель ни на одном уровне
+мышления (раздел 6.1), хотя прогон приёмки из TASK.md вскрыл бы его сразу.
+Задним числом исполнение в эту серию не добавить; расширение — отдельная
+версия протокола, строки вне рейтинга текущей.</p>
+
+<h3><span class=no>2.2.</span>Прогон: материалы, запуск, изоляция</h3>
+<div class=flow>
+<div class=step><b>1 · Раннер</b>собирает слепой рабочий каталог: задание, AGENTS.md, код решения, метрики, список файлов.</div>
+<div class=arrow>→</div>
+<div class=step><b>2 · pi</b>запускается один раз с правом только читать файлы; промпт один для всех моделей.</div>
+<div class=arrow>→</div>
+<div class=step><b>3 · Вердикт</b>модель сдаёт JSON одной строкой: баллы A/B/F, перечень not_done, дефекты.</div>
+<div class=arrow>→</div>
+<div class=step><b>4 · Проверки</b>JSON распознан, код действительно читался, файлы в каталоге не менялись.</div>
+<div class=arrow>→</div>
+<div class="step hot"><b>5 · Зачёт</b>прошедшие прогоны — в рейтинг 4.1, остальные отбраковываются.</div>
+</div>
+<p class=lead><b>Как ревьюер получает материалы.</b> Раннер серии
+(<code>runner_reviewer.py</code>) перед каждым прогоном собирает ревьюеру
+свежий рабочий каталог во временном каталоге. Туда копируются TASK.md
+и AGENTS.md из каркаса задания, дерево <code>solution/</code> целиком
+из прогона этапа 2 и санированный metrics.json этого прогона — обезличенный
+по правилам из подраздела 2.1. Из скопированного дерева генерируется
+MANIFEST.txt — список файлов с размерами. vendor в копию не входит:
+это код фреймворка, а не работа кандидата; заодно гарантия, что исполнить
+код нечем даже при ошибке в настройке инструментов. Ревьюер работает только
+в этом каталоге, оригинальные материалы прогона ему недоступны.</p>
+
+<p class=lead><b>Как запускается pi.</b> Один вызов на прогон, из рабочего
+каталога:</p>
+<pre class=prompt>pi -p --session-dir &lt;каталог результатов&gt; --model &lt;модель&gt; \\
+  --thinking &lt;уровень мышления&gt; \\
+  --tools read "&lt;пользовательский промпт&gt;"</pre>
+<p class=lead>Флаг <code>--tools read</code> оставляет агенту единственный
+инструмент — чтение файлов; править и запускать код нечем. След сессии
+(JSONL) pi пишет по флагу <code>--session-dir</code>: раннер кладёт его
+в каталог результатов прогона. Конфигурация изолируется иначе: домашний
+каталог настроек pi (pi-home) перенаправляется переменной окружения
+<code>PI_CODING_AGENT_DIR</code> во временный каталог, куда раннер кладёт
+сгенерированный models.json под одну модель, — глобальный конфиг не читается.
+Сеть отключена (<code>PI_OFFLINE=1</code>). Лимиты прогона: контекст
+102 400 токенов, таймаут — один час. После завершения pi раннер забирает
+след сессии, лог и финальный ответ модели.</p>
+
+<p class=lead><b>Промпт.</b> Ревьюер запускается одним пользовательским
+промптом: он задаёт роль слепого ревьюера, порядок работы, дескрипторы
+трёх шкал и JSON-контракт финального ответа. Системный промпт pi
+не задействуется — как на этапах 1 и 2. Промпт общий для всех моделей,
+уровней мышления и решений; правки под конкретную модель запрещены —
+сравниваем базовую способность, а не подгонку. Полный текст:</p>
+<details class=promptbox><summary>Пользовательский промпт — полный текст</summary>
+<pre class=prompt>{esc(review_prompt_v3)}</pre></details>
+
+<p class=lead><b>Изоляция прогонов.</b> Каждый прогон получает собственный
+временный каталог с копией материалов и собственный pi-home. После прогона
+модель выгружается из памяти сервера. Следующий прогон не наследует от
+предыдущего ничего.</p>
+
+<p class=lead><b>Когда прогон засчитывается.</b> Вердикт обязан быть JSON
+по контракту: три оценки, перечень not_done, список дефектов. Прогон идёт
+в зачёт, только если JSON распознан, ревьюер сделал хотя бы одно чтение
+файла (вердикт без единого обращения к коду — вербальная выдумка) и хэш-суммы
+всех файлов рабочего каталога до и после прогона совпали. Ещё правило:
+F &lt; 4 требует непустого not_done — сниженный балл обязан иметь перечень
+оснований. Не прошедшие эти проверки прогоны отбраковываются — колонка
+«Отбрак.» в таблице 4.1.</p>
+
+<h3><span class=no>2.3.</span>Вердикт ревьюера</h3>
+<p class=lead><b>Что сдаёт ревьюер.</b> Список дефектов: каждый с файлом,
+строками и серьёзностью critical, major или minor; при сомнении — minor
+и формулировка «подозрение». Перечень not_done: что из задания, по мнению
+ревьюера, не сделано. Три оценки по шкалам 0–4 с шагом 0.5: A «код
+и архитектура», B «процесс и коммуникация», F «соответствие заданию».
+Дескрипторы шкал — рубрика яруса 3, переписанная без ссылок на чекер.</p>
+
+<p class=lead><b>Метрики — указатели, а не ответы.</b> Метрики качества
+выдаются ревьюеру как подсказки, где искать проблемы. Инструкция требует
+каждый сигнал проверить по коду и сообщить, что подтвердилось, а что
+опроверглось. Пересказывать цифры не нужно.</p>
+
+<h3><span class=no>2.4.</span>Как ревьюера оценивают</h3>
+<div class=flow>
+<div class=step><b>1 · Судья-оценщик (LLM)</b>проверяет каждое замечание critical и major по коду решения: подтверждено, серьёзность завышена или опровергнуто. Судья — GLM-5.3-Flash со скриптами php 8.5 и psql.</div>
+<div class=arrow>→</div>
+<div class=step><b>2 · Чекер (код)</b>считает, сколько из пяти реальных пропусков решения ревьюер назвал в not_done и объяснил их механизм.</div>
+<div class=arrow>→</div>
+<div class=step><b>3 · Инструменты этапа 2 (код)</b>сверяют архитектурно-качественные замечания ревьюера с фактами metrics.json: phpstan, phpmd, phpunit, AST.</div>
+<div class=arrow>→</div>
+<div class="step hot"><b>4 · Оценка (формула)</b>складывает три доли: 0.4·Точность + 0.4·Поймано + 0.2·Архитектура. Согласие с судьёй по баллам (|Δ|) — вторичный сигнал.</div>
+</div>
+<p class=lead><b>Судья-оценщик замечаний — первичная оценка.</b> Ревью ценно
+замечаниями, а не баллами, поэтому качество ревьюера измеряется по содержанию
+замечаний. Судья яруса 3 знает проект, TASK.md, метрики и результаты чекера;
+вместе с рантайм-верификацией скриптами (php 8.5, docker psql) он проверяет
+каждое замечание critical и major по коду решения. Вердикты: подтверждено,
+серьёзность завышена, опровергнуто — раздел 8. Перечень not_done сверяется
+с чекером — раздел 7. Результат проверки — точность и полнота ревьюера;
+из них строится оценка в таблице 4.1.</p>
+
+<p class=lead><b>Сравнение баллов — вторичный сигнал.</b> Разница |Δ| между
+баллом ревьюера и эталонным баллом по каждой шкале показывает согласие
+с судьёй. Меру качества это не даёт: эталонные баллы назначил сам судья.
+Черновик зачёта: |Δ| ≤ 0.5 — зачёт, ≤ 1.0 — частично, выше — промах. Спорные
+расхождения проверяются кодом и рантаймом — раздел 6.2.</p>
+
+<p class=lead>Сами прогоны, их версии и артефакты — раздел 5.</p>"""
+
+
+def section_objects(refs) -> str:
+    rows = []
+    for slug in SLUG_ORDER:
+        c = refs[slug]
+        b = c["basis"]
+        e = c["expected"]
+        fails = "; ".join(f["scenario"] for f in c.get("checker_failures", [])) or "—"
+        checker = re.sub(r"\s*\((?:падают|не проходят)[^)]*\)", "", b["checker"])
+        if c.get("bonus_total"):
+            bonus_eth = f"бонус {c['bonus_passed']}/{c['bonus_total']}"
+        elif "bonus_total" in c:
+            bonus_eth = "бонус 0/?"
+        else:
+            bonus_eth = ""
+        rows.append(
+            f"<tr><td><b>{SLUG_TITLES[slug]}</b><div class=sub>автор — {esc(c['source_run'].split('/backend/')[0].split('models/')[1])}</div></td>"
+            f"<td>{esc(checker)}</td>"
+            f"<td class=num>A {num(b['tier3']['axis_a'])} · B {num(b['tier3']['axis_b'])}<div class=sub>слепой ярус 4: A {num(b['tier4_blind']['axis_a'])}</div></td>"
+            f"<td class=num>{num(e['axis_a'])} · {num(e['axis_b'])} · "
+              f"F {c.get('mand_passed', '?')}/{c.get('mand_total', '?')} об."
+              f"<div class=sub>{esc(bonus_eth)}</div></td>"
+            f"<td>{esc(fails)}</td></tr>")
+    return f"""
+<h2 id=objects><span class=no>3.</span>Объекты ревью и эталоны</h2>
+<p class=lead>Объекты ревью — четыре решения этапа 2, по одному на уровень
+качества: «хорошее», «среднее», «каверзное», «плохое». Каждое создано своей
+моделью на одном каркасе задания и прогнано через чекер — детерминированную
+проверку из 11 обязательных и 2 бонусных сценариев.</p>
+
+<p class=lead>Особую роль играет «каверзное»: его дефект (отчёты завышают
+расходы) проявляется только на данных проверки — пример расчёта из задания
+сходится, поэтому дефект не виден при чтении кода. «Плохое» не сдаёт три
+обязательных сценария, включая обязательные артефакты COMMIT_MESSAGE.md
+и PR_DESCRIPTION.md.</p>
+
+<p class=lead>По результатам чекера и вердиктов судей для каждого решения
+собрана эталон-карточка: эталонные баллы A и B, обязательные требования для
+шкалы F и верифицированные причины дефектов. Карточки заморожены 2026-10-30;
+после пилота в них правились только описания причин дефектов (изменения —
+в changelog карточек), баллы не менялись.</p>
+
+<table>
+<tr><th>Решение</th><th>Чекер</th><th>Судья ярус 3 (A · B)</th><th class=narrow>Эталон A · B · F</th><th>Упавшие сценарии</th></tr>
+{''.join(rows)}
+</table>
+<div class=note><sup>1</sup> Шкала F пересчитывается из чекера: floor(8×пройдено обязательных/11)/2 — 11/11 даёт 4.0, 9/11 — 3.0, 8/11 — 2.5.<br>
+<sup>2</sup> Судья яруса 3 — GLM-5.3-Flash, которому выдали результаты чекера и метрики; слепой ярус 4 — то же ревью без результатов проверки. На «каверзном» и «плохом» решениях ярус 4 завысил A (4.0 и 2.5).<br>
+<sup>3</sup> Причины дефектов в эталоне верифицированы кодом и рантаймом — раздел 6.</div>"""
+
+
+def _runs_word(n: int) -> str:
+    if n % 10 == 1 and n % 100 != 11:
+        return f"{n} зачётный прогон"
+    if n % 10 in (2, 3, 4) and n % 100 not in (12, 13, 14):
+        return f"{n} зачётных прогона"
+    return f"{n} зачётных прогонов"
+
+
+def _frac(v: float) -> str:
+    """Доля 0–1 для показателей ревью (Точность, Поймано, Архитектура,
+    Оценка): две позиции после точки — 0.93, 0.60, 1.00."""
+    return f"{v:.2f}"
+
+
+def _quality_level(overall: float) -> str:
+    """Применимость модели как ревьюера по итогу (средний |Δ| по всем осям
+    и решениям): до 0.6 — применима; до 0.9 — применима с оговорками
+    (баллы сверять с чекером); выше — не применима."""
+    tip = "итог — средний |Δ| по всем осям и решениям"
+    if overall <= 0.6:
+        return f'<span class="okmark" title="{tip}">применима</span>'
+    if overall <= 0.9:
+        return f'<span class="deadmark contract" title="{tip}; баллы сверять с чекером">с оговорками</span>'
+    return f'<span class="deadmark fab" title="{tip}">не применима</span>'
+
+
+def ranking_entries(profiles, runs):
+    """Рейтинг строк сводной 4.1: запись = модель × уровень мышления,
+    текущий контракт (протокол v2, контракт с not_done). Итог ранжирования —
+    взвешенное среднее трёх долей ошибок, все от объективной верификации,
+    без судейских баллов: неточность замечаний (1 − точность critical/major
+    по вердиктам судьи-оценщика, раздел 8), неполнота (доля реальных
+    пропусков без названного механизма, раздел 7) и непокрытие арх. тем
+    (1 − доля арх. тем, проверяемых инструментами этапа 2, 8.3) с весами RANK_WEIGHTS
+    (0.4 / 0.4 / 0.2). Обратная запись — колонка «Оценка» 4.1: взвешенная
+    оценка 0–1, «итог» на картах = 1 − Оценка. Формат выдачи в итог не входит: роль
+    ревьюера — текстовые замечания, несданный JSON — потеря данных для
+    конвейера (колонка «Отбрак.»), а не дефект ревью. Числовое сравнение
+    |Δ| — согласие с судьёй — вне итога: эталонные баллы сам судья
+    и назначил. orca — оценка по текстам её разборов в собственном формате (8.2).
+    Возвращает (ranked, attempted, dropped_why) — ranked отсортирован
+    по возрастанию итога (лучшие сверху)."""
+
+    def axis_overall(prof):
+        """Средний |Δ| по каждой оси (усреднение по решениям)."""
+        return {a: statistics.mean(s["delta_mean"][a] for s in prof["per_slug"].values())
+                for a in AXES}
+
+    def resources(model):
+        """Медианы времени (мин), токенов (М) и стоимости (₽) — отдельно по
+        каждой тройке (версия протокола, thinking, контракт): вход ревьюера
+        различается, усреднять нельзя."""
+        out = {}
+        for protocol in ("v1", "v2"):
+            for thinking in sorted({r["thinking"] for r in runs if r["model"] == model}):
+                for pv in sorted({r["prompt_version"] for r in runs
+                                  if r["model"] == model and r["protocol"] == protocol
+                                  and r["thinking"] == thinking}):
+                    rs = [r for r in runs if r["model"] == model
+                          and r["protocol"] == protocol and r["thinking"] == thinking
+                          and r["prompt_version"] == pv
+                          and r["duration_s"] and r["tokens"]]
+                    if not rs:
+                        continue
+                    med_d = statistics.median(r["duration_s"] for r in rs)
+                    med_t = statistics.median(r["tokens"] for r in rs)
+                    out[(protocol, thinking, pv)] = (med_d / 60, med_t / 1e6,
+                                                     med_d / 3600 * LOCAL_RUB_H)
+        return out
+
+    # recall: семьи реальных пропусков решений, перечисленные моделью
+    # в not_done зачётных сессий (по уровням thinking, контракт с not_done).
+    # Два уровня учёта: fam_caught — совпадение семьи по ключевым словам;
+    # caught — только подтверждённые по механизму (ручная разметка
+    # MECH_CAUGHT: сверка каждого упоминания с разделом 6 и кодом решения).
+    caught, fam_caught = defaultdict(set), defaultdict(set)
+    # надёжность: все запуски серии (модель × thinking) против зачётных —
+    # сессия, завершившаяся некорректно (вердикт не по контракту), идёт
+    # модели в минус, а не выбрасывается
+    attempted = defaultdict(int)
+    for rp in sorted((ROOT / "models").glob("*/backend/code-review/run-*/run.json")):
+        meta = json.loads(rp.read_text(encoding="utf-8"))
+        if meta.get("protocol") != "v2" or meta.get("prompt_version") != 2:
+            continue
+        attempted[(meta.get("model"), meta.get("thinking"))] += 1
+    # что именно отбраковано в каждой строке — для тултипа колонки «Отбрак.»
+    dropped_why = defaultdict(list)
+    for r in runs:
+        if r["protocol"] != "v2" or r["prompt_version"] != 2:
+            continue
+        if r["valid"] and r.get("parse_ok") is not False:
+            continue
+        reason = r.get("invalid_reason") or _FAIL_TEXT.get(r.get("fail_kind"), "отбракован")
+        dropped_why[(r["model"], r["thinking"])].append(
+            f"{r['dir']} ({SLUG_TITLES.get(r['slug'], r['slug'])}): {str(reason).split(':')[0][:70]}")
+    for rp in sorted((ROOT / "models").glob("*/backend/code-review/run-*/review.json")):
+        rj = rp.with_name("run.json")
+        if not rj.is_file():
+            continue
+        meta = json.loads(rj.read_text(encoding="utf-8"))
+        if not meta.get("parse_ok") or meta.get("protocol") != "v2" \
+                or meta.get("prompt_version") != 2:
+            continue
+        slug = meta.get("solution_slug")
+        v = json.loads(rp.read_text(encoding="utf-8"))
+        key = (meta.get("model"), meta.get("thinking"))
+        # «поймано» = семья названа в not_done ИЛИ упомянута в defects
+        # (любая серьёзность — для recall важен факт «заметил область»;
+        # упоминание только в note — неподтверждённая проза, не считается)
+        items = [(nd.get("req", "") or nd.get("desc", ""))
+                 for nd in v.get("not_done", [])] \
+            + [json.dumps(d, ensure_ascii=False) for d in v.get("defects", [])]
+        for txt in items:
+            fam = req_family(txt)
+            if fam in REAL_MISSES.get(slug, []):
+                fam_caught[key].add((slug, fam))
+                if (slug, fam) in MECH_CAUGHT.get(key, set()):
+                    caught[key].add((slug, fam))
+
+    # рейтинг — только текущий контракт; серии v1 и прежнего контракта
+    # вне рейтинга (их вердикты судьёй не верифицировались, по-прогонные
+    # данные — в по-модельных таблицах)
+    v2_levels = defaultdict(dict)   # thinking -> {model: prof}
+    for (model, protocol, thinking, pv), prof in profiles.items():
+        if protocol == "v2" and pv == 2:
+            v2_levels.setdefault(thinking, {})[model] = prof
+
+    prec = defect_precision(runs)
+    arch = arch_coverage(runs)
+
+    def combined(model, thinking, prof, arch_n):
+        miss = 1 - len(caught.get((model, thinking), set())) / REAL_MISSES_TOTAL
+        pc, pz, po = prec.get((model, thinking), [0, 0, 0])
+        ptot = pc + pz + po
+        p = pc / ptot if ptot else 0.0
+        w = RANK_WEIGHTS
+        итог = (w["prec"] * (1 - p) + w["caught"] * miss
+                + w["arch"] * (1 - arch_n / len(ARCH_THEMES)))
+        return (итог, miss, p, (pc, pz, po, ptot), axis_overall(prof))
+
+    ranked = []
+    for thinking, models in v2_levels.items():
+        for model, prof in models.items():
+            arch_s = arch.get((model, thinking), set())
+            c, miss, p, pparts, d = combined(model, thinking, prof, len(arch_s))
+            ranked.append({"model": model, "thinking": thinking, "prof": prof,
+                           "combined": c, "miss": miss, "d": d,
+                           "prec": p, "pparts": pparts,
+                           "dropped": attempted.get((model, thinking), prof["n"]) - prof["n"],
+                           "caught": len(caught.get((model, thinking), set())),
+                           "caught_fams": sorted(caught.get((model, thinking), set())),
+                           "arch": arch_s,
+                           "res": resources(model).get(("v2", thinking, 2))})
+    # orca — по сырому тексту (8.2): неточность и неполнота из ручной
+    # разметки; формат в итог не входит (роль ревьюера — текстовые замечания)
+    orca_model = "orcarouter/Qwen3.8-27B-Uncensored:ctx100k"
+    for th in ("max", "low", "medium"):
+        rs = [r for r in runs if r["model"] == orca_model
+              and r["thinking"] == th and r["protocol"] == "v2"]
+        if not rs:
+            continue
+        pc, pz, po = ORCA_TRIAGE[th]
+        ptot = pc + pz + po
+        prec_o = pc / ptot if ptot else 0.0
+        miss_o = 1 - ORCA_CAUGHT[th] / REAL_MISSES_TOTAL
+        arch_s = arch.get((orca_model, th), set())
+        ds = sorted(r["duration_s"] for r in rs if r["duration_s"])
+        toks = sorted(r["tokens"] for r in rs if r["tokens"])
+        med_min = med_t = med_r = None
+        if ds and toks:
+            m = len(ds) // 2
+            med_d = ds[m] if len(ds) % 2 else (ds[m - 1] + ds[m]) / 2
+            med_min = med_d / 60
+            med_t = toks[len(toks) // 2] / 1e6
+            med_r = med_d / 3600 * LOCAL_RUB_H
+        ranked.append({
+            "model": orca_model, "thinking": th, "orca": True, "n_rs": len(rs),
+            "combined": (RANK_WEIGHTS["prec"] * (1 - prec_o)
+                         + RANK_WEIGHTS["caught"] * miss_o
+                         + RANK_WEIGHTS["arch"] * (1 - len(arch_s) / len(ARCH_THEMES))),
+            "prec": prec_o, "pparts": (pc, pz, po, ptot),
+            "caught": ORCA_CAUGHT[th], "dropped": len(rs),
+            "arch": arch_s,
+            "res": (med_min, med_t, med_r) if med_t else None})
+    ranked.sort(key=lambda e: e["combined"])
+    return ranked, attempted, dropped_why
+
+
+def results_summary_block(profiles, runs) -> str:
+    """Сводная таблица: плоский рейтинг строк (модель × мышление) текущего
+    контракта. Порядок и фон строки задаёт колонка «Оценка» — взвешенная
+    оценка RANK_WEIGHTS: 0.4·Точность + 0.4·Поймано + 0.2·Архитектура
+    (сортировка по убыванию; зелёная строка ≥ 0.4, красная — только при
+    функциональном провале Точность + Поймано < 0.2). Формула итога —
+    в ranking_entries(). «Место» — порядковый номер строки в этом рейтинге."""
+    ranked, attempted, dropped_why = ranking_entries(profiles, runs)
+
+    def res_cell(res):
+        if not res:
+            return '<td colspan=3 class=num title="замеров времени и токенов нет">—</td>'
+        return (f"<td class=num>{res[1]:.2f}M</td>"
+                f"<td class=num>{res[0]:.1f} мин</td>"
+                f"<td class='num p-warn'>₽{res[2]:.1f}</td>")
+
+    def runs_cell(e):
+        """Все запуски серии строки (план: 3 ревью × 4 решения = 12)."""
+        total = attempted.get((e["model"], e["thinking"]), e["prof"]["n"])
+        return (f'<td class=num title="всего запусков серии; план — '
+                f'3 ревью каждого из 4 решений (12)">{total}</td>')
+
+    def dropped_cell(e):
+        n = e.get("dropped", 0)
+        if not n:
+            return '<td class=num>0</td>'
+        # детали — CSS-тултипом при наведении на число (нативные title
+        # во встроенном просмотрщике не показываются)
+        whys = dropped_why.get((e["model"], e["thinking"]), [])
+        body = "<br>".join(esc(w) for w in whys) \
+            or "детали — в по-модельной таблице"
+        return (f'<td class="num p-bad"><span class=tip>{n}'
+                f'<span class=tipbox><b>Отбраковано по формату вердикта</b> — данные '
+                f'для конвейера потеряны (в итог не входит):<br>{body}</span></span></td>')
+
+    def row_html(e, place):
+        """Единая схема строки для всех моделей, включая orca —
+        различаются только подсказки источников данных. Порядок — по
+        «Оценке» = Точность + Поймано + Архитектура; красная строка — только
+        по функциональному провалу (Точность + Поймано < 0.2), арх. темы
+        её не спасают."""
+        model, thinking = e["model"], e["thinking"]
+        caught_pct = e['caught'] / REAL_MISSES_TOTAL
+        arch_pct = len(e['arch']) / len(ARCH_THEMES)
+        w = RANK_WEIGHTS
+        s = w["prec"] * e['prec'] + w["caught"] * caught_pct + w["arch"] * arch_pct
+        cls = ("top" if s >= 0.4 else
+               ("na" if e['prec'] + caught_pct < 0.2 else ""))
+        pc, pz, po, ptot = e['pparts']
+        if e.get("orca"):
+            runs = (f'<td class=num title="Все {e["n_rs"]} запусков — содержательные '
+                    f'разборы в собственном формате, по ним посчитаны точность и '
+                    f'полнота (8.2)">{e["n_rs"]}</td>')
+            prec_tip = (f"Оценено судьёй по текстам разборов orca, вне контракта "
+                        f"(раздел 8.2): {pc} из {ptot} подтверждено; "
+                        f"{pc}/{ptot} = {_frac(e['prec'])}")
+            caught_tip = (f"Посчитано по текстам разборов orca, вне контракта "
+                          f"(раздел 8.2): {e['caught']} из {REAL_MISSES_TOTAL}; "
+                          f"{e['caught']}/{REAL_MISSES_TOTAL} = {_frac(caught_pct)}")
+        else:
+            runs = runs_cell(e)
+            prec_tip = (f"{pc} из {ptot} замечаний critical/major подтверждено "
+                        f"судьёй-оценщиком (раздел 8): {pc}/{ptot} = {_frac(e['prec'])}"
+                        if ptot else "существенных замечаний не названо")
+            fams = "; ".join(f"{fam} — {SLUG_TITLES[slug]} решение"
+                             for slug, fam in e['caught_fams'])
+            caught_tip = (f"Поймано {e['caught']} из {REAL_MISSES_TOTAL} реальных "
+                          f"пропусков — назван механизм дефекта (раздел 7): "
+                          f"{fams or 'ни одного'}. Расчёт: "
+                          f"{e['caught']}/{REAL_MISSES_TOTAL} = {_frac(caught_pct)}")
+        prec_cell = (f"<td class=num title=\"{prec_tip}\">{_frac(e['prec'])}</td>"
+                     if ptot else
+                     f"<td class=num title=\"{prec_tip}\">—</td>")
+        caught_cell = f"<td class=num title=\"{caught_tip}\">{_frac(caught_pct)}</td>"
+        score_tip = (f"Оценка — взвешенная сумма долей Точность, Поймано "
+                   f"и Архитектура (формула — подраздел 2.4). Расчёт: "
+                   f"{_frac(e['prec'])}·0.4 + {_frac(caught_pct)}·0.4 + "
+                   f"{_frac(arch_pct)}·0.2 = {_frac(s)} (максимум 1). По оценке — "
+                   f"порядок строк и фон: ≥ 0.4 — зелёная (применима); красная — "
+                   f"только при функциональном провале, Точность + Поймано < 0.2 "
+                   f"(арх. темы её не спасают)")
+        score_cell = f"<td class=num title=\"{score_tip}\"><b>{_frac(s)}</b></td>"
+        arch_tip = (f"{len(e['arch'])} из {len(ARCH_THEMES)} тем, проверяемых "
+                    f"инструментами этапа 2 (раздел 8.3): {esc(', '.join(sorted(e['arch'])))}. "
+                    f"{len(e['arch'])}/{len(ARCH_THEMES)} = {_frac(arch_pct)}"
+                    if e['arch'] else
+                    f"Ни одной из {len(ARCH_THEMES)} тем, проверяемых инструментами этапа 2 (раздел 8.3)")
+        arch_cell = f"<td class=num title=\"{arch_tip}\">{_frac(arch_pct)}</td>"
+        return (
+            f"<tr class={cls}>"
+            f"<td class=num>{place}</td>"
+            f"<td><b>{esc(SHORT.get(model, model))}</b></td>"
+            f"<td class=num>{thinking}</td>"
+            + runs
+            + dropped_cell(e)
+            + prec_cell
+            + caught_cell
+            + arch_cell
+            + score_cell
+            + res_cell(e["res"])
+            + "</tr>")
+
+    rows = []
+    for i, e in enumerate(ranked, 1):
+        rows.append(row_html(e, i))
+    # сравнительные серии (v1, прежний контракт) в сводную не выводятся:
+    # их вердикты судьёй не верифицировались, а по-прогонные данные видны
+    # в по-модельных таблицах ниже (протокол — в строке прогона)
+
+    head = ("<tr><th class=narrow>Место</th><th>Модель</th>"
+            "<th class=narrow>Мышление</th>"
+            "<th class=narrow title=\"Все запуски серии: план — 3 независимых ревью каждого из 4 решений (12)\">Прогонов<sup>1</sup></th>"
+            "<th class=narrow title=\"Запуски, не сдавшие формат вердикта; в итог не входит — потеря данных для конвейера, не дефект ревью. Детали по прогонам — в подсказках ячеек\">Отбрак.<sup>2</sup><div class=sub>по формату</div></th>"
+            "<th class=narrow title=\"Доля подтверждённых судьёй-оценщиком замечаний critical/major (раздел 8)\">Точность<sup>3</sup></th>"
+            "<th class=narrow title=\"Реальные пропуски решения (всего 5, раздел 7), названные с механизмом дефекта, доля от 5; какие — в подсказке ячейки\">Поймано<sup>4</sup></th>"
+            "<th class=narrow title=\"Из 11 тем качества кода и архитектуры, проверяемых инструментами этапа 2 (раздел 8.3): сколько названо за серию; перечень — в подсказке ячейки\">Архитектура<sup>5</sup></th>"
+            "<th class=narrow title=\"Взвешенная оценка качества ревьюера (0–1, больше — лучше); по ней отсортированы строки и окрашен фон. Формула и пороги — в сноске 6\">Оценка<sup>6</sup></th>"
+            "<th class=narrow title=\"Медиана токенов зачётного прогона строки; вход и выход суммарно (сноска 7)\">Токены<sup>7</sup><div class=sub>медиана</div></th>"
+            "<th class=narrow title=\"Медианная длительность зачётного прогона строки (сноска 8)\">Время<sup>8</sup><div class=sub>медиана</div></th>"
+            "<th class=narrow title=\"Медианное время прогона × ₽35.85/ч — электричество и амортизация сервера (сноска 9)\">₽/ревью<sup>9</sup></th>"
+            "</tr>")
+    return f"""
+<h3><span class=no>4.1.</span>Сводная таблица: качество ревью</h3>
+<p class=lead>Рейтинг моделей как ревьюеров — от лучших к худшим по качеству
+замечаний. Одна строка = модель × уровень мышления; «Место» — порядковый
+номер строки в этом рейтинге.</p>
+<p class=lead>Порядок и фон строки задаёт колонка <b>«Оценка»</b> — взвешенная
+сумма долей Точность, Поймано и Архитектура (формула — подраздел 2.4). Вес
+отражает роль ревьюера: замечания о поведении решения — ядро, арх. темы —
+третье плечо; все три доли получены объективной верификацией содержания
+(судья-оценщик, механизм дефекта, инструменты этапа 2 — сноски 3–5).
+Строки отсортированы по оценке; как получена каждая доля — в подсказках
+ячеек.</p>
+<p class=lead><b>Фон строки — граница применимости модели как ревьюера:</b>
+зелёный — оценка ≥ 0.4 (применима), без подсветки — средняя зона, красный —
+функциональный провал: Точность + Поймано < 0.2 (арх. темы его не
+компенсируют — ревьюер обязан замечать дефекты поведения решения).</p>
+<table>{head}{''.join(rows)}</table>
+<div class=note><sup>1</sup> Прогонов — все запуски серии: план 3 независимых ревью каждого из 4 решений (12).<br>
+<sup>2</sup> Отбрак. по формату — запуски, не сдавшие формат вердикта. В итог не входит: потеря данных для конвейера, а не дефект ревью. Детали по прогонам — в подсказках ячеек.<br>
+<sup>3</sup> Точность — доля подтверждённых судьёй-оценщиком замечаний critical/major (раздел 8); расчёт — в подсказке ячейки.<br>
+<sup>4</sup> Поймано — реальные пропуски решения, названные с механизмом дефекта (раздел 7), доля от пяти; какие пойманы — в подсказке ячейки.<br>
+<sup>5</sup> Архитектура — из 11 тем качества кода и архитектуры, проверяемых инструментами этапа 2 (раздел 8.3), доля от 11; перечень названных тем — в подсказке ячейки. Часть числовых тем — пересказ выданного metrics.json (оговорка раздел 8.3), поэтому вес в Оценке — 0.2, меньше функциональных долей.<br>
+<sup>6</sup> Оценка — взвешенная сумма долей Точность, Поймано и Архитектура (формула — подраздел 2.4; максимум 1); по ней отсортированы строки и окрашен фон: ≥ 0.4 — зелёная, красная — при Точность + Поймано < 0.2. «Итог» на картах ниже — обратная запись: средневзвешенная доля ошибок = 1 − Оценка.<br>
+<sup>7</sup> Токены — медиана по зачётным прогонам строки, вход и выход суммарно.<br>
+<sup>8</sup> Время — медианная длительность зачётного прогона по строке.<br>
+<sup>9</sup> ₽/ревью — медианное время прогона × ₽35.85/ч: электричество и амортизация сервера (методика этапов 1–2).</div>"""
+
+
+def _scatter_map(points: list[dict], x_title: str, x_fmt, aria: str,
+                 cheap: str, fast: str) -> str:
+    """Интерактивная карта моделей как на этапе 2: 1080×600, тулбар
+    «во весь экран» и «сброс», зум колесом (к курсору), пан перетаскиванием,
+    тултип по наведению. points: {x, y, label, xtip}; по Y — Оценка,
+    выше лучше; серый пунктир — порог применимости (Оценка 0.4), подписи
+    зон «хорошо/плохо» по углам поля (cheap/fast — слово для горизонтали)."""
+    W, H = 1080, 600
+    L, R, T, B = 84, 40, 40, 60
+    ymax = int(max(p["y"] for p in points) * 10) / 10 + 0.2
+    xmax = max(p["x"] for p in points) * 1.15
+    def px(x): return L + (W - L - R) * x / xmax
+    def py(y): return H - B - (H - T - B) * y / ymax
+    parts = ['<div class=chartbox>'
+             '<div class=ctbar><button class=fsb type=button>⛶ во весь экран</button>'
+             '<button class=rst type=button>⟲ сброс</button></div>'
+             f'<svg class="scatter" width="{W}" height="{H}" viewBox="0 0 {W} {H}" '
+             f'style="max-width:100%" role="img" aria-label="{esc(aria)}">']
+    yt = 0.0
+    while yt <= ymax + 1e-9:
+        parts.append(f'<line x1="{L}" y1="{py(yt):.1f}" x2="{W-R}" y2="{py(yt):.1f}" '
+                     f'stroke="#e4e7ec" stroke-width="1"/>')
+        parts.append(f'<text x="{L-10}" y="{py(yt)+4:.1f}" font-size="13" '
+                     f'fill="#66707f" text-anchor="end">{yt:.1f}</text>')
+        yt += 0.2
+    step = next(s for s in (0.5, 1, 2, 2.5, 5, 10, 20, 50) if xmax / s <= 9)
+    xt = 0.0
+    while xt <= xmax + 1e-9:
+        parts.append(f'<line x1="{px(xt):.1f}" y1="{H-B}" x2="{px(xt):.1f}" y2="{T}" '
+                     f'stroke="#e4e7ec" stroke-width="1"/>')
+        parts.append(f'<text x="{px(xt):.1f}" y="{H-B+22}" font-size="13" '
+                     f'fill="#66707f" text-anchor="middle">{esc(x_fmt(xt))}</text>')
+        xt += step
+    parts.append(f'<line x1="{L}" y1="{H-B}" x2="{W-R}" y2="{H-B}" '
+                 f'stroke="#46536a" stroke-width="1.5"/>')
+    parts.append(f'<line x1="{L}" y1="{T}" x2="{L}" y2="{H-B}" '
+                 f'stroke="#46536a" stroke-width="1.5"/>')
+    # серый пунктир порога применимости — как порог качества на этапе 2
+    parts.append(f'<line x1="{L}" y1="{py(0.4):.1f}" x2="{W-R}" y2="{py(0.4):.1f}" '
+                 f'stroke="#aab3bf" stroke-width="1.5" stroke-dasharray="8 6"/>')
+    # подписи зон по углам поля — как на этапе 2
+    for txt, x, anchor in (
+            (f"хорошо и {cheap}", L + 10, "start"),
+            (f"хорошо и {fast}", W - R - 10, "end")):
+        parts.append(f'<text x="{x}" y="{T + 14}" font-size="14.5" fill="#9aa4b0" '
+                     f'font-style="italic" text-anchor="{anchor}">{esc(txt)}</text>')
+    for txt, x, anchor in (
+            (f"плохо и {cheap}", L + 10, "start"),
+            (f"плохо и {fast}", W - R - 10, "end")):
+        parts.append(f'<text x="{x}" y="{H - B - 10}" font-size="14.5" fill="#9aa4b0" '
+                     f'font-style="italic" text-anchor="{anchor}">{esc(txt)}</text>')
+    # повёрнутая подпись оси Y — как на этапе 2
+    parts.append(f'<text transform="rotate(-90 26 {py(0.4):.0f})" x="26" y="{py(0.4):.0f}" '
+                 f'font-size="13.5" fill="#46536a" text-anchor="middle">'
+                 f'Оценка — выше лучше</text>')
+    parts.append(f'<text x="{W-R}" y="{H-B+44}" font-size="13.5" fill="#46536a" '
+                 f'text-anchor="end">{esc(x_title)}</text>')
+    for p in points:
+        cx, cy = px(p["x"]), py(p["y"])
+        anchor = "end" if cx > W - 260 else "start"
+        lx = cx - 14 if anchor == "end" else cx + 14
+        ly = cy - 12
+        leader = (f'<line x1="{cx - 12:.1f}" y1="{cy:.1f}" x2="{lx + 5:.1f}" y2="{ly + 4:.1f}" '
+                  f'stroke="#aab3bf" stroke-width="1"/>') if anchor == "end" else ""
+        tip = f'{p["label"]} · Оценка {p["y"]:.2f} · {p["xtip"]}'
+        parts.append(
+            f'<g class="pt"><circle class="dot" cx="{cx:.1f}" cy="{cy:.1f}" r="{p.get("r", 11):.1f}" '
+            f'fill="#2f7d54" fill-opacity="0.8" stroke="#fff" stroke-width="1.5">'
+            f'<title>{esc(tip)}</title></circle>'
+            + leader +
+            f'<text x="{lx:.1f}" y="{ly:.1f}" font-size="13.5" '
+            f'fill="#3f4b5e" text-anchor="{anchor}">{esc(p["label"])}</text></g>')
+    parts.append('</svg></div>')
+    return ''.join(parts)
+
+
+def _verdict_chip(dmax: float) -> str:
+    """Черновик зачёта сверки с эталоном (как в score_review):
+    max|Δ| ≤ 0.5 — зачёт, ≤ 1.0 — частично, выше — промах."""
+    if dmax <= 0.5:
+        return '<span class=okmark title="max |Δ| по осям ≤ 0.5">зачёт</span>'
+    if dmax <= 1.0:
+        return '<span class="deadmark burn" title="max |Δ| по осям ≤ 1.0">частично</span>'
+    return '<span class="deadmark fab" title="max |Δ| по осям &gt; 1.0">промах</span>'
+
+
+_FAIL_TEXT = {
+    "fab": "вердикт без чтения файлов (фабрикация)",
+    "integ": "нарушена целостность материалов",
+    "contract": "вердикт не по контракту",
+    "format": "вердикт в чужом формате",
+}
+
+
+def section_results(profiles, refs, runs) -> str:
+    """Раздел 4: сводная таблица 4.1, карты «итог—цена» и «итог—время»
+    (приём этапа 2), затем подраздел 4.4 «Повторяемость»; по-модельные
+    таблицы прогонов — отдельный раздел 5."""
+    summary = results_summary_block(profiles, runs)
+
+    # медианные ресурсы строки рейтинга (текущий контракт) для карт
+    def med(model, thinking):
+        rs = [r for r in runs if r["model"] == model and r["protocol"] == "v2"
+              and r["thinking"] == thinking and r["prompt_version"] == 2
+              and r["duration_s"] and r["tokens"]]
+        if not rs:
+            return None
+        ds = sorted(r["duration_s"] for r in rs)
+        m = len(ds) // 2
+        med_d = ds[m] if len(ds) % 2 else (ds[m - 1] + ds[m]) / 2
+        med_t = sorted(r["tokens"] for r in rs if r["tokens"])
+        mt = len(med_t) // 2
+        med_tok = (med_t[mt] if len(med_t) % 2 else (med_t[mt - 1] + med_t[mt]) / 2) / 1e6
+        return (med_d / 60, med_d / 3600 * LOCAL_RUB_H, med_tok)
+
+    # вертикаль карт — Оценка из таблицы 4.1 (= 1 − итог): выше лучше,
+    # как балл на картах этапа 2; диаметр — подтверждённые замечания
+    # (карта цены) и потреблённые токены (карта скорости)
+    ranked_list, attempted, _ = ranking_entries(profiles, runs)
+    ranked_of = {}
+    for e in ranked_list:
+        s = (RANK_WEIGHTS["prec"] * e["prec"]
+             + RANK_WEIGHTS["caught"] * e["caught"] / REAL_MISSES_TOTAL
+             + RANK_WEIGHTS["arch"] * len(e["arch"]) / len(ARCH_THEMES))
+        confirmed = e["pparts"][0]
+        ranked_of[(e["model"], e["thinking"])] = (s, confirmed, e["pparts"][3])
+
+    map_points = []
+    for model, thinking in sorted({(r["model"], r["thinking"]) for r in runs
+                                   if r["protocol"] == "v2" and r["prompt_version"] == 2}):
+        entry, res = ranked_of.get((model, thinking)), med(model, thinking)
+        if entry is not None and res is not None:
+            c, confirmed, ptot = entry
+            map_points.append({"label": f"{SHORT.get(model, model)} {thinking}",
+                               "y": c, "rub": res[1], "min": res[0], "tok": res[2],
+                               "confirmed": confirmed, "ptot": ptot})
+    max_conf = max((p["confirmed"] for p in map_points), default=0) or 1
+    max_tok = max((p["tok"] for p in map_points), default=0) or 1
+    for p in map_points:
+        p["r_conf"] = 6 + 7.5 * p["confirmed"] / max_conf  # диаметр 6–13.5
+        p["r_tok"] = 6 + 7.5 * p["tok"] / max_tok
+
+    map_price = _scatter_map(
+        [{"x": p["rub"], "y": p["y"], "label": p["label"], "r": p["r_conf"],
+          "xtip": f"₽{p['rub']:.1f} за ревью · подтверждено замечаний: "
+                  f"{p['confirmed']} из {p['ptot']}"} for p in map_points],
+        "₽ за ревью (медиана строки)", lambda v: f"₽{v:.1f}",
+        "Оценка против медианной цены ревью", "дёшево", "дорого")
+    map_speed = _scatter_map(
+        [{"x": p["min"], "y": p["y"], "label": p["label"], "r": p["r_tok"],
+          "xtip": f"{p['min']:.1f} мин на ревью · токенов {p['tok']:.1f}M"} for p in map_points],
+        "минуты на ревью (медиана строки)", lambda v: f"{v:.0f} мин",
+        "Оценка против медианного времени ревью", "быстро", "медленно")
+
+    return f"""
+<h2 id=results><span class=no>4.</span>Результаты моделей</h2>
+{summary}
+<h3><span class=no>4.2.</span>Карта моделей: оценка и цена</h3>
+<p class=lead>Точка — строка рейтинга (модель × уровень мышления, текущий контракт).
+Вертикаль — Оценка из таблицы 4.1 (сноска 6), выше — лучше, как балл на
+картах этапа 2; горизонталь — медианная
+стоимость одного ревью строки. Серый пунктир — порог применимости: Оценка ≥ 0.4,
+модель справилась с ролью ревьюера. Диаметр точки — подтверждённые замечания
+critical/major (шт.): сколько реальных находок ревьюер принёс за серию.</p>
+{map_price}
+<h3><span class=no>4.3.</span>Карта моделей: качество и скорость</h3>
+<p class=lead>Точка — строка рейтинга (модель × уровень мышления, текущий контракт).
+Вертикаль — Оценка из таблицы 4.1 (сноска 6), выше — лучше; горизонталь — медианное
+время одного ревью строки. Серый пунктир — порог применимости: Оценка ≥ 0.4.
+Диаметр точки — потреблённые токены (медиана, М): сколько «раздумий» стоило
+ревью.</p>
+{map_speed}
+{section_stability(profiles)}
+<p class=lead>По-прогонные таблицы каждой модели и состав данных репозитория —
+раздел 5.</p>"""
+
+
+def _per_model_blocks(runs, refs) -> str:
+    """По-модельные таблицы прогонов — раздел 5 (как на этапе 2):
+    h3 на модель, строка таблицы — отдельный изолированный прогон."""
+    model_runs = defaultdict(list)
+    for r in runs:
+        model_runs[r["model"]].append(r)
+    head = ("<tr><th class=narrow>Прогон</th><th class=narrow>Решение</th>"
+            "<th class=narrow>Мышл.</th><th class=narrow>Протокол</th>"
+            "<th class=narrow>A</th><th class=narrow>B</th>"
+            "<th class=narrow title=\"балл ревьюера по контракту, шкала 0–4; "
+            "эталон решения — дробь чекера, см. раздел 3\">F 0–4</th>"
+            "<th class=narrow>ΔA</th><th class=narrow>ΔB</th><th class=narrow>ΔF</th>"
+            "<th class=narrow>Сверка</th><th class=narrow>Дефекты<br>K/M/m</th>"
+            "<th class=narrow>М ток.</th><th class=narrow>Мин</th><th>Примечание</th></tr>")
+    blocks = []
+    for model in MODEL_ORDER:
+        rs = sorted(model_runs.get(model, []), key=lambda r: r["dir"])
+        if not rs:
+            continue
+        rows = []
+        for r in rs:
+            v = r["verdict"] or {}
+            slug = r["slug"]
+            exp = refs.get(slug, {}).get("expected")
+            cells = [f"<td class=narrow>{r['dir']}</td>",
+                     f"<td class=narrow>{SLUG_TITLES.get(slug, slug)}</td>",
+                     f"<td class=narrow>{r['thinking']}</td>"]
+            key = r["protocol"] if r["protocol"] == "v1" else (r["protocol"], r["prompt_version"])
+            cells.append(f"<td class=narrow>{'v1' if r['protocol'] == 'v1' else 'v2·к%d' % r['prompt_version']}</td>")
+            if all(isinstance(v.get(a), (int, float)) for a in AXES):
+                cells += [f"<td class=num>{num(v[a])}</td>" for a in AXES]
+                if exp:
+                    deltas = [v[a] - exp[a] for a in AXES]
+                    cells += [f"<td class='num {delta_class(abs(d))}'>"
+                              f"{f'{d:+.1f}'.replace('+0.0', '0').replace('-0.0', '0')}</td>"
+                              for d in deltas]
+                    cells.append(f"<td class=num>{_verdict_chip(max(abs(d) for d in deltas))}</td>")
+                else:
+                    cells += ["<td class=num>—</td>"] * 4
+            else:
+                cells += ["<td class=num>—</td>"] * 7
+            nd = r.get("defects") or []
+            if v:
+                sev = [sum(1 for d in nd if d.get("severity") == s)
+                       for s in ("critical", "major", "minor")]
+                cells.append(f"<td class=num>{sev[0]}/{sev[1]}/{sev[2]}</td>")
+            else:
+                cells.append("<td class=num>—</td>")
+            cells.append(f"<td class=num>{r['tokens']/1e6:.2f}M</td>" if r["tokens"]
+                         else "<td class=num>—</td>")
+            cells.append(f"<td class=num>{r['duration_s']/60:.1f}</td>" if r["duration_s"]
+                         else "<td class=num>—</td>")
+            if r["valid"] and r.get("parse_ok") is not False:
+                cells.append("<td></td>")
+            else:
+                note = (_FAIL_TEXT.get(r.get("fail_kind"))
+                        or r.get("invalid_reason") or "отбракован")
+                cells.append(f"<td class=sub>{esc(str(note)[:90])}</td>")
+            rows.append("<tr>" + "".join(cells) + "</tr>")
+        params = PARAMS.get(model, ("?", "?"))
+        n_valid = sum(1 for r in rs if r["valid"])
+        waves = defaultdict(int)
+        for r in rs:
+            waves["v1" if r["protocol"] == "v1" else f'v2/к{r["prompt_version"]}'] += 1
+        waves_txt = " · ".join(f"{k} — {n}" for k, n in sorted(waves.items()))
+        blocks.append(f"""
+<h3>{esc(SHORT.get(model, model))}</h3>
+<p class=sub>{esc(model)} · {params[0]} · {params[1]} · прогонов: {len(rs)} (зачётных {n_valid})
+· серии: {waves_txt}</p>
+<table>{head}{''.join(rows)}</table>
+""")
+
+    return f"""
+<p class=lead>Детали по каждой модели: строка таблицы — отдельный изолированный прогон.
+ΔA/ΔB/ΔF — отличие балла прогона от эталона решения (зелёный 0, жёлтый ≤1, красный &gt;1);
+«Сверка» — черновик зачёта по максимальному |Δ|: до 0.5 зачёт, до 1 частично, выше промах.
+«Отбракован» — вердикт не по контракту, данные для конвейера потеряны (справочно, в итог не входит).</p>
+{''.join(blocks)}"""
+
+
+def _hbars_svg(rows: list[tuple[str, float]], vmax: float, title: str) -> str:
+    W, LH = 620, 34
+    H = 30 + LH * len(rows)
+    # атрибуты svg — в кавычках: незакавыченный `opacity=.55/` съедает слеш,
+    # тег не закрывается и глотает остальные строки графика
+    parts = [f'<div class=chartbox><svg width="100%" viewBox="0 0 {W} {H}" '
+             f'role="img" aria-label="{esc(title)}">']
+    parts.append(f'<text x="0" y="16" font-size="12" fill="#66707f">{esc(title)}</text>')
+    for i, (label, v) in enumerate(rows):
+        y = 30 + i * LH
+        w = max(3, (W - 260) * v / vmax)
+        parts.append(f'<text x="0" y="{y+15}" font-size="13" fill="#1d2433">{esc(label)}</text>')
+        parts.append(f'<rect x="230" y="{y+3}" width="{w:.0f}" height="20" rx="5" '
+                     f'fill="#315f9e" opacity="0.55"/>')
+        parts.append(f'<text x="{236+w:.0f}" y="{y+17}" font-size="12.5" font-weight="600" '
+                     f'fill="#1d2433">{v:.2f}</text>')
+    parts.append('</svg></div>')
+    return ''.join(parts)
+
+
+def section_stability(profiles) -> str:
+    multi = defaultdict(int)
+    for key in profiles:
+        multi[key[0]] += 1
+    rows = sorted(((SHORT.get(m, m) + (f" · {pr}/к{pv}" if multi[m] > 1 else ""),
+                    p["spread_mean"])
+                   for (m, pr, _th, pv), p in profiles.items()), key=lambda x: x[1])
+    chart = _hbars_svg(rows, 0.5, "Средний разброс вердикта между прогонами (оси A/B/F вместе), баллов")
+    cards = f"""
+<div class="card g"><b>Трёх прогонов достаточно</b>В среднем по моделям и решениям разброс
+составил 0–0.3 балла, максимум по одной оси — 1 балл. Пример устойчивости: huihui поставила
+«плохому» решению A 2.5 во всех трёх прогонах.</div>
+<div class="card"><b>Стабильный балл не значит правильный</b>gemma4:26b во всех трёх
+прогонах ставит «хорошему» и «каверзному» A 4.0 при эталонах 3.5 и 2.5. Завышение
+устойчиво и видно только при сравнении с эталоном.</div>
+<div class="card w"><b>Прогоны не влияют друг на друга</b>У каждой сессии своя копия
+материалов и свой pi-home; после сессии модель выгружается из памяти сервера. Разброс
+между прогонами — вариативность сэмплирования самой модели.</div>"""
+    return f"""
+<h3 id=stability><span class=no>4.4.</span>Повторяемость</h3>
+<p class=lead>Каждая пара «модель × решение» ревьюилась тремя независимыми прогонами
+(qwen3.8 — один пилотный прогон; у gemma4:26b на «среднем» — два, две сессии не выдали
+ответ). Средний разброс по моделям — на графике ниже; по-прогонные баллы каждой модели —
+в её таблице раздела 5.</p>
+{chart}
+<div class=cards>{cards}</div>"""
+
+
+def section_findings(runs, profiles) -> str:
+    blind = []
+    for model, prof in profiles.items():
+        t = prof["per_slug"].get("tricky")
+        if t:
+            blind.append(f"<b>{SHORT.get(model, model)}</b> — A {runs_cell(t['vals']['axis_a'])} "
+                         f"(эталон 2.5), F {runs_cell(t['vals']['functional'])}")
+    return f"""
+<h2 id=findings><span class=no>6.</span>Что нашли и что пропустили</h2>
+<h3><span class=no>6.1.</span>Дефект, который не нашло ни одно зачётное ревью</h3>
+<p class=lead>На «каверзном» решении отчёты завышают расходы относительно эталонных
+(чекер: 9 из 11 обязательных сценариев). Причина, установленная при разборе: оф-пиковая
+скидка не записывается при первом импорте провайдера — вызов setOffPeak() стоит только в
+ветке обновления существующего провайдера, а проверка стартует с пустой базы. События не
+получают скидку 0.5, и стоимости завышены ровно на снятые скидки. Пример расчёта из
+TASK.md при самопроверке у автора сходился: импорт выполнялся дважды, и второй запуск
+проходил по ветке обновления, где скидка записывается. Проверка импортирует цены один раз.</p>
+<p class=lead>Баллы ревьюеров по оси A: {'; '.join(blind)}. Судья яруса 4, которому не
+выдали результаты проверки, поставил этому решению A 4.0. Причину нашёл только судья
+яруса 3, который располагал данными чекера. Урок для следующих этапов: дефект в путях
+записи данных («первая запись против обновления») по коду функции не виден — он виден
+только при сопоставлении с независимым расчётом. Такой расчёт доступен и ревьюеру —
+запуском приёмки из TASK.md; в этой серии запуск исключён протоколом (раздел 2,
+«Ограничение серии»), поэтому ожидать этого находа от статического ревью было нельзя.
+Показательно исключение: orca (прежний контракт, вердикт не в формате) назвала механизм
+в сыром тексте — чтением кода импорта, без запуска (раздел 8.2). Крупная модель с
+пошаговым рассуждением может находить и такие дефекты — вопрос полноты просмотра
+жизненного цикла записи, а не принципиальная граница метода.</p>
+<h3><span class=no>6.2.</span>Ревью нашло ошибку в эталоне</h3>
+<p class=lead>В эталоне «плохого» решения (вердикт яруса 3) значился дефект «усечение
+вместо HALF_UP». Ревью qwen пересчитало пример из задания и заявило, что округление
+работает. Проверка на php 8.5 подтвердила ревью:
+<code>bcadd('14.26249875','0.0000005',6)</code> возвращает '14.262499' — операнды не
+усекаются, округление HALF_UP выполняется. Настоящие причины неверных отчётов:
+оф-пиковая скидка не записывается при первом импорте (оба решения с падающими отчётами —
+один и тот же класс ошибки) и bcadd без указания масштаба в накоплении, из-за которого
+сумма усекается до целых (только «плохое»; сценарий h02: 3.312495 против эталонных
+3.312496). Эталон-карточки исправлены, изменения записаны в changelog карточек;
+эталонные баллы не менялись.</p>
+<h3><span class=no>6.3.</span>Ошибочный вывод из типа параметра</h3>
+<p class=lead>Единственный крупный промах по баллам: на «среднем» решении qwen поставила
+F 2.5 при эталоне 4.0, назвав критическим вызов $output-&gt;getErrorOutput() — у
+OutputInterface такого метода нет. Наблюдение о типе верное, вывод о неработающем коде
+неверный: Symfony передаёт в команду ConsoleOutput, у которого метод есть. Решение
+работало — чекер этого решения прошёл 11 из 11 сценариев. Урок записан для будущей
+серии ревью (новая версия контракта): промпт текущей серии заморожен правилом из
+REVIEWER.md — менять его задним числом нельзя, сравнимость прогонов важнее
+точечных уточнений.</p>
+<h3><span class=no>6.4.</span>Что ревьюеры нашли, кроме баллов</h3>
+<p class=lead>Сессии с самой полной проверкой: qwen на «хорошем» решении пересчитала
+пример из задания, сверила счётчик тестов phpunit с заявкой в PR_DESCRIPTION, опровергла
+показатель LCOM4 из метрик («артефакт value-объектов») и нашла фактическую ошибку в
+PR_DESCRIPTION — ссылку на несуществующий файл expected_report.csv; huihui и gemma4:31b
+независимо указали на несоответствие формата cost_usd и на отладочный мусор в диффе.
+Полные списки дефектов с серьёзностью — в review.json каждого прогона (раздел 5).</p>"""
+
+
+def section_notdone(profiles, refs, runs) -> str:
+    """Функциональная проверка: перечни not_done моделей против фактов чекера."""
+    # семьи требований по ключевым словам перечня
+    def family(req: str) -> str:
+        r = req.lower()
+        if "миграц" in r or "чистой базе" in r or "чистая база" in r or "схема бд" in r:
+            return "схема БД из миграций"
+        if "commit_message" in r or "pr_description" in r or "артефакт" in r:
+            return "артефакты (COMMIT_MESSAGE/PR_DESCRIPTION)"
+        if "unrated" in r and ("stderr" in r or "строк" in r or "sboй" in r or "сбой" in r):
+            return "unrated-строки в stderr"
+        if "geterroroutput" in r:
+            return "unrated-строки в stderr"
+        if "reprice" in r or "ретро" in r:
+            return "бонус reprice"
+        if "округл" in r or "half_up" in r or "bcadd" in r or "точность вычислений" in r or "промежуточные вычисления" in r:
+            return "округление и точность денег"
+        if "дедупл" in r or "повторная доставка" in r or "идемпотентность" in r:
+            return "дедупликация приёма"
+        if "оф-пик" in r or "off_peak" in r or "скидк" in r:
+            return "оф-пиковая скидка"
+        if "сортиров" in r:
+            return "сортировка отчёта"
+        if "6 знаков" in r or "cost_usd" in r or "формат" in r and "отч" in r:
+            return "формат отчёта"
+        if "cache" in r or "кеш" in r or "кэш" in r:
+            return "cache-цены"
+        return "прочее"
+
+    # вердикты сверки: (семья) -> (итог, пояснение) — присвоены по результатам
+    # анализа: факты чекера + рантайм-разбор (см. раздел 6)
+    VERDICTS = {
+        "good": {
+            "схема БД из миграций": ("не подтверждено", "чекер прошёл все сценарии (11/11)"),
+            "unrated-строки в stderr": ("не подтверждено", "чекер сверил строки stderr и принял"),
+        },
+        "mid": {
+            "схема БД из миграций": ("не подтверждено", "чекер прошёл: принял альтернативный способ schema_update, разрешённый заданием"),
+            "unrated-строки в stderr": ("ложное", "рантайм работает: Symfony передаёт ConsoleOutput, у которого метод есть"),
+            "бонус reprice": ("подтверждено частично", "бонус действительно не реализован, но он не входит в обязательные"),
+            "дедупликация приёма": ("не подтверждено", "сценарий дубликатов чекером пройден"),
+            "сортировка отчёта": ("не подтверждено", "отчёты чекером приняты"),
+            "формат отчёта": ("не подтверждено", "отчёты чекером приняты"),
+        },
+        "tricky": {
+            "округление и точность денег": ("не подтверждено", "формула воспроизводит пример из задания; причина падений — оф-пик"),
+            "формат отчёта": ("не подтверждено", "сценарий с пустым отчётом в чекере отсутствует"),
+            "схема БД из миграций": ("не подтверждено", "чекер прошёл схему (fallback schema_update не при чём — суммы завышены оф-пиком)"),
+            "unrated-строки в stderr": ("не подтверждено", "unrated-сценарий чекером пройден"),
+        },
+        "bad": {
+            "артефакты (COMMIT_MESSAGE/PR_DESCRIPTION)": ("подтверждено", "сценарий artifacts_present упал: файлов нет"),
+            "схема БД из миграций": ("подтверждено как факт", "миграций действительно нет; чекер прошёл через fallback schema_update"),
+            "оф-пиковая скидка": ("подтверждено", "верифицированная причина завышенных отчётов (раздел 6)"),
+            "округление и точность денег": ("подтверждено", "рантайм-трассировка h02: bcadd без масштаба усёк накопление"),
+            "дедупликация приёма": ("не подтверждено как причина", "base и duplicates упали одинаково — падение в оф-пике"),
+            "unrated-строки в stderr": ("ложное", "рантайм работает: у ConsoleOutput метод есть"),
+            "бонус reprice": ("не подтверждено", "бонус не входит в обязательные — отсутствие не влияло на чекер"),
+        },
+    }
+
+    # агрегация перечней: только текущий контракт (v2 + prompt 2)
+    items = defaultdict(lambda: defaultdict(int))
+    examples = defaultdict(list)
+    sessions = defaultdict(int)
+    for rp in sorted((ROOT / "models").glob("*/backend/code-review/run-*/review.json")):
+        rj = rp.with_name("run.json")
+        if not rj.is_file():
+            continue
+        meta = json.loads(rj.read_text(encoding="utf-8"))
+        if not meta.get("parse_ok") or meta.get("protocol") != "v2" \
+                or meta.get("prompt_version") != 2:
+            continue
+        slug = meta.get("solution_slug")
+        sessions[slug] += 1
+        v = json.loads(rp.read_text(encoding="utf-8"))
+        for nd in v.get("not_done", []):
+            fam = family(nd.get("req", "") or nd.get("desc", ""))
+            state = nd.get("state", "?")
+            key = (fam, state)
+            items[slug][key] += 1
+            if len(examples[(slug, key)]) < 1:
+                examples[(slug, key)].append(
+                    f"{SHORT.get(meta.get('model'), meta.get('model'))}/{meta.get('thinking')}: "
+                    f"{(nd.get('desc') or '')[:90]}")
+
+    blocks = []
+    checker_facts = {
+        "good": "чекер: 11/11 обязательных + 2/2 бонус — всё принято",
+        "mid": "чекер: 11/11 обязательных, бонус 0/2 (не делало)",
+        "tricky": "чекер: 9/11 — отчёты завышены (оф-пик теряется при первом импорте провайдера), бонус не работает",
+        "bad": "чекер: 8/11 — отчёты завышены (та же причина), артефакты отсутствуют",
+    }
+    recall_note = {
+        "good": "перечни почти пусты — корректно, решение полное; два указанных «нарушения» чекером не подтверждены",
+        "mid": "перечни о миграциях строже чекера: чекер принял альтернативный способ развёртывания, ревьюеры требовали штатный; ложных срабатываний по рантайму — одно (getErrorOutput)",
+        "tricky": "в зачётных сессиях текущего контракта механизм оф-пика при первом импорте не назвал никто — слепой проб статического ревьюа (раздел 6); единственное исключение всей серии — orca (прежний контракт, вне рейтинга): механизм назван в сыром тексте run-08 (раздел 8.2); упоминания оф-пика зачётными моделями (huihui max, qwen low) — другой дефект той же области (таймзона hydration OffPeak::applies)",
+        "bad": "артефакты и пустые миграции названы почти всеми (это пропуски-файлы, видимые без анализа логики); реальные механизмы двух логических дефектов названы только huihui: оф-пик при первом импорте (новый Provider без off-peak-полей, updateProvider только в else-ветке) — на low, bcadd накопления без масштаба — на max; у остальных моделей упоминания «оф-пик»/«округление» — другие дефекты той же области (пустое окно, таймзона, отрицательные суммы, debug-файл)",
+    }
+    for slug in SLUG_ORDER:
+        rows = []
+        fam_items = items.get(slug, {})
+        for (fam, state), n in sorted(fam_items.items(), key=lambda x: -x[1]):
+            verdict, comment = VERDICTS.get(slug, {}).get(
+                fam, ("не подтверждено", "чекер соответствующий сценарий не проверял или принял"))
+            vcls = {"подтверждено": "okmark", "подтверждено как факт": "okmark",
+                    "подтверждено частично": "okmark"}.get(verdict, "")
+            if verdict == "ложное":
+                vcls = "deadmark fab"
+            rows.append(
+                f"<tr{' class=neg' if verdict == 'ложное' else ''}>"
+                f"<td>{esc(fam)}<div class=sub>{esc(comment)}</div></td>"
+                f"<td class=num>{state}</td><td class=num>{n}</td>"
+                f"<td><span class='{vcls or 'okmark'}' title='сверка с фактами чекера и рантаймом'>{verdict}</span></td></tr>")
+        if not rows:
+            rows.append("<tr><td colspan=4 class=num>перечни not_done пусты во всех сессиях</td></tr>")
+        blocks.append(f"""
+<h3><span class=no>7.{SLUG_ORDER.index(slug)+1}.</span>{SLUG_TITLES[slug]} — {checker_facts[slug]}</h3>
+<p class=sub>{recall_note[slug]}. Сессий с вердиктом: {sessions.get(slug, 0)}.</p>
+<table>
+<tr><th>Требование TASK.md</th><th class=narrow>Состояние по модели</th>
+<th class=narrow>Сессий</th><th>Сверка с чекером</th></tr>
+{''.join(rows)}
+</table>""")
+
+    return f"""
+<h2 id=notdone><span class=no>7.</span>Функциональная проверка: not_done против чекера</h2>
+<p class=lead>Контракт ревью требует перечислить, <b>что не сделано</b> (поле
+not_done: требование из TASK.md, состояние, детали) — балл F объявляется
+производной этого перечня. Ниже — агрегированные перечни всех зачётных сессий
+текущего контракта по каждому решению, сверенные с фактами чекера. Вердикты
+сверки присвоены по результатам анализа (факты чекера + рантайм-разбор
+раздела 6), это ручная разметка, не автоматическая.</p>
+{''.join(blocks)}
+<p class=sub>Итог по полноте (зачёт — только упоминание реального механизма,
+см. 4.1): уверенно ловятся пропуски-файлы — артефакты и пустые миграции
+(названы почти всеми моделями и уровнями). Логические дефекты почти никто
+не назвал: механизм потери оф-пика при первом импорте назван один раз за всю
+серию (huihui, low, на «плохом»), механизм bcadd без масштаба — один раз
+(huihui, max, на «плохом»); на «каверзном» не назван ни разу зачётным ревьюером —
+дефект сидит в данных, а не в видимой логике. Единственный, кто назвал его за серию,
+— orca вне формата вердикта (8.2). Упоминания тех же семей без механизма
+(таймзона, пустое окно, отрицательные суммы, debug-файл) зачёту не подлежат —
+это совпадение области, а не находка дефекта.</p>"""
+
+
+
+
+
+def _def_cluster(slug: str, file: str, text: str) -> str:
+    """Тема замечания critical/major: файл + ключевые слова описания."""
+    f = (file or "").lower()
+    t = (text or "").lower()
+    if slug == "bad":
+        if "billingratingservice" in f:
+            return "bcadd без масштаба"
+        if "priceimportservice" in f:
+            return "оф-пик при первом импорте"
+        if "usageimportservice" in f:
+            return "дедупликация внутри одного файла"
+        if "миграц" in t or "makefile" in f or ".gitkeep" in f:
+            return "миграции отсутствуют"
+        if ("commit" in f or "pr_description" in f or "артефакт" in t
+                or "корень" in f or "root" in f or not f):
+            return "артефакты COMMIT/PR отсутствуют"
+        return "getErrorOutput → фатал на unrated"
+    if slug == "mid":
+        if "дедупл" in t or "findoneby" in t or "дубл" in t:
+            return "дедупликация внутри одного файла"
+        if "доменн" in t or "логика тарификации" in t:
+            return "доменная логика в команде"
+        if "geterroroutput" in t or "geterroroutput" in f:
+            return "getErrorOutput → фатал на unrated"
+        if "version2026" in f or "миграц" in t:
+            return "diff-миграции без CREATE TABLE"
+        if "float" in t:
+            return "float в totalCost"
+        return "прочее"
+    if slug == "good":
+        if "reprice" in f:
+            return "ключ 0 у новых строк бонуса"
+        return "guard платформы миграции"
+    return "формат ts при вставке"
+
+
+# вердикты сверки замечаний: код решений + факты чекера + расследования раздела 6
+_DEF_VERDICTS = {
+    "bad": {
+        "миграции отсутствуют": ("подтверждено",
+            "рабочего способа развёртывания схемы в решении нет: каталог миграций пуст, make migrate — no-op; чекер развернул схему своим fallback-механизмом"),
+        "артефакты COMMIT/PR отсутствуют": ("подтверждено",
+            "файлов нет в дереве решения; сценарий artifacts_present чекера упал"),
+        "bcadd без масштаба": ("подтверждено",
+            "BillingRatingService:70–73 — слагаемые усекаются до целых; сценарий h02: 3.312495 против эталонных 3.312496"),
+        "оф-пик при первом импорте": ("подтверждено",
+            "верифицированный механизм (раздел 6): новый Provider создаётся без off-peak-полей"),
+        "дедупликация внутри одного файла": ("подтверждено",
+            "код: findOneBy в цикле, flush один в конце — дубль внутри файла ловит unique-индекс вместо тихого skip; сценарий чекера кросс-файловый и этого пути не задевал"),
+        "getErrorOutput → фатал на unrated": ("опровергнуто",
+            "Symfony передаёт в команду ConsoleOutput, у которого метод есть; unrated-сценарий чекера на решении пройден"),
+    },
+    "mid": {
+        "дедупликация внутри одного файла": ("подтверждено",
+            "тот же паттерн (findOneBy в цикле, flush в конце); сценарий чекера кросс-файловый — на приёмку не влияло"),
+        "доменная логика в команде": ("подтверждено",
+            "архитектурное наблюдение верно; соответствует эталону A 2.5 («среднее» — архитектурно слабое)"),
+        "getErrorOutput → фатал на unrated": ("опровергнуто",
+            "рантайм работает (Symfony передаёт ConsoleOutput); чекер прошёл 11/11"),
+        "diff-миграции без CREATE TABLE": ("серьёзность завышена",
+            "факт верен: миграции — diff по существующей схеме; но чекер развернул схему альтернативным, разрешённым заданием способом"),
+        "float в totalCost": ("серьёзность завышена",
+            "float-каст есть, но строка мёртвая: тут же перезаписывается bc-форматированием; потери точности итога нет"),
+    },
+    "good": {
+        "ключ 0 у новых строк бонуса": ("серьёзность завышена",
+            "паттерн кода верен, но последствий нет: бонус reprice работает — чекер 2/2; коллизия ключей не проявляется"),
+        "guard платформы миграции": ("опровергнуто",
+            "приёмка чекера на PostgreSQL 17 прошла, миграция выполнилась; заявленного класса PostgreSQL170Platform в зафиксированном DBAL нет"),
+    },
+    "tricky": {
+        "формат ts при вставке": ("опровергнуто",
+            "импорт чекера прошёл; сама модель пометила замечание как «вероятно» и рантайм не проверяла"),
+    },
+}
+_VERDICT_CLS = {"подтверждено": "okmark", "серьёзность завышена": "deadmark burn",
+                "опровергнуто": "deadmark fab"}
+
+# orca: вердикты не в заданном формате, содержание размечено вручную по сырым
+# текстам review.md (все 48 прогонов, 2026-11-02): замечания извлечены из её
+# собственного JSON (ключ issues/findings; полный разбор дали 26 прогонов) и
+# сверены с теми же фактами решений, что и выше. Примеры завышенных: «миграции
+# среднего — схема не разворачивается» (чекер принял разрешённую альтернативу);
+# опровергнутых: «unrated-ветвь бросает Error» (рантайм работает). Ключевой
+# наход: run-08 (каверзное, max) — единственный за серию названный механизм
+# оф-пика при первом импорте. (подтверждено, завышена, опровергнуто) на уровень.
+ORCA_TRIAGE = {"max": (28, 2, 0), "low": (7, 2, 0), "medium": (6, 1, 2)}
+# полнота orca по сырым текстам (из 5 реальных пропусков): max — оф-пик
+# «каверзного» (run-08) + миграции и артефакты «плохого»; medium — миграции
+# и артефакты «плохого»; low — 0: её прогоны на bad/tricky дали обрывы JSON
+ORCA_CAUGHT = {"max": 3, "low": 0, "medium": 2}
+
+# Архитектурные и качественные замечания против инструментов этапа 2
+# (метрики этапа 2: phpstan/phpmd/phpcs/psalm/phpunit/AST — metrics-raw
+# каждого решения; файловые проверки — grep по solution). Верификация 2026-11-02.
+# (тема, где заявлено, инструмент, факт, вердикт)
+ARCH_ORACLE = [
+    ("buildCsv ~98 строк / execute() 91–94 — ExcessiveMethodLength",
+     "qwen, huihui, gemma31, orca",
+     "phpmd-raw", "good: buildCsv 98; mid: execute 94; bad: execute 91 — все в phpmd",
+     "подтверждено"),
+    ("TOKEN_COLS объявлена и не используется", "qwen, huihui, orca",
+     "phpstan-raw (tricky)", "TOKEN_COLS в первой ошибке phpstan", "подтверждено"),
+    ("findPriceForEvent(): ?object — phpstan undefined method getUnit/getRate*",
+     "qwen, gemma31, orca", "phpstan-raw (mid)",
+     "5 ошибок 'on object', getUnit в сообщениях", "подтверждено"),
+    ("Тестов нет", "qwen, huihui, gemma31, orca", "phpunit",
+     "bad и mid: tests=0, coverage нет", "подтверждено"),
+    ("Покрытие 26.4% (good) / 9.4% (tricky)", "orca, qwen", "phpunit coverage",
+     "26.39 и 9.37 — совпадает", "подтверждено"),
+    ("Шум статанализа: phpstan 49 (good/tricky), 24 (mid), 19 (bad)",
+     "все модели", "metrics.json", "числа совпадают точно", "подтверждено"),
+    ("Нет declare(strict_types=1)", "orca (mid)", "grep по src/",
+     "mid: 8 из 9 файлов без declare (в остальных решениях — во всех)", "подтверждено"),
+    ("CSV собирается без экранирования полей", "qwen, orca", "grep fputcsv по src/",
+     "fputcsv нет ни в одном решении — sprintf-конкатенация", "подтверждено"),
+    ("N+1: запрос цены и провайдера на каждое событие", "qwen, orca",
+     "код rate-команд", "DQL findOneBy в цикле по событиям", "подтверждено"),
+    ("Доменная логика живёт в Command, доменного слоя нет", "qwen, orca",
+     "структура src/ + AST", "mid: wmc_worst = BillingRateCommand, src/Domain нет",
+     "подтверждено"),
+    ("Комментарий «bccomp в этой сборке сломан» неверен", "qwen, orca",
+     "рантайм php 8.5 (раздел 6.2)", "bccomp работает; isZero корректен, но обоснование ложно",
+     "подтверждено"),
+]
+
+# Темы архитектурно-качественного ревью (совпадают с 8.3) — покрытие считаем
+# по всем замечаниям, включая minor; у orca — по сырым текстам review.md.
+ARCH_THEMES = [
+    ("длинный метод",  r"excessivemethodlength|buildcsv|9[148] строк"),
+    ("TOKEN_COLS",     r"token_cols"),
+    ("типизация object", r"\?object|object \$price|undefined method.*object|getunit\(\)"),
+    ("тесты нет",      r"тест.{0,30}(отсутств|нет|0 )|0 тест|no tests|tests/ (пуст|только)"),
+    ("покрытие %",     r"покрыт|coverage"),
+    ("статанализ",     r"phpstan|psalm|phpmd|phpcs"),
+    ("strict_types",   r"strict_types"),
+    ("CSV-экран",      r"csv.{0,40}(экран|запят|quote|escap)|экранирован"),
+    ("N+1",            r"n\+1"),
+    ("домен в командах", r"доменн|анемичн|domain layer|доменного слоя|в команд"),
+    ("bccomp-комментарий", r"bccomp.{0,80}(сломан|не подтвержд|необоснован|сомнител)|(не подтвержд|необоснован|сомнител).{0,80}bccomp"),
+]
+_ARCH_RX = [(n, re.compile(p, re.I)) for n, p in ARCH_THEMES]
+
+# Веса долей в итог-ранжировании 4.1 («Оценка» = 0.4·Точность + 0.4·Поймано
+# + 0.2·Архитектура). Функциональные две доли — ядро роли ревьюера (проверка
+# поведения решения); арх. покрытие — третье плечо с оговоркой 8.3 (часть
+# числовых тем — пересказ выданного metrics.json), поэтому его вес — 0.2,
+# а спасать из красной зоны «не применима» оно не может (правило красной
+# строки в results_summary_block — по Точность + Поймано).
+RANK_WEIGHTS = {"prec": 0.4, "caught": 0.4, "arch": 0.2}
+
+
+def arch_coverage(runs) -> dict:
+    """(model, thinking) -> множество названных архитектурно-качественных тем."""
+    res = defaultdict(set)
+    for r in runs:
+        if r["protocol"] != "v2" or not r["valid"] or r.get("parse_ok") is False:
+            continue
+        v = r.get("verdict")
+        if not v:
+            continue
+        import json as _json
+        rp = MODELS / r["path"] / "review.json"
+        full = _json.loads(rp.read_text(encoding="utf-8")) if rp.is_file() else {}
+        joined = " || ".join(_json.dumps(d, ensure_ascii=False)
+                             for d in full.get("defects", [])) \
+            + " || " + str(full.get("note", ""))
+        for name, rx in _ARCH_RX:
+            if rx.search(joined, re.I):
+                res[(r["model"], r["thinking"])].add(name)
+    for rp in sorted((MODELS).glob("orcarouter-*/backend/code-review/run-*/review.md")):
+        meta = json.loads(rp.with_name("run.json").read_text(encoding="utf-8"))
+        txt = rp.read_text(encoding="utf-8")
+        for name, rx in _ARCH_RX:
+            if rx.search(txt, re.I):
+                res[(meta["model"], meta["thinking"])].add(name)
+    return res
+
+
+
+def defect_precision(runs) -> dict:
+    """Точность замечаний critical/major зачётных прогонов текущего
+    контракта: (model, thinking) -> [подтверждено, серьёзность завышена,
+    опровергнуто] — по вердиктам судьи-оценщика (_DEF_VERDICTS)."""
+    cnt = defaultdict(lambda: [0, 0, 0])
+    for r in runs:
+        if r["protocol"] != "v2" or r["prompt_version"] != 2 \
+                or not r["valid"] or r.get("parse_ok") is False:
+            continue
+        for d in r.get("defects") or []:
+            if d.get("severity") not in ("critical", "major"):
+                continue
+            cl = _def_cluster(r["slug"], d.get("file", ""), d.get("desc", ""))
+            v = _DEF_VERDICTS.get(r["slug"], {}).get(cl)
+            if v:
+                cnt[(r["model"], r["thinking"])]\
+                    [{"подтверждено": 0, "серьёзность завышена": 1,
+                      "опровергнуто": 2}[v[0]]] += 1
+    return cnt
+
+
+def section_precision(runs) -> str:
+    """Раздел 8: сверка замечаний (defects critical/major) с кодом решений
+    и фактами чекера — точность ревью, дополнение recall раздела 6."""
+    per = defaultdict(int)              # (slug, cluster) -> замечаний
+    who = defaultdict(set)              # (slug, cluster) -> модели
+    for r in runs:
+        if r["protocol"] != "v2" or r["prompt_version"] != 2 \
+                or not r["valid"] or r.get("parse_ok") is False:
+            continue
+        for d in r.get("defects") or []:
+            if d.get("severity") not in ("critical", "major"):
+                continue
+            slug = r["slug"]
+            cl = _def_cluster(slug, d.get("file", ""), d.get("desc", ""))
+            per[(slug, cl)] += 1
+            who[(slug, cl)].add(SHORT.get(r["model"], r["model"]))
+    rows_cnt = defect_precision(runs)
+    rows = []
+    unmapped = 0
+    for slug in SLUG_ORDER:
+        cls = [(k, n) for (s, k), n in per.items() if s == slug]
+        for cl, n in sorted(cls, key=lambda x: -x[1]):
+            verdict, comment = _DEF_VERDICTS.get(slug, {}).get(cl, ("не размечено", ""))
+            if verdict == "не размечено":
+                unmapped += n
+            rows.append(
+                f"<tr{' class=neg' if verdict == 'опровергнуто' else ''}>"
+                f"<td><b>{SLUG_TITLES[slug]}</b></td><td>{esc(cl)}</td>"
+                f"<td class=num>{n}</td>"
+                f"<td class=sub>{esc(', '.join(sorted(who[(slug, cl)])))}</td>"
+                f"<td><span class='{_VERDICT_CLS.get(verdict, 'deadmark burn')}'>{verdict}</span></td>"
+                f"<td class=sub>{esc(comment)}</td></tr>")
+    pres = []
+    for (model, th), (c, z, o) in rows_cnt.items():
+        pres.append((model, th, c, z, o, c + z + o))
+    pres.sort(key=lambda e: (-(e[2] / e[5] if e[5] else 0), -e[5]))
+    prow = []
+    for model, th, c, z, o, tot in pres:
+        prc = c / tot if tot else 0
+        prow.append(
+            f"<tr><td><b>{esc(SHORT.get(model, model))}</b>"
+            f"<div class=sub>thinking {th}</div></td>"
+            f"<td class=num>{tot}</td><td class=num>{c}</td>"
+            f"<td class=num>{z}</td><td class='num {delta_class(o)}'>{o}</td>"
+            f"<td class=num><b>{_frac(prc)}</b></td></tr>")
+    n_all = sum(e[5] for e in pres)
+    n_c, n_z, n_o = (sum(e[i] for e in pres) for i in (2, 3, 4))
+    note_unmapped = (f" Не размечено вручную: {unmapped} замечаний тем, не покрытых"
+                     f" таблицей — сверить отдельно." if unmapped else "")
+    return f"""
+<h2 id=precision><span class=no>8.</span>Качество замечаний: точность против кода и чекера</h2>
+<p class=lead>Ревью ценно не баллами, а замечаниями. Все замечания серьёзностей
+critical и major зачётных прогонов текущего контракта ({n_all} штук) сгруппированы по
+теме и прогнаны через судью-оценщика (раздел 2): судья яруса 3 — проект,
+метрики, данные чекера — плюс рантайм-верификация скриптами (php 8.5,
+docker psql). В этой серии прогон выполнен вручную, методика закреплена
+в REVIEWER.md; в сводке не только полнота (7), но и точность замечаний. Три исхода: <b>подтверждено</b> — факт и заявленные
+последствия верны; <b>серьёзность завышена</b> — наблюдение о коде верно, заявленных
+последствий нет; <b>опровергнуто</b> — заявленный дефект не работает. Мелкие (minor)
+не размечались: это стилистика и предупреждения статанализаторов.{note_unmapped}</p>
+<table>
+<tr><th class=narrow>Решение</th><th>Тема замечания</th><th class=narrow>Сессий</th>
+<th>Кто называл</th><th class=narrow>Вердикт</th><th>Комментарий</th></tr>
+{''.join(rows)}
+</table>
+<h3><span class=no>8.1.</span>Точность по строкам рейтинга</h3>
+<p class=lead>Итог по серии: подтверждено {n_c}, серьёзность завышена {n_z},
+опровергнуто {n_o}. Точность = подтверждённые / все critical+major замечания строки.
+Точность входит в итог 4.1 компонентом «неточность» (1 − точность);
+согласие с судьёй |Δ| — вне итога, как второстепенный сигнал.</p>
+<table>
+<tr><th>Модель × мышление</th><th class=narrow>Замечаний</th><th class=narrow>Подтв.</th>
+<th class=narrow>Завышена</th><th class=narrow>Опроверг.</th><th class=narrow>Точность</th></tr>
+{''.join(prow)}
+</table>
+<h3><span class=no>8.2.</span>orca: содержание без формата</h3>
+<p class=lead>orca во всех 48 прогонах не выдала вердикт в заданном формате и в
+конвейер верификации не попала — но её разборы сохранились в сыром виде
+(review.md). Все 48 текстов размечены вручную той же схемой: замечания извлечены
+из её собственного JSON (ключ issues/findings; полный разбор дали 26 прогонов,
+остальные — обрывы JSON), каждое сверено с кодом решения и фактами чекера, как
+выше. <b>Результат: orca — самый точный замечатель серии.</b> На max ни одного
+опровергнутого замечания; типичная неточность — завышенный вес миграций
+«среднего» решения, как у большинства моделей. И главное: <b>run-08 (каверзное,
+max) — единственный за всю серию названный механизм оф-пика</b>: «оф-пик не
+сохраняется для NEW-провайдера, setOffPeak() только в update-ветке» — дословно
+верифицированная причина из раздела 6, которую не назвал ни один зачётный
+ревьюер. Оценка вне контракта: валидного вердикта у orca нет, поэтому в 4.1 её
+оценка считается из этих чисел — неточность, неполнота и арх. покрытие
+из её разборов (формат в оценку не входит): orca max — 1-е место,
+medium — 2-е (11 из 11 арх. тем), low — 8-е. Полнота: max — 3 из 5 (оф-пик, миграции, артефакты), medium — 2 из 5,
+low — 0 (её прогоны на bad/tricky дали обрывы JSON вместо разборов).</p>
+<table>
+<tr><th>Модель × мышление</th><th class=narrow>Размечено</th><th class=narrow>Подтв.</th>
+<th class=narrow>Завышена</th><th class=narrow>Опроверг.</th><th class=narrow>Точность</th></tr>
+{''.join(f"<tr><td><b>orca</b><div class=sub>thinking {th}</div></td>"
+         f"<td class=num>{c + z + o}</td><td class=num>{c}</td>"
+         f"<td class=num>{z}</td><td class='num {delta_class(o)}'>{o}</td>"
+         f"<td class=num><b>{_frac(c / (c + z + o))}</b></td></tr>"
+         for th, (c, z, o) in ORCA_TRIAGE.items())}
+</table>
+<p class=sub>Разметка ручная, зафиксирована в коде отчёта (ORCA_TRIAGE); метод и
+примеры — в комментарии к ней.</p>
+<h3><span class=no>8.3.</span>Архитектурные и качественные замечания против инструментов</h3>
+<p class=lead>Архитектурно-качественные замечания тоже проверяемы фактами:
+их сверяют те же инструменты этапа 2, чьи данные лежат в metrics.json
+каждого решения (phpstan, phpmd, phpcs, psalm, phpunit, AST-метрики),
+плюс файловые проверки по решению. Каждая уникальная тема такого рода
+из всех разобранных замечаний (включая minor) сверена с фактом:</p>
+<table>
+<tr><th>Замечание (тема)</th><th>Кто заявлял</th><th class=narrow>Инструмент</th>
+<th>Факт</th><th class=narrow>Вердикт</th></tr>
+{''.join(
+    f"<tr><td>{esc(t)}</td><td class=sub>{esc(w)}</td>"
+    f"<td class=sub>{esc(o)}</td><td class=sub>{esc(f)}</td>"
+    f"<td><span class='{_VERDICT_CLS[v]}'>{v}</span></td></tr>"
+    for t, w, o, f, v in ARCH_ORACLE)}
+</table>
+<p class=sub>{len(ARCH_ORACLE)} тем из {len(ARCH_ORACLE)} подтверждены инструментами и кодом;
+опровергнутых нет. Две оговорки. Числовые темы (счётчики phpstan, покрытие,
+длина метода) модели частично пересказывали из выданного им metrics.json —
+сверка подтверждает соответствие фактам, но не самостоятельность находки;
+зато предметные (мёртвая строка, отсутствие fputcsv, strict_types, N+1) —
+результат собственного чтения кода. И верифицированность темы не равна её
+важности: подтверждённое «нет strict_types» — это гигиена, а не дефект
+обязательного поведения.</p>"""
+
+
+def section_validity(runs, profiles) -> str:
+    total = len(runs)
+    valid = sum(1 for r in runs if r["valid"])
+    by_kind = defaultdict(list)
+    for r in runs:
+        if not r["valid"]:
+            by_kind[r.get("fail_kind", "?")].append(r)
+    rows = []
+    kind_desc = {
+        "fab": ("fab", "Ревью без чтения", "Вердикт составлен, но ни один файл не открыт (e2b, пилот)"),
+        "contract": ("contract", "Формат не соблюдён", "Файлы читались, вердикт выдан в собственном формате (orca)"),
+        "burn": ("burn", "Ответ не получен", "Бюджет выхода израсходован на размышления, текста нет (gemma4:26b)"),
+        "integ": ("integ", "Целостность нарушена", "Рабочая копия изменена — прогон отбраковывается"),
+    }
+    for kind, (cls, title, desc) in kind_desc.items():
+        rs = by_kind.get(kind, [])
+        if not rs:
+            continue
+        models = defaultdict(int)
+        for r in rs:
+            models[SHORT.get(r["model"], r["model"])] += 1
+        mm = ", ".join(f"{k} ×{v}" for k, v in sorted(models.items()))
+        rows.append(f"<tr class=neg><td><span class='deadmark {cls}'>{title}</span></td>"
+                    f"<td class=num>{len(rs)}</td><td>{mm}</td><td>{desc}</td></tr>")
+    orca_n = sum(1 for r in runs if r["model"] == "orcarouter/Qwen3.8-27B-Uncensored:ctx100k")
+    burn_n = len(by_kind.get("burn", []))
+    return f"""
+<h2 id=validity><span class=no>9.</span>Валидность прогонов</h2>
+<p class=lead>Из <b>{total}</b> прогонов зачётных <b>{valid}</b>. Три автоматические
+проверки отбраковывают негодные прогоны: целостность рабочей копии (хэш-суммы до и
+после), факт чтения файлов (хотя бы одно обращение), вердикт в заданном формате JSON.
+Целостность не была нарушена ни в одном прогоне: инструмент чтения не даёт изменять
+файлы.</p>
+<table>
+<tr><th>Причина отбраковки</th><th class=narrow>Прогонов</th><th>Модели</th><th>Что произошло</th></tr>
+{''.join(rows)}
+</table>
+<p class=sub>Отдельные случаи. orca — файлы читались, разборы писались, но вердикт
+выдавался в собственном формате (шкала 0–5, свои критерии, списки замечаний) вместо
+заданного JSON на всех {orca_n} прогонах; менять промпт под одну модель запрещено п.2
+правил тестирования. gemma4:26b — {burn_n} сессий, где бюджет выхода ушел в размышления
+без текста; после перезапусков не закрыт один слот («среднее» решение, протокол v2 —
+2 из 3 прогонов: модель трижды не выдала ответ). e2b — три вердикта без открытия хотя
+бы одного файла, со ссылками на несуществующие файлы.</p>"""
+
+
+def section_runs(runs, grid, refs) -> str:
+    rows = []
+    for r in sorted(runs, key=lambda x: (x["folder"], x["dir"])):
+        short = SHORT.get(r["model"], r["model"])
+        v = r["verdict"]
+        if r["valid"]:
+            scores = f"A {num(v['axis_a'])} · B {num(v['axis_b'])} · F {num(v['functional'])}"
+            marks = '<span class=okmark title="все проверки пройдены">ok</span>'
+        else:
+            kind = r.get("fail_kind", "?")
+            title = {"fab": "без чтения", "contract": "свой формат",
+                     "burn": "нет ответа", "integ": "целостность"}.get(kind, kind)
+            scores = "—"
+            marks = f'<span class="deadmark {kind}">{title}</span>'
+        dur = f"{r['duration_s']/60:.0f} мин" if r["duration_s"] else "—"
+        tok = f"{r['tokens']/1e6:.1f}M" if r["tokens"] else "—"
+        rows.append(
+            f"<tr{' class=neg' if not r['valid'] else ''}><td class=num>{esc(short)}</td>"
+            f"<td class=num>{esc(r['dir'])}</td><td class=num>{esc(r['protocol'])}</td>"
+            f"<td class=num>к{esc(str(r['prompt_version']))}</td>"
+            f"<td class=num>{esc(r['thinking'])}</td>"
+            f"<td>{SLUG_TITLES.get(r['slug'], r['slug'])}</td>"
+            f"<td>{marks} <span class=num>{scores}</span></td>"
+            f"<td class=num>{r['tool_calls']}</td><td class=num>{dur}</td><td class=num>{tok}</td></tr>")
+    total_rub = sum(r["duration_s"] for r in runs if r["duration_s"]) / 3600 * LOCAL_RUB_H
+    total_elec = sum(r["duration_s"] for r in runs if r["duration_s"]) / 3600 * ELEC_RUB_H
+    agg = defaultdict(list)
+    for r in runs:
+        if r["duration_s"] and r["tokens"]:
+            agg[(r["model"], r["protocol"])].append((r["duration_s"], r["tokens"]))
+    agg_rows = []
+    for (model, protocol), rs in sorted(agg.items()):
+        durs = [x[0] for x in rs]
+        toks = [x[1] for x in rs]
+        med_rub = statistics.median(durs) / 3600 * LOCAL_RUB_H
+        agg_rows.append(
+            f"<tr><td><b>{esc(SHORT.get(model, model))}</b></td><td class=num>{protocol}</td>"
+            f"<td class=num>{len(rs)}</td>"
+            f"<td class=num>{statistics.median(durs)/60:.1f}</td>"
+            f"<td class=num>{min(durs)/60:.1f}–{max(durs)/60:.1f}</td>"
+            f"<td class='num p-warn'>₽{med_rub:.1f}</td>"
+            f"<td class=num>{statistics.median(toks)/1e6:.2f}</td>"
+            f"<td class=num>{min(toks)/1e6:.2f}–{max(toks)/1e6:.2f}</td></tr>")
+    return f"""
+<h2 id=runs><span class=no>5.</span>Прогоны и данные</h2>
+<p class=lead>План серии: три независимых ревью каждого из четырёх решений —
+двенадцать прогонов на модель на каждый уровень мышления. Нумерация
+каталогов сквозная хронологическая. Условия каждого прогона (протокол,
+контракт, санитизация) записаны в run.json; какие версии есть в данных —
+ниже в этом разделе.</p>
+
+<h3>Состав данных репозитория</h3>
+<table>
+<tr><th>Данные</th><th>Где</th><th>Что внутри</th></tr>
+<tr><td>Папки моделей</td><td>models/</td><td>6 папок с прогонами этапа; всё по модели — карточка и прогоны — лежит внутри её папки</td></tr>
+<tr><td>Карточки моделей</td><td>models/&lt;модель&gt;/model.md</td><td>характеристики, квант, статус и наблюдения по каждой модели</td></tr>
+<tr><td>Прогоны ревью</td><td>models/&lt;модель&gt;/backend/code-review/run-XX/</td><td>{len(runs)} прогонов: run.json — условия (протокол, контракт, санитизация, целостность, время, токены); pi-session/ — JSONL-след сессии; pi-run.log; review.json — вердикт; review.md — сырой ответ; review-score.json — сверка с эталоном</td></tr>
+<tr><td>Эталон-карточки</td><td>code-review/references/</td><td>по одной на решение: результаты чекера, эталонные баллы, верифицированные причины дефектов; заморожены 2026-10-30</td></tr>
+<tr><td>Методология и конвейер</td><td>code-review/</td><td>REVIEWER.md — правила серии; runner_reviewer.py — раннер прогонов; score_review.py — сверка баллов с эталоном; build_review_report.py — этот отчёт</td></tr>
+<tr><td>Кросс-модельные агрегаты</td><td>reports/</td><td>этот отчёт (REVIEW-report.html)</td></tr>
+</table>
+
+<h3>Версии в данных</h3>
+<p class=lead>Протоколы: v1 — с diff.patch в материалах;
+v2 — решение целиком. Контракты: 1 — без not_done; 2 — с перечнем not_done
+(его данные строят рейтинг 4.1); 3 — то же, но без подмены системного промпта
+pi (будущие серии). Отклонение серии v2: роль ревьюера задавалась подменой
+системного промпта pi, тогда как на этапах 1–2 системный промпт не задействуется;
+исправлено в v3 2026-11-04, задним числом серию не переписать. Санитизация
+metrics.json: до 2026-11-04 находки резались до имени файла, далее сохраняется
+путь внутри решения — версия указана в run.json.</p>
+
+<p class=lead>Все {len(runs)} прогонов этапа (пилот + серия v1 + серия v2 + перезапуски).
+Время и токены фиксировались в run.json каждой сессии; сводка по моделям — ниже,
+по-прогонно — в свёрнутом списке.</p>
+<table>
+<tr><th>Модель</th><th class=narrow>Протокол</th><th class=narrow>Прогонов</th>
+<th class=narrow>Медиана, мин</th><th class=narrow>Время, мин</th>
+<th class=narrow>₽/ревью</th>
+<th class=narrow>Медиана, М ток.</th><th class=narrow>Токены, М</th></tr>
+{''.join(agg_rows)}
+</table>
+<p class=sub>Время и токены — по данным run.json каждой сессии (замер pi). Стоимость
+локального прогона — электричество и амортизация железа (методика этапов 1–2:
+550 Вт при ₽7.07/кВт·ч плюс амортизация — ₽35.85/ч чистой генерации; нижняя граница —
+только электричество, ₽3.89/ч). Вся серия из {len(runs)} прогонов ≈
+₽{total_rub:.0f} (нижняя граница ≈ ₽{total_elec:.0f}). Прогоны e2b времени почти не
+занимают, потому что файлы не читались.</p>
+
+{_per_model_blocks(runs, refs)}
+
+<div class=alist><details><summary>Показать все прогоны ({len(runs)})</summary>
+<table>
+<tr><th>Модель</th><th class=narrow>Прогон</th><th class=narrow>Протокол</th><th class=narrow>Контракт</th><th class=narrow>Thinking</th><th>Решение</th><th>Вердикт</th><th class=narrow>Чтений</th><th class=narrow>Время</th><th class=narrow>Токены</th></tr>
+{''.join(rows)}
+</table></details></div>"""
+
+
+def section_next() -> str:
+    return """
+<h2 id=next><span class=no>10.</span>Что дальше</h2>
+<table>
+<tr><th style=width:34%>Направление</th><th>Смысл</th></tr>
+<tr><td><b>Расширение серии прогонов</b></td><td>Добавить оставшиеся локальные модели набора тем же
+порядком (3 прогона × 4 решения). У qwen3.8 сейчас один прогон на решение — добавить
+недостающие два. Прогоны orca учтены как «формат не соблюдён»; их разборы сохранены в
+данных.</td></tr>
+<tr><td><b>Серия с контролируемым исполнением</b></td><td>Протокол v3: ревьюеру
+доступно исполнение php в песочнице без сети, но не тесты, чекер и приёмка —
+можно проверять гипотезы по коду (арифметика bcadd, окна времени), не узнавая
+вердикт. Слепота сохраняется, логические дефекты становятся достижимы; строки —
+вне рейтинга текущей серии.</td></tr>
+<tr><td><b>Полнота списков дефектов</b></td><td>Сопоставить списки дефектов ревьюеров с
+эталонными: какие известные дефекты найдены, какие указаны ошибочно. Сейчас сверка выполнялась
+вручную на выборке; дальше — скрипт-судья по образцу judge_tier3.</td></tr>
+<tr><td><b>Калибровка зачёта</b></td><td>Пороги |Δ| ≤ 0.5 / ≤ 1.0 — черновые. При
+расширении серии пересмотреть с учётом систематических смещений моделей (завышение
+gemma, занижение F у qwen на «среднем»).</td></tr>
+<tr><td><b>Правки промпта ревьюера</b></td><td>Из пилота: правило про метод, которого нет
+в объявленном типе, но который есть у передаваемого объекта; пример JSON-вердикта в
+user-сообщении. Изменения — одинаковые для всех моделей (п.2 правил тестирования).</td></tr>
+<tr><td><b>Связь этапов 2 и 3</b></td><td>Сопоставить баллы написания кода (этап 2) и
+ревью (этап 3) по моделям с зачётными вердиктами. На текущих данных предположение
+«сильный писатель = точный ревьюер» подтверждается на huihui и не подтверждается на orca.</td></tr>
+</table>"""
+
+
+TIP_JS = """
+<script>
+(function(){
+  var box = document.createElement('div');
+  box.style.cssText = 'position:fixed;z-index:99;display:none;max-width:360px;'
+    + 'background:#1d2433;color:#fff;font:12px/1.55 "Segoe UI",system-ui,sans-serif;'
+    + 'padding:9px 12px;border-radius:9px;box-shadow:0 8px 22px rgba(20,30,50,.32);'
+    + 'pointer-events:none;white-space:normal';
+  document.body.appendChild(box);
+  document.addEventListener('mouseover', function(e){
+    var el = e.target.closest && e.target.closest('[title],[data-tip]');
+    if (!el) { box.style.display = 'none'; return; }
+    var t = el.getAttribute('data-tip') || el.getAttribute('title');
+    if (!t) { box.style.display = 'none'; return; }
+    if (el.hasAttribute('title')) { el.setAttribute('data-tip', t); el.removeAttribute('title'); }
+    box.textContent = t;
+    box.style.display = 'block';
+    box.style.left = '0px'; box.style.top = '0px';
+    var r = el.getBoundingClientRect();
+    var w = box.offsetWidth, h = box.offsetHeight;
+    var x = Math.min(r.left, window.innerWidth - w - 8);
+    var y = r.bottom + 6;
+    if (y + h > window.innerHeight - 8) y = r.top - h - 6;
+    if (y < 8) y = Math.max(8, r.top + (r.height - h) / 2);
+    box.style.left = Math.max(8, x) + 'px';
+    box.style.top = y + 'px';
+  });
+  document.addEventListener('scroll', function(){ box.style.display = 'none'; }, true);
+})();
+</script>
+"""
+
+# Карты раздела 4 (как на этапе 2): тултипы точек, зум колесом к курсору,
+# пан перетаскиванием, сброс двойным кликом или кнопкой, «во весь экран».
+MAP_JS = """
+<script>
+(function () {
+  document.querySelectorAll('.chartbox').forEach(function (box) {
+    var fs = box.querySelector('.fsb');
+    if (fs) fs.addEventListener('click', function () {
+      box.classList.toggle('full');
+      fs.textContent = box.classList.contains('full') ? '✕ выйти' : '⛶ во весь экран';
+    });
+    var svg = box.querySelector('svg');
+    if (!svg || !svg.getAttribute('viewBox')) return;
+    var vb0 = svg.getAttribute('viewBox').split(/\\s+/).map(Number);
+    var vb = vb0.slice();
+    var KMAX = 8;
+    function apply() { svg.setAttribute('viewBox', vb.join(' ')); }
+    function scale() {
+      var rc = svg.getBoundingClientRect();
+      return Math.min(rc.width / vb[2], rc.height / vb[3]);
+    }
+    function toSvg(cx, cy) {
+      var rc = svg.getBoundingClientRect();
+      var s = Math.min(rc.width / vb[2], rc.height / vb[3]);
+      var ox = (rc.width - vb[2] * s) / 2, oy = (rc.height - vb[3] * s) / 2;
+      return [vb[0] + (cx - rc.left - ox) / s, vb[1] + (cy - rc.top - oy) / s];
+    }
+    svg.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      var k = e.deltaY > 0 ? 1.15 : 1 / 1.15;
+      var w0 = vb[2], nw = Math.min(vb0[2], Math.max(vb0[2] / KMAX, w0 * k));
+      if (nw === w0) return;
+      var p = toSvg(e.clientX, e.clientY);
+      vb[0] = p[0] - (p[0] - vb[0]) * nw / w0;
+      vb[1] = p[1] - (p[1] - vb[1]) * nw / w0;
+      vb[2] = nw; vb[3] = vb0[3] * nw / vb0[2];
+      apply();
+    }, {passive: false});
+    var drag = null;
+    svg.addEventListener('pointerdown', function (e) {
+      drag = {x: e.clientX, y: e.clientY, vb: vb.slice()};
+      try { svg.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    svg.addEventListener('pointermove', function (e) {
+      if (!drag) return;
+      var s = scale();
+      vb[0] = Math.max(vb0[0] - vb0[2] * 0.5, Math.min(vb0[0] + vb0[2] * 0.5,
+                   drag.vb[0] - (e.clientX - drag.x) / s));
+      vb[1] = Math.max(vb0[1] - vb0[3] * 0.5, Math.min(vb0[1] + vb0[3] * 0.5,
+                   drag.vb[1] - (e.clientY - drag.y) / s));
+      apply();
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) {
+      svg.addEventListener(ev, function () { drag = null; });
+    });
+    svg.addEventListener('dblclick', function () { vb = vb0.slice(); apply(); });
+    var rst = box.querySelector('.rst');
+    if (rst) rst.addEventListener('click', function () { vb = vb0.slice(); apply(); });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    document.querySelectorAll('.chartbox.full').forEach(function (b) {
+      b.classList.remove('full');
+      var f = b.querySelector('.fsb');
+      if (f) f.textContent = '⛶ во весь экран';
+    });
+  });
+})();
+// Тултипы SVG-элементов: <title> переносится в data-tip и рисуется сам
+// (нативные подсказки в части вьюверов нестабильны).
+(function () {
+  document.querySelectorAll('svg title').forEach(function (t) {
+    var host = t.parentNode;
+    if (!host) return;
+    host.setAttribute('data-tip', t.textContent);
+    t.remove();
+  });
+  var tip = document.createElement('div');
+  tip.style.cssText = 'position:fixed;z-index:99;pointer-events:none;display:none;'
+    + 'background:#1d2433;color:#fff;font:12.5px/1.45 system-ui,sans-serif;'
+    + 'padding:5px 10px;border-radius:7px;white-space:nowrap;'
+    + 'box-shadow:0 2px 10px rgba(20,30,50,.35)';
+  document.body.appendChild(tip);
+  var cur = null;
+  document.addEventListener('mousemove', function (e) {
+    var t = e.target;
+    var el = null;
+    if (t && t.namespaceURI === 'http://www.w3.org/2000/svg') {
+      el = t;
+      while (el && el.getAttribute && !el.getAttribute('data-tip')) el = el.parentNode;
+      if (!el || !el.getAttribute || !el.getAttribute('data-tip')) el = null;
+    }
+    if (el) {
+      if (cur !== el) { tip.textContent = el.getAttribute('data-tip'); cur = el; }
+      tip.style.display = 'block';
+      var w = tip.offsetWidth, h = tip.offsetHeight;
+      tip.style.left = Math.min(e.clientX + 14, window.innerWidth - w - 6) + 'px';
+      tip.style.top = Math.min(e.clientY + 16, window.innerHeight - h - 6) + 'px';
+    } else if (cur) { tip.style.display = 'none'; cur = null; }
+  }, { passive: true });
+})();
+</script>
+"""
+
+
+def main() -> int:
+    refs = load_references()
+    runs = load_runs()
+    grid, profiles = aggregate(runs, refs)
+    html = f"""<!doctype html>
+<html lang=ru><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>Этап 3: код-ревью — отчёт</title>
+<style>{CSS}</style></head>
+<body><div class=wrap>
+{section_header(len(runs))}
+{section_tldr(runs, profiles, refs, grid)}
+{section_method()}
+{section_objects(refs)}
+{section_results(profiles, refs, runs)}
+{section_runs(runs, grid, refs)}
+{section_findings(runs, profiles)}
+{section_notdone(profiles, refs, runs)}
+{section_precision(runs)}
+{section_validity(runs, profiles)}
+{section_next()}
+<div class=footer>Этап 3 методики «Модели»: код-ревью решений этапа 2. Отчёт собран
+из артефактов models/&lt;модель&gt;/backend/code-review/run-XX/ (run.json, review.json) и
+эталон-карточек code-review/references/. Билдер: code-review/build_review_report.py.
+Методика: code-review/REVIEWER.md. Дата сборки: {__import__('datetime').date.today().isoformat()}.</div>
+</div></body></html>"""
+    html = html.replace("</body>", TIP_JS + MAP_JS + "</body>")
+    OUT.write_text(html, encoding="utf-8")
+    n_valid = sum(1 for r in runs if r["valid"])
+    print(f"отчёт: {OUT} ({len(html)/1024:.0f} КиБ); прогонов {len(runs)}, валидных {n_valid}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,65 @@
+{
+  "slug": "mid",
+  "title": "среднее: всё обязательное работает, архитектура слабая, тестов нет",
+  "source_run": "models/muse-glimmer/backend/test-assignment/run-03",
+  "frozen_at": "2026-10-30",
+  "basis": {
+    "checker": "11/11 обязательных + 0/2 бонус",
+    "tier3": { "axis_a": 2.5, "axis_b": 2.5 },
+    "tier4_blind": { "axis_a": 2.5 },
+    "note": "обе подписи совпали; дефекты верифицированы чтением кода"
+  },
+  "expected": { "axis_a": 2.5, "axis_b": 2.5, "functional": 4.0 },
+  "checker_failures": [],
+  "known_defects": [
+    {
+      "id": "D1",
+      "severity": "major",
+      "file": "src/Command/BillingRateCommand.php",
+      "desc": "тарификация живёт прямо в команде (calculateCost) — домен от приёма и отчёта не отделён"
+    },
+    {
+      "id": "D2",
+      "severity": "major",
+      "file": "src/Entity/",
+      "desc": "сущности анемичные, связи заменены строковыми кодами вместо ассоциаций Doctrine"
+    },
+    {
+      "id": "D3",
+      "severity": "major",
+      "file": "src/Command/BillingReportCommand.php",
+      "desc": "float для денег: number_format((float)$totalCost,...) в мёртвой ветке отчёта — ветка не выполняется, но float в коде денег остался"
+    },
+    {
+      "id": "D4",
+      "severity": "major",
+      "file": "src/Command/BillingRateCommand.php",
+      "desc": "N+1: findPriceForEvent и поиск Provider на каждое событие, без батчей"
+    },
+    {
+      "id": "D5",
+      "severity": "major",
+      "file": "(тесты отсутствуют)",
+      "desc": "тестов нет; psalm 165 / phpstan 24 ошибок не отрефлексированы; самопроверка заявлена, а не продемонстрирована выводами"
+    },
+    {
+      "id": "D6",
+      "severity": "minor",
+      "file": "src/Command/BillingReportCommand.php",
+      "desc": "сортировка по (provider, model) вместо лексикографической по 'provider/model'"
+    },
+    {
+      "id": "D7",
+      "severity": "minor",
+      "file": "migrations/",
+      "desc": "трёхшаговая цепочка миграций с переименованиями (user → \"user\" → user_name, cost → cost_usd) — след проб и ошибок"
+    },
+    {
+      "id": "D8",
+      "severity": "minor",
+      "file": "src/Command/BillingRateCommand.php",
+      "desc": "rate для $unit, отличного от двух известных, тихо вернёт 0"
+    }
+  ],
+  "review_focus": "тест на различение «работает» и «хорошо»: функционально всё обязательное (11/11), но слоёв нет, сущности анемичные, float-остаток в деньгах, тестов нет. Ревьюер должен дать высокую functional при низкой A — и не спутать «работает» с «качественно»"
+}
