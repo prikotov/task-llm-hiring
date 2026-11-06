@@ -130,6 +130,11 @@ def tooltip(turn: dict | None, q: dict, runs: list[tuple] | None = None) -> str:
         if raw and raw_norm != given_norm:
             parts.append(f"Дословно: «{esc(raw)}»")
         parts.append(f"Результат: <b>{esc(verdict)}</b>")
+        expl = (turn.get("explanation") or "").strip()
+        if len(expl) > 160:
+            expl = expl[:160] + "…"
+        if expl:
+            parts.append(f"Пояснение модели: {esc(expl)}")
     right = correct_text(q, turn)
     parts.append(f"Верный ответ: <b>{esc(right)}</b> · <i>{esc(q['note'])}</i>")
     return "<br>".join(parts)
@@ -425,12 +430,16 @@ def appendix_table_single(by_id: dict, questions: list) -> str:
                 raw = raw[:100] + "…"
         right = correct_text(q, t)
         dur = f'{t.get("duration_s", 0)} c' if t else "—"
+        expl = (t.get("explanation") or "").strip()
+        if len(expl) > 160:
+            expl = expl[:160] + "…"
+        expl_html = (f'<br><small>пояснение: {esc(expl)}</small>' if expl else "")
         raw_html = (f'<br><small>raw: «{esc(raw)}»</small>' if raw else "")
         rows.append(
             f'<tr><td><code class="id">{esc(q["id"])}</code></td>'
             f'<td>{esc(q["topic"])}<br><small>L{q["level"]} · {dur}</small></td>'
             f'<td class="assert">{esc(cell_text(q))}</td>'
-            f'<td>«{esc(given)}»{raw_html}'
+            f'<td>«{esc(given)}»{expl_html}{raw_html}'
             f'<br><small>верно: {esc(right)}</small></td>'
             f'<td class="{cls}">{esc(verdict)}<br><small>парсинг: {esc(parsed)}</small></td>'
             f'<td class="assert"><small><i>{esc(q["note"])}</i></small></td></tr>')

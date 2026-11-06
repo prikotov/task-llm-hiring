@@ -30,16 +30,40 @@ sys.path.insert(0, str(SCRIPT_DIR.parent / "interview"))
 import env_local  # noqa: F401 — грузит .env.local до чтения OLLAMA_BASE_URL ниже
 
 DEFAULT_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
-QUESTION_SUFFIX = "\n\nВерно или неверно? Ответь одним словом: «да» или «нет»."
+QUESTION_SUFFIX = ("\n\nВерно или неверно? Сначала ответь одним словом — "
+                   "«да» или «нет», — затем одним коротким предложением поясни свой ответ.")
 # recall-клетка (слой B): ответ = только результат, без рассуждений
-ANSWER_SUFFIX = ("\n\nОтветь только сам результат одним значением "
-                 "(число, строка или да/нет), без пояснений.")
+ANSWER_SUFFIX = ("\n\nСначала ответь сам результат одним значением "
+                 "(число, строка или да/нет), затем одним коротким предложением "
+                 "поясни свой ответ.")
 THINK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
 # decision-протокол (/v1/systemone, как в interview/score.py): без chat —
 # вероятностный ответ «утверждение верно» (noul), порог да/нет — 0.5
 DECISION_INSTRUCTIONS = "Верно ли утверждение о PHP?"
 DECISION_CRITERIA = {"false": "Утверждение неверно",
                      "true": "Утверждение верно"}
+
+
+def extract_explanation(raw: str, qtype: str, expected: str | None) -> str | None:
+    """Пояснение модели: текст после вердиктного слова (да/нет) или после
+    эталонного значения. Пояснение не влияет на вердикт — это сигнал
+    двусмысленности клетки и материал для вычитки вопросника."""
+    if not raw:
+        return None
+    low = raw.lower()
+    if qtype == "yesno":
+        for w in ("да", "нет", "yes", "no"):
+            pos = low.find(w)
+            if pos != -1:
+                rest = raw[pos + len(w):].strip(" :—-.\n")
+                return rest or None
+        return raw.strip() or None
+    if expected:
+        pos = low.find(expected.lower())
+        if pos != -1:
+            rest = raw[pos + len(expected):].strip(" :—-.\n")
+            return rest or None
+    return raw.strip() or None
 
 
 def normalize(s: str) -> str:
@@ -345,10 +369,14 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
         else:
             is_correct = answer is not None and answer == q["answer"]
             strict = is_correct
+        explanation = None
+        if protocol != "decision" and answer_raw:
+            explanation = extract_explanation(answer_raw, qtype, expected)
         turns.append({
             "id": q["id"], "topic": q["topic"], "level": q["level"],
             "type": qtype,
             "prompt_text": q["text"] if qtype == "yesno" else q["prompt"],
+            "explanation": explanation,
             "correct_answer": expected if qtype == "answer" else q["answer"],
             "prompt": (prompt if protocol == "chat"
                        else build_decision_state(q["text"])),
@@ -390,8 +418,8 @@ def write_answers_csv(out_dir: Path, turns: list) -> None:
         w = csv.writer(f, lineterminator="\n")
         w.writerow(["id", "topic", "level", "type", "answer", "expected",
                     "parsed", "correct_answer", "is_correct", "strict",
-                    "duration_s", "prompt_tokens", "output_tokens",
-                    "cached_tokens"])
+                    "explanation", "duration_s", "prompt_tokens",
+                    "output_tokens", "cached_tokens"])
         for t in turns:
             qtype = t.get("type", "yesno")
             if qtype == "answer":
@@ -406,6 +434,7 @@ def write_answers_csv(out_dir: Path, turns: list) -> None:
             w.writerow([t["id"], t["topic"], t["level"], qtype,
                         answer, expected, t["parsed"], correct_answer,
                         int(bool(t.get("is_correct"))), int(bool(t.get("strict"))),
+                        (t.get("explanation") or "")[:300],
                         t["duration_s"], t.get("prompt_eval_count"),
                         t.get("eval_count"), t.get("prompt_eval_cached_count")])
 
