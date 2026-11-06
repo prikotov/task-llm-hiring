@@ -3,17 +3,27 @@
 Decision-модель яруса 1 (судья собесов, `interview/score.py`) — с 2026-11-06
 и как испытуемая: карта знаний PHP (`knowledge-map/run-01`).
 
-Источник: ollama на ollama-host (`http://ollama-host:11434`).
+Источник: ollama на nserv (`http://ollama-host:11434`, хост `neyrosha`).
 
-- Архитектура/семейство: qwen35
-- Параметры: 9.1B
-- Квантизация: Q8_0
-- Размер: 16.7 GB
-- Возможности: decision, vision (thinking нет)
-- Дайджест: `c4cc0553f8e183629aa9…`
+- Архитектура/семейство: clef
+- Параметры: 27.0B
+- Квантизация: Q4_K_M
+- Размер: 19.2 GB
+- Возможности: decision, vision (thinking нет; /api/chat не поддерживает —
+  только decision-протокол `/v1/systemone`)
+- Дайджест: `7885241a86db4803…`
 
-Статус: 2026-11-06 модель на сервере в неподдерживаемом формате —
-`/api/chat` отвечает «does not support chat», `/v1/systemone` — «was
-downloaded in a format that is no longer supported»; `/api/pull clef:latest`
-дайджест не обновил. Прогон карты отложен до переустановки модели на
-сервере; раннер готов (`knowledge-map/runner_map.py --protocol decision`).
+История: сборка от 2026-10-08 (дайджест `c4cc0553…`, «9.1B Q8_0», 17.2 GB) была
+несовместима с обновлённым decision-конвейером ollama 0.40.7 — `/v1/systemone`
+отвечал «downloaded in a format that is no longer supported». 2026-11-06
+переустановлена `ollama pull clef:latest` прямо на сервере (реестр доступен
+только с него; собрана из clef-Q4_K_M.gguf + clef-vision.gguf, манифест —
+список gguf+mlx). В новой сборке и семейство/размер другие: clef, 27B Q4_K_M.
+
+Карта знаний PHP (knowledge-map, 2026-11-06, run-01, decision-протокол
+`/v1/systemone`): **91/96 (94.8%)** — сильнейший результат сетки; все 96 клеток
+разобраны по вероятности noul, «да»-ответов 49.0% при балансе 50/50 (баланс
+почти идеальный); карта за 4.9 c (16.8k вх. ток, 0 вых.). Слабые темы — по 7/8:
+синтаксис, функции, исключения. Детали: knowledge-map/run-01.
+
+Статус: результаты — рядом, в этой папке.
