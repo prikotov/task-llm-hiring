@@ -117,19 +117,9 @@ def tooltip(turn: dict | None, q: dict, runs: list[tuple] | None = None) -> str:
         given = given_text(turn)
         if turn.get("p") is not None:
             given += f" (p={turn['p']})"
-        raw = (turn.get("answer_raw") or "").strip().replace("\n", " ⏎ ")
-        if len(raw) > 140:
-            raw = raw[:140] + "…"
         verdict = "верно" if is_correct(turn) else \
             ("ответ не разобран" if turn.get("answer") is None else "неверно")
-        parts.append(f"Модель: «{esc(given)}»")
-        # дословный текст показываем только если он отличается от
-        # разобранного ответа (иначе строка дублирует «Модель: …»)
-        raw_norm = raw.lower().strip("«»\"' .")
-        given_norm = given.lower().strip("«»\"' .")
-        if raw and raw_norm != given_norm:
-            parts.append(f"Дословно: «{esc(raw)}»")
-        parts.append(f"Результат: <b>{esc(verdict)}</b>")
+        parts.append(f"Модель: «{esc(given)}» — {esc(verdict)}")
         expl = (turn.get("explanation") or "").strip()
         if len(expl) > 160:
             expl = expl[:160] + "…"
@@ -430,8 +420,6 @@ def appendix_table_single(by_id: dict, questions: list) -> str:
             parsed = {"json": "json", "ok": "текст", "late": "текст",
                       "none": "нет"}.get(t.get("parsed") or "none", "—")
             raw = (t.get("answer_raw") or "").strip().replace("\n", " ⏎ ")
-            if len(raw) > 100:
-                raw = raw[:100] + "…"
         right = correct_text(q, t)
         dur = f'{t.get("duration_s", 0)} c' if t else "—"
         expl = (t.get("explanation") or "").strip()
