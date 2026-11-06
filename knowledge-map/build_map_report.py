@@ -155,7 +155,7 @@ def page_css() -> str:
               color: var(--mut); font-size: 13.5px; flex-wrap: wrap; }
     .sw { display: inline-block; width: 14px; height: 14px; border-radius: 4px;
           margin-right: 6px; vertical-align: -2px; }
-    .mapwrap { overflow-x: auto; background: #fff; border: 1px solid var(--line);
+    .mapwrap { overflow: visible; background: #fff; border: 1px solid var(--line);
                border-radius: 12px; padding: 16px; width: fit-content;
                max-width: 100%; }
     .map { display: grid; gap: 3px;
