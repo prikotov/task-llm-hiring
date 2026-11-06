@@ -460,7 +460,8 @@ def write_summary_single(run_dir: Path, session: dict, by_id: dict,
     (run_dir / "summary.md").write_text("\n".join(lines), encoding="utf-8")
 
 
-def build_compare(model_dir: Path, questions_path: Path) -> None:
+def build_compare(model_dir: Path, questions_path: Path,
+                  think_filter: str | None = None) -> None:
     q_version, questions = load_questions(questions_path)
     run_dirs = sorted(p for p in model_dir.glob("run-*") if p.is_dir())
     sessions = []
@@ -471,9 +472,27 @@ def build_compare(model_dir: Path, questions_path: Path) -> None:
             print(f"  пропускаю {rd.name}: нет session.json", file=sys.stderr)
     if not sessions:
         raise SystemExit(f"в {model_dir} нет прогонов (run-*/session.json)")
+
+    # Прогоны разных уровней рассуждений нельзя смешивать: «флипы» тогда
+    # меряют смену режима, а не устойчивость знания. Карта — только внутри
+    # одного think (правило в blueprint.md).
+    levels = {s.get("think") for _, s, _ in sessions}
+    if think_filter:
+        sessions = [(n, s, b) for n, s, b in sessions
+                    if s.get("think") == think_filter]
+        if not sessions:
+            raise SystemExit(f"нет прогонов с think={think_filter!r}; "
+                             f"в папке есть уровни: {sorted(l for l in levels if l)}")
+    elif len(levels) > 1:
+        raise SystemExit(
+            "в папке прогоны разных уровней рассуждений: "
+            f"{sorted(l for l in levels if l)}. Смешивать нельзя — укажите "
+            "--think <уровень> (тепловая карта строится внутри одного уровня; "
+            "сравнение уровней — по метрикам из summary каждого прогона)")
     if len(sessions) == 1:
-        print("прогон один — тепловая карта требует ≥2, строю карту прогона")
-        build_single(Path(sessions[0][0]), questions_path)
+        print("прогон один на этом уровне — тепловая карта требует ≥2, "
+              "строю карту прогона")
+        build_single(model_dir / sessions[0][0], questions_path)
         return
 
     runs = [(name, by_id) for name, _session, by_id in sessions]
@@ -506,8 +525,12 @@ def build_compare(model_dir: Path, questions_path: Path) -> None:
     mean = statistics.mean(a["correct"] for a in accs)
     tot_in = sum(a["prompt_tokens"] for a in accs)
     tot_out = sum(a["output_tokens"] for a in accs)
+    n_runs = len(sessions)
+    runs_word = "прогон" if n_runs == 1 else \
+        ("прогона" if 2 <= n_runs % 10 <= 4 and n_runs % 100 not in (12, 13, 14)
+         else "прогонов")
     title = (f"Карта знаний PHP — {esc(sessions[0][1].get('model', '?'))}: "
-             f"{len(sessions)} прогонов")
+             f"{n_runs} {runs_word}")
     protocol = ("тепловая карта: клетка = доля верных ответов по прогонам "
                 "(0% красная → 100% зелёная, число внутри — % верных); пунктир — "
                 "нестабильная клетка (флип: ответы прогонов не совпали); "
@@ -598,6 +621,10 @@ def main() -> int:
     g = p.add_mutually_exclusive_group(required=True)
     g.add_argument("--run-dir", help="папка прогона (карта зелёный/красный)")
     g.add_argument("--model-dir", help="папка модели (тепловая карта по прогонам)")
+    p.add_argument("--think", default=None,
+                   help="уровень рассуждений для тепловой карты; обязателен, "
+                        "когда в папке прогоны нескольких think — смешивать "
+                        "уровни нельзя")
     p.add_argument("--questions", default=str(SCRIPT_DIR / "questions.json"))
     args = p.parse_args()
 
@@ -605,7 +632,7 @@ def main() -> int:
     if args.run_dir:
         build_single(Path(args.run_dir), questions_path)
     else:
-        build_compare(Path(args.model_dir), questions_path)
+        build_compare(Path(args.model_dir), questions_path, args.think)
     return 0
 
 
