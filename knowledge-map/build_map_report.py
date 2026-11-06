@@ -480,8 +480,9 @@ def appendix_table_single(by_id: dict, questions: list,
         wrong_html = (f'<br><small>верный: «{esc(right)}»</small>' if wrong else "")
         rows.append(
             f'<tr id="{anchor_prefix}row-{esc(q["id"])}">'
-            f'<td><code class="id">{esc(q["id"])}</code></td>'
-            f'<td>{esc(q["topic"])}<br><small>L{q["level"]} · {dur}</small></td>'
+            f'<td><code class="id">{esc(q["id"])}</code>'
+            f'<br><small>{dur}</small></td>'
+            f'<td>{esc(q["topic"])}</td>'
             f'<td class="assert">{esc(cell_text(q))}</td>'
             f'<td>«{esc(given)}»{expl_html}{raw_html}'
             f'</td>'
