@@ -166,6 +166,8 @@ def page_css() -> str:
           color: var(--mut); padding-bottom: 4px; }
     .rh { align-self: center; font-size: 13.5px; padding: 4px 8px 4px 0; }
     .cell { height: 46px; border-radius: 7px; position: relative; }
+    a.cell { display: block; color: inherit; text-decoration: none; }
+    tr:target { outline: 2px solid #1c2130; background: #fffbe8; }
     .cell.ok { background: @OK@; }
     .cell.bad { background: @BAD@; }
     .cell.na { background: @NA@; }
@@ -254,7 +256,8 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
     </div>"""
 
 
-def map_grid_single(by_id: dict, questions: list) -> str:
+def map_grid_single(by_id: dict, questions: list,
+                    anchor_prefix: str = "") -> str:
     topics = []
     for q in questions:
         if q["topic"] not in topics:
@@ -310,8 +313,9 @@ def map_grid_single(by_id: dict, questions: list) -> str:
                 continue
             t = by_id.get(q["id"])
             tip = tooltip(t, q)
-            cells.append(f'<div class="cell {cell_class(t)}">'
-                         f'<div class="tip">{tip}</div></div>')
+            cells.append(f'<a class="cell {cell_class(t)}" '
+                         f'href="#{anchor_prefix}row-{esc(q["id"])}">'
+                         f'<div class="tip">{tip}</div></a>')
         correct = sum(1 for q in tq if q["id"] in by_id and is_correct(by_id[q["id"]]))
         cells.append(f'<div class="agg">{correct}/{len(tq)}</div>')
     # строка агрегатов по уровням
@@ -403,7 +407,8 @@ def level_rows(by_id: dict, questions: list) -> str:
     return "\n".join(rows)
 
 
-def appendix_table_single(by_id: dict, questions: list) -> str:
+def appendix_table_single(by_id: dict, questions: list,
+                          anchor_prefix: str = "") -> str:
     rows = []
     for q in questions:
         t = by_id.get(q["id"])
@@ -430,7 +435,8 @@ def appendix_table_single(by_id: dict, questions: list) -> str:
         expl_html = (f'<br><small>пояснение: {esc(expl)}</small>' if expl else "")
         raw_html = (f'<br><small>raw: «{esc(raw)}»</small>' if raw else "")
         rows.append(
-            f'<tr><td><code class="id">{esc(q["id"])}</code></td>'
+            f'<tr id="{anchor_prefix}row-{esc(q["id"])}">'
+            f'<td><code class="id">{esc(q["id"])}</code></td>'
             f'<td>{esc(q["topic"])}<br><small>L{q["level"]} · {dur}</small></td>'
             f'<td class="assert">{esc(cell_text(q))}</td>'
             f'<td>«{esc(given)}»{expl_html}{raw_html}'
@@ -497,7 +503,8 @@ def build_single(run_dir: Path, questions_path: Path) -> None:
 
 
 def _render_single_body(session, by_id, questions, q_version,
-                        run_dir: Path, questions_path: Path):
+                        run_dir: Path, questions_path: Path,
+                        anchor_prefix: str = ""):
     ver = session.get("questionnaire")
     if ver and q_version and ver != q_version:
         print(f"⚠️ вопросник прогона: v{ver}, в репозитории: v{q_version} — "
@@ -571,7 +578,7 @@ def _render_single_body(session, by_id, questions, q_version,
   {hole_legend}
   <span>наведите на клетку — вопрос и ответ модели; верность — по цвету</span>
 </div>
-{map_grid_single(by_id, questions)}
+{map_grid_single(by_id, questions, anchor_prefix)}
 <h2>Точность по темам</h2>
 <table class="data"><tr><th>Тема</th><th>Верно</th><th></th><th>%</th></tr>
 {topic_rows(by_id, questions)}</table>
@@ -582,7 +589,7 @@ def _render_single_body(session, by_id, questions, q_version,
 <table class="data">
 <tr><th>Клетка</th><th>Тема</th><th>Утверждение</th><th>Ответ</th>
     <th>Результат</th><th>Обоснование</th></tr>
-{appendix_table_single(by_id, questions)}
+{appendix_table_single(by_id, questions, anchor_prefix)}
 </table>"""
     footer = (f"построено knowledge-map/build_map_report.py · "
               f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} · "
@@ -884,12 +891,14 @@ def build_model_report(model_dir: Path, questions_path: Path) -> None:
              + "\n".join(rows) + "</table>")
 
     sections = []
-    for f in sorted(latest, key=section_order.get):
+    for si, f in enumerate(sorted(latest, key=section_order.get)):
         no, rd, session, by_id = latest[f]
         qpath = questions_for_run(questions_path, session)
         q_version, questions = load_questions(qpath)
         title, protocol, chips, body, _footer = _render_single_body(
-            session, by_id, questions, q_version, rd, qpath)
+            session, by_id, questions, q_version, rd, qpath,
+            anchor_prefix=f"s{si}-")
+        section_id = f"s{si}"
         extra = ""
         if f == "questions-versions.json":
             wrong = sorted(t["level"] for t in by_id.values()
@@ -898,7 +907,7 @@ def build_model_report(model_dir: Path, questions_path: Path) -> None:
                 extra = (f'<p class="proto">cutoff-сигнал: первые ошибки — '
                          f'L{wrong[0]} (по возрастанию версии: '
                          f'{", ".join("L" + str(w) for w in wrong)})</p>')
-        sections.append(f'<h2>{esc(title)}</h2>\n'
+        sections.append(f'<h2 id="{esc(section_id)}">{esc(title)}</h2>\n'
                         f'<p class="proto">{esc(protocol)}</p>\n'
                         f'{chips}\n{extra}\n{body}')
 
