@@ -254,9 +254,41 @@ def map_grid_single(by_id: dict, questions: list) -> str:
         if q["topic"] not in topics:
             topics.append(q["topic"])
     max_level = max(q["level"] for q in questions)
+    # разреженный набор (recall-пилот): не у каждой темы есть все уровни —
+    # рисуем без колонок уровней, клетки подряд с бейджем «L<n>»
+    sparse = any(len({q2["level"] for q2 in questions if q2["topic"] == t})
+                 < max_level for t in topics)
     by_topic_level = defaultdict(dict)
     for q in questions:
         by_topic_level[q["topic"]][q["level"]] = q
+    if sparse:
+        max_cells = max(len(by_topic_level[t]) for t in topics)
+        total_correct = sum(1 for q in questions
+                            if q["id"] in by_id and is_correct(by_id[q["id"]]))
+        # шапка и подвал — ровно по числу колонок (метка + клетки + итог),
+        # иначе грид съедет на полстроки
+        cells = ['<div class="hd"></div>', '<div class="hd">клетки</div>',
+                 '<div class="hd">итог</div>', '<div class="hd"></div>']
+        for topic in topics:
+            cells.append(f'<div class="rh">{esc(topic)}</div>')
+            tq = sorted((q for q in questions if q["topic"] == topic),
+                        key=lambda q: q["level"])
+            for q in tq:
+                t = by_id.get(q["id"])
+                tip = tooltip(t, q)
+                cells.append(f'<div class="cell {cell_class(t)}">'
+                             f'<div class="num">L{q["level"]}</div>'
+                             f'<div class="tip">{tip}</div></div>')
+            correct = sum(1 for q in tq
+                          if q["id"] in by_id and is_correct(by_id[q["id"]]))
+            cells.append(f'<div class="agg">{correct}/{len(tq)}</div>')
+        cells.append('<div class="agg">точность →</div>')
+        cells.append(f'<div class="agg">{pct(total_correct, len(questions))}%</div>')
+        cells.append('<div class="agg"></div>')
+        cells.append('<div class="agg"></div>')
+        return ('<div class="mapwrap"><div class="map" '
+                f'style="grid-template-columns: minmax(190px, 250px) '
+                f'repeat({max_cells}, 52px) 84px;">{"".join(cells)}</div></div>')
     cells = ['<div class="hd"></div>']
     cells += [f'<div class="hd">L{i}</div>' for i in range(1, max_level + 1)]
     cells.append('<div class="hd">итог</div>')
@@ -449,8 +481,8 @@ def build_single(run_dir: Path, questions_path: Path) -> None:
     na_legend = ('<span><span class="sw" style="background:{0}"></span>ответ не '
                  'разобран («да»/«нет» первым словом)</span>'
                  .format(COLOR_NA))
-    hole_legend = ('<span class="text-muted">пустое место — на этом уровне '
-                   'нет вопроса (recall-набор: 2 клетки на тему)</span>'
+    hole_legend = ('<span class="text-muted">в клетке подписан уровень вопроса '
+                   '(L); «итог» — точность темы</span>'
                    if n_recall else na_legend)
     body = f"""
 <h2>Карта</h2>
