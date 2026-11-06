@@ -246,8 +246,8 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
     ver = session.get("questionnaire")
     ver_s = f"вопросник v{ver}" if ver else "вопросник"
     zone_stats = []
-    for zl, zk in (("База", "base"), ("PHP 7.0–8.1", "past"),
-                   ("PHP 8.4–8.5", "current"), ("Будущее", "future")):
+    for zl, zk in (("База", "base"), ("PHP 8.4–8.5", "current"),
+                   ("Будущее", "future")):
         if zk not in {q.get("zone", "base") for q in questions}:
             continue
         zq = [q for q in questions if q.get("zone", "base") == zk]
@@ -279,9 +279,8 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
 def map_grid_single(by_id: dict, questions: list,
                     anchor_prefix: str = "") -> str:
     zone_names = {"base": "Зона 1 · База PHP (вневременное ядро 8.x)",
-                  "past": "Зона 2 · PHP 7.0–8.1",
-                  "current": "Зона 3 · PHP 8.4–8.5 (текущая эра)",
-                  "future": "Зона 4 · Будущее: 8.6+, trunk, RFC (cutoff-зонд)"}
+                  "current": "Зона 2 · PHP 8.4–8.5 (текущая эра)",
+                  "future": "Зона 3 · Будущее: 8.6+, trunk, RFC (cutoff-зонд)"}
     def zone_of(topic: str) -> str:
         for q in questions:
             if q["topic"] == topic:
@@ -561,10 +560,12 @@ def _render_single_body(session, by_id, questions, q_version,
     except (FileNotFoundError, json.JSONDecodeError):
         pass
     layer = {
-        "questions.json": f"полная матрица v4: {n} клеток в 3 зонах "
-                          f"(база / PHP 8.0–8.5 / будущее)",
+        "questions.json": f"полная матрица v5: {n} клеток в 3 зонах "
+                          f"(база / PHP 8.4–8.5 / будущее)",
         "questions.v2.json": f"слои A+B (v2): {n} клеток "
                              f"(72 да/нет + 24 recall)",
+        "questions.v3.json": f"матрица v3: {n} клеток (да/нет + recall + версии)",
+        "questions.v4.json": f"матрица v4: {n} клеток в 4 зонах",
         "questions.v1.json": f"слой A (v1): да/нет ({n} утверждений, "
                              f"темы × уровни L1–L8)",
         "questions-recall.json": "слой B: recall-пилот (24 клетки «что выведет», "
