@@ -200,6 +200,9 @@ def page_css() -> str:
     code.id { font-size: 12.5px; background: #eef1f4; border-radius: 5px;
               padding: 1px 6px; white-space: nowrap; }
     footer { color: var(--mut); font-size: 12.5px; margin-top: 40px; }
+    .raw-details summary { cursor: pointer; color: var(--mut);
+                           font-size: 11.5px; user-select: none; }
+    .raw-details[open] summary { margin-bottom: 4px; }
     .raw-sample { background: #f4f6f8; border: 1px solid var(--line);
                   border-radius: 6px; padding: 6px 8px; margin: 4px 0 0;
                   font: 11.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -438,11 +441,11 @@ def appendix_table_single(by_id: dict, questions: list,
         right = correct_text(q, t)
         dur = f'{t.get("duration_s", 0)} c' if t else "—"
         expl = (t.get("explanation") or "").strip()
-        if len(expl) > 160:
-            expl = expl[:160] + "…"
-        expl_html = (f'<br><small>пояснение: {esc(expl)}</small>' if expl else "")
-        raw_html = (f'<br><small>raw:</small>'
-                    f'<pre class="raw-sample">{esc(raw)}</pre>' if raw else "")
+        expl_html = (f'<br><small>Пояснение: {esc(expl)}</small>' if expl else "")
+        raw_html = ""
+        if raw:
+            raw_html = (f'<br><details class="raw-details"><summary>Raw</summary>'
+                        f'<pre class="raw-sample">{esc(raw)}</pre></details>')
         # эталон показываем только при неверном ответе (при верном он и
         # так совпадает с ответом модели)
         wrong = t is not None and not is_correct(t)
