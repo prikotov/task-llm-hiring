@@ -595,9 +595,7 @@ def _render_single_body(session, by_id, questions, q_version,
     na_legend = ('<span><span class="sw" style="background:{0}"></span>ответ не '
                  'разобран («да»/«нет» первым словом)</span>'
                  .format(COLOR_NA))
-    hole_legend = ('<span class="text-muted">в клетке подписан уровень вопроса '
-                   '(L); «итог» — точность темы</span>'
-                   if n_recall else na_legend)
+
     protocol_kind = session.get("protocol", "chat")
     if protocol_kind == "decision":
         prompts_html = ('<pre class="prompt-sample">Реальный запрос (decision-протокол '
@@ -626,7 +624,7 @@ def _render_single_body(session, by_id, questions, q_version,
   <span><span class="sw" style="background:{COLOR_BAD}"></span>неверно</span>
   {na_legend if not n_recall else ''}
   {hole_legend}
-  <span>наведите на клетку — вопрос и ответ модели; верность — по цвету</span>
+  <span>наведите — вопрос и ответ модели; клик — строка с деталями в «Все утверждения»</span>
 </div>
 {map_grid_single(by_id, questions, anchor_prefix)}
 <h2>Все утверждения</h2>
