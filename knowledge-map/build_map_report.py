@@ -269,13 +269,17 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
         bias_chip = ('<div class="chip">Формат: <b>recall</b> — эталон входит в '
                      'ответ (нормализация без кавычек/регистра); строгих '
                      f'совпадений: <b>{strict_n} / {len(parsed)}</b></div>')
+    # отклонения показываем только когда они есть
+    parse_extras = " · ".join(f"{lbl}: {cnt}" for lbl, cnt in
+                              (("не по JSON-формату", late), ("без вердикта", grey))
+                              if cnt)
+    parse_extra_s = f" ({parse_extras})" if parse_extras else ""
     return f"""
     <div class="chips">
       {score_chip}
       <div class="chip">По зонам: <b>{esc(" · ".join(zone_stats))}</b></div>
       <div class="chip">Точность: <b>{correct} / {n}</b></div>
-      <div class="chip">Разобрано ответов: <b>{len(parsed)} / {n}</b>
-           (не по JSON-формату: {late}, без вердикта: {grey})</div>
+      <div class="chip">Разобрано ответов: <b>{len(parsed)} / {n}</b>{parse_extra_s}</div>
       {bias_chip}
       <div class="chip">Время: <b>{time_s}</b>
            ({statistics.median(t.get('duration_s') or 0 for t in turns):.2f} c на клетку — медиана)</div>
