@@ -206,6 +206,10 @@ def page_css() -> str:
     code.id { font-size: 12.5px; background: #eef1f4; border-radius: 5px;
               padding: 1px 6px; white-space: nowrap; }
     footer { color: var(--mut); font-size: 12.5px; margin-top: 40px; }
+    .prompt-sample { background: #f4f6f8; border: 1px solid var(--line);
+                     border-radius: 8px; padding: 10px 12px;
+                     font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+                     white-space: pre-wrap; margin: 0 0 6px; }
     """
     return (css.replace("@OK@", COLOR_OK)
                .replace("@BAD@", COLOR_BAD)
@@ -547,7 +551,21 @@ def _render_single_body(session, by_id, questions, q_version,
     hole_legend = ('<span class="text-muted">в клетке подписан уровень вопроса '
                    '(L); «итог» — точность темы</span>'
                    if n_recall else na_legend)
-    body = f"""
+    protocol_kind = session.get("protocol", "chat")
+    if protocol_kind == "decision":
+        prompts_html = ('<pre class="prompt-sample">Точный текст запроса: decision-протокол '
+                        '/v1/systemone — state = «Ты проверяешь утверждение о PHP на верность.» + '
+                        'утверждение; ответ — вероятность верности (noul), клетка «да» при p ≥ 0.5.</pre>')
+    else:
+        ps = session.get("prompt_suffix")
+        asuf = session.get("answer_suffix")
+        parts = ["да/нет-клетка:  <утверждение>" + (ps or "")]
+        if asuf:
+            parts.append("recall-клетка:  <вопрос>" + asuf)
+        prompts_html = ('<pre class="prompt-sample">Точный текст запроса '
+                        '(один запрос на клетку, без system и истории):\n'
+                        + esc("\n".join(parts)) + "</pre>")
+    body = prompts_html + f"""
 <h2>Карта</h2>
 <div class="legend">
   <span><span class="sw" style="background:{COLOR_OK}"></span>верно</span>
