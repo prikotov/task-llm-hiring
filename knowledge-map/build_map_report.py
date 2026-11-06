@@ -275,7 +275,7 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
       <div class="chip">По зонам: <b>{esc(" · ".join(zone_stats))}</b></div>
       <div class="chip">Точность: <b>{correct} / {n}</b></div>
       <div class="chip">Разобрано ответов: <b>{len(parsed)} / {n}</b>
-           (серых клеток: {grey}, поздний парсинг: {late})</div>
+           (не по JSON-формату: {late})</div>
       {bias_chip}
       <div class="chip">Время: <b>{time_s}</b>
            ({statistics.median(t.get('duration_s') or 0 for t in turns):.2f} c на клетку — медиана)</div>
