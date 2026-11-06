@@ -299,7 +299,7 @@ def map_grid_single(by_id: dict, questions: list,
             correct = sum(1 for q in tq
                           if q["id"] in by_id and is_correct(by_id[q["id"]]))
             cells.append(f'<div class="agg">{correct}/{len(tq)}</div>')
-        cells.append('<div class="agg">точность уровня →</div>')
+        cells.append('<div class="agg">точность →</div>')
         cells.append(f'<div class="agg">{pct(total_correct, len(questions))}%</div>')
         cells.append('<div class="agg"></div>')
         cells.append('<div class="agg"></div>')
@@ -327,12 +327,7 @@ def map_grid_single(by_id: dict, questions: list,
         correct = sum(1 for q in tq if q["id"] in by_id and is_correct(by_id[q["id"]]))
         cells.append(f'<div class="agg">{correct}/{len(tq)}</div>')
     # строка агрегатов по уровням
-    cells.append('<div class="agg">точность уровня →</div>')
-    for lvl in range(1, max_level + 1):
-        lq = [q for q in questions if q["level"] == lvl]
-        correct = sum(1 for q in lq if q["id"] in by_id and is_correct(by_id[q["id"]]))
-        cells.append(f'<div class="agg">{pct(correct, len(lq))}%</div>')
-    cells.append('<div class="agg"></div>')
+
     return ('<div class="mapwrap"><div class="map" '
             f'style="grid-template-columns: minmax(190px, 250px) '
             f'repeat({max_level}, 46px) 84px;">{"".join(cells)}</div></div>')
@@ -374,13 +369,7 @@ def map_grid_compare(questions: list, runs: list[tuple[str, dict]],
                       if sum(1 for _, by_id in runs
                              if q["id"] in by_id and is_correct(by_id[q["id"]])))
         cells.append(f'<div class="agg">{correct / len(runs):.0%}</div>')
-    cells.append('<div class="agg">верность →</div>')
-    for lvl in range(1, max_level + 1):
-        lq = [q for q in questions if q["level"] == lvl]
-        c = sum(1 for q in lq for _, by_id in runs
-                if q["id"] in by_id and is_correct(by_id[q["id"]]))
-        cells.append(f'<div class="agg">{pct(c, len(lq) * len(runs))}%</div>')
-    cells.append('<div class="agg"></div>')
+
     return ('<div class="mapwrap"><div class="map" '
             f'style="grid-template-columns: minmax(190px, 250px) '
             f'repeat({max_level}, 46px) 84px;">{"".join(cells)}</div></div>')
