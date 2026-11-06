@@ -164,7 +164,6 @@ def page_css() -> str:
           color: var(--mut); padding-bottom: 4px; }
     .rh { align-self: center; font-size: 13.5px; padding: 4px 8px 4px 0; }
     .cell { height: 46px; border-radius: 7px; position: relative; }
-    .cell.empty { background: transparent; }
     .cell.ok { background: @OK@; }
     .cell.bad { background: @BAD@; }
     .cell.na { background: @NA@; }
@@ -269,7 +268,7 @@ def map_grid_single(by_id: dict, questions: list) -> str:
             q = by_topic_level[topic].get(lvl)
             if q is None:
                 # клетка без вопроса: прозрачный плейсхолдер — сетка не едет
-                cells.append('<div class="cell empty"></div>')
+                cells.append('<div class="ph"></div>')
                 continue
             t = by_id.get(q["id"])
             tip = tooltip(t, q)
@@ -310,7 +309,7 @@ def map_grid_compare(questions: list, runs: list[tuple[str, dict]],
         for lvl in range(1, max_level + 1):
             q = by_topic_level[topic].get(lvl)
             if q is None:
-                cells.append('<div class="cell empty"></div>')
+                cells.append('<div class="ph"></div>')
                 continue
             answers = [(name, by_id.get(q["id"], {}).get("answer"))
                        for name, by_id in runs]
@@ -446,14 +445,21 @@ def build_single(run_dir: Path, questions_path: Path) -> None:
                 f"генерации; вопросник v{q_version}: {n} клеток. "
                 "Клетки карты: темы × уровни.")
     chips = chips_row_single(session, by_id, questions)
+    n_recall = sum(1 for q in questions if q.get("type") == "answer")
+    na_legend = ('<span><span class="sw" style="background:{0}"></span>ответ не '
+                 'разобран («да»/«нет» первым словом)</span>'
+                 .format(COLOR_NA))
+    hole_legend = ('<span class="text-muted">пустое место — на этом уровне '
+                   'нет вопроса (recall-набор: 2 клетки на тему)</span>'
+                   if n_recall else na_legend)
     body = f"""
 <h2>Карта</h2>
 <div class="legend">
   <span><span class="sw" style="background:{COLOR_OK}"></span>верно</span>
   <span><span class="sw" style="background:{COLOR_BAD}"></span>неверно</span>
-  <span><span class="sw" style="background:{COLOR_NA}"></span>ответ не разобран в формат
-        («да»/«нет» первым словом)</span>
-  <span>наведите на клетку — утверждение, ответ модели и обоснование</span>
+  {na_legend if not n_recall else ''}
+  {hole_legend}
+  <span>наведите на клетку — вопрос, ответ модели и обоснование</span>
 </div>
 {map_grid_single(by_id, questions)}
 <h2>Точность по темам</h2>
