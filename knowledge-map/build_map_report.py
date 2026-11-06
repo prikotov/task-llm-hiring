@@ -562,7 +562,7 @@ def build_single(run_dir: Path, questions_path: Path) -> None:
     title, protocol, chips, body, footer = _render_single_body(
         session, by_id, questions, q_version, run_dir, questions_path)
     (run_dir / "report.html").write_text(
-        page(title, protocol, chips, body, footer), encoding="utf-8")
+        page(title, "", chips, body, footer), encoding="utf-8")
     write_summary_single(run_dir, session, by_id, questions, q_version)
     print(f"отчёт: {run_dir / 'report.html'}")
 
@@ -600,11 +600,6 @@ def _render_single_body(session, by_id, questions, q_version,
     }.get(questions_path.name,
           f"вопросник {esc(questions_path.name)} ({n} клеток)")
     title = f"Карта знаний PHP — {run_label(session, run_dir)}"
-    protocol = ("один прогон — все клетки вопросника v5 (база + версии "
-                "8.4–8.5 + будущее), каждая — независимый запрос: system-рамка "
-                "и вопрос, без истории между клетками; ответ — JSON "
-                "с пояснением; точный текст запроса — ниже. "
-                "Клетки карты: темы × уровни L1–L8.")
     chips = chips_row_single(session, by_id, questions)
     n_recall = sum(1 for q in questions if q.get("type") == "answer")
     na_legend = ('<span><span class="sw" style="background:{0}"></span>ответ не '
@@ -653,7 +648,7 @@ def _render_single_body(session, by_id, questions, q_version,
     footer = (f"построено knowledge-map/build_map_report.py · "
               f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} · "
               f"данные прогона: session.json, answers.csv")
-    return title, protocol, chips, body, footer
+    return title, "", chips, body, footer
 
 
 def write_summary_single(run_dir: Path, session: dict, by_id: dict,
