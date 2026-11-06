@@ -595,12 +595,6 @@ def _render_single_body(session, by_id, questions, q_version,
   <span>наведите на клетку — вопрос и ответ модели; верность — по цвету</span>
 </div>
 {map_grid_single(by_id, questions, anchor_prefix)}
-<h2>Точность по темам</h2>
-<table class="data"><tr><th>Тема</th><th>Верно</th><th></th><th>%</th></tr>
-{topic_rows(by_id, questions)}</table>
-<h2>Точность по уровням</h2>
-<table class="data"><tr><th>Уровень</th><th>Верно</th><th></th><th>%</th></tr>
-{level_rows(by_id, questions)}</table>
 <h2>Все утверждения</h2>
 <table class="data">
 <tr><th>Клетка</th><th>Тема</th><th>Утверждение</th><th>Ответ</th>
