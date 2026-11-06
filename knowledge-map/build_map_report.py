@@ -560,7 +560,7 @@ def write_summary_single(run_dir: Path, session: dict, by_id: dict,
                      f"{len(parsed)}; у остальных верных эталон входит в ответ.")
     else:
         bank_line = f"вопросник v{q_version} ({n} утверждений, 50/50)."
-        bias_line = (f"Ответов «да»: {pct(yes_n, len(parsed))}% при балансе "
+        bias_line = (f"ответов «да»: {pct(yes_n, len(parsed))}% при балансе "
                      f"50/50.")
     lines = [
         f"# Карта знаний PHP — {session.get('model', '?')}, "
