@@ -208,6 +208,9 @@ def page_css() -> str:
                   border-radius: 6px; padding: 6px 8px; margin: 4px 0 0;
                   font: 11.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
                   white-space: pre-wrap; word-break: break-word; }
+    .zonehdr { grid-column: 1 / -1; font-weight: 600; font-size: 13px;
+               color: var(--fg); background: #eef1f4; border-radius: 6px;
+               padding: 5px 10px; margin-top: 6px; }
     .prompt-sample { background: #f4f6f8; border: 1px solid var(--line);
                      border-radius: 8px; padding: 10px 12px;
                      font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -242,6 +245,14 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
     }
     ver = session.get("questionnaire")
     ver_s = f"вопросник v{ver}" if ver else "вопросник"
+    zone_stats = []
+    for zl, zk in (("База", "base"), ("PHP 7.0–8.1", "past"),
+                   ("PHP 8.4–8.5", "current"), ("Будущее", "future")):
+        if zk not in {q.get("zone", "base") for q in questions}:
+            continue
+        zq = [q for q in questions if q.get("zone", "base") == zk]
+        zc = sum(1 for q in zq if q["id"] in by_id and is_correct(by_id[q["id"]]))
+        zone_stats.append(f"{zl} {pct(zc, len(zq))}%")
     if bool_parsed:
         bias_chip = (f'<div class="chip">Ответов «да»: <b>{yes_share}%</b>\n'
                      '           (баланс вопросника 50/50, базлайн константного '
@@ -260,12 +271,22 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
            ({statistics.median(t.get('duration_s') or 0 for t in turns):.2f} c на клетку — медиана)</div>
       <div class="chip">Токены: <b>{totals.get('prompt_tokens', 0)} вх /
            {totals.get('output_tokens', 0)} вых</b> (кэш: {totals.get('cached_tokens', 0)})</div>
+      <div class="chip">По зонам: <b>{esc(" · ".join(zone_stats))}</b></div>
       <div class="chip">{esc(ver_s)} · think: {esc(session.get('think'))}</div>
     </div>"""
 
 
 def map_grid_single(by_id: dict, questions: list,
                     anchor_prefix: str = "") -> str:
+    zone_names = {"base": "Зона 1 · База PHP (вневременное ядро 8.x)",
+                  "past": "Зона 2 · PHP 7.0–8.1",
+                  "current": "Зона 3 · PHP 8.4–8.5 (текущая эра)",
+                  "future": "Зона 4 · Будущее: 8.6+, trunk, RFC (cutoff-зонд)"}
+    def zone_of(topic: str) -> str:
+        for q in questions:
+            if q["topic"] == topic:
+                return q.get("zone", "base")
+        return "base"
     topics = []
     for q in questions:
         if q["topic"] not in topics:
@@ -436,7 +457,7 @@ def appendix_table_single(by_id: dict, questions: list,
             raw = (t.get("answer_raw") or "").strip().replace("\n", " ⏎ ")
         right = correct_text(q, t)
         dur = f'{t.get("duration_s", 0)} c' if t else "—"
-        expl = (t.get("explanation") or "").strip()
+        expl = ((t or {}).get("explanation") or "").strip()
         expl_html = (f'<br><small>Пояснение: {esc(expl)}</small>' if expl else "")
         raw_html = ""
         if raw:
@@ -480,17 +501,26 @@ def questions_for_run(questions_path: Path, session: dict) -> Path:
     questions.v{N}.json (сессии старых версий не должны читать v2)."""
     qfile = session.get("questionnaire_file")
     qver = session.get("questionnaire")
+
+    def file_version(cand: Path):
+        try:
+            return json.loads(cand.read_text(encoding="utf-8")).get("version")
+        except (OSError, json.JSONDecodeError):
+            return None
+
+    # 1) файл из сессии, если его версия совпадает с версией сессии
     if qfile:
         cand = questions_path.parent / qfile
-        if cand.exists():
-            try:
-                ver = json.loads(cand.read_text(encoding="utf-8")).get("version")
-            except (OSError, json.JSONDecodeError):
-                ver = None
-            if qver is None or ver == qver:
-                return cand
+        if cand.exists() and (qver is None or file_version(cand) == qver):
+            return cand
+    # 2) замороженная questions.v{N}.json (точная версия сессии)
     if qver:
         cand = questions_path.parent / f"questions.v{qver}.json"
+        if cand.exists() and file_version(cand) == qver:
+            return cand
+    # 3) файл из сессии без сверки версии, 4) текущий вопросник
+    if qfile:
+        cand = questions_path.parent / qfile
         if cand.exists():
             return cand
     return questions_path
@@ -531,8 +561,8 @@ def _render_single_body(session, by_id, questions, q_version,
     except (FileNotFoundError, json.JSONDecodeError):
         pass
     layer = {
-        "questions.json": f"полная матрица v3: {n} клеток (да/нет + recall "
-                          f"+ версии; полярность сбалансирована)",
+        "questions.json": f"полная матрица v4: {n} клеток в 3 зонах "
+                          f"(база / PHP 8.0–8.5 / будущее)",
         "questions.v2.json": f"слои A+B (v2): {n} клеток "
                              f"(72 да/нет + 24 recall)",
         "questions.v1.json": f"слой A (v1): да/нет ({n} утверждений, "
