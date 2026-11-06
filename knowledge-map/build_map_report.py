@@ -592,12 +592,11 @@ def _render_single_body(session, by_id, questions, q_version,
     }.get(questions_path.name,
           f"вопросник {esc(questions_path.name)} ({n} клеток)")
     title = f"Карта знаний PHP — {run_label(session, run_dir)}"
-    protocol = ("протокол: одна клетка = один независимый сырой запрос "
-                "(утверждение + «Верно или неверно?» или вопрос + «только "
-                "результат» для recall-клеток), без system и истории между "
-                f"клетками; think: {esc(session.get('think'))}; дефолтные параметры "
-                f"генерации; вопросник v{q_version}: {n} клеток. "
-                "Клетки карты: темы × уровни.")
+    protocol = ("один прогон — все клетки вопросника v5 (база + версии "
+                "8.4–8.5 + будущее), каждая — независимый запрос: system-рамка "
+                "и вопрос, без истории между клетками; ответ — JSON "
+                "с пояснением; точный текст запроса — ниже. "
+                "Клетки карты: темы × уровни L1–L8.")
     chips = chips_row_single(session, by_id, questions)
     n_recall = sum(1 for q in questions if q.get("type") == "answer")
     na_legend = ('<span><span class="sw" style="background:{0}"></span>ответ не '
