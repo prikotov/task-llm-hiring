@@ -82,7 +82,7 @@ API, DeepSeek через родный API.
 | `<модель>/backend/interview/run-XX/` | протоколы собесов: `session.json` (messages, thinking, тайминги) и `transcript.md` |
 | `<модель>/backend/interview/judgments/` | вердикты судей (clef, GLM-5.3-Flash) и сводные CSV |
 | `<модель>/backend/test-assignment/run-XX/` | тестовое задание (этап 2): solution, pi-сессия, чекер, метрики, scorecard |
-| `knowledge-map/` | методология «карты знаний PHP» (по мотивам теста Карпаты «Land or Water?»): blueprint с историей наводки, слой A — вопросник 96 да/нет-утверждений (12 тем × 8 уровней, 50/50), слой B — `questions-recall.json` (24 recall-клетки «что выведет/какая версия», эталон вычисляет php 8.5), раннер и сборка карты |
+| `knowledge-map/` | методология «карты знаний PHP» (по мотивам теста Карпаты «Land or Water?»): blueprint с историей наводки, вопросник v2 — 96 клеток (12 тем × 8 уровней: 72 да/нет + 24 recall «что выведет», полярность сбалансирована по столбцам), `questions-versions.json` — версионная панель (cutoff-зонд, as_of), раннер и сборка карты |
 | `<модель>/knowledge-map/run-XX/` | прогоны карты: `session.json`, `answers.csv`, `report.html` (карта зелёный/красный/серый; `compare.html` — тепловая по всем прогонам) |
 | `reports/` | кросс-модельные агрегаты, итоговый отчёт `REPORT.html` |
 

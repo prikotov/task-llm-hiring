@@ -212,7 +212,7 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
     grey = n - len(parsed)
     bool_parsed = [t for t in parsed if isinstance(t.get("answer"), bool)]
     yes_n = sum(1 for t in bool_parsed if t["answer"])
-    yes_share = pct(yes_n, len(parsed))
+    yes_share = pct(yes_n, len(bool_parsed) or 1)
     strict_n = sum(1 for t in parsed if t.get("strict"))
     total_s = sum(t.get("duration_s") or 0 for t in turns)
     if total_s < 90:
@@ -453,11 +453,17 @@ def build_single(run_dir: Path, questions_path: Path) -> None:
     except (FileNotFoundError, json.JSONDecodeError):
         pass
     qfile = (session_probe or {}).get("questionnaire_file")
+    qver = (session_probe or {}).get("questionnaire")
     if qfile and questions_path.name != qfile:
         candidate = questions_path.parent / qfile
         if candidate.exists():
             print(f"  вопросник прогона: {qfile} — беру его вместо "
                   f"{questions_path.name}", file=sys.stderr)
+            questions_path = candidate
+    elif qver:
+        # сессии старых версий вопросника берут замороженную копию v{N}
+        candidate = questions_path.parent / f"questions.v{qver}.json"
+        if candidate.exists() and load_questions(candidate)[0] == qver:
             questions_path = candidate
     q_version, questions = load_questions(questions_path)
     session, by_id = load_run(run_dir)
@@ -470,10 +476,22 @@ def build_single(run_dir: Path, questions_path: Path) -> None:
     correct = sum(1 for q in questions
                   if q["id"] in by_id and is_correct(by_id[q["id"]]))
     n_recall = sum(1 for q in questions if q.get("type") == "answer")
-    layer = (f"слой B: recall-пилот ({n_recall} клеток «что выведет/какая "
-             f"версия», эталон — php 8.5)"
-             if n_recall else
-             f"слой A: да/нет ({n} утверждений, темы × уровни L1–L{max(q['level'] for q in questions)})")
+    as_of = ""
+    try:
+        as_of = json.loads(questions_path.read_text(encoding="utf-8")).get("as_of") or ""
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+    layer = {
+        "questions.json": f"слои A+B: да/нет + recall ({n} клеток, "
+                          f"полярность сбалансирована)",
+        "questions.v1.json": f"слой A (v1): да/нет ({n} утверждений, "
+                             f"темы × уровни L1–L8)",
+        "questions-recall.json": "слой B: recall-пилот (24 клетки «что выведет», "
+                                 "эталон — php 8.5)",
+        "questions-versions.json": f"версионная панель, as_of {as_of} "
+                                   f"({n} клеток «версии PHP»)",
+    }.get(questions_path.name,
+          f"вопросник {esc(questions_path.name)} ({n} клеток)")
     title = (f"Карта знаний PHP — {run_label(session, run_dir)} "
              f"· {layer}")
     protocol = ("протокол: одна клетка = один независимый сырой запрос "
@@ -541,8 +559,12 @@ def write_summary_single(run_dir: Path, session: dict, by_id: dict,
         c = sum(1 for q in tq if q["id"] in by_id and is_correct(by_id[q["id"]]))
         per_topic.append((topic, c, len(tq)))
     ranked = sorted(per_topic, key=lambda x: x[1] / x[2], reverse=True)
-    top = " · ".join(f"{t} {c}/{k}" for t, c, k in ranked[:3])
-    bottom = " · ".join(f"{t} {c}/{k}" for t, c, k in ranked[-3:])
+    if len(ranked) > 1:
+        top = " · ".join(f"{t} {c}/{k}" for t, c, k in ranked[:3])
+        bottom = " · ".join(f"{t} {c}/{k}" for t, c, k in ranked[-3:])
+        theme_lines = [f"- Сильные темы: {top}", f"- Слабые темы: {bottom}"]
+    else:
+        theme_lines = []
     totals = session.get("totals") or {}
     if not totals:
         all_turns = list(by_id.values())
@@ -553,10 +575,19 @@ def write_summary_single(run_dir: Path, session: dict, by_id: dict,
             "cached_tokens": sum(t.get("prompt_eval_cached_count") or 0 for t in all_turns),
         }
     n_recall = sum(1 for q in questions if q.get("type") == "answer")
-    if n_recall:
+    recall_strict = sum(1 for t in parsed
+                        if t.get("strict") and isinstance(t.get("answer"), str))
+    if n_recall and len(parsed) > n_recall:
+        bank_line = (f"вопросник v{q_version} ({n} клеток: {n - n_recall} да/нет "
+                     f"+ {n_recall} recall; эталон recall — php 8.5/accept, "
+                     f"полярность verify сбалансирована).")
+        bias_line = (f"ответов «да»: {pct(yes_n, len(bool_parsed))}% при балансе "
+                     f"verify 50/50; строгих совпадений recall: "
+                     f"{recall_strict} / {n_recall}.")
+    elif n_recall:
         bank_line = (f"вопросник v{q_version} ({n} recall-клеток: "
                      f"эталон — php 8.5/accept-список, ответ без рассуждений).")
-        bias_line = (f"Строгих совпадений (ответ равен эталону): {strict_n} / "
+        bias_line = (f"Строгих совпадений (ответ равен эталону): {recall_strict} / "
                      f"{len(parsed)}; у остальных верных эталон входит в ответ.")
     else:
         bank_line = f"вопросник v{q_version} ({n} утверждений, 50/50)."
@@ -572,8 +603,7 @@ def write_summary_single(run_dir: Path, session: dict, by_id: dict,
         f"{len(parsed)} (серых: {n - len(parsed)}); {bias_line}",
         f"- Стоимость: {totals['duration_s']} c, {totals['prompt_tokens']} вх. ток, "
         f"{totals['output_tokens']} вых. ток (кэш: {totals['cached_tokens']}).",
-        f"- Сильные темы: {top}",
-        f"- Слабые темы: {bottom}",
+        *theme_lines,
         "",
         "Карта с подсказками по клеткам: [report.html](report.html). "
         "Сырые данные: session.json, answers.csv.",
