@@ -215,7 +215,7 @@ def page_css() -> str:
     .zonehdr { grid-column: 1 / -1; font-weight: 600; font-size: 13px;
                color: var(--fg); background: #eef1f4; border-radius: 6px;
                padding: 5px 10px; margin-top: 6px; }
-    .reqhead { color: var(--mut); font-size: 12.5px; margin: 14px 0 8px; }
+    .reqhead { color: var(--fg); font-size: 15px; margin: 14px 0 8px; }
     .msg { margin: 0 0 10px; }
     .msg:last-child { margin-bottom: 0; }
     .role { display: inline-block; font-size: 11px; font-weight: 600;
