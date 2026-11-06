@@ -200,6 +200,10 @@ def page_css() -> str:
     code.id { font-size: 12.5px; background: #eef1f4; border-radius: 5px;
               padding: 1px 6px; white-space: nowrap; }
     footer { color: var(--mut); font-size: 12.5px; margin-top: 40px; }
+    .raw-sample { background: #f4f6f8; border: 1px solid var(--line);
+                  border-radius: 6px; padding: 6px 8px; margin: 4px 0 0;
+                  font: 11.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+                  white-space: pre-wrap; word-break: break-word; }
     .prompt-sample { background: #f4f6f8; border: 1px solid var(--line);
                      border-radius: 8px; padding: 10px 12px;
                      font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -433,7 +437,8 @@ def appendix_table_single(by_id: dict, questions: list,
         if len(expl) > 160:
             expl = expl[:160] + "…"
         expl_html = (f'<br><small>пояснение: {esc(expl)}</small>' if expl else "")
-        raw_html = (f'<br><small>raw: «{esc(raw)}»</small>' if raw else "")
+        raw_html = (f'<br><small>raw:</small>'
+                    f'<pre class="raw-sample">{esc(raw)}</pre>' if raw else "")
         rows.append(
             f'<tr id="{anchor_prefix}row-{esc(q["id"])}">'
             f'<td><code class="id">{esc(q["id"])}</code></td>'
