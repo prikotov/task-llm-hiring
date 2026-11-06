@@ -469,7 +469,13 @@ def build_single(run_dir: Path, questions_path: Path) -> None:
     n = len(questions)
     correct = sum(1 for q in questions
                   if q["id"] in by_id and is_correct(by_id[q["id"]]))
-    title = f"Карта знаний PHP — {run_label(session, run_dir)}"
+    n_recall = sum(1 for q in questions if q.get("type") == "answer")
+    layer = (f"слой B: recall-пилот ({n_recall} клеток «что выведет/какая "
+             f"версия», эталон — php 8.5)"
+             if n_recall else
+             f"слой A: да/нет ({n} утверждений, темы × уровни L1–L{max(q['level'] for q in questions)})")
+    title = (f"Карта знаний PHP — {run_label(session, run_dir)} "
+             f"· {layer}")
     protocol = ("протокол: одна клетка = один независимый сырой запрос "
                 "(утверждение + «Верно или неверно?» или вопрос + «только "
                 "результат» для recall-клеток), без system и истории между "
