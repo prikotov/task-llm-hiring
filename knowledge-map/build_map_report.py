@@ -445,28 +445,41 @@ def page(title: str, protocol: str, chips: str, body: str, footer: str) -> str:
 """
 
 
+def questions_for_run(questions_path: Path, session: dict) -> Path:
+    """Файл вопросника для сессии: questionnaire_file, иначе замороженная
+    questions.v{N}.json (сессии старых версий не должны читать v2)."""
+    qfile = session.get("questionnaire_file")
+    qver = session.get("questionnaire")
+    if qfile:
+        cand = questions_path.parent / qfile
+        if cand.exists():
+            return cand
+    if qver:
+        cand = questions_path.parent / f"questions.v{qver}.json"
+        if cand.exists():
+            return cand
+    return questions_path
+
+
 def build_single(run_dir: Path, questions_path: Path) -> None:
-    session_probe = None
     try:
         session_probe = json.loads(
             (run_dir / "session.json").read_text(encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError):
-        pass
-    qfile = (session_probe or {}).get("questionnaire_file")
-    qver = (session_probe or {}).get("questionnaire")
-    if qfile and questions_path.name != qfile:
-        candidate = questions_path.parent / qfile
-        if candidate.exists():
-            print(f"  вопросник прогона: {qfile} — беру его вместо "
-                  f"{questions_path.name}", file=sys.stderr)
-            questions_path = candidate
-    elif qver:
-        # сессии старых версий вопросника берут замороженную копию v{N}
-        candidate = questions_path.parent / f"questions.v{qver}.json"
-        if candidate.exists() and load_questions(candidate)[0] == qver:
-            questions_path = candidate
+        session_probe = {}
+    questions_path = questions_for_run(questions_path, session_probe)
     q_version, questions = load_questions(questions_path)
     session, by_id = load_run(run_dir)
+    title, protocol, chips, body, footer = _render_single_body(
+        session, by_id, questions, q_version, run_dir, questions_path)
+    (run_dir / "report.html").write_text(
+        page(title, protocol, chips, body, footer), encoding="utf-8")
+    write_summary_single(run_dir, session, by_id, questions, q_version)
+    print(f"отчёт: {run_dir / 'report.html'}")
+
+
+def _render_single_body(session, by_id, questions, q_version,
+                        run_dir: Path, questions_path: Path):
     ver = session.get("questionnaire")
     if ver and q_version and ver != q_version:
         print(f"⚠️ вопросник прогона: v{ver}, в репозитории: v{q_version} — "
@@ -533,10 +546,7 @@ def build_single(run_dir: Path, questions_path: Path) -> None:
     footer = (f"построено knowledge-map/build_map_report.py · "
               f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} · "
               f"данные прогона: session.json, answers.csv")
-    (run_dir / "report.html").write_text(
-        page(title, protocol, chips, body, footer), encoding="utf-8")
-    write_summary_single(run_dir, session, by_id, questions, q_version)
-    print(f"отчёт: {run_dir / 'report.html'}")
+    return title, protocol, chips, body, footer
 
 
 def write_summary_single(run_dir: Path, session: dict, by_id: dict,
@@ -766,12 +776,113 @@ def flips_table(questions: list, runs: list[tuple[str, dict]],
 </table>"""
 
 
+def build_model_report(model_dir: Path, questions_path: Path) -> None:
+    """Полный отчёт модели: сводная таблица всех прогонов + разделы по
+    вопросникам (последний прогон каждого: основная карта, версионная
+    панель, экспериментальные наборы)."""
+    runs = []
+    for rd in sorted(model_dir.glob("run-*")):
+        if not (rd / "session.json").exists():
+            continue
+        try:
+            session, by_id = load_run(rd)
+        except FileNotFoundError:
+            continue
+        runs.append((rd, session, by_id))
+    if not runs:
+        raise SystemExit(f"в {model_dir} нет прогонов (run-*/session.json)")
+
+    FILE_LABEL = {
+        "questions.json": "A+B · основная карта v2",
+        "questions.v1.json": "A · да/нет v1",
+        "questions-recall.json": "B · recall-пилот",
+        "questions-versions.json": "версионная панель",
+    }
+    section_order = {"questions.json": 0, "questions-versions.json": 1,
+                     "questions-recall.json": 2}
+
+    # последний прогон по каждому вопроснику
+    latest = {}
+    for rd, session, by_id in runs:
+        f = session.get("questionnaire_file") or "questions.json"
+        no = session.get("run") or 0
+        if f not in latest or no > latest[f][0]:
+            latest[f] = (no, rd, session, by_id)
+
+    rows = []
+    for rd, session, by_id in sorted(runs, key=lambda x: x[0].name):
+        f = session.get("questionnaire_file") or "questions.json"
+        n_all = len(by_id)
+        c = sum(1 for t in by_id.values() if is_correct(t))
+        tot = session.get("totals") or {}
+        rows.append(
+            f'<tr><td>{esc(rd.name)}</td>'
+            f'<td>{esc(FILE_LABEL.get(f, f))}</td>'
+            f'<td>{esc(session.get("think"))}</td>'
+            f'<td>{c} / {n_all}</td><td>{pct(c, n_all)}%</td>'
+            f'<td>{tot.get("duration_s", 0)} c</td>'
+            f'<td>{tot.get("prompt_tokens", 0)} / '
+            f'{tot.get("output_tokens", 0)}</td></tr>')
+    table = ('<h2>Прогоны модели</h2>\n<table class="data">'
+             '<tr><th>Прогон</th><th>Слой</th><th>think</th><th>Верно</th>'
+             '<th>%</th><th>Время</th><th>Токены (вх / вых)</th></tr>\n'
+             + "\n".join(rows) + "</table>")
+
+    sections = []
+    for f in sorted(latest, key=section_order.get):
+        no, rd, session, by_id = latest[f]
+        qpath = questions_for_run(questions_path, session)
+        q_version, questions = load_questions(qpath)
+        title, protocol, chips, body, _footer = _render_single_body(
+            session, by_id, questions, q_version, rd, qpath)
+        extra = ""
+        if f == "questions-versions.json":
+            wrong = sorted(t["level"] for t in by_id.values()
+                           if not is_correct(t))
+            if wrong:
+                extra = (f'<p class="proto">cutoff-сигнал: первые ошибки — '
+                         f'L{wrong[0]} (по возрастанию версии: '
+                         f'{", ".join("L" + str(w) for w in wrong)})</p>')
+        sections.append(f'<h2>{esc(title)}</h2>\n'
+                        f'<p class="proto">{esc(protocol)}</p>\n'
+                        f'{chips}\n{extra}\n{body}')
+
+    first = min(latest, key=section_order.get)
+    model_name = esc(latest[first][2].get("model", "?"))
+    title = f"Карта знаний PHP — {model_name}: полная система тестирования"
+    proto = ("полный отчёт модели: основной вопросник (слой A+B), версионная "
+             "панель (cutoff-зонд, as_of — дата снимка) и экспериментальные "
+             "наборы; в каждом разделе — последний прогон этого вопросника.")
+    html = page(title, proto, "", table + "\n" + "\n".join(sections),
+                "построено knowledge-map/build_map_report.py · "
+                f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} · "
+                "полные данные: run-*/session.json")
+    (model_dir / "report.html").write_text(html, encoding="utf-8")
+
+    lines = [f"# Карта знаний PHP — {latest[first][2].get('model', '?')}", "",
+             "| Прогон | Слой | think | Верно | % | Время |",
+             "|---|---|---|---|---|---|"]
+    for rd, session, by_id in sorted(runs, key=lambda x: x[0].name):
+        f = session.get("questionnaire_file") or "questions.json"
+        n_all = len(by_id)
+        c = sum(1 for t in by_id.values() if is_correct(t))
+        tot = session.get("totals") or {}
+        lines.append(f"| {rd.name} | {FILE_LABEL.get(f, f)} | "
+                     f"{session.get('think')} | {c}/{n_all} | "
+                     f"{pct(c, n_all)}% | {tot.get('duration_s', 0)} c |")
+    lines += ["", "Полный отчёт: [report.html](report.html). "
+              "Тепловая карта уровня: `--model-dir --think <уровень>` → "
+              "compare.html."]
+    (model_dir / "summary.md").write_text("\n".join(lines), encoding="utf-8")
+    print(f"полный отчёт модели: {model_dir / 'report.html'}")
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     g = p.add_mutually_exclusive_group(required=True)
     g.add_argument("--run-dir", help="папка прогона (карта зелёный/красный)")
-    g.add_argument("--model-dir", help="папка модели (тепловая карта по прогонам)")
+    g.add_argument("--model-dir", help="папка модели: полный отчёт модели (report.html); с --think — тепловая карта уровня (compare.html)")
     p.add_argument("--think", default=None,
                    help="уровень рассуждений для тепловой карты; обязателен, "
                         "когда в папке прогоны нескольких think — смешивать "
@@ -782,8 +893,10 @@ def main() -> int:
     questions_path = Path(args.questions)
     if args.run_dir:
         build_single(Path(args.run_dir), questions_path)
-    else:
+    elif args.think:
         build_compare(Path(args.model_dir), questions_path, args.think)
+    else:
+        build_model_report(Path(args.model_dir), questions_path)
     return 0
 
 
