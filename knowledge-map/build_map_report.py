@@ -272,6 +272,7 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
     return f"""
     <div class="chips">
       {score_chip}
+      <div class="chip">По зонам: <b>{esc(" · ".join(zone_stats))}</b></div>
       <div class="chip">Точность: <b>{correct} / {n}</b></div>
       <div class="chip">Разобрано ответов: <b>{len(parsed)} / {n}</b>
            (серых клеток: {grey}, поздний парсинг: {late})</div>
@@ -280,7 +281,6 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
            ({statistics.median(t.get('duration_s') or 0 for t in turns):.2f} c на клетку — медиана)</div>
       <div class="chip">Токены: <b>{totals.get('prompt_tokens', 0)} вх /
            {totals.get('output_tokens', 0)} вых</b> (кэш: {totals.get('cached_tokens', 0)})</div>
-      <div class="chip">По зонам: <b>{esc(" · ".join(zone_stats))}</b></div>
       <div class="chip">{esc(ver_s)} · think: {esc(session.get('think'))}</div>
     </div>"""
 
