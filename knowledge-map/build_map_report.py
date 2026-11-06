@@ -453,7 +453,12 @@ def questions_for_run(questions_path: Path, session: dict) -> Path:
     if qfile:
         cand = questions_path.parent / qfile
         if cand.exists():
-            return cand
+            try:
+                ver = json.loads(cand.read_text(encoding="utf-8")).get("version")
+            except (OSError, json.JSONDecodeError):
+                ver = None
+            if qver is None or ver == qver:
+                return cand
     if qver:
         cand = questions_path.parent / f"questions.v{qver}.json"
         if cand.exists():
@@ -495,8 +500,10 @@ def _render_single_body(session, by_id, questions, q_version,
     except (FileNotFoundError, json.JSONDecodeError):
         pass
     layer = {
-        "questions.json": f"слои A+B: да/нет + recall ({n} клеток, "
-                          f"полярность сбалансирована)",
+        "questions.json": f"полная матрица v3: {n} клеток (да/нет + recall "
+                          f"+ версии; полярность сбалансирована)",
+        "questions.v2.json": f"слои A+B (v2): {n} клеток "
+                             f"(72 да/нет + 24 recall)",
         "questions.v1.json": f"слой A (v1): да/нет ({n} утверждений, "
                              f"темы × уровни L1–L8)",
         "questions-recall.json": "слой B: recall-пилот (24 клетки «что выведет», "
