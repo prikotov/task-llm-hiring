@@ -220,9 +220,7 @@ def page_css() -> str:
     .msg:last-child { margin-bottom: 0; }
     .role { display: inline-block; font-size: 11px; font-weight: 600;
             letter-spacing: .04em; padding: 2px 8px; border-radius: 5px;
-            margin-bottom: 4px; }
-    .role-sys { background: #e7e3f8; color: #5443c2; }
-    .role-usr { background: #e2efe7; color: #22663c; }
+            margin-bottom: 4px; background: #eef1f4; color: var(--mut); }
     .prompt-sample { background: #f4f6f8; border: 1px solid var(--line);
                      border-radius: 8px; padding: 10px 12px;
                      font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -621,14 +619,15 @@ def _render_single_body(session, by_id, questions, q_version,
         msg_html = []
         if sysp:
             msg_html.append(
-                '<div class="msg"><span class="role role-sys">system</span>'
+                '<div class="msg"><span class="role">system</span>'
                 f'<pre class="prompt-sample">{esc(sysp)}</pre></div>')
         msg_html.append(
-            '<div class="msg"><span class="role role-usr">user</span>'
+            '<div class="msg"><span class="role">user</span>'
             f'<pre class="prompt-sample">{esc(uprompt)}</pre></div>')
         prompts_html = (
-            '<div class="reqhead">Реальный запрос первой клетки — байт в байт, '
-            'как ушло по HTTP; каждая клетка получает тот же system + свой текст:</div>'
+            '<div class="reqhead">Пример запроса (первая клетка). System '
+            'одинаковый во всех запросах прогона, user — свой вопрос для '
+            'каждой клетки:</div>'
             + "".join(msg_html))
     body = prompts_html + f"""
 <h2>Карта</h2>
