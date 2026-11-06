@@ -446,19 +446,17 @@ def appendix_table_single(by_id: dict, questions: list,
         if raw:
             raw_html = (f'<br><details class="raw-details"><summary>Raw</summary>'
                         f'<pre class="raw-sample">{esc(raw)}</pre></details>')
-        # эталон показываем только при неверном ответе (при верном он и
-        # так совпадает с ответом модели)
+        # у неверных клеток в «Результате» рядом — верный ответ
         wrong = t is not None and not is_correct(t)
-        right_html = (f'<br><small>верный ответ: {esc(right)}</small>'
-                      if wrong else "")
+        wrong_html = (f'<br><small>верный: {esc(right)}</small>' if wrong else "")
         rows.append(
             f'<tr id="{anchor_prefix}row-{esc(q["id"])}">'
             f'<td><code class="id">{esc(q["id"])}</code></td>'
             f'<td>{esc(q["topic"])}<br><small>L{q["level"]} · {dur}</small></td>'
             f'<td class="assert">{esc(cell_text(q))}</td>'
-            f'<td>«{esc(given)}»{right_html}{expl_html}{raw_html}'
+            f'<td>«{esc(given)}»{expl_html}{raw_html}'
             f'</td>'
-            f'<td class="{cls}">{esc(verdict)}{parsed_html}</td>'
+            f'<td class="{cls}">{esc(verdict)}{wrong_html}{parsed_html}</td>'
             f'<td class="assert"><small><i>{esc(q["note"])}</i></small></td></tr>')
     return "\n".join(rows)
 
