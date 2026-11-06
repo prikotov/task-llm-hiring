@@ -18,5 +18,10 @@
 | run-14 | A+B · основная матрица v5 | system+JSON | off | 93/112 | 83.0% | 57.4 c |
 | run-15 | A+B · основная матрица v5 | system+JSON | off | 93/112 | 83.0% | 49.2 c |
 | run-16 | A+B · основная матрица v5 | system+JSON | off | 94/112 | 83.9% | 59.6 c |
+| run-17 | A+B · основная матрица v5 | system+JSON | low | 98/112 | 87.5% | 149.0 c |
+| run-18 | A+B · основная матрица v5 | system+JSON | low | 98/112 | 87.5% | 153.2 c |
+| run-19 | A+B · основная матрица v5 | system+JSON | low | 100/112 | 89.3% | 160.7 c |
+| run-20 | A+B · основная матрица v5 | system+JSON | low | 99/112 | 88.4% | 160.5 c |
+| run-21 | A+B · основная матрица v5 | system+JSON | low | 99/112 | 88.4% | 157.4 c |
 
 Полный отчёт: [report.html](report.html). Тепловая карта уровня: `--model-dir --think <уровень>` → compare.html.
