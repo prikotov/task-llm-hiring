@@ -215,6 +215,14 @@ def page_css() -> str:
     .zonehdr { grid-column: 1 / -1; font-weight: 600; font-size: 13px;
                color: var(--fg); background: #eef1f4; border-radius: 6px;
                padding: 5px 10px; margin-top: 6px; }
+    .reqhead { color: var(--mut); font-size: 12.5px; margin: 14px 0 8px; }
+    .msg { margin: 0 0 10px; }
+    .msg:last-child { margin-bottom: 0; }
+    .role { display: inline-block; font-size: 11px; font-weight: 600;
+            letter-spacing: .04em; padding: 2px 8px; border-radius: 5px;
+            margin-bottom: 4px; }
+    .role-sys { background: #e7e3f8; color: #5443c2; }
+    .role-usr { background: #e2efe7; color: #22663c; }
     .prompt-sample { background: #f4f6f8; border: 1px solid var(--line);
                      border-radius: 8px; padding: 10px 12px;
                      font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -615,15 +623,18 @@ def _render_single_body(session, by_id, questions, q_version,
         sysp = session.get("system_prompt")
         uprompt = (first or {}).get("prompt") or \
             ("<текст клетки>" + (session.get("prompt_suffix") or ""))
-        parts = []
+        msg_html = []
         if sysp:
-            parts.append("system: " + sysp)
-        parts.append("user: " + uprompt)
-        hist = ("system кэшируется как общий префикс; история между клетками "
-                "не копится — каждая клетка получает тот же system + свой текст")
-        prompts_html = ('<pre class="prompt-sample">Реальный запрос первой клетки '
-                        '(байт в байт, как ушло по HTTP; меток и шаблонов в запросе нет — '
-                        f'{hist}):\n' + esc("\n".join(parts)) + "</pre>")
+            msg_html.append(
+                '<div class="msg"><span class="role role-sys">system</span>'
+                f'<pre class="prompt-sample">{esc(sysp)}</pre></div>')
+        msg_html.append(
+            '<div class="msg"><span class="role role-usr">user</span>'
+            f'<pre class="prompt-sample">{esc(uprompt)}</pre></div>')
+        prompts_html = (
+            '<div class="reqhead">Реальный запрос первой клетки — байт в байт, '
+            'как ушло по HTTP; каждая клетка получает тот же system + свой текст:</div>'
+            + "".join(msg_html))
     body = prompts_html + f"""
 <h2>Карта</h2>
 <div class="legend">
