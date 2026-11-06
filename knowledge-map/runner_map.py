@@ -400,6 +400,7 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
             if qtype == "answer":
                 # recall-клетка: ответ = только результат; эталон — php или accept
                 expected = expected_value(q["grader"], expected_cache)
+                expected = normalize(expected) if expected else expected
                 if json_ok:
                     answer = normalize(str(obj["answer"]))
                     parsed = "json"

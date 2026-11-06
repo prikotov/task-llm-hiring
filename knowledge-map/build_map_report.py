@@ -17,6 +17,7 @@
 
 import argparse
 import html
+import re
 from collections import defaultdict
 import json
 import statistics
@@ -69,13 +70,21 @@ def given_text(turn: dict) -> str:
         return "— (нет ответа)"
     if isinstance(a, bool):
         return "да" if a else "нет"
-    return str(a)
+    return norm_display(str(a))
+
+
+def norm_display(s: str | None) -> str:
+    """Единый вид значения: нижний регистр, без кавычек, сжатые пробелы."""
+    if s is None:
+        return "—"
+    s = re.sub(r"\s+", " ", s.strip().lower())
+    return s.strip("«»\"' .") or (s or "—")
 
 
 def correct_text(q: dict, turn: dict | None) -> str:
-    """Эталон клетки: для recall — значение (из turn), для да/нет — да/нет."""
+    """Эталон клетки: для recall — нормализованное значение, для да/нет — да/нет."""
     if q.get("type") == "answer":
-        return str(turn.get("correct_answer")) if turn else "—"
+        return norm_display(turn.get("correct_answer")) if turn else "—"
     return "да" if q["answer"] else "нет"
 
 
