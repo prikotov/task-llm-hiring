@@ -73,6 +73,16 @@ system prompt,
   доля разобранных показывается отдельно.
 - **Thinking не парсится**: поле `thinking` ollama (и `<think>`-блок в
   контенте, если модель игнорирует think off) отсекается до парсинга.
+- **Протоколы ответов.** Chat-модели отвечают через ollama `/api/chat`
+  (текст «да»/«нет», строгий парсинг). Decision-модели (clef, clef-flash)
+  chat не умеют — они отвечают родным протоколом `/v1/systemone`
+  (`runner_map.py --protocol decision`, формат state — по образцу
+  `build_state` из `interview/score.py`): сервис возвращает вероятность
+  верности утверждения (noul), клетка — «да» при p ≥ 0.5. Вероятность
+  сохраняется в клетку (поле `p`) и видна в подсказке отчёта — это наш
+  аналог logprob-семплирования Карпаты: знание читается из вероятности,
+  а не из текста. Уровень рассуждений к decision-протоколу не применяется
+  (в session такой прогон помечен «— (decision-протокол)»).
 
 ## Вопросник
 
@@ -100,6 +110,14 @@ system prompt,
   уровням, приложение со всеми 96 парами «утверждение → ответ» для
   вычитки. Отчёт самодостаточен: не содержит внутренних адресов (они в
   `session.json`).
+- **Стоимость прогона** — время и токены фиксируются на каждый вопрос
+  (`duration_s`, `eval_count`, `prompt_eval_count`,
+  `prompt_eval_cached_count` в `session.json` и `answers.csv`) и
+  суммарно на прогон (`totals` в `session.json`; чипы отчёта; в режиме
+  `--model-dir` — колонки think/время/токены в таблице прогонов).
+  Прогоны разных моделей или одного уровня рассуждений сравниваются
+  «сколько стоит решение теста»: секунды и входные/выходные токены
+  при данном think.
 - **Файлы прогона** `models/<модель>/knowledge-map/run-XX/`:
   `session.json` (условия + все пары вопрос-ответ с таймингами,
   прогрессивная запись — крах не теряет серию), `answers.csv` (тот же
@@ -117,6 +135,10 @@ system prompt,
    точности по прогонам — как устойчивость ответов в собесах.
 4. Сравнение моделей — по средней точности и по картам глазами: где
    «континенты знаний» рваные у всех, а где у модели дыры.
+5. Зависимость «уровень рассуждений → результат» сверяется по сериям
+   прогонов с разными `--think` (off/low/medium/xhigh — где модель
+   умеет): точность, время и токены из `totals` каждого прогона; серии
+   для thinking-булевых моделей (gemma) не различают уровни.
 
 ## Запуск
 
@@ -124,6 +146,9 @@ system prompt,
     python3 knowledge-map/runner_map.py --model huihui-ai:pi-100k --runs 1
     python3 knowledge-map/runner_map.py --model gemma4:26b --runs 1 --limit 8  # smoke
     python3 knowledge-map/build_map_report.py --run-dir models/huihui-ai-pi-100k/knowledge-map/run-01
+
+    # decision-модели (clef-flash): вероятностный протокол /v1/systemone
+    python3 knowledge-map/runner_map.py --model clef-flash:latest --runs 1 --protocol decision
 
     # этап 2: тепловая карта по всем прогонам модели
     python3 knowledge-map/build_map_report.py --model-dir models/huihui-ai-pi-100k/knowledge-map

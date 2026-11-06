@@ -31,6 +31,17 @@ import env_local  # noqa: F401 — грузит .env.local до чтения OLL
 DEFAULT_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
 QUESTION_SUFFIX = "\n\nВерно или неверно? Ответь одним словом: «да» или «нет»."
 THINK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
+# decision-протокол (/v1/systemone, как в interview/score.py): без chat —
+# вероятностный ответ «утверждение верно» (noul), порог да/нет — 0.5
+DECISION_INSTRUCTIONS = "Верно ли утверждение о PHP?"
+DECISION_CRITERIA = {"false": "Утверждение неверно",
+                     "true": "Утверждение верно"}
+
+
+def build_decision_state(assertion: str) -> str:
+    """state для decision-модели — по образцу build_state из score.py."""
+    return (f"Ты проверяешь утверждение о PHP на верность.\n\n"
+            f"УТВЕРЖДЕНИЕ:\n{assertion}")
 
 
 def http_json(url: str, payload: dict, timeout: int, retries: int = 3) -> dict:
@@ -98,6 +109,25 @@ def chat_safe(base_url: str, model: str, prompt: str, keep_alive, think,
         return None
 
 
+def decision_once(base_url: str, model: str, assertion: str, timeout: int) -> dict:
+    """Один вызов /v1/systemone: вероятность верности утверждения (noul)."""
+    payload = {"model": model, "state": build_decision_state(assertion),
+               "questions": {"verdict": {"type": "noul",
+                                         "instructions": DECISION_INSTRUCTIONS,
+                                         "criteria": DECISION_CRITERIA}}}
+    return http_json(f"{base_url}/v1/systemone", payload, timeout)
+
+
+def decision_safe(base_url: str, model: str, assertion: str,
+                  timeout: int) -> dict | None:
+    """decision_once, но сбой возвращает None вместо исключения (как chat_safe)."""
+    try:
+        return decision_once(base_url, model, assertion, timeout)
+    except Exception as e:
+        print(f"      ⚠️ сбой decision-запроса ({e}); пропускаю", file=sys.stderr)
+        return None
+
+
 def parse_answer(raw: str) -> tuple[bool | None, str]:
     """Разобрать ответ модели. Возвращает (ответ, как разобрано).
 
@@ -141,9 +171,10 @@ def check_questionnaire(questions: list) -> None:
 
 def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
             out_dir: Path, keep_alive, think: str, timeout: int,
-            limit: int | None) -> None:
-    print(f"  выгружаю модель перед прогоном...")
-    unload_model(base_url, model, timeout)
+            limit: int | None, protocol: str = "chat") -> None:
+    if protocol == "chat":
+        print(f"  выгружаю модель перед прогоном...")
+        unload_model(base_url, model, timeout)
 
     turns: list = []
     session = {
@@ -151,52 +182,92 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
         "run": run_no,
         "started_at": datetime.now(timezone.utc).isoformat(),
         "base_url": base_url,
-        "keep_alive": keep_alive,
-        "kv_cache": "weights-only (клетки независимы, префиксы не шарятся)",
-        "think": think,
+        "protocol": protocol,
+        "keep_alive": keep_alive if protocol == "chat" else None,
+        "kv_cache": ("weights-only (клетки независимы, префиксы не шарятся)"
+                     if protocol == "chat" else None),
+        "think": ("— (decision-протокол: вероятностный ответ noul)"
+                  if protocol == "decision" else think),
         "question_count": 0,
         "questionnaire": q_version,
-        "prompt_suffix": QUESTION_SUFFIX.strip(),
+        "prompt_suffix": QUESTION_SUFFIX.strip() if protocol == "chat" else None,
+        "decision_question": ({"instructions": DECISION_INSTRUCTIONS,
+                               "criteria": DECISION_CRITERIA}
+                              if protocol == "decision" else None),
+        "totals": {},
         "turns": turns,
     }
 
     def flush():
         """Прогрессивное сохранение: крах/перезагрузка серию не теряют."""
         session["question_count"] = len(turns)
+        session["totals"] = {
+            "duration_s": round(sum(t["duration_s"] for t in turns), 1),
+            "prompt_tokens": sum(t.get("prompt_eval_count") or 0 for t in turns),
+            "output_tokens": sum(t.get("eval_count") or 0 for t in turns),
+            "cached_tokens": sum(t.get("prompt_eval_cached_count") or 0 for t in turns),
+        }
         out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / "session.json").write_text(
             json.dumps(session, ensure_ascii=False, indent=2), encoding="utf-8")
 
     to_ask = questions[:limit] if limit else questions
     for q in to_ask:
-        prompt = q["text"] + QUESTION_SUFFIX
         t0 = time.monotonic()
-        resp = chat_safe(base_url, model, prompt, keep_alive, think, timeout)
+        if protocol == "decision":
+            resp = decision_safe(base_url, model, q["text"], timeout)
+        else:
+            prompt = q["text"] + QUESTION_SUFFIX
+            resp = chat_safe(base_url, model, prompt, keep_alive, think, timeout)
         duration = time.monotonic() - t0
+        p = None
+        thinking = None
         if resp is None:
             answer_raw, answer, parsed = "", None, "none"
+            eval_count = prompt_eval_count = cached_count = None
             done_reason = "error"
+        elif protocol == "decision":
+            a = (resp.get("answers") or {}).get("verdict") or {}
+            p = a.get("noul")
+            if p is None:
+                answer_raw, answer, parsed = "", None, "none"
+            else:
+                p = round(float(p), 3)
+                answer, parsed = p >= 0.5, "ok"
+                answer_raw = f"noul={p}"
+            u = resp.get("usage") or {}
+            eval_count = u.get("output_tokens")
+            prompt_eval_count = u.get("input_tokens")
+            cached_count = None
+            done_reason = "stop"
         else:
             msg = resp.get("message", {})
             answer_raw = (msg.get("content") or "").strip()
             # размышления в парсинг не идут; сохраняем в клетку для аудита
             answer, parsed = parse_answer(answer_raw)
+            thinking = (msg.get("thinking") or "").strip() or None
+            eval_count = resp.get("eval_count")
+            prompt_eval_count = resp.get("prompt_eval_count")
+            cached_count = resp.get("prompt_eval_cached_count")
             done_reason = resp.get("done_reason")
         turns.append({
             "id": q["id"], "topic": q["topic"], "level": q["level"],
             "assertion": q["text"], "correct_answer": q["answer"],
-            "prompt": prompt,
+            "prompt": (q["text"] + QUESTION_SUFFIX if protocol == "chat"
+                       else build_decision_state(q["text"])),
             "answer_raw": answer_raw, "answer": answer, "parsed": parsed,
-            "thinking": None if resp is None else (resp.get("message", {}).get("thinking") or None),
-            "duration_s": round(duration, 1),
-            "eval_count": resp.get("eval_count") if resp else None,
-            "prompt_eval_count": resp.get("prompt_eval_count") if resp else None,
+            "p": p, "thinking": thinking,
+            "duration_s": round(duration, 2),
+            "eval_count": eval_count,
+            "prompt_eval_count": prompt_eval_count,
+            "prompt_eval_cached_count": cached_count,
             "done_reason": done_reason,
         })
         mark = {True: "да ✅", False: "нет ❌", None: "— ⬜"}[answer]
+        p_s = f", p={p}" if p is not None else ""
         truncated = done_reason not in (None, "stop")
         warn = " ⚠️ ОБРЫВ: " + str(done_reason) if truncated else ""
-        print(f"    [{q['id']}] {q['topic']}: {duration:.0f}s → {mark}"
+        print(f"    [{q['id']}] {q['topic']}: {duration:.0f}s → {mark}{p_s}"
               f" (верно: {'да' if q['answer'] else 'нет'}){warn}")
         flush()
 
@@ -212,15 +283,18 @@ def write_answers_csv(out_dir: Path, turns: list) -> None:
     """Разбор одной строкой на клетку — для анализа кодом (как judges CSV)."""
     with (out_dir / "answers.csv").open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f, lineterminator="\n")
-        w.writerow(["id", "topic", "level", "answer", "parsed", "correct",
-                    "is_correct", "duration_s"])
+        w.writerow(["id", "topic", "level", "answer", "p", "parsed", "correct",
+                    "is_correct", "duration_s", "prompt_tokens", "output_tokens",
+                    "cached_tokens"])
         for t in turns:
             is_correct = t["answer"] is not None and t["answer"] == t["correct_answer"]
             w.writerow([t["id"], t["topic"], t["level"],
                         "" if t["answer"] is None else ("да" if t["answer"] else "нет"),
-                        t["parsed"],
+                        t.get("p"), t["parsed"],
                         "да" if t["correct_answer"] else "нет",
-                        int(is_correct), t["duration_s"]])
+                        int(is_correct), t["duration_s"],
+                        t.get("prompt_eval_count"), t.get("eval_count"),
+                        t.get("prompt_eval_cached_count")])
 
 
 def main() -> int:
@@ -239,7 +313,12 @@ def main() -> int:
                    help="только первые N клеток (для smoke-теста)")
     p.add_argument("--think", choices=["auto", "on", "off", "low", "medium", "xhigh"],
                    default="off",
-                   help="режим thinking (default off — стандарт локальных собесов)")
+                   help="режим thinking (default off — стандарт локальных собесов; "
+                        "в decision-протоколе не применяется)")
+    p.add_argument("--protocol", choices=["chat", "decision"], default="chat",
+                   help="протокол ответов: chat — ollama /api/chat (default); "
+                        "decision — /v1/systemone с вероятностью noul, для "
+                        "decision-моделей (clef, clef-flash), не умеющих chat")
     p.add_argument("--keep-alive", default="10m",
                    help="keep_alive внутри прогона (default 10m); изоляция прогонов "
                         "— выгрузкой до и после")
@@ -271,10 +350,14 @@ def main() -> int:
                   f"(удалите или укажите --run)", file=sys.stderr)
             run_no += 1
             continue
-        print(f"[run-{run_no:02d}] {args.model} · карта знаний PHP")
+        print(f"[run-{run_no:02d}] {args.model} · карта знаний PHP "
+              f"· протокол: {args.protocol}")
         run_map(args.base_url, args.model, questions, q_version, run_no,
-                out_dir, keep_alive, args.think, args.timeout, args.limit)
+                out_dir, keep_alive, args.think, args.timeout, args.limit,
+                args.protocol)
         run_no += 1
+        if args.protocol == "decision":
+            continue  # decision-сервис не держит модель в ollama — выгружать нечего
         # выгрузка после КАЖДОГО прогона: изоляция прогонов
         try:
             unload_model(args.base_url, args.model, args.timeout)

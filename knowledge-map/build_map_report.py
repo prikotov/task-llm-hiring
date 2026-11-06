@@ -91,6 +91,8 @@ def tooltip(turn: dict | None, q: dict, runs: list[tuple] | None = None) -> str:
     elif turn is not None:
         given = "— (нет ответа)" if turn.get("answer") is None else \
             ("да" if turn["answer"] else "нет")
+        if turn.get("p") is not None:
+            given += f" (p={turn['p']})"
         raw = (turn.get("answer_raw") or "").strip().replace("\n", " ⏎ ")
         if len(raw) > 140:
             raw = raw[:140] + "…"
@@ -191,6 +193,11 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
         time_s = f"{total_s:.0f} c"
     else:
         time_s = f"{total_s / 60:.1f} мин"
+    totals = session.get("totals") or {
+        "prompt_tokens": sum(t.get("prompt_eval_count") or 0 for t in turns),
+        "output_tokens": sum(t.get("eval_count") or 0 for t in turns),
+        "cached_tokens": sum(t.get("prompt_eval_cached_count") or 0 for t in turns),
+    }
     ver = session.get("questionnaire")
     ver_s = f"вопросник v{ver}" if ver else "вопросник"
     return f"""
@@ -201,7 +208,9 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
       <div class="chip">Ответов «да»: <b>{yes_share}%</b>
            (баланс вопросника 50/50, базлайн константного ответа — 50%)</div>
       <div class="chip">Время: <b>{time_s}</b>
-           (медиана клетки: {statistics.median(t.get('duration_s') or 0 for t in turns):.1f} c)</div>
+           ({statistics.median(t.get('duration_s') or 0 for t in turns):.2f} c на клетку — медиана)</div>
+      <div class="chip">Токены: <b>{totals.get('prompt_tokens', 0)} вх /
+           {totals.get('output_tokens', 0)} вых</b> (кэш: {totals.get('cached_tokens', 0)})</div>
       <div class="chip">{esc(ver_s)} · think: {esc(session.get('think'))}</div>
     </div>"""
 
@@ -421,6 +430,15 @@ def write_summary_single(run_dir: Path, session: dict, by_id: dict,
     ranked = sorted(per_topic, key=lambda x: x[1] / x[2], reverse=True)
     top = " · ".join(f"{t} {c}/{k}" for t, c, k in ranked[:3])
     bottom = " · ".join(f"{t} {c}/{k}" for t, c, k in ranked[-3:])
+    totals = session.get("totals") or {}
+    if not totals:
+        all_turns = list(by_id.values())
+        totals = {
+            "duration_s": round(sum(t.get("duration_s") or 0 for t in all_turns), 1),
+            "prompt_tokens": sum(t.get("prompt_eval_count") or 0 for t in all_turns),
+            "output_tokens": sum(t.get("eval_count") or 0 for t in all_turns),
+            "cached_tokens": sum(t.get("prompt_eval_cached_count") or 0 for t in all_turns),
+        }
     lines = [
         f"# Карта знаний PHP — {session.get('model', '?')}, "
         f"run-{session.get('run', '?'):02d}",
@@ -431,6 +449,8 @@ def write_summary_single(run_dir: Path, session: dict, by_id: dict,
         f"- Точность: **{correct} / {n} ({pct(correct, n)}%)**; разобрано "
         f"{len(parsed)} (серых: {n - len(parsed)}); ответов «да»: "
         f"{pct(yes_n, len(parsed))}% при балансе 50/50.",
+        f"- Стоимость: {totals['duration_s']} c, {totals['prompt_tokens']} вх. ток, "
+        f"{totals['output_tokens']} вых. ток (кэш: {totals['cached_tokens']}).",
         f"- Сильные темы: {top}",
         f"- Слабые темы: {bottom}",
         "",
@@ -465,12 +485,27 @@ def build_compare(model_dir: Path, questions_path: Path) -> None:
         flip_by_id[q["id"]] = len(answers) > 1
     flips_total = sum(1 for v in flip_by_id.values() if v)
 
+    def run_totals(sess: dict, by_id: dict) -> dict:
+        t = sess.get("totals")
+        if t:
+            return t
+        turns = list(by_id.values())
+        return {
+            "duration_s": round(sum(x.get("duration_s") or 0 for x in turns), 1),
+            "prompt_tokens": sum(x.get("prompt_eval_count") or 0 for x in turns),
+            "output_tokens": sum(x.get("eval_count") or 0 for x in turns),
+            "cached_tokens": sum(x.get("prompt_eval_cached_count") or 0 for x in turns),
+        }
+
     accs = []
-    for name, _session, by_id in sessions:
+    for name, sess, by_id in sessions:
         c = sum(1 for q in questions
                 if q["id"] in by_id and is_correct(by_id[q["id"]]))
-        accs.append((name, c, len(questions)))
-    mean = statistics.mean(c for _, c, _ in accs)
+        accs.append({"name": name, "think": sess.get("think"), "correct": c,
+                     "n": len(questions), **run_totals(sess, by_id)})
+    mean = statistics.mean(a["correct"] for a in accs)
+    tot_in = sum(a["prompt_tokens"] for a in accs)
+    tot_out = sum(a["output_tokens"] for a in accs)
     title = (f"Карта знаний PHP — {esc(sessions[0][1].get('model', '?'))}: "
              f"{len(sessions)} прогонов")
     protocol = ("тепловая карта: клетка = доля верных ответов по прогонам "
@@ -481,7 +516,8 @@ def build_compare(model_dir: Path, questions_path: Path) -> None:
     <div class="chips">
       <div class="chip">Прогонов: <b>{len(sessions)}</b></div>
       <div class="chip">Средняя точность: <b>{pct(int(round(mean)), len(questions))}%</b>
-           (разброс {min(c for _, c, _ in accs)}–{max(c for _, c, _ in accs)} из {len(questions)})</div>
+           (разброс {min(a['correct'] for a in accs)}–{max(a['correct'] for a in accs)} из {len(questions)})</div>
+      <div class="chip">Токены по всем прогонам: <b>{tot_in} вх / {tot_out} вых</b></div>
       <div class="chip">Флипующих клеток: <b>{flips_total} / {len(questions)}</b></div>
       <div class="chip">Нестабильность = знание под вопросом: соседние прогоны
            дают разные ответы на то же утверждение</div>
@@ -496,9 +532,14 @@ def build_compare(model_dir: Path, questions_path: Path) -> None:
         флип (ответы прогонов расходятся)</span>
 </div>
 {map_grid_compare(questions, runs, flip_by_id)}
-<h2>Точность по прогонам</h2>
-<table class="data"><tr><th>Прогон</th><th>Верно</th><th>%</th></tr>
-{"\n".join(f'<tr><td>{esc(n)}</td><td>{c} / {k}</td><td>{pct(c, k)}%</td></tr>' for n, c, k in accs)}
+<h2>Прогоны: точность и стоимость</h2>
+<table class="data"><tr><th>Прогон</th><th>think</th><th>Верно</th><th>%</th>
+<th>Время</th><th>Токены (вх / вых / кэш)</th></tr>
+{"\n".join(f'<tr><td>{esc(a["name"])}</td><td>{esc(a["think"])}</td>'
+           f'<td>{a["correct"]} / {a["n"]}</td><td>{pct(a["correct"], a["n"])}%</td>'
+           f'<td>{a["duration_s"]} c</td>'
+           f'<td>{a["prompt_tokens"]} / {a["output_tokens"]} / {a["cached_tokens"]}</td></tr>'
+           for a in accs)}
 </table>
 <h2>Флипующие клетки</h2>
 {flips_table(questions, runs, flip_by_id)}"""
@@ -513,8 +554,11 @@ def build_compare(model_dir: Path, questions_path: Path) -> None:
         f"{len(sessions)} прогонов",
         "",
         f"- Точность по прогонам: "
-        + ", ".join(f"{n} {c}/{k} ({pct(c, k)}%)" for n, c, k in accs),
+        + ", ".join(f"{a['name']} {a['correct']}/{a['n']} ({pct(a['correct'], a['n'])}%, "
+                    f"{a['duration_s']} c, {a['prompt_tokens']}+{a['output_tokens']} ток, "
+                    f"think {a['think']})" for a in accs),
         f"- Средняя: {pct(int(round(mean)), len(questions))}%, "
+        f"токены по всем прогонам: {tot_in} вх / {tot_out} вых, "
         f"флипующих клеток: {flips_total} / {len(questions)}.",
         "",
         "Тепловая карта: [compare.html](compare.html). "
