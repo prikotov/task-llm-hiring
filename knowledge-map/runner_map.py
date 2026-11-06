@@ -30,18 +30,51 @@ sys.path.insert(0, str(SCRIPT_DIR.parent / "interview"))
 import env_local  # noqa: F401 — грузит .env.local до чтения OLLAMA_BASE_URL ниже
 
 DEFAULT_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
-QUESTION_SUFFIX = ("\n\nВерно или неверно? Сначала ответь одним словом — "
-                   "«да» или «нет», — затем одним коротким предложением поясни свой ответ.")
+QUESTION_SUFFIX = ("\n\nВопрос о PHP. Верно или неверно? Ответь строго в JSON: "
+                   '{"answer": "да" | "нет", "пояснение": "кратко, одним предложением"}.')
 # recall-клетка (слой B): ответ = только результат, без рассуждений
-ANSWER_SUFFIX = ("\n\nСначала ответь сам результат одним значением "
-                 "(число, строка или да/нет), затем одним коротким предложением "
-                 "поясни свой ответ.")
+ANSWER_SUFFIX = ("\n\nВопрос о PHP. Ответь строго в JSON: "
+                 '{"answer": "<число | строка | да | нет>", '
+                 '"пояснение": "кратко, одним предложением"}.')
 THINK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
 # decision-протокол (/v1/systemone, как в interview/score.py): без chat —
 # вероятностный ответ «утверждение верно» (noul), порог да/нет — 0.5
 DECISION_INSTRUCTIONS = "Верно ли утверждение о PHP?"
 DECISION_CRITERIA = {"false": "Утверждение неверно",
                      "true": "Утверждение верно"}
+
+
+def extract_json_answer(raw: str) -> dict | None:
+    """Достать JSON-объект из ответа модели: ```-заборы срезаются, берётся
+    первый сбалансированный {...}. None — если валидного JSON нет."""
+    text = re.sub(r"```(?:json)?", "", raw)
+    start = text.find("{")
+    if start == -1:
+        return None
+    depth = 0
+    for i in range(start, len(text)):
+        if text[i] == "{":
+            depth += 1
+        elif text[i] == "}":
+            depth -= 1
+            if depth == 0:
+                frag = text[start:i + 1]
+                try:
+                    obj = json.loads(frag)
+                except json.JSONDecodeError:
+                    # мягкий ремонт: одиночные бэкслеши в путях (App\Model)
+                    # ломают JSON-эскейпы — удваиваем невалидные
+                    frag = re.sub(r'\\(?!["\\/bfnrtu])', r"\\\\", frag)
+                    try:
+                        obj = json.loads(frag)
+                    except json.JSONDecodeError:
+                        return None
+                return obj if isinstance(obj, dict) else None
+    return None
+
+
+YES_WORDS = {"да", "true", "yes", "1"}
+NO_WORDS = {"нет", "false", "no", "0"}
 
 
 def extract_explanation(raw: str, qtype: str, expected: str | None) -> str | None:
@@ -344,17 +377,40 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
             msg = resp.get("message", {})
             answer_raw = (msg.get("content") or "").strip()
             thinking = (msg.get("thinking") or "").strip() or None
+            # основной разбор — JSON (протокол требует строго JSON),
+            # текстовый разбор — фолбэк с пометкой late
+            obj = extract_json_answer(answer_raw)
+            json_ok = obj is not None and isinstance(obj.get("answer"), (str, int, float, bool))
+            explanation = None
+            if json_ok:
+                explanation = (str(obj.get("пояснение") or obj.get("explanation") or "")
+                               .strip() or None)
             if qtype == "answer":
                 # recall-клетка: ответ = только результат; эталон — php или accept
-                answer = normalize(answer_raw) if answer_raw else None
                 expected = expected_value(q["grader"], expected_cache)
-                parsed = "ok" if answer else "none"
+                if json_ok:
+                    answer = normalize(str(obj["answer"]))
+                    parsed = "json"
+                else:
+                    answer = normalize(answer_raw) if answer_raw else None
+                    parsed = "late" if answer else "none"
                 done_reason = resp.get("done_reason")
             else:
-                # размышления в парсинг не идут; сохраняем в клетку для аудита
-                answer, parsed = parse_answer(answer_raw)
+                if json_ok:
+                    a = normalize(str(obj["answer"]))
+                    answer = True if a in YES_WORDS else \
+                        (False if a in NO_WORDS else None)
+                else:
+                    answer = None
+                if answer is None:
+                    # фолбэк: текстовый разбор первого слова
+                    answer, parsed = parse_answer(answer_raw)
+                else:
+                    parsed = "json"
                 expected = "да" if q["answer"] else "нет"
                 done_reason = resp.get("done_reason")
+            if explanation is None:
+                explanation = extract_explanation(answer_raw, qtype, expected)
             eval_count = resp.get("eval_count")
             prompt_eval_count = resp.get("prompt_eval_count")
             cached_count = resp.get("prompt_eval_cached_count")
@@ -369,14 +425,11 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
         else:
             is_correct = answer is not None and answer == q["answer"]
             strict = is_correct
-        explanation = None
-        if protocol != "decision" and answer_raw:
-            explanation = extract_explanation(answer_raw, qtype, expected)
         turns.append({
             "id": q["id"], "topic": q["topic"], "level": q["level"],
             "type": qtype,
             "prompt_text": q["text"] if qtype == "yesno" else q["prompt"],
-            "explanation": explanation,
+            "explanation": explanation, "json_ok": json_ok,
             "correct_answer": expected if qtype == "answer" else q["answer"],
             "prompt": (prompt if protocol == "chat"
                        else build_decision_state(q["text"])),

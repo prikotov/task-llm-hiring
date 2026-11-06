@@ -427,8 +427,8 @@ def appendix_table_single(by_id: dict, questions: list) -> str:
                 verdict, cls = "не разобрано", "na-t"
             else:
                 verdict, cls = "неверно", "bad-t"
-            parsed = {"ok": "да", "late": "поздний", "none": "нет"}.get(
-                t.get("parsed") or "none", "—")
+            parsed = {"json": "json", "ok": "текст", "late": "текст",
+                      "none": "нет"}.get(t.get("parsed") or "none", "—")
             raw = (t.get("answer_raw") or "").strip().replace("\n", " ⏎ ")
             if len(raw) > 100:
                 raw = raw[:100] + "…"
