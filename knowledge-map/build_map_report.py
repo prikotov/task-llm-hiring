@@ -428,8 +428,12 @@ def appendix_table_single(by_id: dict, questions: list,
                 verdict, cls = "не разобрано", "na-t"
             else:
                 verdict, cls = "неверно", "bad-t"
-            parsed = {"json": "json", "ok": "текст", "late": "текст",
-                      "none": "нет"}.get(t.get("parsed") or "none", "—")
+            parsed_raw = t.get("parsed") or "none"
+            parsed = {"ok": "текст", "late": "текст (фолбэк)",
+                      "none": "нет"}.get(parsed_raw, "—")
+            # пометка видна только на отклонениях: «json» в каждой строке — шум
+            parsed_html = (f'<br><small>парсинг: {esc(parsed)}</small>'
+                           if parsed_raw != "json" else "")
             raw = (t.get("answer_raw") or "").strip().replace("\n", " ⏎ ")
         right = correct_text(q, t)
         dur = f'{t.get("duration_s", 0)} c' if t else "—"
@@ -446,7 +450,7 @@ def appendix_table_single(by_id: dict, questions: list,
             f'<td class="assert">{esc(cell_text(q))}</td>'
             f'<td>«{esc(given)}»{expl_html}{raw_html}'
             f'<br><small>верно: {esc(right)}</small></td>'
-            f'<td class="{cls}">{esc(verdict)}<br><small>парсинг: {esc(parsed)}</small></td>'
+            f'<td class="{cls}">{esc(verdict)}{parsed_html}</td>'
             f'<td class="assert"><small><i>{esc(q["note"])}</i></small></td></tr>')
     return "\n".join(rows)
 
