@@ -553,24 +553,25 @@ def _render_single_body(session, by_id, questions, q_version,
                    if n_recall else na_legend)
     protocol_kind = session.get("protocol", "chat")
     if protocol_kind == "decision":
-        prompts_html = ('<pre class="prompt-sample">Точный текст запроса: decision-протокол '
-                        '/v1/systemone — state = «Ты проверяешь утверждение о PHP на верность.» + '
-                        'утверждение; ответ — вероятность верности (noul), клетка «да» при p ≥ 0.5.</pre>')
+        prompts_html = ('<pre class="prompt-sample">Реальный запрос (decision-протокол '
+                        '/v1/systemone): state = «Ты проверяешь утверждение о PHP на верность.» + '
+                        'текст клетки; ответ — вероятность верности (noul), клетка «да» при '
+                        'p ≥ 0.5. Меток и шаблонов в запросе нет.</pre>')
     else:
+        # реальный запрос первой клетки — байт в байт, как ушло по HTTP
+        first = next((t for t in by_id.values() if t.get("prompt")), None)
         sysp = session.get("system_prompt")
-        ps = session.get("prompt_suffix")
-        asuf = session.get("answer_suffix")
+        uprompt = (first or {}).get("prompt") or \
+            ("<текст клетки>" + (session.get("prompt_suffix") or ""))
         parts = []
         if sysp:
             parts.append("system: " + sysp)
-        parts.append("user (да/нет):  <утверждение>" + (ps or ""))
-        if asuf:
-            parts.append("user (recall):  <вопрос>" + asuf)
-        hist = "без истории между клетками" if not sysp else \
-            "system кэшируется как общий префикс, история между клетками не копится"
-        prompts_html = ('<pre class="prompt-sample">Точный текст запроса '
-                        '(один запрос на клетку, ' + hist + '):\n'
-                        + esc("\n".join(parts)) + "</pre>")
+        parts.append("user: " + uprompt)
+        hist = ("system кэшируется как общий префикс; история между клетками "
+                "не копится — каждая клетка получает тот же system + свой текст")
+        prompts_html = ('<pre class="prompt-sample">Реальный запрос первой клетки '
+                        '(байт в байт, как ушло по HTTP; меток и шаблонов в запросе нет — '
+                        f'{hist}):\n' + esc("\n".join(parts)) + "</pre>")
     body = prompts_html + f"""
 <h2>Карта</h2>
 <div class="legend">
