@@ -153,8 +153,9 @@ def page_css() -> str:
     .chip { background: #fff; border: 1px solid var(--line); border-radius: 9px;
             padding: 7px 12px; font-size: 14px; }
     .chip b { font-size: 16px; }
-    .legend { display: flex; gap: 18px; align-items: center; margin: 12px 0 16px;
-              color: var(--mut); font-size: 13.5px; flex-wrap: wrap; }
+    .legend { display: flex; gap: 16px; align-items: center; margin: 10px 0 4px;
+              font-size: 13.5px; flex-wrap: wrap; }
+    .legend .hint { color: var(--mut); font-size: 12.5px; }
     .sw { display: inline-block; width: 14px; height: 14px; border-radius: 4px;
           margin-right: 6px; vertical-align: -2px; }
     .mapwrap { overflow: visible; background: #fff; border: 1px solid var(--line);
@@ -623,8 +624,8 @@ def _render_single_body(session, by_id, questions, q_version,
   <span><span class="sw" style="background:{COLOR_OK}"></span>верно</span>
   <span><span class="sw" style="background:{COLOR_BAD}"></span>неверно</span>
   {na_legend if not n_recall else ''}
-  <span>наведите — вопрос и ответ модели; клик — строка с деталями в «Все утверждения»</span>
 </div>
+<div class="legend"><span class="hint">наведите — вопрос и ответ модели · клик — строка с деталями в «Все утверждения»</span></div>
 {map_grid_single(by_id, questions, anchor_prefix)}
 <h2>Все утверждения</h2>
 <table class="data">
