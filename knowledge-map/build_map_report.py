@@ -122,8 +122,13 @@ def tooltip(turn: dict | None, q: dict, runs: list[tuple] | None = None) -> str:
             raw = raw[:140] + "…"
         verdict = "верно" if is_correct(turn) else \
             ("ответ не разобран" if turn.get("answer") is None else "неверно")
-        parts.append(f"Модель: «{esc(given)}»"
-                     + (f" — raw: «{esc(raw)}»" if raw else ""))
+        parts.append(f"Модель: «{esc(given)}»")
+        # дословный текст показываем только если он отличается от
+        # разобранного ответа (иначе строка дублирует «Модель: …»)
+        raw_norm = raw.lower().strip("«»\"' .")
+        given_norm = given.lower().strip("«»\"' .")
+        if raw and raw_norm != given_norm:
+            parts.append(f"Дословно: «{esc(raw)}»")
         parts.append(f"Результат: <b>{esc(verdict)}</b>")
     right = correct_text(q, turn)
     parts.append(f"Верный ответ: <b>{esc(right)}</b> · <i>{esc(q['note'])}</i>")
