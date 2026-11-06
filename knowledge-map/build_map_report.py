@@ -250,8 +250,8 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
     base_c = sum(1 for q in base_q
                  if q["id"] in by_id and is_correct(by_id[q["id"]]))
     base_pct = pct(base_c, len(base_q)) if base_q else pct(correct, n)
-    score_chip = (f'<div class="chip">Оценка: <b>{pct(correct, n)}%</b> '
-                  f'(без новых фич: <b>{base_pct}%</b>)</div>')
+    score_chip = (f'<div class="chip">Оценка: <b>{base_pct}%</b> '
+                  f'(без новых фич) · <b>{pct(correct, n)}%</b> (с новыми фичами)</div>')
     zone_stats = []
     for zl, zk in (("База", "base"), ("PHP 8.4–8.5", "current"),
                    ("Будущее", "future")):
@@ -623,7 +623,6 @@ def _render_single_body(session, by_id, questions, q_version,
   <span><span class="sw" style="background:{COLOR_OK}"></span>верно</span>
   <span><span class="sw" style="background:{COLOR_BAD}"></span>неверно</span>
   {na_legend if not n_recall else ''}
-  {hole_legend}
   <span>наведите — вопрос и ответ модели; клик — строка с деталями в «Все утверждения»</span>
 </div>
 {map_grid_single(by_id, questions, anchor_prefix)}
@@ -704,7 +703,7 @@ def write_summary_single(run_dir: Path, session: dict, by_id: dict,
         "",
         f"- Протокол: одна клетка = один независимый запрос; "
         f"think: {session.get('think')}; {bank_line}",
-        f"- **Оценка: {pct(correct, n)}%** (без новых фич: {base_pct_s}); разобрано "
+        f"- **Оценка: {base_pct_s}** (без новых фич) · {pct(correct, n)}% (с новыми фичами); разобрано "
         f"{len(parsed)} (серых: {n - len(parsed)}); {bias_line}",
         f"- Стоимость: {totals['duration_s']} c, {totals['prompt_tokens']} вх. ток, "
         f"{totals['output_tokens']} вых. ток (кэш: {totals['cached_tokens']}).",
