@@ -557,13 +557,19 @@ def _render_single_body(session, by_id, questions, q_version,
                         '/v1/systemone — state = «Ты проверяешь утверждение о PHP на верность.» + '
                         'утверждение; ответ — вероятность верности (noul), клетка «да» при p ≥ 0.5.</pre>')
     else:
+        sysp = session.get("system_prompt")
         ps = session.get("prompt_suffix")
         asuf = session.get("answer_suffix")
-        parts = ["да/нет-клетка:  <утверждение>" + (ps or "")]
+        parts = []
+        if sysp:
+            parts.append("system: " + sysp)
+        parts.append("user (да/нет):  <утверждение>" + (ps or ""))
         if asuf:
-            parts.append("recall-клетка:  <вопрос>" + asuf)
+            parts.append("user (recall):  <вопрос>" + asuf)
+        hist = "без истории между клетками" if not sysp else \
+            "system кэшируется как общий префикс, история между клетками не копится"
         prompts_html = ('<pre class="prompt-sample">Точный текст запроса '
-                        '(один запрос на клетку, без system и истории):\n'
+                        '(один запрос на клетку, ' + hist + '):\n'
                         + esc("\n".join(parts)) + "</pre>")
     body = prompts_html + f"""
 <h2>Карта</h2>
@@ -820,6 +826,18 @@ def flips_table(questions: list, runs: list[tuple[str, dict]],
 </table>"""
 
 
+def protocol_tag(session: dict) -> str:
+    """Поколение протокола запроса: system+JSON / JSON-суффикс / текст /
+    decision — видно в таблице прогонов полного отчёта."""
+    if session.get("protocol") == "decision":
+        return "decision"
+    if session.get("system_prompt"):
+        return "system+JSON"
+    if "JSON" in (session.get("prompt_suffix") or ""):
+        return "JSON-суффикс"
+    return "текст"
+
+
 def build_model_report(model_dir: Path, questions_path: Path) -> None:
     """Полный отчёт модели: сводная таблица всех прогонов + разделы по
     вопросникам (последний прогон каждого: основная карта, версионная
@@ -837,7 +855,7 @@ def build_model_report(model_dir: Path, questions_path: Path) -> None:
         raise SystemExit(f"в {model_dir} нет прогонов (run-*/session.json)")
 
     FILE_LABEL = {
-        "questions.json": "A+B · основная карта v2",
+        "questions.json": "A+B · основная матрица",
         "questions.v1.json": "A · да/нет v1",
         "questions-recall.json": "B · recall-пилот",
         "questions-versions.json": "версионная панель",
@@ -859,16 +877,18 @@ def build_model_report(model_dir: Path, questions_path: Path) -> None:
         n_all = len(by_id)
         c = sum(1 for t in by_id.values() if is_correct(t))
         tot = session.get("totals") or {}
+        layer_label = f'{FILE_LABEL.get(f, f)} v{session.get("questionnaire")}'
         rows.append(
             f'<tr><td>{esc(rd.name)}</td>'
-            f'<td>{esc(FILE_LABEL.get(f, f))}</td>'
+            f'<td>{esc(layer_label)}</td>'
+            f'<td>{esc(protocol_tag(session))}</td>'
             f'<td>{esc(session.get("think"))}</td>'
             f'<td>{c} / {n_all}</td><td>{pct(c, n_all)}%</td>'
             f'<td>{tot.get("duration_s", 0)} c</td>'
             f'<td>{tot.get("prompt_tokens", 0)} / '
             f'{tot.get("output_tokens", 0)}</td></tr>')
     table = ('<h2>Прогоны модели</h2>\n<table class="data">'
-             '<tr><th>Прогон</th><th>Слой</th><th>think</th><th>Верно</th>'
+             '<tr><th>Прогон</th><th>Слой</th><th>Протокол</th><th>think</th><th>Верно</th>'
              '<th>%</th><th>Время</th><th>Токены (вх / вых)</th></tr>\n'
              + "\n".join(rows) + "</table>")
 
@@ -904,16 +924,18 @@ def build_model_report(model_dir: Path, questions_path: Path) -> None:
     (model_dir / "report.html").write_text(html, encoding="utf-8")
 
     lines = [f"# Карта знаний PHP — {latest[first][2].get('model', '?')}", "",
-             "| Прогон | Слой | think | Верно | % | Время |",
-             "|---|---|---|---|---|---|"]
+             "| Прогон | Слой | Протокол | think | Верно | % | Время |",
+             "|---|---|---|---|---|---|---|"]
     for rd, session, by_id in sorted(runs, key=lambda x: x[0].name):
         f = session.get("questionnaire_file") or "questions.json"
         n_all = len(by_id)
         c = sum(1 for t in by_id.values() if is_correct(t))
         tot = session.get("totals") or {}
-        lines.append(f"| {rd.name} | {FILE_LABEL.get(f, f)} | "
-                     f"{session.get('think')} | {c}/{n_all} | "
-                     f"{pct(c, n_all)}% | {tot.get('duration_s', 0)} c |")
+        layer_label = f'{FILE_LABEL.get(f, f)} v{session.get("questionnaire")}'
+        lines.append(f"| {rd.name} | {layer_label} | "
+                     f"{protocol_tag(session)} | {session.get('think')} | "
+                     f"{c}/{n_all} | {pct(c, n_all)}% | "
+                     f"{tot.get('duration_s', 0)} c |")
     lines += ["", "Полный отчёт: [report.html](report.html). "
               "Тепловая карта уровня: `--model-dir --think <уровень>` → "
               "compare.html."]

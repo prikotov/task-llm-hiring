@@ -30,12 +30,17 @@ sys.path.insert(0, str(SCRIPT_DIR.parent / "interview"))
 import env_local  # noqa: F401 — грузит .env.local до чтения OLLAMA_BASE_URL ниже
 
 DEFAULT_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
-QUESTION_SUFFIX = ("\n\nВопрос о PHP. Верно или неверно? Ответь строго в JSON: "
-                   '{"answer": "да" | "нет", "пояснение": "кратко, одним предложением"}.')
-# recall-клетка (слой B): ответ = только результат, без рассуждений
-ANSWER_SUFFIX = ("\n\nВопрос о PHP. Ответь строго в JSON: "
-                 '{"answer": "<число | строка | да | нет>", '
-                 '"пояснение": "кратко, одним предложением"}.')
+# system-промпт: фиксированная рамка теста, одинаковая для всех моделей
+# и прогонов (решение владельца 2026-11-06 — перенос протокола из хвоста
+# запроса в system: каноничное место инструкций + кэш общего префикса)
+SYSTEM_PROMPT = (
+    "Ты проходишь тест на знание PHP. Каждое сообщение — один вопрос. "
+    'Отвечай строго в JSON: {"answer": ..., "пояснение": "..."}. '
+    "Для вопроса «Верно или неверно?» answer — \"да\" или \"нет\"; "
+    "для вопроса о результате answer — число, строка или да/нет. "
+    "Пояснение — одно короткое предложение. Никакого текста вне JSON.")
+QUESTION_SUFFIX = "\n\nВерно или неверно?"
+ANSWER_SUFFIX = "\n\nОтветь результатом (число, строка или да/нет)."
 THINK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
 # decision-протокол (/v1/systemone, как в interview/score.py): без chat —
 # вероятностный ответ «утверждение верно» (noul), порог да/нет — 0.5
@@ -174,9 +179,12 @@ def resolve_out_root(models_root: str, slug: str) -> Path:
 
 
 def chat_once(base_url: str, model: str, prompt: str, keep_alive, think,
-              timeout: int) -> dict:
+              timeout: int, system_prompt: str | None = None) -> dict:
+    messages = ([{"role": "system", "content": system_prompt}]
+                if system_prompt else [])
+    messages.append({"role": "user", "content": prompt})
     payload = {"model": model, "stream": False, "keep_alive": keep_alive,
-               "messages": [{"role": "user", "content": prompt}]}
+               "messages": messages}
     if think in ("on", "off"):
         payload["think"] = (think == "on")
     elif think != "auto":
@@ -185,11 +193,12 @@ def chat_once(base_url: str, model: str, prompt: str, keep_alive, think,
 
 
 def chat_safe(base_url: str, model: str, prompt: str, keep_alive, think,
-              timeout: int) -> dict | None:
+              timeout: int, system_prompt: str | None = None) -> dict | None:
     """chat_once, но сетевой/таймаутный сбой возвращает None вместо исключения —
     серия не должна умирать из-за одной клетки (клетка станет серой)."""
     try:
-        return chat_once(base_url, model, prompt, keep_alive, think, timeout)
+        return chat_once(base_url, model, prompt, keep_alive, think, timeout,
+                         system_prompt)
     except Exception as e:
         print(f"      ⚠️ сбой генерации ({e}); пропускаю", file=sys.stderr)
         return None
@@ -300,6 +309,7 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
         "question_count": 0,
         "questionnaire": q_version,
         "questionnaire_file": questions_file,
+        "system_prompt": SYSTEM_PROMPT if protocol == "chat" else None,
         "prompt_suffix": (QUESTION_SUFFIX.strip()
                           if protocol == "chat" else None),
         "answer_suffix": (ANSWER_SUFFIX.strip()
@@ -347,10 +357,12 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
             resp = decision_safe(base_url, model, q["text"], timeout)
         elif qtype == "answer":
             prompt = q["prompt"] + ANSWER_SUFFIX
-            resp = chat_safe(base_url, model, prompt, keep_alive, think, timeout)
+            resp = chat_safe(base_url, model, prompt, keep_alive, think,
+                             timeout, SYSTEM_PROMPT)
         else:
             prompt = q["text"] + QUESTION_SUFFIX
-            resp = chat_safe(base_url, model, prompt, keep_alive, think, timeout)
+            resp = chat_safe(base_url, model, prompt, keep_alive, think,
+                             timeout, SYSTEM_PROMPT)
         duration = time.monotonic() - t0
         p = None
         thinking = None
