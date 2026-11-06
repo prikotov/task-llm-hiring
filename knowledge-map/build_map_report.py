@@ -409,9 +409,9 @@ def appendix_table_single(by_id: dict, questions: list) -> str:
         if t is None:
             given, verdict, parsed = "—", "нет данных", "—"
             cls = "na-t"
+            raw = ""
         else:
-            given = "— (нет ответа)" if t.get("answer") is None else \
-                ("да" if t["answer"] else "нет")
+            given = given_text(t)
             if is_correct(t):
                 verdict, cls = "верно", "ok-t"
             elif t.get("answer") is None:
@@ -420,13 +420,18 @@ def appendix_table_single(by_id: dict, questions: list) -> str:
                 verdict, cls = "неверно", "bad-t"
             parsed = {"ok": "да", "late": "поздний", "none": "нет"}.get(
                 t.get("parsed") or "none", "—")
+            raw = (t.get("answer_raw") or "").strip().replace("\n", " ⏎ ")
+            if len(raw) > 100:
+                raw = raw[:100] + "…"
         right = correct_text(q, t)
         dur = f'{t.get("duration_s", 0)} c' if t else "—"
+        raw_html = (f'<br><small>raw: «{esc(raw)}»</small>' if raw else "")
         rows.append(
             f'<tr><td><code class="id">{esc(q["id"])}</code></td>'
             f'<td>{esc(q["topic"])}<br><small>L{q["level"]} · {dur}</small></td>'
             f'<td class="assert">{esc(cell_text(q))}</td>'
-            f'<td>«{esc(given)}»<br><small>верно: {esc(right)}</small></td>'
+            f'<td>«{esc(given)}»{raw_html}'
+            f'<br><small>верно: {esc(right)}</small></td>'
             f'<td class="{cls}">{esc(verdict)}<br><small>парсинг: {esc(parsed)}</small></td>'
             f'<td class="assert"><small><i>{esc(q["note"])}</i></small></td></tr>')
     return "\n".join(rows)
