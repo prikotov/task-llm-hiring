@@ -136,7 +136,10 @@ def run_label(session: dict, run_dir: Path) -> str:
     tag = esc(session.get("model", "?"))
     no = session.get("run")
     no = f", run-{no:02d}" if isinstance(no, int) else f", {esc(run_dir.name)}"
-    return tag + no
+    think = session.get("think")
+    think_s = f" · think: {esc(think)}" if think and not \
+        str(think).startswith("—") else ""
+    return tag + no + think_s
 
 
 def page_css() -> str:
@@ -285,7 +288,7 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
            ({statistics.median(t.get('duration_s') or 0 for t in turns):.2f} c на клетку — медиана)</div>
       <div class="chip">Токены: <b>{totals.get('prompt_tokens', 0)} вх /
            {totals.get('output_tokens', 0)} вых</b> (кэш: {totals.get('cached_tokens', 0)})</div>
-      <div class="chip">{esc(ver_s)} · think: {esc(session.get('think'))}</div>
+      <div class="chip">{esc(ver_s)}</div>
     </div>"""
 
 
@@ -588,8 +591,7 @@ def _render_single_body(session, by_id, questions, q_version,
                                    f"({n} клеток «версии PHP»)",
     }.get(questions_path.name,
           f"вопросник {esc(questions_path.name)} ({n} клеток)")
-    title = (f"Карта знаний PHP — {run_label(session, run_dir)} "
-             f"· {layer}")
+    title = f"Карта знаний PHP — {run_label(session, run_dir)}"
     protocol = ("протокол: одна клетка = один независимый сырой запрос "
                 "(утверждение + «Верно или неверно?» или вопрос + «только "
                 "результат» для recall-клеток), без system и истории между "
