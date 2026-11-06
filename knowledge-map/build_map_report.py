@@ -245,6 +245,13 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
     }
     ver = session.get("questionnaire")
     ver_s = f"вопросник v{ver}" if ver else "вопросник"
+    # общая оценка: два числа — без новых фич (зона «База») и по всей матрице
+    base_q = [q for q in questions if q.get("zone", "base") == "base"]
+    base_c = sum(1 for q in base_q
+                 if q["id"] in by_id and is_correct(by_id[q["id"]]))
+    base_pct = pct(base_c, len(base_q)) if base_q else pct(correct, n)
+    score_chip = (f'<div class="chip">Оценка: <b>{pct(correct, n)}%</b> '
+                  f'(без новых фич: <b>{base_pct}%</b>)</div>')
     zone_stats = []
     for zl, zk in (("База", "base"), ("PHP 8.4–8.5", "current"),
                    ("Будущее", "future")):
@@ -263,7 +270,8 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
                      f'совпадений: <b>{strict_n} / {len(parsed)}</b></div>')
     return f"""
     <div class="chips">
-      <div class="chip">Точность: <b>{correct} / {n}</b> ({pct(correct, n)}%)</div>
+      {score_chip}
+      <div class="chip">Точность: <b>{correct} / {n}</b></div>
       <div class="chip">Разобрано ответов: <b>{len(parsed)} / {n}</b>
            (серых клеток: {grey}, поздний парсинг: {late})</div>
       {bias_chip}
@@ -687,13 +695,18 @@ def write_summary_single(run_dir: Path, session: dict, by_id: dict,
         bank_line = f"вопросник v{q_version} ({n} утверждений, 50/50)."
         bias_line = (f"ответов «да»: {pct(yes_n, len(parsed))}% при балансе "
                      f"50/50.")
+    base_q = [q for q in questions if q.get("zone", "base") == "base"]
+    base_c = sum(1 for q in base_q
+                 if q["id"] in by_id and is_correct(by_id[q["id"]]))
+    base_pct_s = (f"{pct(base_c, len(base_q))}% по базе"
+                  if base_q else f"{pct(correct, n)}%")
     lines = [
         f"# Карта знаний PHP — {session.get('model', '?')}, "
         f"run-{session.get('run', '?'):02d}",
         "",
         f"- Протокол: одна клетка = один независимый запрос; "
         f"think: {session.get('think')}; {bank_line}",
-        f"- Точность: **{correct} / {n} ({pct(correct, n)}%)**; разобрано "
+        f"- **Оценка: {pct(correct, n)}%** (без новых фич: {base_pct_s}); разобрано "
         f"{len(parsed)} (серых: {n - len(parsed)}); {bias_line}",
         f"- Стоимость: {totals['duration_s']} c, {totals['prompt_tokens']} вх. ток, "
         f"{totals['output_tokens']} вых. ток (кэш: {totals['cached_tokens']}).",
