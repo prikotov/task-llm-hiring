@@ -117,16 +117,9 @@ def tooltip(turn: dict | None, q: dict, runs: list[tuple] | None = None) -> str:
         given = given_text(turn)
         if turn.get("p") is not None:
             given += f" (p={turn['p']})"
-        verdict = "верно" if is_correct(turn) else \
-            ("ответ не разобран" if turn.get("answer") is None else "неверно")
-        parts.append(f"Модель: «{esc(given)}» — {esc(verdict)}")
-        expl = (turn.get("explanation") or "").strip()
-        if len(expl) > 160:
-            expl = expl[:160] + "…"
-        if expl:
-            parts.append(f"Пояснение модели: {esc(expl)}")
+        parts.append(f"Модель: «{esc(given)}»")
     right = correct_text(q, turn)
-    parts.append(f"Верный ответ: <b>{esc(right)}</b> · <i>{esc(q['note'])}</i>")
+    parts.append(f"Верный ответ: <b>{esc(right)}</b>")
     return "<br>".join(parts)
 
 
@@ -567,7 +560,7 @@ def _render_single_body(session, by_id, questions, q_version,
   <span><span class="sw" style="background:{COLOR_BAD}"></span>неверно</span>
   {na_legend if not n_recall else ''}
   {hole_legend}
-  <span>наведите на клетку — вопрос, ответ модели и обоснование</span>
+  <span>наведите на клетку — вопрос и ответ модели; верность — по цвету</span>
 </div>
 {map_grid_single(by_id, questions)}
 <h2>Точность по темам</h2>
