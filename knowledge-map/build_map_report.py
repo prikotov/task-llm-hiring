@@ -195,6 +195,7 @@ def page_css() -> str:
     .bar > div { height: 100%; border-radius: 6px; background: var(--fg); }
     .ok-t { color: #22834a; font-weight: 600; }
     .bad-t { color: #b03a3a; font-weight: 600; }
+    td.bad-t small { color: var(--fg); font-weight: 400; }
     .na-t { color: var(--mut); }
     td.assert { font-size: 13.5px; }
     code.id { font-size: 12.5px; background: #eef1f4; border-radius: 5px;
@@ -448,7 +449,7 @@ def appendix_table_single(by_id: dict, questions: list,
                         f'<pre class="raw-sample">{esc(raw)}</pre></details>')
         # у неверных клеток в «Результате» рядом — верный ответ
         wrong = t is not None and not is_correct(t)
-        wrong_html = (f'<br><small>верный: {esc(right)}</small>' if wrong else "")
+        wrong_html = (f'<br><small>верный: «{esc(right)}»</small>' if wrong else "")
         rows.append(
             f'<tr id="{anchor_prefix}row-{esc(q["id"])}">'
             f'<td><code class="id">{esc(q["id"])}</code></td>'
