@@ -17,6 +17,7 @@
 
 import argparse
 import html
+from collections import defaultdict
 import json
 import statistics
 import sys
@@ -35,6 +36,11 @@ def esc(s) -> str:
     return html.escape(str(s), quote=True)
 
 
+def cell_text(q: dict) -> str:
+    """Текст клетки: утверждение (verify) или вопрос (recall)."""
+    return q["text"] if "text" in q else q["prompt"]
+
+
 def load_questions(path: Path) -> tuple[int | None, list]:
     data = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(data, dict):
@@ -49,17 +55,36 @@ def load_run(run_dir: Path) -> dict:
 
 
 def is_correct(turn: dict) -> bool:
+    if "is_correct" in turn:
+        return bool(turn["is_correct"])
     a = turn.get("answer")
     return a is not None and a == turn.get("correct_answer")
+
+
+def given_text(turn: dict) -> str:
+    """Ответ модели в читаемом виде: да/нет для verify-клеток,
+    значение для recall-клеток."""
+    a = turn.get("answer")
+    if a is None:
+        return "— (нет ответа)"
+    if isinstance(a, bool):
+        return "да" if a else "нет"
+    return str(a)
+
+
+def correct_text(q: dict, turn: dict | None) -> str:
+    """Эталон клетки: для recall — значение (из turn), для да/нет — да/нет."""
+    if q.get("type") == "answer":
+        return str(turn.get("correct_answer")) if turn else "—"
+    return "да" if q["answer"] else "нет"
 
 
 def cell_class(turn: dict | None) -> str:
     if turn is None:
         return "na"
-    a = turn.get("answer")
-    if a is None:
+    if turn.get("answer") is None:
         return "na"
-    return "ok" if a == turn.get("correct_answer") else "bad"
+    return "ok" if is_correct(turn) else "bad"
 
 
 def pct(n: int, d: int) -> float:
@@ -81,7 +106,7 @@ def heat_color(p: float) -> str:
 def tooltip(turn: dict | None, q: dict, runs: list[tuple] | None = None) -> str:
     """Всплывающая подсказка клетки: утверждение, ответы, обоснование."""
     parts = [f"<b>{esc(q['id'])} · {esc(q['topic'])} · L{q['level']}</b>",
-             esc(q["text"])]
+             esc(cell_text(q))]
     if runs is not None:  # тепловая карта: ответ каждого прогона
         lines = []
         for run_name, ans in runs:
@@ -89,8 +114,7 @@ def tooltip(turn: dict | None, q: dict, runs: list[tuple] | None = None) -> str:
             lines.append(f"{esc(run_name)}: {mark}")
         parts.append("<br>" + "<br>".join(lines))
     elif turn is not None:
-        given = "— (нет ответа)" if turn.get("answer") is None else \
-            ("да" if turn["answer"] else "нет")
+        given = given_text(turn)
         if turn.get("p") is not None:
             given += f" (p={turn['p']})"
         raw = (turn.get("answer_raw") or "").strip().replace("\n", " ⏎ ")
@@ -101,7 +125,7 @@ def tooltip(turn: dict | None, q: dict, runs: list[tuple] | None = None) -> str:
         parts.append(f"Модель: «{esc(given)}»"
                      + (f" — raw: «{esc(raw)}»" if raw else ""))
         parts.append(f"Результат: <b>{esc(verdict)}</b>")
-    right = "да" if q["answer"] else "нет"
+    right = correct_text(q, turn)
     parts.append(f"Верный ответ: <b>{esc(right)}</b> · <i>{esc(q['note'])}</i>")
     return "<br>".join(parts)
 
@@ -140,6 +164,7 @@ def page_css() -> str:
           color: var(--mut); padding-bottom: 4px; }
     .rh { align-self: center; font-size: 13.5px; padding: 4px 8px 4px 0; }
     .cell { height: 46px; border-radius: 7px; position: relative; }
+    .cell.empty { background: transparent; }
     .cell.ok { background: @OK@; }
     .cell.bad { background: @BAD@; }
     .cell.na { background: @NA@; }
@@ -186,8 +211,10 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
     parsed = [t for t in turns if t.get("answer") is not None]
     late = sum(1 for t in turns if t.get("parsed") == "late")
     grey = n - len(parsed)
-    yes_n = sum(1 for t in parsed if t["answer"])
+    bool_parsed = [t for t in parsed if isinstance(t.get("answer"), bool)]
+    yes_n = sum(1 for t in bool_parsed if t["answer"])
     yes_share = pct(yes_n, len(parsed))
+    strict_n = sum(1 for t in parsed if t.get("strict"))
     total_s = sum(t.get("duration_s") or 0 for t in turns)
     if total_s < 90:
         time_s = f"{total_s:.0f} c"
@@ -200,13 +227,20 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
     }
     ver = session.get("questionnaire")
     ver_s = f"вопросник v{ver}" if ver else "вопросник"
+    if bool_parsed:
+        bias_chip = (f'<div class="chip">Ответов «да»: <b>{yes_share}%</b>\n'
+                     '           (баланс вопросника 50/50, базлайн константного '
+                     'ответа — 50%)</div>')
+    else:
+        bias_chip = ('<div class="chip">Формат: <b>recall</b> — эталон входит в '
+                     'ответ (нормализация без кавычек/регистра); строгих '
+                     f'совпадений: <b>{strict_n} / {len(parsed)}</b></div>')
     return f"""
     <div class="chips">
       <div class="chip">Точность: <b>{correct} / {n}</b> ({pct(correct, n)}%)</div>
       <div class="chip">Разобрано ответов: <b>{len(parsed)} / {n}</b>
            (серых клеток: {grey}, поздний парсинг: {late})</div>
-      <div class="chip">Ответов «да»: <b>{yes_share}%</b>
-           (баланс вопросника 50/50, базлайн константного ответа — 50%)</div>
+      {bias_chip}
       <div class="chip">Время: <b>{time_s}</b>
            ({statistics.median(t.get('duration_s') or 0 for t in turns):.2f} c на клетку — медиана)</div>
       <div class="chip">Токены: <b>{totals.get('prompt_tokens', 0)} вх /
@@ -221,6 +255,9 @@ def map_grid_single(by_id: dict, questions: list) -> str:
         if q["topic"] not in topics:
             topics.append(q["topic"])
     max_level = max(q["level"] for q in questions)
+    by_topic_level = defaultdict(dict)
+    for q in questions:
+        by_topic_level[q["topic"]][q["level"]] = q
     cells = ['<div class="hd"></div>']
     cells += [f'<div class="hd">L{i}</div>' for i in range(1, max_level + 1)]
     cells.append('<div class="hd">итог</div>')
@@ -228,7 +265,12 @@ def map_grid_single(by_id: dict, questions: list) -> str:
         cells.append(f'<div class="rh">{esc(topic)}</div>')
         tq = sorted((q for q in questions if q["topic"] == topic),
                     key=lambda q: q["level"])
-        for q in tq:
+        for lvl in range(1, max_level + 1):
+            q = by_topic_level[topic].get(lvl)
+            if q is None:
+                # клетка без вопроса: прозрачный плейсхолдер — сетка не едет
+                cells.append('<div class="cell empty"></div>')
+                continue
             t = by_id.get(q["id"])
             tip = tooltip(t, q)
             cells.append(f'<div class="cell {cell_class(t)}">'
@@ -242,7 +284,9 @@ def map_grid_single(by_id: dict, questions: list) -> str:
         correct = sum(1 for q in lq if q["id"] in by_id and is_correct(by_id[q["id"]]))
         cells.append(f'<div class="agg">{pct(correct, len(lq))}%</div>')
     cells.append('<div class="agg"></div>')
-    return f'<div class="mapwrap"><div class="map">{"".join(cells)}</div></div>'
+    return ('<div class="mapwrap"><div class="map" '
+            f'style="grid-template-columns: minmax(190px, 250px) '
+            f'repeat({max_level}, 46px) 84px;">{"".join(cells)}</div></div>')
 
 
 def map_grid_compare(questions: list, runs: list[tuple[str, dict]],
@@ -253,6 +297,9 @@ def map_grid_compare(questions: list, runs: list[tuple[str, dict]],
         if q["topic"] not in topics:
             topics.append(q["topic"])
     max_level = max(q["level"] for q in questions)
+    by_topic_level = defaultdict(dict)
+    for q in questions:
+        by_topic_level[q["topic"]][q["level"]] = q
     cells = ['<div class="hd"></div>']
     cells += [f'<div class="hd">L{i}</div>' for i in range(1, max_level + 1)]
     cells.append('<div class="hd">итог</div>')
@@ -260,11 +307,15 @@ def map_grid_compare(questions: list, runs: list[tuple[str, dict]],
         cells.append(f'<div class="rh">{esc(topic)}</div>')
         tq = sorted((q for q in questions if q["topic"] == topic),
                     key=lambda q: q["level"])
-        for q in tq:
+        for lvl in range(1, max_level + 1):
+            q = by_topic_level[topic].get(lvl)
+            if q is None:
+                cells.append('<div class="cell empty"></div>')
+                continue
             answers = [(name, by_id.get(q["id"], {}).get("answer"))
                        for name, by_id in runs]
-            known = [a for _, a in answers if a is not None]
-            p = sum(1 for a in known if a == q["answer"]) / len(runs)
+            p = sum(1 for _, by_id in runs
+                    if q["id"] in by_id and is_correct(by_id[q["id"]])) / len(runs)
             cls = "flip" if flip_by_id.get(q["id"]) else ""
             tip = tooltip(None, q, runs=answers)
             cells.append(f'<div class="cell {cls}" style="background:{heat_color(p)}">'
@@ -281,7 +332,9 @@ def map_grid_compare(questions: list, runs: list[tuple[str, dict]],
                 if q["id"] in by_id and is_correct(by_id[q["id"]]))
         cells.append(f'<div class="agg">{pct(c, len(lq) * len(runs))}%</div>')
     cells.append('<div class="agg"></div>')
-    return f'<div class="mapwrap"><div class="map">{"".join(cells)}</div></div>'
+    return ('<div class="mapwrap"><div class="map" '
+            f'style="grid-template-columns: minmax(190px, 250px) '
+            f'repeat({max_level}, 46px) 84px;">{"".join(cells)}</div></div>')
 
 
 def topic_rows(by_id: dict, questions: list) -> str:
@@ -331,12 +384,12 @@ def appendix_table_single(by_id: dict, questions: list) -> str:
                 verdict, cls = "неверно", "bad-t"
             parsed = {"ok": "да", "late": "поздний", "none": "нет"}.get(
                 t.get("parsed") or "none", "—")
-        right = "да" if q["answer"] else "нет"
+        right = correct_text(q, t)
         dur = f'{t.get("duration_s", 0)} c' if t else "—"
         rows.append(
             f'<tr><td><code class="id">{esc(q["id"])}</code></td>'
             f'<td>{esc(q["topic"])}<br><small>L{q["level"]} · {dur}</small></td>'
-            f'<td class="assert">{esc(q["text"])}</td>'
+            f'<td class="assert">{esc(cell_text(q))}</td>'
             f'<td>«{esc(given)}»<br><small>верно: {esc(right)}</small></td>'
             f'<td class="{cls}">{esc(verdict)}<br><small>парсинг: {esc(parsed)}</small></td>'
             f'<td class="assert"><small><i>{esc(q["note"])}</i></small></td></tr>')
@@ -362,6 +415,19 @@ def page(title: str, protocol: str, chips: str, body: str, footer: str) -> str:
 
 
 def build_single(run_dir: Path, questions_path: Path) -> None:
+    session_probe = None
+    try:
+        session_probe = json.loads(
+            (run_dir / "session.json").read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+    qfile = (session_probe or {}).get("questionnaire_file")
+    if qfile and questions_path.name != qfile:
+        candidate = questions_path.parent / qfile
+        if candidate.exists():
+            print(f"  вопросник прогона: {qfile} — беру его вместо "
+                  f"{questions_path.name}", file=sys.stderr)
+            questions_path = candidate
     q_version, questions = load_questions(questions_path)
     session, by_id = load_run(run_dir)
     ver = session.get("questionnaire")
@@ -374,10 +440,11 @@ def build_single(run_dir: Path, questions_path: Path) -> None:
                   if q["id"] in by_id and is_correct(by_id[q["id"]]))
     title = f"Карта знаний PHP — {run_label(session, run_dir)}"
     protocol = ("протокол: одна клетка = один независимый сырой запрос "
-                "(утверждение + «Верно или неверно?»), без system и истории между "
+                "(утверждение + «Верно или неверно?» или вопрос + «только "
+                "результат» для recall-клеток), без system и истории между "
                 f"клетками; think: {esc(session.get('think'))}; дефолтные параметры "
-                f"генерации; вопросник v{q_version}: {n} утверждений, баланс 50/50. "
-                "Клетки карты: темы × уровни (L1 базовые → L8 тонкости).")
+                f"генерации; вопросник v{q_version}: {n} клеток. "
+                "Клетки карты: темы × уровни.")
     chips = chips_row_single(session, by_id, questions)
     body = f"""
 <h2>Карта</h2>
@@ -417,7 +484,9 @@ def write_summary_single(run_dir: Path, session: dict, by_id: dict,
                   if q["id"] in by_id and is_correct(by_id[q["id"]]))
     parsed = [t for t in (by_id.get(q["id"]) for q in questions)
               if t and t.get("answer") is not None]
-    yes_n = sum(1 for t in parsed if t["answer"])
+    bool_parsed = [t for t in parsed if isinstance(t.get("answer"), bool)]
+    yes_n = sum(1 for t in bool_parsed if t["answer"])
+    strict_n = sum(1 for t in parsed if t.get("strict"))
     topics = []
     for q in questions:
         if q["topic"] not in topics:
@@ -439,16 +508,24 @@ def write_summary_single(run_dir: Path, session: dict, by_id: dict,
             "output_tokens": sum(t.get("eval_count") or 0 for t in all_turns),
             "cached_tokens": sum(t.get("prompt_eval_cached_count") or 0 for t in all_turns),
         }
+    n_recall = sum(1 for q in questions if q.get("type") == "answer")
+    if n_recall:
+        bank_line = (f"вопросник v{q_version} ({n} recall-клеток: "
+                     f"эталон — php 8.5/accept-список, ответ без рассуждений).")
+        bias_line = (f"Строгих совпадений (ответ равен эталону): {strict_n} / "
+                     f"{len(parsed)}; у остальных верных эталон входит в ответ.")
+    else:
+        bank_line = f"вопросник v{q_version} ({n} утверждений, 50/50)."
+        bias_line = (f"Ответов «да»: {pct(yes_n, len(parsed))}% при балансе "
+                     f"50/50.")
     lines = [
         f"# Карта знаний PHP — {session.get('model', '?')}, "
         f"run-{session.get('run', '?'):02d}",
         "",
         f"- Протокол: одна клетка = один независимый запрос; "
-        f"think: {session.get('think')}; вопросник v{q_version} "
-        f"({n} утверждений, 50/50).",
+        f"think: {session.get('think')}; {bank_line}",
         f"- Точность: **{correct} / {n} ({pct(correct, n)}%)**; разобрано "
-        f"{len(parsed)} (серых: {n - len(parsed)}); ответов «да»: "
-        f"{pct(yes_n, len(parsed))}% при балансе 50/50.",
+        f"{len(parsed)} (серых: {n - len(parsed)}); {bias_line}",
         f"- Стоимость: {totals['duration_s']} c, {totals['prompt_tokens']} вх. ток, "
         f"{totals['output_tokens']} вых. ток (кэш: {totals['cached_tokens']}).",
         f"- Сильные темы: {top}",
@@ -606,7 +683,7 @@ def flips_table(questions: list, runs: list[tuple[str, dict]],
             cells.append("—" if a is None else ("да" if a else "нет"))
         rows.append(
             f'<tr><td><code class="id">{esc(q["id"])}</code></td>'
-            f'<td class="assert">{esc(q["text"])}</td>'
+            f'<td class="assert">{esc(cell_text(q))}</td>'
             f'<td>{" · ".join(esc(c) for c in cells)}</td></tr>')
     return f"""<table class="data">
 <tr><th>Клетка</th><th>Утверждение</th>

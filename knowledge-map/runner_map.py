@@ -17,6 +17,7 @@ import csv
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 import urllib.error
@@ -30,12 +31,40 @@ import env_local  # noqa: F401 — грузит .env.local до чтения OLL
 
 DEFAULT_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
 QUESTION_SUFFIX = "\n\nВерно или неверно? Ответь одним словом: «да» или «нет»."
+# recall-клетка (слой B): ответ = только результат, без рассуждений
+ANSWER_SUFFIX = ("\n\nОтветь только сам результат одним значением "
+                 "(число, строка или да/нет), без пояснений.")
 THINK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
 # decision-протокол (/v1/systemone, как в interview/score.py): без chat —
 # вероятностный ответ «утверждение верно» (noul), порог да/нет — 0.5
 DECISION_INSTRUCTIONS = "Верно ли утверждение о PHP?"
 DECISION_CRITERIA = {"false": "Утверждение неверно",
                      "true": "Утверждение верно"}
+
+
+def normalize(s: str) -> str:
+    """Нормализация ответа recall-клетки: нижний регистр, без кавычек,
+    сжатые пробелы. Сравнение — «эталон входит в ответ»."""
+    s = re.sub(r"\s+", " ", s.strip().lower())
+    return s.strip("«»\"'` ")
+
+
+def squeeze(s: str) -> str:
+    """Вариант для сопоставления без пробелов вовсе: '[20, 30]' == '[20,30]'."""
+    return re.sub(r"\s+", "", s.lower())
+
+
+def expected_value(grader: dict, cache: dict) -> str:
+    """Эталон recall-клетки: из php-сниппета (объективный грейдер — интерпретатор
+    8.5 на машине теста) или из accept-списка (первый вариант — канонический)."""
+    if "php" in grader:
+        key = grader["php"]
+        if key not in cache:
+            r = subprocess.run(["php", "-r", key], capture_output=True,
+                               text=True, timeout=30)
+            cache[key] = r.stdout.strip()
+        return cache[key]
+    return grader["accept"][0]
 
 
 def build_decision_state(assertion: str) -> str:
@@ -153,25 +182,48 @@ def parse_answer(raw: str) -> tuple[bool | None, str]:
 
 
 def check_questionnaire(questions: list) -> None:
-    """Санитария вопросника: уникальные id, полные поля, баланс ответов."""
+    """Санитария вопросника: уникальные id, полные поля по типам клеток."""
     ids = [q["id"] for q in questions]
     dupes = {i for i in ids if ids.count(i) > 1}
     if dupes:
         raise SystemExit(f"дубликаты id в вопроснике: {', '.join(sorted(dupes))}")
+    n_recall = 0
     for q in questions:
-        for field in ("id", "topic", "level", "text", "answer", "note"):
+        qtype = q.get("type", "yesno")
+        base = ("id", "topic", "level", "note")
+        if qtype == "answer":
+            required = base + ("prompt", "grader")
+            n_recall += 1
+            if "php" not in q.get("grader", {}) and "accept" not in q.get("grader", {}):
+                raise SystemExit(f"у recall-клетки {q['id']} нет grader.php/accept")
+        else:
+            required = base + ("text", "answer")
+        for field in required:
             if field not in q:
                 raise SystemExit(f"у вопроса {q.get('id', '?')} нет поля {field}")
-    true_n = sum(1 for q in questions if q["answer"])
-    false_n = len(questions) - true_n
-    print(f"вопросник: {len(questions)} утверждений, "
-          f"верных {true_n} / ложных {false_n} "
-          f"(базлайн константного ответа: {100 * min(true_n, false_n) / len(questions):.1f}%)")
+    if n_recall:
+        # эталоны php-клеток вычисляем сразу — битый сниппет не должен
+        # всплывать посреди прогона
+        cache: dict = {}
+        for q in questions:
+            if q.get("type") == "answer" and "php" in q["grader"]:
+                val = expected_value(q["grader"], cache)
+                if not val:
+                    raise SystemExit(f"php-эталон {q['id']} вернул пустой вывод")
+        print(f"вопросник: {len(questions)} клеток, recall: {n_recall}, "
+              f"да/нет: {len(questions) - n_recall}; php-эталоны проверены")
+    else:
+        true_n = sum(1 for q in questions if q["answer"])
+        false_n = len(questions) - true_n
+        print(f"вопросник: {len(questions)} утверждений, "
+              f"верных {true_n} / ложных {false_n} "
+              f"(базлайн константного ответа: {100 * min(true_n, false_n) / len(questions):.1f}%)")
 
 
 def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
             out_dir: Path, keep_alive, think: str, timeout: int,
-            limit: int | None, protocol: str = "chat") -> None:
+            limit: int | None, protocol: str = "chat",
+            questions_file: str | None = None) -> None:
     if protocol == "chat":
         print(f"  выгружаю модель перед прогоном...")
         unload_model(base_url, model, timeout)
@@ -190,7 +242,11 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
                   if protocol == "decision" else think),
         "question_count": 0,
         "questionnaire": q_version,
-        "prompt_suffix": QUESTION_SUFFIX.strip() if protocol == "chat" else None,
+        "questionnaire_file": questions_file,
+        "prompt_suffix": (QUESTION_SUFFIX.strip()
+                          if protocol == "chat" else None),
+        "answer_suffix": (ANSWER_SUFFIX.strip()
+                          if protocol == "chat" else None),
         "decision_question": ({"instructions": DECISION_INSTRUCTIONS,
                                "criteria": DECISION_CRITERIA}
                               if protocol == "decision" else None),
@@ -212,16 +268,36 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
             json.dumps(session, ensure_ascii=False, indent=2), encoding="utf-8")
 
     to_ask = questions[:limit] if limit else questions
+    expected_cache: dict = {}
     for q in to_ask:
+        qtype = q.get("type", "yesno")
+        if protocol == "decision" and qtype == "answer":
+            print(f"    [{q['id']}] recall-клетка не применима в "
+                  f"decision-протоколе — пропускаю")
+            turns.append({
+                "id": q["id"], "topic": q["topic"], "level": q["level"],
+                "type": qtype, "prompt_text": q["prompt"], "correct_answer": None,
+                "prompt": "", "answer_raw": "", "answer": None, "parsed": "none",
+                "expected": None, "is_correct": False, "strict": False,
+                "p": None, "thinking": None, "duration_s": 0.0,
+                "eval_count": None, "prompt_eval_count": None,
+                "prompt_eval_cached_count": None, "done_reason": "unsupported",
+            })
+            flush()
+            continue
         t0 = time.monotonic()
         if protocol == "decision":
             resp = decision_safe(base_url, model, q["text"], timeout)
+        elif qtype == "answer":
+            prompt = q["prompt"] + ANSWER_SUFFIX
+            resp = chat_safe(base_url, model, prompt, keep_alive, think, timeout)
         else:
             prompt = q["text"] + QUESTION_SUFFIX
             resp = chat_safe(base_url, model, prompt, keep_alive, think, timeout)
         duration = time.monotonic() - t0
         p = None
         thinking = None
+        expected = None
         if resp is None:
             answer_raw, answer, parsed = "", None, "none"
             eval_count = prompt_eval_count = cached_count = None
@@ -243,19 +319,41 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
         else:
             msg = resp.get("message", {})
             answer_raw = (msg.get("content") or "").strip()
-            # размышления в парсинг не идут; сохраняем в клетку для аудита
-            answer, parsed = parse_answer(answer_raw)
             thinking = (msg.get("thinking") or "").strip() or None
+            if qtype == "answer":
+                # recall-клетка: ответ = только результат; эталон — php или accept
+                answer = normalize(answer_raw) if answer_raw else None
+                expected = expected_value(q["grader"], expected_cache)
+                parsed = "ok" if answer else "none"
+                done_reason = resp.get("done_reason")
+            else:
+                # размышления в парсинг не идут; сохраняем в клетку для аудита
+                answer, parsed = parse_answer(answer_raw)
+                expected = "да" if q["answer"] else "нет"
+                done_reason = resp.get("done_reason")
             eval_count = resp.get("eval_count")
             prompt_eval_count = resp.get("prompt_eval_count")
             cached_count = resp.get("prompt_eval_cached_count")
-            done_reason = resp.get("done_reason")
+
+        if qtype == "answer":
+            # эталоны: php-вывод или все варианты accept-списка; сравнение
+            # без пробелов (пробелы внутри коротких значений не значимы)
+            variants = [normalize(v) for v in q["grader"].get("accept", [expected])]
+            is_correct = answer is not None and any(
+                squeeze(v) in squeeze(answer) for v in variants)
+            strict = answer is not None and answer == normalize(expected)
+        else:
+            is_correct = answer is not None and answer == q["answer"]
+            strict = is_correct
         turns.append({
             "id": q["id"], "topic": q["topic"], "level": q["level"],
-            "assertion": q["text"], "correct_answer": q["answer"],
-            "prompt": (q["text"] + QUESTION_SUFFIX if protocol == "chat"
+            "type": qtype,
+            "prompt_text": q["text"] if qtype == "yesno" else q["prompt"],
+            "correct_answer": expected if qtype == "answer" else q["answer"],
+            "prompt": (prompt if protocol == "chat"
                        else build_decision_state(q["text"])),
             "answer_raw": answer_raw, "answer": answer, "parsed": parsed,
+            "expected": expected, "is_correct": is_correct, "strict": strict,
             "p": p, "thinking": thinking,
             "duration_s": round(duration, 2),
             "eval_count": eval_count,
@@ -263,38 +361,53 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
             "prompt_eval_cached_count": cached_count,
             "done_reason": done_reason,
         })
-        mark = {True: "да ✅", False: "нет ❌", None: "— ⬜"}[answer]
         p_s = f", p={p}" if p is not None else ""
         truncated = done_reason not in (None, "stop")
         warn = " ⚠️ ОБРЫВ: " + str(done_reason) if truncated else ""
-        print(f"    [{q['id']}] {q['topic']}: {duration:.0f}s → {mark}{p_s}"
-              f" (верно: {'да' if q['answer'] else 'нет'}){warn}")
+        if qtype == "answer":
+            mark = "✅" if is_correct else ("⬜" if answer is None else "❌")
+            given = answer if answer else "—"
+            print(f"    [{q['id']}] {q['topic']}: {duration:.0f}s → {mark} "
+                  f"'{given}' (эталон: '{expected}'){warn}")
+        else:
+            mark = {True: "да ✅", False: "нет ❌", None: "— ⬜"}[answer]
+            print(f"    [{q['id']}] {q['topic']}: {duration:.0f}s → {mark}{p_s}"
+                  f" (верно: {'да' if q['answer'] else 'нет'}){warn}")
         flush()
 
     flush()
     write_answers_csv(out_dir, turns)
     total = sum(t["duration_s"] for t in turns)
-    correct = sum(1 for t in turns
-                  if t["answer"] is not None and t["answer"] == t["correct_answer"])
+    correct = sum(1 for t in turns if t.get("is_correct"))
     print(f"  готово: {out_dir} ({len(turns)} клеток, верных {correct}, {total:.0f}s)")
 
 
 def write_answers_csv(out_dir: Path, turns: list) -> None:
-    """Разбор одной строкой на клетку — для анализа кодом (как judges CSV)."""
+    """Разбор одной строкой на клетку — для анализа кодом (как judges CSV).
+    Для recall-клеток answer — нормализованный ответ строкой, expected —
+    эталон; для да/нет — да/нет как раньше."""
     with (out_dir / "answers.csv").open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f, lineterminator="\n")
-        w.writerow(["id", "topic", "level", "answer", "p", "parsed", "correct",
-                    "is_correct", "duration_s", "prompt_tokens", "output_tokens",
+        w.writerow(["id", "topic", "level", "type", "answer", "expected",
+                    "parsed", "correct_answer", "is_correct", "strict",
+                    "duration_s", "prompt_tokens", "output_tokens",
                     "cached_tokens"])
         for t in turns:
-            is_correct = t["answer"] is not None and t["answer"] == t["correct_answer"]
-            w.writerow([t["id"], t["topic"], t["level"],
-                        "" if t["answer"] is None else ("да" if t["answer"] else "нет"),
-                        t.get("p"), t["parsed"],
-                        "да" if t["correct_answer"] else "нет",
-                        int(is_correct), t["duration_s"],
-                        t.get("prompt_eval_count"), t.get("eval_count"),
-                        t.get("prompt_eval_cached_count")])
+            qtype = t.get("type", "yesno")
+            if qtype == "answer":
+                answer = t.get("answer") or ""
+                expected = t.get("expected") or ""
+                correct_answer = t.get("correct_answer") or ""
+            else:
+                answer = "" if t["answer"] is None else \
+                    ("да" if t["answer"] else "нет")
+                expected = ""
+                correct_answer = "да" if t["correct_answer"] else "нет"
+            w.writerow([t["id"], t["topic"], t["level"], qtype,
+                        answer, expected, t["parsed"], correct_answer,
+                        int(bool(t.get("is_correct"))), int(bool(t.get("strict"))),
+                        t["duration_s"], t.get("prompt_eval_count"),
+                        t.get("eval_count"), t.get("prompt_eval_cached_count")])
 
 
 def main() -> int:
@@ -354,7 +467,7 @@ def main() -> int:
               f"· протокол: {args.protocol}")
         run_map(args.base_url, args.model, questions, q_version, run_no,
                 out_dir, keep_alive, args.think, args.timeout, args.limit,
-                args.protocol)
+                args.protocol, Path(args.questions).name)
         run_no += 1
         if args.protocol == "decision":
             continue  # decision-сервис не держит модель в ollama — выгружать нечего
