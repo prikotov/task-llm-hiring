@@ -252,7 +252,7 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
                  if q["id"] in by_id and is_correct(by_id[q["id"]]))
     base_pct = pct(base_c, len(base_q)) if base_q else pct(correct, n)
     score_chip = (f'<div class="chip">Оценка: <b>{base_pct}%</b> '
-                  f'(без новых фич) · <b>{pct(correct, n)}%</b> (с новыми фичами)</div>')
+                  f'(с новыми фичами: <b>{pct(correct, n)}%</b>)</div>')
     zone_stats = []
     for zl, zk in (("База", "base"), ("PHP 8.4–8.5", "current"),
                    ("Будущее", "future")):
@@ -704,7 +704,7 @@ def write_summary_single(run_dir: Path, session: dict, by_id: dict,
         "",
         f"- Протокол: одна клетка = один независимый запрос; "
         f"think: {session.get('think')}; {bank_line}",
-        f"- **Оценка: {base_pct_s}** (без новых фич) · {pct(correct, n)}% (с новыми фичами); разобрано "
+        f"- **Оценка: {base_pct_s}** (с новыми фичами: {pct(correct, n)}%); разобрано "
         f"{len(parsed)} (серых: {n - len(parsed)}); {bias_line}",
         f"- Стоимость: {totals['duration_s']} c, {totals['prompt_tokens']} вх. ток, "
         f"{totals['output_tokens']} вых. ток (кэш: {totals['cached_tokens']}).",
