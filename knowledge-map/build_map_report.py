@@ -299,7 +299,7 @@ def map_grid_single(by_id: dict, questions: list,
             correct = sum(1 for q in tq
                           if q["id"] in by_id and is_correct(by_id[q["id"]]))
             cells.append(f'<div class="agg">{correct}/{len(tq)}</div>')
-        cells.append('<div class="agg">точность →</div>')
+        cells.append('<div class="agg">точность уровня →</div>')
         cells.append(f'<div class="agg">{pct(total_correct, len(questions))}%</div>')
         cells.append('<div class="agg"></div>')
         cells.append('<div class="agg"></div>')
@@ -327,7 +327,7 @@ def map_grid_single(by_id: dict, questions: list,
         correct = sum(1 for q in tq if q["id"] in by_id and is_correct(by_id[q["id"]]))
         cells.append(f'<div class="agg">{correct}/{len(tq)}</div>')
     # строка агрегатов по уровням
-    cells.append('<div class="agg">точность →</div>')
+    cells.append('<div class="agg">точность уровня →</div>')
     for lvl in range(1, max_level + 1):
         lq = [q for q in questions if q["level"] == lvl]
         correct = sum(1 for q in lq if q["id"] in by_id and is_correct(by_id[q["id"]]))
