@@ -309,7 +309,13 @@ def map_grid_single(by_id: dict, questions: list,
     cells = ['<div class="hd"></div>']
     cells += [f'<div class="hd">L{i}</div>' for i in range(1, max_level + 1)]
     cells.append('<div class="hd">итог</div>')
+    prev_zone = None
     for topic in topics:
+        z = zone_of(topic)
+        if z != prev_zone:
+            zn = zone_names.get(z, z)
+            cells.append(f'<div class="zonehdr">{esc(zn)}</div>')
+            prev_zone = z
         cells.append(f'<div class="rh">{esc(topic)}</div>')
         tq = sorted((q for q in questions if q["topic"] == topic),
                     key=lambda q: q["level"])
