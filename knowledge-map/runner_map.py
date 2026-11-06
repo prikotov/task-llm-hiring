@@ -211,7 +211,7 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
 def write_answers_csv(out_dir: Path, turns: list) -> None:
     """Разбор одной строкой на клетку — для анализа кодом (как judges CSV)."""
     with (out_dir / "answers.csv").open("w", newline="", encoding="utf-8") as f:
-        w = csv.writer(f)
+        w = csv.writer(f, lineterminator="\n")
         w.writerow(["id", "topic", "level", "answer", "parsed", "correct",
                     "is_correct", "duration_s"])
         for t in turns:
