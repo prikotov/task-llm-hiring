@@ -269,8 +269,11 @@ def check_questionnaire(questions: list) -> None:
                 raise SystemExit(f"у вопроса {q.get('id', '?')} нет поля {field}")
     if n_recall:
         # эталоны php-клеток вычисляем сразу — битый сниппет не должен
-        # всплывать посреди прогона
+        # всплывать посреди прогона; regex-грейдеры компилируем сразу
         cache: dict = {}
+        for q in questions:
+            if q.get("type") == "answer" and "regex" in q.get("grader", {}):
+                re.compile(q["grader"]["regex"])
         for q in questions:
             if q.get("type") == "answer" and "php" in q["grader"]:
                 val = expected_value(q["grader"], cache)
@@ -429,12 +432,18 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
             cached_count = resp.get("prompt_eval_cached_count")
 
         if qtype == "answer":
-            # эталоны: php-вывод или все варианты accept-списка; сравнение
-            # без пробелов (пробелы внутри коротких значений не значимы)
-            variants = [normalize(v) for v in q["grader"].get("accept", [expected])]
-            is_correct = answer is not None and any(
-                squeeze(v) in squeeze(answer) for v in variants)
-            strict = answer is not None and answer == normalize(expected)
+            if "regex" in q["grader"]:
+                # строгое совпадение (например, номер версии): подстрока
+                # «не 8.5» или «8.4 и 8.5» не должна засчитываться
+                is_correct = answer is not None and re.fullmatch(
+                    q["grader"]["regex"], answer) is not None
+                strict = is_correct
+            else:
+                # эталоны: php-вывод или все варианты accept-списка
+                variants = [normalize(v) for v in q["grader"].get("accept", [expected])]
+                is_correct = answer is not None and any(
+                    squeeze(v) in squeeze(answer) for v in variants)
+                strict = answer is not None and answer == normalize(expected)
         else:
             is_correct = answer is not None and answer == q["answer"]
             strict = is_correct
