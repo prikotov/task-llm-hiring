@@ -1051,7 +1051,8 @@ def build_series_report(models_root: Path, questions_path: Path,
                 cells.append(
                     f'<div class="uhead" style="grid-column: span 9">'
                     f'think: {esc(think)}<span class="umeta">{base_avg}% '
-                    f'(с верс.: {total_avg}%) · нестабильных клеток: {fl}</span></div>')
+                    f'(с верс.: {total_avg}%) · нестаб. '
+                    f'{pct(fl, len(questions))}%</span></div>')
                 cells.append('<div class="uhead"></div>')
             for topic in topics:
                 cells.append(f'<div class="rh">{esc(topic)}</div>')
