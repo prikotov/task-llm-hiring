@@ -91,15 +91,10 @@ FAMILY_IDS = {
     "PHP": [f"T{i:02d}" for i in range(1, 13)],
     "Symfony": ["T13", "T22", "T23", "T16"],
     "Данные": ["T14", "T15", "T17"],
-    "Дизайн": ["T25", "T26"],
+    "Архитектура": ["T25", "T26"],
     "Фронтенд": ["T21", "T24"],
     "Практики": ["T18", "T19", "T20"],
 }
-FAMILY_SHORT = {"PHP": "PHP", "PHP+версии": "PHP+в", "Symfony": "Sym",
-                "Symfony+версии": "Sym+в", "Данные": "Дан", "Дизайн": "Диз",
-                "Фронтенд": "Фр", "Практики": "Пр", "Всего": "Все"}
-
-
 def family_scores(questions: list, run_by_ids: list[dict]) -> list[tuple[str, float]]:
     """Процент верных по семействам, агрегированный по прогонам.
     Семейства пересекаются («PHP» входит и в «PHP+версии»); семейства
@@ -109,7 +104,7 @@ def family_scores(questions: list, run_by_ids: list[dict]) -> list[tuple[str, fl
             ("Symfony", FAMILY_IDS["Symfony"]),
             ("Symfony+версии", FAMILY_IDS["Symfony"] + ["T28", "T29"]),
             ("Данные", FAMILY_IDS["Данные"]),
-            ("Дизайн", FAMILY_IDS["Дизайн"]),
+            ("Архитектура", FAMILY_IDS["Архитектура"]),
             ("Фронтенд", FAMILY_IDS["Фронтенд"]),
             ("Практики", FAMILY_IDS["Практики"])]
     res = []
@@ -1283,7 +1278,7 @@ def build_series_report(models_root: Path, questions_path: Path,
     # колонки = семейства, затраты, нестабильность
     fam_heads = [("PHP", "PHP"), ("PHP+версии", "PHP+"),
                  ("Symfony", "Symfony"), ("Symfony+версии", "Symfony+"),
-                 ("Данные", "Данные"), ("Дизайн", "Дизайн"),
+                 ("Данные", "Данные"), ("Архитектура", "Архитектура"),
                  ("Фронтенд", "Фронтенд"), ("Практики", "Практики"),
                  ("Всего", "Всего")]
     mrows = []
