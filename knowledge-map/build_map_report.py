@@ -1008,6 +1008,8 @@ def build_series_report(models_root: Path, questions_path: Path,
             for q in questions:
                 by_topic_level[q["topic"]][q["level"]] = q
 
+            base_ids = [q["id"] for q in questions
+                        if q.get("zone", "base") == "base"]
             groups = []
             for think in sorted(think_map,
                                 key=lambda t: (think_order.get(t, 99), t)):
@@ -1021,18 +1023,21 @@ def build_series_report(models_root: Path, questions_path: Path,
                                for _n, by_id in runs_list}
                     answers.discard(None)
                     flip_by_id[q["id"]] = len(answers) > 1
-                scores = [sum(1 for t in b.values() if is_correct(t))
-                          for _rd, _s, b in items]
-                scores_s = (f"{pct(min(scores), len(questions))}% – "
-                            f"{pct(max(scores), len(questions))}%")
+                total_c = sum(1 for _n, b in runs_list
+                              for t in b.values() if is_correct(t))
+                total_n = len(questions) * len(items)
+                base_c = sum(1 for _n, b in runs_list for cid in base_ids
+                             if cid in b and is_correct(b[cid]))
+                base_n = len(base_ids) * len(items)
                 stable_ok = sum(
                     1 for q in questions
                     if all(by_id.get(q["id"], {}).get("answer") is not None
                            and is_correct(by_id[q["id"]])
                            for _rd, _s, by_id in items))
                 flips = sum(1 for q in questions if flip_by_id[q["id"]])
-                groups.append((think, runs_list, flip_by_id, len(items),
-                               scores_s, stable_ok, flips))
+                groups.append((think, runs_list, flip_by_id,
+                               pct(base_c, base_n), pct(total_c, total_n),
+                               stable_ok, flips))
             if not groups:
                 continue
 
@@ -1041,23 +1046,20 @@ def build_series_report(models_root: Path, questions_path: Path,
             cols = [f"{label_px}px"] + [
                 f"repeat(8, {cell_px}px) {agg_px}px {sp_px}px"] * len(groups)
             cells = ['<div class="uhead"></div>']
-            for think, runs_list, flip_by_id, cnt, ss, sok, fl in groups:
-                cmp_name = f"compare-{think}-{lang}-v{qver}.html"
-                cmp_link = ""
-                if (models_root / md.name / "knowledge-map" / cmp_name).exists():
-                    cmp_link = (f' · <a href="../models/{esc(md.name)}/'
-                                f'knowledge-map/{cmp_name}">полный отчёт серии</a>')
+            for think, runs_list, flip_by_id, base_avg, total_avg, sok, fl \
+                    in groups:
                 cells.append(
                     f'<div class="uhead" style="grid-column: span 9">'
-                    f'think: {esc(think)}<span class="umeta">{cnt} прогонов · '
-                    f'{ss} · стаб. верных {sok} · флипов {fl}{cmp_link}'
-                    f'</span></div>')
+                    f'think: {esc(think)}<span class="umeta">{base_avg}% '
+                    f'без версионных · {total_avg}% с ними · '
+                    f'нестабильных клеток: {fl}</span></div>')
                 cells.append('<div class="uhead"></div>')
             for topic in topics:
                 cells.append(f'<div class="rh">{esc(topic)}</div>')
                 tq = sorted((q for q in questions if q["topic"] == topic),
                             key=lambda q: q["level"])
-                for _think, runs_list, flip_by_id, cnt, _ss, _sok, _fl in groups:
+                for _think, runs_list, flip_by_id, _ba, _ta, _sok, _fl \
+                        in groups:
                     for lvl in range(1, max_level + 1):
                         q = by_topic_level[topic].get(lvl)
                         if q is None:
@@ -1083,12 +1085,20 @@ def build_series_report(models_root: Path, questions_path: Path,
                     cells.append('<div class="gsp"></div>')
 
             levels_s = ", ".join(t for t, *_ in groups)
+            links = " · ".join(
+                f'<a href="../models/{esc(md.name)}/knowledge-map/'
+                f'compare-{esc(t)}-{esc(lang)}-v{qver}.html">think: {esc(t)}</a>'
+                for t, _rl, _f, _ba, _ta, _sok, _fl in groups
+                if (models_root / md.name / "knowledge-map" /
+                    f"compare-{t}-{lang}-v{qver}.html").exists())
+            links_html = (f'<div class="serlink">Полный отчёт серии: {links}</div>'
+                          if links else "")
             sections.append(
                 f'<h2>{model} · вопросник v{q_version} · язык: {esc(lang)} · '
                 f'уровни мышления: {esc(levels_s)}</h2>\n'
                 f'<div class="unimap-wrap"><div class="unimap" '
                 f'style="grid-template-columns: {" ".join(cols)};">'
-                f'{"".join(cells)}</div></div>')
+                f'{"".join(cells)}</div></div>{links_html}')
             n_maps += len(groups)
 
     if not sections:
