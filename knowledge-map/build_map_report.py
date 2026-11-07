@@ -1138,8 +1138,7 @@ def build_series_report(models_root: Path, questions_path: Path,
                     f'Полный отчёт серии</a></div>')
                 cells.append('<div class="gsp"></div>')
             sections.append(
-                f'<h2>{model} · вопросник v{q_version} · язык: {esc(lang)} · '
-                f'уровни мышления: {esc(levels_s)}</h2>\n'
+                f'<h2>{model} · вопросник v{q_version} · язык: {esc(lang)}</h2>\n'
                 f'<div class="unimap-wrap"><div class="unimap" '
                 f'style="grid-template-columns: {" ".join(cols)};">'
                 f'{"".join(cells)}</div></div>')
