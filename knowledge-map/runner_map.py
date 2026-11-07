@@ -41,6 +41,21 @@ SYSTEM_PROMPT = (
     "Пояснение — одно короткое предложение. Никакого текста вне JSON.")
 QUESTION_SUFFIX = "\n\nВерно или неверно?"
 ANSWER_SUFFIX = "\n\nОтветь результатом (число, строка или да/нет)."
+SYSTEM_PROMPT_EN = (
+    "You are taking a PHP knowledge test. Each message is one question. "
+    'Answer strictly in JSON: {"answer": ..., "explanation": "..."}. '
+    'For a "True or false?" question, answer is "yes" or "no"; '
+    "for a result question, answer is a number, a string, or yes/no. "
+    "The explanation is one short sentence. No text outside JSON.")
+QUESTION_SUFFIX_EN = "\n\nTrue or false?"
+ANSWER_SUFFIX_EN = "\n\nAnswer with the result (a number, a string, or yes/no)."
+
+
+def prompt_parts(lang: str) -> tuple[str, str, str]:
+    """(system, суффикс verify, суффикс recall) для языка прогона."""
+    if lang == "en":
+        return SYSTEM_PROMPT_EN, QUESTION_SUFFIX_EN, ANSWER_SUFFIX_EN
+    return SYSTEM_PROMPT, QUESTION_SUFFIX, ANSWER_SUFFIX
 THINK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
 # decision-протокол (/v1/systemone, как в interview/score.py): без chat —
 # вероятностный ответ «утверждение верно» (noul), порог да/нет — 0.5
@@ -292,7 +307,7 @@ def check_questionnaire(questions: list) -> None:
 def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
             out_dir: Path, keep_alive, think: str, timeout: int,
             limit: int | None, protocol: str = "chat",
-            questions_file: str | None = None) -> None:
+            questions_file: str | None = None, lang: str = "ru") -> None:
     if protocol == "chat":
         print(f"  выгружаю модель перед прогоном...")
         unload_model(base_url, model, timeout)
@@ -312,10 +327,11 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
         "question_count": 0,
         "questionnaire": q_version,
         "questionnaire_file": questions_file,
-        "system_prompt": SYSTEM_PROMPT if protocol == "chat" else None,
-        "prompt_suffix": (QUESTION_SUFFIX.strip()
+        "lang": lang,
+        "system_prompt": (prompt_parts(lang)[0] if protocol == "chat" else None),
+        "prompt_suffix": (prompt_parts(lang)[1].strip()
                           if protocol == "chat" else None),
-        "answer_suffix": (ANSWER_SUFFIX.strip()
+        "answer_suffix": (prompt_parts(lang)[2].strip()
                           if protocol == "chat" else None),
         "decision_question": ({"instructions": DECISION_INSTRUCTIONS,
                                "criteria": DECISION_CRITERIA}
@@ -358,14 +374,15 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
         t0 = time.monotonic()
         if protocol == "decision":
             resp = decision_safe(base_url, model, q["text"], timeout)
-        elif qtype == "answer":
-            prompt = q["prompt"] + ANSWER_SUFFIX
+        sysp, q_suf, a_suf = prompt_parts(lang)
+        if qtype == "answer":
+            prompt = q["prompt"] + a_suf
             resp = chat_safe(base_url, model, prompt, keep_alive, think,
-                             timeout, SYSTEM_PROMPT)
+                             timeout, sysp)
         else:
-            prompt = q["text"] + QUESTION_SUFFIX
+            prompt = q["text"] + q_suf
             resp = chat_safe(base_url, model, prompt, keep_alive, think,
-                             timeout, SYSTEM_PROMPT)
+                             timeout, sysp)
         duration = time.monotonic() - t0
         p = None
         thinking = None
@@ -532,6 +549,9 @@ def main() -> int:
                    default="off",
                    help="режим thinking (default off — стандарт локальных собесов; "
                         "в decision-протоколе не применяется)")
+    p.add_argument("--lang", choices=["ru", "en"], default="ru",
+                   help="язык прогона: system-промпт и вопросы (вопросник "
+                        "--questions должен соответствовать языку)")
     p.add_argument("--protocol", choices=["chat", "decision"], default="chat",
                    help="протокол ответов: chat — ollama /api/chat (default); "
                         "decision — /v1/systemone с вероятностью noul, для "
@@ -571,7 +591,7 @@ def main() -> int:
               f"· протокол: {args.protocol}")
         run_map(args.base_url, args.model, questions, q_version, run_no,
                 out_dir, keep_alive, args.think, args.timeout, args.limit,
-                args.protocol, Path(args.questions).name)
+                args.protocol, Path(args.questions).name, args.lang)
         run_no += 1
         if args.protocol == "decision":
             continue  # decision-сервис не держит модель в ollama — выгружать нечего

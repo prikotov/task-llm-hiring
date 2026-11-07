@@ -755,7 +755,8 @@ def write_summary_single(run_dir: Path, session: dict, by_id: dict,
 
 def build_compare(model_dir: Path, questions_path: Path,
                   think_filter: str | None = None,
-                  qver_filter: int | None = None) -> None:
+                  qver_filter: int | None = None,
+                  lang_filter: str | None = None) -> None:
     q_version, questions = load_questions(questions_path)
     run_dirs = sorted(p for p in model_dir.glob("run-*") if p.is_dir())
     sessions = []
@@ -768,6 +769,9 @@ def build_compare(model_dir: Path, questions_path: Path,
     if qver_filter:
         sessions = [(n, s, b) for n, s, b in sessions
                     if s.get("questionnaire") == qver_filter]
+    if lang_filter:
+        sessions = [(n, s, b) for n, s, b in sessions
+                    if s.get("lang", "ru") == lang_filter]
     if not sessions:
         raise SystemExit(f"в {model_dir} нет прогонов (run-*/session.json)")
 
@@ -867,7 +871,7 @@ def build_compare(model_dir: Path, questions_path: Path,
     footer = (f"построено knowledge-map/build_map_report.py · "
               f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} · "
               f"данные: run-*/session.json")
-    tag = think_filter or "mixed"
+    tag = (think_filter or "mixed") + (f"-{lang_filter}" if lang_filter else "")
     (model_dir / f"compare-{tag}.html").write_text(
         page(title, protocol, chips, body, footer), encoding="utf-8")
 
@@ -955,13 +959,15 @@ def build_series_report(models_root: Path, questions_path: Path,
         for rd, session, by_id in runs:
             if session.get("questionnaire") != latest_qver:
                 continue
-            series_map[session.get("think")].append((rd, session, by_id))
+            key = (session.get("think"), session.get("lang", "ru"))
+            series_map[key].append((rd, session, by_id))
 
         blocks = []
         first_in_row = True
-        for think in sorted(series_map,
-                            key=lambda t: (think_order.get(t, 99), t)):
-            items = series_map[think]
+        for key in sorted(series_map,
+                          key=lambda k: (think_order.get(k[0], 99), k[0], k[1])):
+            think, lang = key
+            items = series_map[key]
             if len(items) < 2:
                 continue
             qpath = questions_for_run(questions_path, items[0][1])
@@ -992,7 +998,7 @@ def build_series_report(models_root: Path, questions_path: Path,
                             f'серии (compare-{esc(think)}.html)</a></div>')
             blocks.append(
                 f'<div class="series">'
-                f'<div class="serhead">think: {esc(think)}</div>'
+                f'<div class="serhead">think: {esc(think)} · {esc(lang)}</div>'
                 f'<div class="sermeta">{len(items)} прогонов · вопросник '
                 f'v{q_version} · точность {scores_s} · стабильно верных '
                 f'{stable_ok} · флипующих {flips}</div>{grid}{cmp_link}</div>')
@@ -1045,7 +1051,7 @@ def main() -> int:
         build_single(Path(args.run_dir), questions_path)
     elif args.think:
         build_compare(Path(args.model_dir), questions_path, args.think,
-                      args.version)
+                      args.version, args.lang)
     else:
         print("--model-dir без --think не поддерживается: тепловая карта "
               "серии — с --think <уровень> (и при необходимости --version N); "
