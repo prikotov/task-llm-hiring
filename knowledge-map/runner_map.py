@@ -49,12 +49,22 @@ SYSTEM_PROMPT_EN = (
     "The explanation is one short sentence. No text outside JSON.")
 QUESTION_SUFFIX_EN = "\n\nTrue or false?"
 ANSWER_SUFFIX_EN = "\n\nAnswer with the result (a number, a string, or yes/no)."
+SYSTEM_PROMPT_ZH = (
+    "你正在参加一项 PHP 知识测试。每条消息是一个问题。"
+    '请严格以 JSON 格式回答：{"answer": ..., "解释": "..."}。'
+    '对于「对还是错？」类问题，answer 为 "是" 或 "否"；'
+    "对于求结果的问题，answer 为数字、字符串或 是/否。"
+    "解释只写一个短句。JSON 之外不要有任何文字。")
+QUESTION_SUFFIX_ZH = "\n\n对还是错？"
+ANSWER_SUFFIX_ZH = "\n\n请回答结果（数字、字符串或 是/否）。"
 
 
 def prompt_parts(lang: str) -> tuple[str, str, str]:
     """(system, суффикс verify, суффикс recall) для языка прогона."""
     if lang == "en":
         return SYSTEM_PROMPT_EN, QUESTION_SUFFIX_EN, ANSWER_SUFFIX_EN
+    if lang == "zh":
+        return SYSTEM_PROMPT_ZH, QUESTION_SUFFIX_ZH, ANSWER_SUFFIX_ZH
     return SYSTEM_PROMPT, QUESTION_SUFFIX, ANSWER_SUFFIX
 THINK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
 # decision-протокол (/v1/systemone, как в interview/score.py): без chat —
@@ -93,8 +103,8 @@ def extract_json_answer(raw: str) -> dict | None:
     return None
 
 
-YES_WORDS = {"да", "true", "yes", "1"}
-NO_WORDS = {"нет", "false", "no", "0"}
+YES_WORDS = {"да", "true", "yes", "1", "是", "对", "正确"}
+NO_WORDS = {"нет", "false", "no", "0", "否", "不是", "错", "错误"}
 
 
 def extract_explanation(raw: str, qtype: str, expected: str | None) -> str | None:
@@ -105,7 +115,7 @@ def extract_explanation(raw: str, qtype: str, expected: str | None) -> str | Non
         return None
     low = raw.lower()
     if qtype == "yesno":
-        for w in ("да", "нет", "yes", "no"):
+        for w in ("да", "нет", "yes", "no", "是", "否", "对", "错"):
             pos = low.find(w)
             if pos != -1:
                 rest = raw[pos + len(w):].strip(" :—-.\n")
@@ -247,6 +257,14 @@ def parse_answer(raw: str) -> tuple[bool | None, str]:
     серой: неумение следовать формату тоже измерение (см. blueprint).
     """
     text = THINK_RE.sub("", raw).strip().lower()
+    # китайский фолбэк (zh-прогоны): вердиктные иероглифы в тексте; для
+    # ru/en-ответов эти символы не встречаются — поведение не меняется
+    for w in ("不是", "错误", "否", "错"):
+        if w in text:
+            return False, "late"
+    for w in ("正确", "是", "对"):
+        if w in text:
+            return True, "late"
     tokens = re.findall(r"[а-яёa-z]+", text)
     if not tokens:
         return None, "none"
@@ -415,7 +433,8 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
             json_ok = obj is not None and isinstance(obj.get("answer"), (str, int, float, bool))
             explanation = None
             if json_ok:
-                explanation = (str(obj.get("пояснение") or obj.get("explanation") or "")
+                explanation = (str(obj.get("пояснение") or obj.get("explanation")
+                                   or obj.get("解释") or "")
                                .strip() or None)
             if qtype == "answer":
                 # recall-клетка: ответ = только результат; эталон — php или accept
@@ -549,7 +568,7 @@ def main() -> int:
                    default="off",
                    help="режим thinking (default off — стандарт локальных собесов; "
                         "в decision-протоколе не применяется)")
-    p.add_argument("--lang", choices=["ru", "en"], default="ru",
+    p.add_argument("--lang", choices=["ru", "en", "zh"], default="ru",
                    help="язык прогона: system-промпт и вопросы (вопросник "
                         "--questions должен соответствовать языку)")
     p.add_argument("--protocol", choices=["chat", "decision"], default="chat",

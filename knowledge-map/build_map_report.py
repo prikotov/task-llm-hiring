@@ -81,11 +81,13 @@ def norm_display(s: str | None) -> str:
     return s.strip("«»\"' .") or (s or "—")
 
 
+YES_NO = {"ru": ("да", "нет"), "en": ("yes", "no"), "zh": ("是", "否")}
+
+
 def yes_no(v: bool, lang: str) -> str:
-    """Да/нет в языке вопросника: EN-серии показывают yes/no."""
-    if lang == "en":
-        return "yes" if v else "no"
-    return "да" if v else "нет"
+    """Да/нет в языке вопросника: en — yes/no, zh — 是/否."""
+    y, n = YES_NO.get(lang, YES_NO["ru"])
+    return y if v else n
 
 
 _EXPECTED_CACHE: dict = {}
@@ -1256,7 +1258,7 @@ def main() -> int:
     p.add_argument("--version", type=int, default=None,
                    help="версия вопросника для тепловой карты (серии разных "
                         "версий не смешиваются)")
-    p.add_argument("--lang", choices=["ru", "en"], default=None,
+    p.add_argument("--lang", choices=["ru", "en", "zh"], default=None,
                    help="язык прогона для тепловой карты (серии разных "
                         "языков не смешиваются)")
     p.add_argument("--questions", default=str(SCRIPT_DIR / "questions.json"))
