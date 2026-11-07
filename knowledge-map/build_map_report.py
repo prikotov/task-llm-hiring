@@ -413,10 +413,9 @@ def map_grid_compare(questions: list, runs: list[tuple[str, dict]],
             cells.append(f'<div class="cell {cls}" style="background:{heat_color(p)}">'
                          f'<div class="num">{round(p * 100)}</div>'
                          f'<div class="tip">{tip}</div></div>')
-        correct = sum(1 for q in tq
-                      if sum(1 for _, by_id in runs
-                             if q["id"] in by_id and is_correct(by_id[q["id"]])))
-        cells.append(f'<div class="agg">{correct / len(runs):.0%}</div>')
+        correct = sum(1 for q in tq for _, by_id in runs
+                      if q["id"] in by_id and is_correct(by_id[q["id"]]))
+        cells.append(f'<div class="agg">{pct(correct, len(tq) * len(runs))}%</div>')
 
     return ('<div class="mapwrap"><div class="map" '
             f'style="grid-template-columns: minmax(190px, 250px) '
