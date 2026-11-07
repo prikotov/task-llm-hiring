@@ -1,7 +1,7 @@
 {
   "version": 8,
   "lang": "en",
-  "as_of": "2026-11-07 (v8: +3 темы стека — Symfony, Doctrine, PostgreSQL (24 клетки, до 136); переводы EN/ZH выправлены по двойному аудиту mimo v2.6-pro и kimi 3.1-pro; версионные клетки: wiki.php.net/rfc, php.net)",
+  "as_of": "2026-11-07 (v8: +9 тем стека под проект TasK — Symfony, Doctrine, PostgreSQL, Messenger, PG-транзакции и индексы, PHPUnit, HTTP/REST, безопасность/OAuth, Twig; 184 клетки; факты новых тем проверены живьём: PG 17.7, Twig 3.30, PHPUnit 10.5; переводы EN/ZH выправлены по двойному аудиту mimo v2.6-pro и kimi 3.1-pro; версионные: wiki.php.net/rfc, php.net)",
   "questions": [
     {
       "id": "T01-L1",
@@ -1421,6 +1421,586 @@
       "type": "yesno",
       "answer": false,
       "text": "The READ COMMITTED isolation level protects against non-repeatable reads."
+    },
+    {
+      "id": "T16-L1",
+      "topic": "Symfony: Messenger",
+      "level": 1,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Messenger вызывает все хендлеры, подписанные на класс сообщения (docs — Multiple Handlers).",
+      "type": "yesno",
+      "answer": false,
+      "text": "A single message in Symfony Messenger can only have one handler."
+    },
+    {
+      "id": "T16-L2",
+      "topic": "Symfony: Messenger",
+      "level": 2,
+      "kind": "fact",
+      "zone": "base",
+      "note": "sync-транспорт — обработка в момент dispatch без очереди; docs Messenger.",
+      "type": "yesno",
+      "answer": true,
+      "text": "The sync transport in Messenger runs the handler immediately, in the same process that dispatched the message."
+    },
+    {
+      "id": "T16-L3",
+      "topic": "Symfony: Messenger",
+      "level": 3,
+      "kind": "fact",
+      "zone": "base",
+      "note": "bin/console messenger:consume async; воркеры под supervisord/systemd в проде.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "messenger:consume"
+        ]
+      },
+      "prompt": "Which console command starts the worker that processes Messenger queue messages?"
+    },
+    {
+      "id": "T16-L4",
+      "topic": "Symfony: Messenger",
+      "level": 4,
+      "kind": "fact",
+      "zone": "base",
+      "note": "retry_strategy на транспорте: max_retries, delay, multiplier; docs — Failed Messages & Retries.",
+      "type": "yesno",
+      "answer": true,
+      "text": "Retries for failed messages (retry_strategy) are configured per Messenger transport."
+    },
+    {
+      "id": "T16-L5",
+      "topic": "Symfony: Messenger",
+      "level": 5,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Дефолтный сериализатор — PhpSerializer (serialize()); JSON-сериализатор включается отдельно.",
+      "type": "yesno",
+      "answer": false,
+      "text": "By default, Messenger serializes messages to JSON."
+    },
+    {
+      "id": "T16-L6",
+      "topic": "Symfony: Messenger",
+      "level": 6,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Schedule → RecurringMessage → шина Messenger; docs — Scheduler.",
+      "type": "yesno",
+      "answer": true,
+      "text": "Symfony Scheduler produces messages on a schedule and dispatches them through Messenger."
+    },
+    {
+      "id": "T16-L7",
+      "topic": "Symfony: Messenger",
+      "level": 7,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Транспорт doctrine (symfony/doctrine-messenger); таблица messenger_messages. В проекте стоит amqp-messenger + doctrine-messenger.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "doctrine"
+        ]
+      },
+      "prompt": "Which built-in Messenger transport stores messages in database tables via Doctrine?"
+    },
+    {
+      "id": "T16-L8",
+      "topic": "Symfony: Messenger",
+      "level": 8,
+      "kind": "fact",
+      "zone": "base",
+      "note": "messenger.bus.*.middleware в yaml; docs — Middleware.",
+      "type": "yesno",
+      "answer": true,
+      "text": "The Messenger pipeline can be extended with custom middleware, placed before or after the built-in ones."
+    },
+    {
+      "id": "T17-L1",
+      "topic": "PostgreSQL: transactions and indexes",
+      "level": 1,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Без BEGIN каждый оператор коммитится сам; docs PostgreSQL — Transactions. Проверено на PG 17.",
+      "type": "yesno",
+      "answer": true,
+      "text": "By default, PostgreSQL wraps each single SQL statement in its own implicit transaction (autocommit)."
+    },
+    {
+      "id": "T17-L2",
+      "topic": "PostgreSQL: transactions and indexes",
+      "level": 2,
+      "kind": "fact",
+      "zone": "base",
+      "note": "COMMIT (END — синоним). Проверено на PG 17.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "commit"
+        ]
+      },
+      "prompt": "Which SQL command ends a transaction, committing all its changes?"
+    },
+    {
+      "id": "T17-L3",
+      "topic": "PostgreSQL: transactions and indexes",
+      "level": 3,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Поиск строк для изменения идёт по индексу; docs PostgreSQL — Indexes.",
+      "type": "yesno",
+      "answer": true,
+      "text": "Indexes speed up more than SELECT: UPDATE and DELETE with a search on an indexed column benefit too."
+    },
+    {
+      "id": "T17-L4",
+      "topic": "PostgreSQL: transactions and indexes",
+      "level": 4,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Частичный откат — только SAVEPOINT/ROLLBACK TO; ошибка оператора переводит транзакцию в aborted. Проверено на PG 17.",
+      "type": "yesno",
+      "answer": false,
+      "text": "A PostgreSQL transaction can roll back some statements and commit the rest without SAVEPOINT."
+    },
+    {
+      "id": "T17-L5",
+      "topic": "PostgreSQL: transactions and indexes",
+      "level": 5,
+      "kind": "fact",
+      "zone": "base",
+      "note": "EXPLAIN — только план; EXPLAIN ANALYZE — план + реальное выполнение. Проверено на PG 17.",
+      "type": "yesno",
+      "answer": true,
+      "text": "EXPLAIN ANALYZE actually executes the query and shows the real time of each plan node."
+    },
+    {
+      "id": "T17-L6",
+      "topic": "PostgreSQL: transactions and indexes",
+      "level": 6,
+      "kind": "fact",
+      "zone": "base",
+      "note": "CREATE EXTENSION vector (проект pgvector; в проекте образ pgvector/pgvector:pg17).",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "vector",
+          "pgvector"
+        ]
+      },
+      "prompt": "Which PostgreSQL extension adds vector types and indexes for embedding search?"
+    },
+    {
+      "id": "T17-L7",
+      "topic": "PostgreSQL: transactions and indexes",
+      "level": 7,
+      "kind": "fact",
+      "zone": "base",
+      "note": "docs PostgreSQL — Partial Indexes; типичный кейс — индекс по «активным» записям.",
+      "type": "yesno",
+      "answer": true,
+      "text": "A partial index (CREATE INDEX ... WHERE ...) is built only over rows satisfying the condition."
+    },
+    {
+      "id": "T17-L8",
+      "topic": "PostgreSQL: transactions and indexes",
+      "level": 8,
+      "kind": "myth",
+      "zone": "base",
+      "note": "SSI (Serializable Snapshot Isolation): предикатные блокировки на снимках, не блокировки прочитанных строк; docs PostgreSQL.",
+      "type": "yesno",
+      "answer": false,
+      "text": "The SERIALIZABLE level in PostgreSQL is implemented by locking the rows a transaction reads."
+    },
+    {
+      "id": "T18-L1",
+      "topic": "Testing: PHPUnit",
+      "level": 1,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Тестом считается метод класса, наследующего TestCase (PHPUnit 10).",
+      "type": "yesno",
+      "answer": false,
+      "text": "PHPUnit runs test methods of any class — extending TestCase is not required."
+    },
+    {
+      "id": "T18-L2",
+      "topic": "Testing: PHPUnit",
+      "level": 2,
+      "kind": "myth",
+      "zone": "base",
+      "note": "setUp() — перед КАЖДЫМ тестом; один раз на класс — setUpBeforeClass(). Проверено живым счётчиком на PHPUnit 10.5.",
+      "type": "yesno",
+      "answer": false,
+      "text": "In PHPUnit, setUp() runs once before all tests of the class."
+    },
+    {
+      "id": "T18-L3",
+      "topic": "Testing: PHPUnit",
+      "level": 3,
+      "kind": "fact",
+      "zone": "base",
+      "note": "DataProvider возвращает наборы аргументов → тест выполняется по разу на каждый. Проверено на PHPUnit 10.5 (#[DataProvider]).",
+      "type": "yesno",
+      "answer": true,
+      "text": "A data provider lets a single test run against multiple sets of arguments."
+    },
+    {
+      "id": "T18-L4",
+      "topic": "Testing: PHPUnit",
+      "level": 4,
+      "kind": "fact",
+      "zone": "base",
+      "note": "$this->expectException(\\LogicException::class); проверено на PHPUnit 10.5.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "expectException"
+        ]
+      },
+      "prompt": "Which PHPUnit method declares an expectation that an exception of a given class is thrown?"
+    },
+    {
+      "id": "T18-L5",
+      "topic": "Testing: PHPUnit",
+      "level": 5,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Наоборот: стаб подставляет данные, мок проверяет взаимодействия (createStub/createMock); docs PHPUnit — Test Doubles.",
+      "type": "yesno",
+      "answer": false,
+      "text": "In PHPUnit, a stub verifies which methods were called on it, while a mock only returns data."
+    },
+    {
+      "id": "T18-L6",
+      "topic": "Testing: PHPUnit",
+      "level": 6,
+      "kind": "fact",
+      "zone": "base",
+      "note": "PHPUnit 10 вводит метаданные-атрибуты. Проверено на 10.5: тест на #[DataProvider] выполняется.",
+      "type": "yesno",
+      "answer": true,
+      "text": "In PHPUnit 10+, the #[DataProvider] attribute replaced the @dataProvider annotation."
+    },
+    {
+      "id": "T18-L7",
+      "topic": "Testing: PHPUnit",
+      "level": 7,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Зависимости есть: #[Depends] — зависимый тест не запустится, еслиProducer упал.",
+      "type": "yesno",
+      "answer": false,
+      "text": "PHPUnit does not allow one test to depend on the result of another."
+    },
+    {
+      "id": "T18-L8",
+      "topic": "Testing: PHPUnit",
+      "level": 8,
+      "kind": "fact",
+      "zone": "base",
+      "note": "--order-by=random (PHPUnit 9+); опция есть в --help PHPUnit 10.5 (проектная).",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "--order-by=random",
+          "--order-by random",
+          "random"
+        ]
+      },
+      "prompt": "Which PHPUnit command-line option makes tests run in random order?"
+    },
+    {
+      "id": "T19-L1",
+      "topic": "HTTP and REST API",
+      "level": 1,
+      "kind": "fact",
+      "zone": "base",
+      "note": "201 Created; обычно на POST, часто с Location; RFC 9110.",
+      "type": "yesno",
+      "answer": true,
+      "text": "HTTP status 201 means the request resulted in a new resource being created."
+    },
+    {
+      "id": "T19-L2",
+      "topic": "HTTP and REST API",
+      "level": 2,
+      "kind": "fact",
+      "zone": "base",
+      "note": "204 No Content; RFC 9110.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "204"
+        ]
+      },
+      "prompt": "Which HTTP status means a successful request with an empty response body (e.g. after DELETE)?"
+    },
+    {
+      "id": "T19-L3",
+      "topic": "HTTP and REST API",
+      "level": 3,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Наоборот: DELETE идемпотентен — повторный вызов по тому же ресурсу не меняет результат; RFC 9110.",
+      "type": "yesno",
+      "answer": false,
+      "text": "Per the HTTP specification, the DELETE method is not idempotent."
+    },
+    {
+      "id": "T19-L4",
+      "topic": "HTTP and REST API",
+      "level": 4,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Наоборот: заголовок шлёт СЕРВЕР в ответе, разрешая браузеру cross-origin запрос (CORS); в проекте nelmio/cors-bundle.",
+      "type": "yesno",
+      "answer": false,
+      "text": "The Access-Control-Allow-Origin header is sent by the client so that the server agrees to accept requests from another origin."
+    },
+    {
+      "id": "T19-L5",
+      "topic": "HTTP and REST API",
+      "level": 5,
+      "kind": "fact",
+      "zone": "base",
+      "note": "429 (+ Retry-After); RFC 6585. В проекте symfony/rate-limiter.",
+      "type": "yesno",
+      "answer": true,
+      "text": "Status 429 Too Many Requests is used when a client exceeds a rate limit."
+    },
+    {
+      "id": "T19-L6",
+      "topic": "HTTP and REST API",
+      "level": 6,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Классы статусов RFC 9110: 400/404 против 500/503.",
+      "type": "yesno",
+      "answer": true,
+      "text": "4xx codes mean a client error, while 5xx means a server-side error."
+    },
+    {
+      "id": "T19-L7",
+      "topic": "HTTP and REST API",
+      "level": 7,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Content-Type: application/json и т.п.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "content-type"
+        ]
+      },
+      "prompt": "Which HTTP header indicates the MIME type of the request or response body?"
+    },
+    {
+      "id": "T19-L8",
+      "topic": "HTTP and REST API",
+      "level": 8,
+      "kind": "fact",
+      "zone": "base",
+      "note": "RFC 5789 прямо оговаривает: PATCH не гарантированно идемпотентен; PUT идемпотентен.",
+      "type": "yesno",
+      "answer": true,
+      "text": "PATCH is not required to be idempotent per RFC 5789, unlike PUT."
+    },
+    {
+      "id": "T20-L1",
+      "topic": "Security and OAuth",
+      "level": 1,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Нужна постоянновременная проверка (password_verify) — timing-атаки; соль и алгоритм уже внутри хеша.",
+      "type": "yesno",
+      "answer": false,
+      "text": "Checking a password by comparing its hash to the stored hash with a plain == is sufficient."
+    },
+    {
+      "id": "T20-L2",
+      "topic": "Security and OAuth",
+      "level": 2,
+      "kind": "fact",
+      "zone": "base",
+      "note": "symfony/security-csrf в проекте; защита от подделки межсайтовой формы.",
+      "type": "yesno",
+      "answer": true,
+      "text": "A CSRF token is issued by the server (bound to the session) and verified server-side on unsafe requests (POST etc.)."
+    },
+    {
+      "id": "T20-L3",
+      "topic": "Security and OAuth",
+      "level": 3,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Content-Security-Policy; белые списки источников скриптов/стилей против XSS.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "content-security-policy"
+        ]
+      },
+      "prompt": "Which HTTP header enables the CSP (Content Security Policy) policy?"
+    },
+    {
+      "id": "T20-L4",
+      "topic": "Security and OAuth",
+      "level": 4,
+      "kind": "myth",
+      "zone": "base",
+      "note": "OAuth 2.0 — авторизация/делегирование доступа; аутентификацию добавляет OpenID Connect. В проекте knpuniversity/oauth2-client-bundle (yandex/github/google).",
+      "type": "yesno",
+      "answer": false,
+      "text": "OAuth 2.0 is an authentication protocol: the access token tells you who the user is."
+    },
+    {
+      "id": "T20-L5",
+      "topic": "Security and OAuth",
+      "level": 5,
+      "kind": "myth",
+      "zone": "base",
+      "note": "XSS лечится контекстным экранированием НА ВЫВОДЕ (Twig autoescape, CSP); валидация ввода не покрывает все контексты вывода.",
+      "type": "yesno",
+      "answer": false,
+      "text": "XSS is prevented by validating input on the server before writing it to the database."
+    },
+    {
+      "id": "T20-L6",
+      "topic": "Security and OAuth",
+      "level": 6,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Параметр code; обмен на токен POST-ом на /token с client_secret.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "code"
+        ]
+      },
+      "prompt": "In the OAuth 2.0 authorization code flow, which parameter arrives at the redirect_uri and is exchanged for an access token?"
+    },
+    {
+      "id": "T20-L7",
+      "topic": "Security and OAuth",
+      "level": 7,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Стандартная схема OAuth/OIDC: короткий access + длинный refresh.",
+      "type": "yesno",
+      "answer": true,
+      "text": "A refresh token lives longer than an access token and allows obtaining a new access token without the user logging in again."
+    },
+    {
+      "id": "T20-L8",
+      "topic": "Security and OAuth",
+      "level": 8,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Соль хранится открыто (password_hash включает её в строку хеша); секретность соли не нужна.",
+      "type": "yesno",
+      "answer": false,
+      "text": "A password salt must be kept secret: without it the hash cannot be verified."
+    },
+    {
+      "id": "T21-L1",
+      "topic": "Twig",
+      "level": 1,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Twig — DSL: только разрешённые окружением функции/фильтры; произвольный PHP не исполняется.",
+      "type": "yesno",
+      "answer": false,
+      "text": "Inside {{ }}, Twig allows calling arbitrary PHP code directly."
+    },
+    {
+      "id": "T21-L2",
+      "topic": "Twig",
+      "level": 2,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Автоэкранирование включено по умолчанию. Проверено на Twig 3.30: {{ '<b>' }} → &lt;b&gt;.",
+      "type": "yesno",
+      "answer": false,
+      "text": "By default Twig does not escape variables — the developer must apply the |e filter."
+    },
+    {
+      "id": "T21-L3",
+      "topic": "Twig",
+      "level": 3,
+      "kind": "myth",
+      "zone": "base",
+      "note": "|e — экранирование для вывода (HTML/JS); от SQL-инъекций — подготовленные запросы Doctrine.",
+      "type": "yesno",
+      "answer": false,
+      "text": "The Twig |e filter protects against SQL injection."
+    },
+    {
+      "id": "T21-L4",
+      "topic": "Twig",
+      "level": 4,
+      "kind": "fact",
+      "zone": "base",
+      "note": "|format_number(locale=...) из IntlExtension (twig/intl-extra есть в проекте). Проверено на Twig 3.30: 12345.6 → 12 345,6 (ru).",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "format_number",
+          "format number"
+        ]
+      },
+      "prompt": "Which filter from twig/intl-extra formats a number according to a locale?"
+    },
+    {
+      "id": "T21-L5",
+      "topic": "Twig",
+      "level": 5,
+      "kind": "fact",
+      "zone": "base",
+      "note": "{{ x|raw }} выводит HTML как есть; опасно с пользовательскими данными. Проверено на Twig 3.30.",
+      "type": "yesno",
+      "answer": true,
+      "text": "The |raw filter disables auto-escaping for the value."
+    },
+    {
+      "id": "T21-L6",
+      "topic": "Twig",
+      "level": 6,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Наоборот: {{ }} — вывод, {% %} — теги (if/for/set/block).",
+      "type": "yesno",
+      "answer": false,
+      "text": "In Twig, {{ }} controls logic (conditions, loops), while {% %} prints an expression value."
+    },
+    {
+      "id": "T21-L7",
+      "topic": "Twig",
+      "level": 7,
+      "kind": "myth",
+      "zone": "base",
+      "note": "{% set y = ... %} объявляет переменную в шаблоне. Проверено на Twig 3.30.",
+      "type": "yesno",
+      "answer": false,
+      "text": "In Twig you cannot declare a variable inside a template — values only come from the controller."
+    },
+    {
+      "id": "T21-L8",
+      "topic": "Twig",
+      "level": 8,
+      "kind": "fact",
+      "zone": "base",
+      "note": "{{ dump(x) }} (DebugExtension; в Symfony доступна в dev-окружении).",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "dump"
+        ]
+      },
+      "prompt": "Which Twig function dumps the debug structure of a variable (array, object)?"
     },
     {
       "id": "VC-L1",

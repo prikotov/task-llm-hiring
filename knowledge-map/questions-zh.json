@@ -1,7 +1,7 @@
 {
   "version": 8,
   "lang": "zh",
-  "as_of": "2026-11-07 (v8: +3 темы стека — Symfony, Doctrine, PostgreSQL (24 клетки, до 136); переводы EN/ZH выправлены по двойному аудиту mimo v2.6-pro и kimi 3.1-pro; версионные клетки: wiki.php.net/rfc, php.net)",
+  "as_of": "2026-11-07 (v8: +9 тем стека под проект TasK — Symfony, Doctrine, PostgreSQL, Messenger, PG-транзакции и индексы, PHPUnit, HTTP/REST, безопасность/OAuth, Twig; 184 клетки; факты новых тем проверены живьём: PG 17.7, Twig 3.30, PHPUnit 10.5; переводы EN/ZH выправлены по двойному аудиту mimo v2.6-pro и kimi 3.1-pro; версионные: wiki.php.net/rfc, php.net)",
   "questions": [
     {
       "id": "T01-L1",
@@ -1425,6 +1425,586 @@
       "type": "yesno",
       "answer": false,
       "text": "READ COMMITTED 隔离级别能防止不可重复读（non-repeatable read）。"
+    },
+    {
+      "id": "T16-L1",
+      "topic": "Symfony：Messenger",
+      "level": 1,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Messenger вызывает все хендлеры, подписанные на класс сообщения (docs — Multiple Handlers).",
+      "type": "yesno",
+      "answer": false,
+      "text": "在 Symfony Messenger 中，一条消息只能有一个处理者（handler）。"
+    },
+    {
+      "id": "T16-L2",
+      "topic": "Symfony：Messenger",
+      "level": 2,
+      "kind": "fact",
+      "zone": "base",
+      "note": "sync-транспорт — обработка в момент dispatch без очереди; docs Messenger.",
+      "type": "yesno",
+      "answer": true,
+      "text": "Messenger 的 sync 传输会立即执行处理者，与发送消息在同一个进程中。"
+    },
+    {
+      "id": "T16-L3",
+      "topic": "Symfony：Messenger",
+      "level": 3,
+      "kind": "fact",
+      "zone": "base",
+      "note": "bin/console messenger:consume async; воркеры под supervisord/systemd в проде.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "messenger:consume"
+        ]
+      },
+      "prompt": "哪条控制台命令会启动处理 Messenger 队列消息的 worker？"
+    },
+    {
+      "id": "T16-L4",
+      "topic": "Symfony：Messenger",
+      "level": 4,
+      "kind": "fact",
+      "zone": "base",
+      "note": "retry_strategy на транспорте: max_retries, delay, multiplier; docs — Failed Messages & Retries.",
+      "type": "yesno",
+      "answer": true,
+      "text": "失败消息的重试策略（retry_strategy）在 Messenger 传输层面配置。"
+    },
+    {
+      "id": "T16-L5",
+      "topic": "Symfony：Messenger",
+      "level": 5,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Дефолтный сериализатор — PhpSerializer (serialize()); JSON-сериализатор включается отдельно.",
+      "type": "yesno",
+      "answer": false,
+      "text": "默认情况下，Messenger 会把消息序列化为 JSON。"
+    },
+    {
+      "id": "T16-L6",
+      "topic": "Symfony：Messenger",
+      "level": 6,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Schedule → RecurringMessage → шина Messenger; docs — Scheduler.",
+      "type": "yesno",
+      "answer": true,
+      "text": "Symfony Scheduler 按计划产生消息，并通过 Messenger 发送。"
+    },
+    {
+      "id": "T16-L7",
+      "topic": "Symfony：Messenger",
+      "level": 7,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Транспорт doctrine (symfony/doctrine-messenger); таблица messenger_messages. В проекте стоит amqp-messenger + doctrine-messenger.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "doctrine"
+        ]
+      },
+      "prompt": "哪个内置的 Messenger 传输通过 Doctrine 把消息存到数据库表中？"
+    },
+    {
+      "id": "T16-L8",
+      "topic": "Symfony：Messenger",
+      "level": 8,
+      "kind": "fact",
+      "zone": "base",
+      "note": "messenger.bus.*.middleware в yaml; docs — Middleware.",
+      "type": "yesno",
+      "answer": true,
+      "text": "Messenger 的管道可以用自定义 middleware 扩展，放在内置中间件之前或之后。"
+    },
+    {
+      "id": "T17-L1",
+      "topic": "PostgreSQL：事务与索引",
+      "level": 1,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Без BEGIN каждый оператор коммитится сам; docs PostgreSQL — Transactions. Проверено на PG 17.",
+      "type": "yesno",
+      "answer": true,
+      "text": "默认情况下，PostgreSQL 会把每条单独的 SQL 语句包在自己的隐式事务中（autocommit）。"
+    },
+    {
+      "id": "T17-L2",
+      "topic": "PostgreSQL：事务与索引",
+      "level": 2,
+      "kind": "fact",
+      "zone": "base",
+      "note": "COMMIT (END — синоним). Проверено на PG 17.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "commit"
+        ]
+      },
+      "prompt": "哪条 SQL 命令结束事务并保存其中的所有更改？"
+    },
+    {
+      "id": "T17-L3",
+      "topic": "PostgreSQL：事务与索引",
+      "level": 3,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Поиск строк для изменения идёт по индексу; docs PostgreSQL — Indexes.",
+      "type": "yesno",
+      "answer": true,
+      "text": "索引加速的不只是 SELECT：按索引列查找的 UPDATE 和 DELETE 同样受益。"
+    },
+    {
+      "id": "T17-L4",
+      "topic": "PostgreSQL：事务与索引",
+      "level": 4,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Частичный откат — только SAVEPOINT/ROLLBACK TO; ошибка оператора переводит транзакцию в aborted. Проверено на PG 17.",
+      "type": "yesno",
+      "answer": false,
+      "text": "PostgreSQL 事务可以在不使用 SAVEPOINT 的情况下回滚部分语句并提交其余语句。"
+    },
+    {
+      "id": "T17-L5",
+      "topic": "PostgreSQL：事务与索引",
+      "level": 5,
+      "kind": "fact",
+      "zone": "base",
+      "note": "EXPLAIN — только план; EXPLAIN ANALYZE — план + реальное выполнение. Проверено на PG 17.",
+      "type": "yesno",
+      "answer": true,
+      "text": "EXPLAIN ANALYZE 会真正执行查询，并显示计划中每个节点的实际耗时。"
+    },
+    {
+      "id": "T17-L6",
+      "topic": "PostgreSQL：事务与索引",
+      "level": 6,
+      "kind": "fact",
+      "zone": "base",
+      "note": "CREATE EXTENSION vector (проект pgvector; в проекте образ pgvector/pgvector:pg17).",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "vector",
+          "pgvector"
+        ]
+      },
+      "prompt": "哪个 PostgreSQL 扩展为向量（embedding）搜索添加了向量类型和索引？"
+    },
+    {
+      "id": "T17-L7",
+      "topic": "PostgreSQL：事务与索引",
+      "level": 7,
+      "kind": "fact",
+      "zone": "base",
+      "note": "docs PostgreSQL — Partial Indexes; типичный кейс — индекс по «активным» записям.",
+      "type": "yesno",
+      "answer": true,
+      "text": "部分索引（CREATE INDEX ... WHERE ...）只为满足条件的行构建。"
+    },
+    {
+      "id": "T17-L8",
+      "topic": "PostgreSQL：事务与索引",
+      "level": 8,
+      "kind": "myth",
+      "zone": "base",
+      "note": "SSI (Serializable Snapshot Isolation): предикатные блокировки на снимках, не блокировки прочитанных строк; docs PostgreSQL.",
+      "type": "yesno",
+      "answer": false,
+      "text": "PostgreSQL 的 SERIALIZABLE 隔离级别是通过锁定事务读取的行来实现的。"
+    },
+    {
+      "id": "T18-L1",
+      "topic": "测试：PHPUnit",
+      "level": 1,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Тестом считается метод класса, наследующего TestCase (PHPUnit 10).",
+      "type": "yesno",
+      "answer": false,
+      "text": "PHPUnit 会执行任何类的测试方法——不必继承 TestCase。"
+    },
+    {
+      "id": "T18-L2",
+      "topic": "测试：PHPUnit",
+      "level": 2,
+      "kind": "myth",
+      "zone": "base",
+      "note": "setUp() — перед КАЖДЫМ тестом; один раз на класс — setUpBeforeClass(). Проверено живым счётчиком на PHPUnit 10.5.",
+      "type": "yesno",
+      "answer": false,
+      "text": "PHPUnit 的 setUp() 在类的所有测试之前只执行一次。"
+    },
+    {
+      "id": "T18-L3",
+      "topic": "测试：PHPUnit",
+      "level": 3,
+      "kind": "fact",
+      "zone": "base",
+      "note": "DataProvider возвращает наборы аргументов → тест выполняется по разу на каждый. Проверено на PHPUnit 10.5 (#[DataProvider]).",
+      "type": "yesno",
+      "answer": true,
+      "text": "数据提供者（data provider）允许用多组参数运行同一个测试。"
+    },
+    {
+      "id": "T18-L4",
+      "topic": "测试：PHPUnit",
+      "level": 4,
+      "kind": "fact",
+      "zone": "base",
+      "note": "$this->expectException(\\LogicException::class); проверено на PHPUnit 10.5.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "expectException"
+        ]
+      },
+      "prompt": "PHPUnit 的哪个方法用于声明期望抛出某个特定类的异常？"
+    },
+    {
+      "id": "T18-L5",
+      "topic": "测试：PHPUnit",
+      "level": 5,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Наоборот: стаб подставляет данные, мок проверяет взаимодействия (createStub/createMock); docs PHPUnit — Test Doubles.",
+      "type": "yesno",
+      "answer": false,
+      "text": "在 PHPUnit 中，stub（桩）检查哪些方法被调用过，而 mock（模拟对象）只是返回数据。"
+    },
+    {
+      "id": "T18-L6",
+      "topic": "测试：PHPUnit",
+      "level": 6,
+      "kind": "fact",
+      "zone": "base",
+      "note": "PHPUnit 10 вводит метаданные-атрибуты. Проверено на 10.5: тест на #[DataProvider] выполняется.",
+      "type": "yesno",
+      "answer": true,
+      "text": "在 PHPUnit 10+ 中，#[DataProvider] 属性取代了 @dataProvider 注解。"
+    },
+    {
+      "id": "T18-L7",
+      "topic": "测试：PHPUnit",
+      "level": 7,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Зависимости есть: #[Depends] — зависимый тест не запустится, еслиProducer упал.",
+      "type": "yesno",
+      "answer": false,
+      "text": "PHPUnit 不允许声明一个测试依赖于另一个测试的结果。"
+    },
+    {
+      "id": "T18-L8",
+      "topic": "测试：PHPUnit",
+      "level": 8,
+      "kind": "fact",
+      "zone": "base",
+      "note": "--order-by=random (PHPUnit 9+); опция есть в --help PHPUnit 10.5 (проектная).",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "--order-by=random",
+          "--order-by random",
+          "random"
+        ]
+      },
+      "prompt": "PHPUnit 的哪个命令行选项会让测试以随机顺序执行？"
+    },
+    {
+      "id": "T19-L1",
+      "topic": "HTTP 与 REST API",
+      "level": 1,
+      "kind": "fact",
+      "zone": "base",
+      "note": "201 Created; обычно на POST, часто с Location; RFC 9110.",
+      "type": "yesno",
+      "answer": true,
+      "text": "HTTP 状态 201 表示请求成功创建了新资源。"
+    },
+    {
+      "id": "T19-L2",
+      "topic": "HTTP 与 REST API",
+      "level": 2,
+      "kind": "fact",
+      "zone": "base",
+      "note": "204 No Content; RFC 9110.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "204"
+        ]
+      },
+      "prompt": "哪个 HTTP 状态表示请求成功且响应体为空（例如 DELETE 之后）？"
+    },
+    {
+      "id": "T19-L3",
+      "topic": "HTTP 与 REST API",
+      "level": 3,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Наоборот: DELETE идемпотентен — повторный вызов по тому же ресурсу не меняет результат; RFC 9110.",
+      "type": "yesno",
+      "answer": false,
+      "text": "按照 HTTP 规范，DELETE 方法不是幂等的。"
+    },
+    {
+      "id": "T19-L4",
+      "topic": "HTTP 与 REST API",
+      "level": 4,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Наоборот: заголовок шлёт СЕРВЕР в ответе, разрешая браузеру cross-origin запрос (CORS); в проекте nelmio/cors-bundle.",
+      "type": "yesno",
+      "answer": false,
+      "text": "Access-Control-Allow-Origin 头是由客户端发送的，以便服务器同意接受来自其他源的请求。"
+    },
+    {
+      "id": "T19-L5",
+      "topic": "HTTP 与 REST API",
+      "level": 5,
+      "kind": "fact",
+      "zone": "base",
+      "note": "429 (+ Retry-After); RFC 6585. В проекте symfony/rate-limiter.",
+      "type": "yesno",
+      "answer": true,
+      "text": "状态码 429 Too Many Requests 用于客户端超出请求频率限制（rate limiting）的情况。"
+    },
+    {
+      "id": "T19-L6",
+      "topic": "HTTP 与 REST API",
+      "level": 6,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Классы статусов RFC 9110: 400/404 против 500/503.",
+      "type": "yesno",
+      "answer": true,
+      "text": "4xx 表示客户端错误，5xx 表示服务器端错误。"
+    },
+    {
+      "id": "T19-L7",
+      "topic": "HTTP 与 REST API",
+      "level": 7,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Content-Type: application/json и т.п.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "content-type"
+        ]
+      },
+      "prompt": "哪个 HTTP 头指明请求或响应体的 MIME 类型？"
+    },
+    {
+      "id": "T19-L8",
+      "topic": "HTTP 与 REST API",
+      "level": 8,
+      "kind": "fact",
+      "zone": "base",
+      "note": "RFC 5789 прямо оговаривает: PATCH не гарантированно идемпотентен; PUT идемпотентен.",
+      "type": "yesno",
+      "answer": true,
+      "text": "与 PUT 不同，按照 RFC 5789，PATCH 不要求幂等。"
+    },
+    {
+      "id": "T20-L1",
+      "topic": "安全与 OAuth",
+      "level": 1,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Нужна постоянновременная проверка (password_verify) — timing-атаки; соль и алгоритм уже внутри хеша.",
+      "type": "yesno",
+      "answer": false,
+      "text": "用普通 == 把密码的哈希与库中哈希比较就足以校验密码。"
+    },
+    {
+      "id": "T20-L2",
+      "topic": "安全与 OAuth",
+      "level": 2,
+      "kind": "fact",
+      "zone": "base",
+      "note": "symfony/security-csrf в проекте; защита от подделки межсайтовой формы.",
+      "type": "yesno",
+      "answer": true,
+      "text": "CSRF 令牌由服务器发放（绑定会话），并在 unsafe 请求（POST 等）时在服务器端校验。"
+    },
+    {
+      "id": "T20-L3",
+      "topic": "安全与 OAuth",
+      "level": 3,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Content-Security-Policy; белые списки источников скриптов/стилей против XSS.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "content-security-policy"
+        ]
+      },
+      "prompt": "哪个 HTTP 头用于启用 CSP（Content Security Policy）策略？"
+    },
+    {
+      "id": "T20-L4",
+      "topic": "安全与 OAuth",
+      "level": 4,
+      "kind": "myth",
+      "zone": "base",
+      "note": "OAuth 2.0 — авторизация/делегирование доступа; аутентификацию добавляет OpenID Connect. В проекте knpuniversity/oauth2-client-bundle (yandex/github/google).",
+      "type": "yesno",
+      "answer": false,
+      "text": "OAuth 2.0 是身份认证协议：access 令牌能说明用户是谁。"
+    },
+    {
+      "id": "T20-L5",
+      "topic": "安全与 OAuth",
+      "level": 5,
+      "kind": "myth",
+      "zone": "base",
+      "note": "XSS лечится контекстным экранированием НА ВЫВОДЕ (Twig autoescape, CSP); валидация ввода не покрывает все контексты вывода.",
+      "type": "yesno",
+      "answer": false,
+      "text": "XSS 可以通过在写库前对输入做服务器端校验来防止。"
+    },
+    {
+      "id": "T20-L6",
+      "topic": "安全与 OAuth",
+      "level": 6,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Параметр code; обмен на токен POST-ом на /token с client_secret.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "code"
+        ]
+      },
+      "prompt": "在 OAuth 2.0 授权码流程中，哪个参数会回到 redirect_uri 并用于换取 access 令牌？"
+    },
+    {
+      "id": "T20-L7",
+      "topic": "安全与 OAuth",
+      "level": 7,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Стандартная схема OAuth/OIDC: короткий access + длинный refresh.",
+      "type": "yesno",
+      "answer": true,
+      "text": "Refresh 令牌的生命周期比 access 令牌长，可在用户不重新登录的情况下换取新的 access 令牌。"
+    },
+    {
+      "id": "T20-L8",
+      "topic": "安全与 OAuth",
+      "level": 8,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Соль хранится открыто (password_hash включает её в строку хеша); секретность соли не нужна.",
+      "type": "yesno",
+      "answer": false,
+      "text": "密码盐必须保密：没有盐就无法校验哈希。"
+    },
+    {
+      "id": "T21-L1",
+      "topic": "Twig",
+      "level": 1,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Twig — DSL: только разрешённые окружением функции/фильтры; произвольный PHP не исполняется.",
+      "type": "yesno",
+      "answer": false,
+      "text": "在 Twig 中，{{ }} 里面可以直接调用任意的 PHP 代码。"
+    },
+    {
+      "id": "T21-L2",
+      "topic": "Twig",
+      "level": 2,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Автоэкранирование включено по умолчанию. Проверено на Twig 3.30: {{ '<b>' }} → &lt;b&gt;.",
+      "type": "yesno",
+      "answer": false,
+      "text": "Twig 默认不转义变量——开发者必须自己使用 |e 过滤器。"
+    },
+    {
+      "id": "T21-L3",
+      "topic": "Twig",
+      "level": 3,
+      "kind": "myth",
+      "zone": "base",
+      "note": "|e — экранирование для вывода (HTML/JS); от SQL-инъекций — подготовленные запросы Doctrine.",
+      "type": "yesno",
+      "answer": false,
+      "text": "Twig 的 |e 过滤器能防 SQL 注入。"
+    },
+    {
+      "id": "T21-L4",
+      "topic": "Twig",
+      "level": 4,
+      "kind": "fact",
+      "zone": "base",
+      "note": "|format_number(locale=...) из IntlExtension (twig/intl-extra есть в проекте). Проверено на Twig 3.30: 12345.6 → 12 345,6 (ru).",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "format_number",
+          "format number"
+        ]
+      },
+      "prompt": "twig/intl-extra 中哪个过滤器按本地化设置格式化数字？"
+    },
+    {
+      "id": "T21-L5",
+      "topic": "Twig",
+      "level": 5,
+      "kind": "fact",
+      "zone": "base",
+      "note": "{{ x|raw }} выводит HTML как есть; опасно с пользовательскими данными. Проверено на Twig 3.30.",
+      "type": "yesno",
+      "answer": true,
+      "text": "|raw 过滤器会对值关闭自动转义。"
+    },
+    {
+      "id": "T21-L6",
+      "topic": "Twig",
+      "level": 6,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Наоборот: {{ }} — вывод, {% %} — теги (if/for/set/block).",
+      "type": "yesno",
+      "answer": false,
+      "text": "在 Twig 中，{{ }} 控制逻辑（条件、循环），而 {% %} 输出表达式的值。"
+    },
+    {
+      "id": "T21-L7",
+      "topic": "Twig",
+      "level": 7,
+      "kind": "myth",
+      "zone": "base",
+      "note": "{% set y = ... %} объявляет переменную в шаблоне. Проверено на Twig 3.30.",
+      "type": "yesno",
+      "answer": false,
+      "text": "Twig 模板中不能声明变量——值只能由控制器传入。"
+    },
+    {
+      "id": "T21-L8",
+      "topic": "Twig",
+      "level": 8,
+      "kind": "fact",
+      "zone": "base",
+      "note": "{{ dump(x) }} (DebugExtension; в Symfony доступна в dev-окружении).",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "dump"
+        ]
+      },
+      "prompt": "Twig 的哪个函数会输出变量的调试结构（数组、对象）？"
     },
     {
       "id": "VC-L1",
