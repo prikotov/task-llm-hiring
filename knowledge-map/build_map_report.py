@@ -114,7 +114,7 @@ def heat_color(p: float) -> str:
 
 def tooltip(turn: dict | None, q: dict, runs: list[tuple] | None = None) -> str:
     """Всплывающая подсказка клетки: утверждение, ответы, обоснование."""
-    parts = [f"<b>{esc(q['id'])} · {esc(q['topic'])} · L{q['level']}</b>",
+    parts = [f"<b>{esc(q['id'])} · {esc(q['topic'])}</b>",
              esc(cell_text(q))]
     if runs is not None:  # тепловая карта: ответ каждого прогона
         lines = []
