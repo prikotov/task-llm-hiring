@@ -212,6 +212,17 @@ def page_css() -> str:
                   border-radius: 6px; padding: 6px 8px; margin: 4px 0 0;
                   font: 11.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
                   white-space: pre-wrap; word-break: break-word; }
+    .map.compact .cell { height: 24px; border-radius: 4px; }
+    .map.compact .rh { font-size: 11px; }
+    .map.compact .hd { font-size: 10.5px; padding-bottom: 2px; }
+    .map.compact .agg { font-size: 10.5px; }
+    .map.compact .zonehdr { font-size: 11px; padding: 3px 8px; margin-top: 4px; }
+    .map.compact .cell .num { font-size: 9.5px; }
+    .seriesrow { display: flex; flex-wrap: wrap; gap: 22px;
+                 align-items: flex-start; margin: 8px 0 30px; }
+    .series { min-width: 300px; }
+    .serhead { font-weight: 600; margin-bottom: 2px; }
+    .sermeta { color: var(--mut); font-size: 12.5px; margin-bottom: 8px; }
     .zonehdr { grid-column: 1 / -1; font-weight: 600; font-size: 13px;
                color: var(--fg); background: #eef1f4; border-radius: 6px;
                padding: 5px 10px; margin-top: 6px; }
@@ -382,7 +393,8 @@ def map_grid_single(by_id: dict, questions: list,
 
 
 def map_grid_compare(questions: list, runs: list[tuple[str, dict]],
-                     flip_by_id: dict[str, bool]) -> str:
+                     flip_by_id: dict[str, bool],
+                     compact: bool = False) -> str:
     """Тепловая карта: клетка = доля верных по прогонам; флип — пунктир."""
     topics = []
     for q in questions:
@@ -417,9 +429,13 @@ def map_grid_compare(questions: list, runs: list[tuple[str, dict]],
                       if q["id"] in by_id and is_correct(by_id[q["id"]]))
         cells.append(f'<div class="agg">{pct(correct, len(tq) * len(runs))}%</div>')
 
-    return ('<div class="mapwrap"><div class="map" '
-            f'style="grid-template-columns: minmax(190px, 250px) '
-            f'repeat({max_level}, 46px) 84px;">{"".join(cells)}</div></div>')
+    cell_px = 24 if compact else 46
+    label_px = "minmax(120px, 170px)" if compact else "minmax(190px, 250px)"
+    agg_px = 56 if compact else 84
+    cls = "map compact" if compact else "map"
+    return ('<div class="mapwrap"><div class="' + cls + '" '
+            f'style="grid-template-columns: {label_px} '
+            f'repeat({max_level}, {cell_px}px) {agg_px}px;">{"".join(cells)}</div></div>')
 
 
 def topic_rows(by_id: dict, questions: list) -> str:
@@ -499,13 +515,14 @@ def appendix_table_single(by_id: dict, questions: list,
     return "\n".join(rows)
 
 
-def page(title: str, protocol: str, chips: str, body: str, footer: str) -> str:
+def page(title: str, protocol: str, chips: str, body: str, footer: str,
+         extra_css: str = "") -> str:
     return f"""<!doctype html>
 <html lang="ru">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{esc(title)}</title>
-<style>{page_css()}</style>
+<style>{page_css()}{extra_css}</style>
 <main>
 <h1>{esc(title)}</h1>
 <p class="proto">{protocol}</p>
@@ -901,9 +918,9 @@ def protocol_tag(session: dict) -> str:
 
 def build_series_report(models_root: Path, questions_path: Path,
                         out_file: Path) -> None:
-    """Сводный отчёт по всем моделям: для каждой модели и каждого уровня
-    рассуждений (серия ≥2 прогонов на одной версии вопросника) — карта
-    серии: клетка = доля верных ответов, пунктир = флипы."""
+    """Сводный отчёт по всем моделям: одна модель — один ряд, в ряду карты
+    серий (уровень рассуждений), отсортированные по лестнице thinking."""
+    think_order = {"off": 0, "low": 1, "medium": 2, "high": 3, "xhigh": 4}
     sections = []
     model_dirs = sorted(d for d in models_root.iterdir()
                         if d.is_dir() and (d / "knowledge-map").is_dir())
@@ -930,7 +947,9 @@ def build_series_report(models_root: Path, questions_path: Path,
                 continue
             series_map[session.get("think")].append((rd, session, by_id))
 
-        for si, think in enumerate(sorted(series_map)):
+        blocks = []
+        for think in sorted(series_map,
+                            key=lambda t: (think_order.get(t, 99), t)):
             items = series_map[think]
             if len(items) < 2:
                 continue
@@ -943,7 +962,8 @@ def build_series_report(models_root: Path, questions_path: Path,
                            for _n, by_id in runs_list}
                 answers.discard(None)
                 flip_by_id[q["id"]] = len(answers) > 1
-            grid = map_grid_compare(questions, runs_list, flip_by_id)
+            grid = map_grid_compare(questions, runs_list, flip_by_id,
+                                    compact=True)
             scores = [sum(1 for t in b.values() if is_correct(t))
                       for _rd, _s, b in items]
             scores_s = (f"{pct(min(scores), len(questions))}% – "
@@ -953,26 +973,31 @@ def build_series_report(models_root: Path, questions_path: Path,
                 if all(by_id.get(q["id"], {}).get("answer") is not None
                        and is_correct(by_id[q["id"]]) for _rd, _s, by_id in items))
             flips = sum(1 for q in questions if flip_by_id[q["id"]])
-            proto = (f"{len(items)} прогонов · вопросник v{q_version} · "
-                     f"точность {scores_s} · стабильно верных {stable_ok} · "
-                     f"флипующих {flips}")
-            sections.append(
-                f'<h2 id="{esc(md.name)}-{si}">{model} · think: {esc(think)}</h2>\n'
-                f'<p class="proto">{esc(proto)}</p>\n{grid}')
+            blocks.append(
+                f'<div class="series">'
+                f'<div class="serhead">think: {esc(think)}</div>'
+                f'<div class="sermeta">{len(items)} прогонов · вопросник '
+                f'v{q_version} · точность {scores_s} · стабильно верных '
+                f'{stable_ok} · флипующих {flips}</div>{grid}</div>')
+        if blocks:
+            sections.append(f'<h2>{model}</h2>\n'
+                            f'<div class="seriesrow">{"".join(blocks)}</div>')
 
     if not sections:
         raise SystemExit("нет серий: ни у одной модели нет ≥2 прогонов "
                          "на одной версии вопросника")
     title = "Карты знаний PHP — карты серий прогонов"
-    proto = ("для каждой модели и уровня рассуждений: клетка = доля верных "
-             "ответов по серии (0% красная → 100% зелёная, число — %), "
-             "пунктир — флип (ответы прогонов расходятся)")
+    proto = ("для каждой модели — ряд карт по уровням рассуждений; клетка = "
+             "доля верных ответов по серии (число — %), пунктир — флип "
+             "(ответы прогонов расходятся)")
+    extra = ("main { max-width: 100%; padding: 28px 22px 60px; }")
     html = page(title, proto, "", "\n".join(sections),
                 "построено knowledge-map/build_map_report.py · "
-                f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
+                f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
+                extra_css=extra)
     out_file.parent.mkdir(parents=True, exist_ok=True)
     out_file.write_text(html, encoding="utf-8")
-    print(f"сводный отчёт серий: {out_file} ({len(sections)} карт)")
+    print(f"сводный отчёт серий: {out_file} ({len(sections)} моделей)")
 
 
 def main() -> int:
