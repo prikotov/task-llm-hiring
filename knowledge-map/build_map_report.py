@@ -243,6 +243,7 @@ def page_css() -> str:
     .unimap .agg { font-size: 11px; align-self: center;
                    white-space: nowrap; }
     .unimap .gsp { width: 16px; }
+    .ulink { font-size: 11px; padding: 5px 6px; text-align: center; }
     .unimap .ph { width: 26px; }
     .unimap .rh { font-size: 11.5px; }
     .zonehdr { grid-column: 1 / -1; font-weight: 600; font-size: 13px;
@@ -1086,12 +1087,13 @@ def build_series_report(models_root: Path, questions_path: Path,
 
             levels_s = ", ".join(t for t, *_ in groups)
             # ссылка на полный отчёт — в сетке, под картой каждого уровня
-            for t, _rl, _f, _ba, _ta, _sok, _fl in groups:
+            for gi, (t, _rl, _f, _ba, _ta, _sok, _fl) in enumerate(groups):
                 cmp_name = f"compare-{t}-{lang}-v{qver}.html"
                 if not (models_root / md.name / "knowledge-map" / cmp_name).exists():
                     continue
+                col0 = 2 + gi * 10  # метка + (8 клеток + итог + граница) на группу
                 cells.append(
-                    f'<div class="ulink" style="grid-column: span 9">'
+                    f'<div class="ulink" style="grid-column: {col0} / span 9">'
                     f'<a href="../models/{esc(md.name)}/knowledge-map/{cmp_name}">'
                     f'Полный отчёт серии</a></div>')
                 cells.append('<div class="gsp"></div>')
