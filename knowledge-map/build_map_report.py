@@ -84,6 +84,48 @@ def norm_display(s: str | None) -> str:
 YES_NO = {"ru": ("да", "нет"), "en": ("yes", "no"), "zh": ("是", "否")}
 
 
+# Семейства для рейтинга (решение владельца): PHP, PHP+его версии,
+# Symfony, Symfony+его версии и группы остального стека. Клетки
+# сопоставляются семейству по префиксу id.
+FAMILY_IDS = {
+    "PHP": [f"T{i:02d}" for i in range(1, 13)],
+    "Symfony": ["T13", "T22", "T23", "T16"],
+    "Данные": ["T14", "T15", "T17"],
+    "Дизайн": ["T25", "T26"],
+    "Фронтенд": ["T21", "T24"],
+    "Практики": ["T18", "T19", "T20"],
+}
+FAMILY_SHORT = {"PHP": "PHP", "PHP+версии": "PHP+в", "Symfony": "Sym",
+                "Symfony+версии": "Sym+в", "Данные": "Дан", "Дизайн": "Диз",
+                "Фронтенд": "Фр", "Практики": "Пр", "Всего": "Все"}
+
+
+def family_scores(questions: list, run_by_ids: list[dict]) -> list[tuple[str, float]]:
+    """Процент верных по семействам, агрегированный по прогонам.
+    Семейства пересекаются («PHP» входит и в «PHP+версии»); семейства
+    без клеток в вопроснике пропускаются, «Всего» — всегда."""
+    defs = [("PHP", FAMILY_IDS["PHP"]),
+            ("PHP+версии", FAMILY_IDS["PHP"] + ["VC", "VF"]),
+            ("Symfony", FAMILY_IDS["Symfony"]),
+            ("Symfony+версии", FAMILY_IDS["Symfony"] + ["T28", "T29"]),
+            ("Данные", FAMILY_IDS["Данные"]),
+            ("Дизайн", FAMILY_IDS["Дизайн"]),
+            ("Фронтенд", FAMILY_IDS["Фронтенд"]),
+            ("Практики", FAMILY_IDS["Практики"])]
+    res = []
+    for name, ids in defs:
+        qs = [q for q in questions if q["id"].split("-L")[0] in ids]
+        if not qs:
+            continue
+        c = sum(1 for b in run_by_ids for q in qs
+                if q["id"] in b and is_correct(b[q["id"]]))
+        res.append((name, pct(c, len(qs) * len(run_by_ids))))
+    if questions:
+        c = sum(1 for b in run_by_ids for t in b.values() if is_correct(t))
+        res.append(("Всего", pct(c, len(questions) * len(run_by_ids))))
+    return res
+
+
 def yes_no(v: bool, lang: str) -> str:
     """Да/нет в языке вопросника: en — yes/no, zh — 是/否."""
     y, n = YES_NO.get(lang, YES_NO["ru"])
@@ -320,13 +362,12 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
     }
     ver = session.get("questionnaire")
     ver_s = f"вопросник v{ver}" if ver else "вопросник"
-    # общая оценка: два числа — без новых фич (зона «База») и по всей матрице
-    base_q = [q for q in questions if q.get("zone", "base") == "base"]
-    base_c = sum(1 for q in base_q
-                 if q["id"] in by_id and is_correct(by_id[q["id"]]))
-    base_pct = pct(base_c, len(base_q)) if base_q else pct(correct, n)
-    score_chip = (f'<div class="chip">Оценка: <b>{base_pct}%</b> '
-                  f'(с новыми фичами: <b>{pct(correct, n)}%</b>)</div>')
+    # оценка по семействам: PHP, PHP+версии, Symfony, …, Всего
+    fam_line = " · ".join(f"{name} <b>{p}%</b>" for name, p in
+                          family_scores(questions, [by_id]))
+    score_chip = f'<div class="chip">Оценка: {fam_line}</div>'
+    fam_line_s = " · ".join(f"{name} {p}%" for name, p in
+                            family_scores(questions, [by_id]))
     zone_stats = []
     for zl, zk in (("База", "base"), ("PHP 8.4–8.5", "current"),
                    ("Будущее", "future")):
@@ -812,7 +853,7 @@ def write_summary_single(run_dir: Path, session: dict, by_id: dict,
         "",
         f"- Протокол: одна клетка = один независимый запрос; "
         f"think: {session.get('think')}; {bank_line}",
-        f"- **Оценка: {base_pct_s}** (с новыми фичами: {pct(correct, n)}%); разобрано "
+        f"- **Оценка:** {fam_line_s}; разобрано "
         f"{len(parsed)} (серых: {n - len(parsed)}); {bias_line}",
         f"- Стоимость: {totals['duration_s']} c, {totals['prompt_tokens']} вх. ток, "
         f"{totals['output_tokens']} вых. ток (кэш: {totals['cached_tokens']}).",
@@ -926,6 +967,7 @@ def build_compare(model_dir: Path, questions_path: Path,
       <div class="chip">Прогонов: <b>{len(sessions)}</b></div>
       <div class="chip">Средняя точность: <b>{pct(int(round(mean)), len(questions))}%</b>
            (разброс {min(a['correct'] for a in accs)}–{max(a['correct'] for a in accs)} из {len(questions)})</div>
+      <div class="chip">Семейства: {" · ".join(f"{n} <b>{p}%</b>" for n, p in family_scores(questions, [b for _n, b in runs]))}</div>
       <div class="chip">Токены по всем прогонам: <b>{tot_in} вх / {tot_out} вых</b></div>
       <div class="chip">Флипующих клеток: <b>{flips_total} / {len(questions)}</b></div>
       <div class="chip">Нестабильность = знание под вопросом: соседние прогоны
@@ -1126,20 +1168,16 @@ def build_series_report(models_root: Path, questions_path: Path,
                                for _n, by_id in runs_list}
                     answers.discard(None)
                     flip_by_id[q["id"]] = len(answers) > 1
-                total_c = sum(1 for _n, b in runs_list
-                              for t in b.values() if is_correct(t))
-                total_n = len(questions) * len(items)
-                base_c = sum(1 for _n, b in runs_list for cid in base_ids
-                             if cid in b and is_correct(b[cid]))
-                base_n = len(base_ids) * len(items)
+                fam_s = " · ".join(
+                    f"{FAMILY_SHORT.get(n, n)} {p}"
+                    for n, p in family_scores(questions, [b for _n, b in runs_list]))
                 stable_ok = sum(
                     1 for q in questions
                     if all(by_id.get(q["id"], {}).get("answer") is not None
                            and is_correct(by_id[q["id"]])
                            for _rd, _s, by_id in items))
                 flips = sum(1 for q in questions if flip_by_id[q["id"]])
-                groups.append((think, runs_list, flip_by_id,
-                               pct(base_c, base_n), pct(total_c, total_n),
+                groups.append((think, runs_list, flip_by_id, fam_s,
                                stable_ok, flips))
             if not groups:
                 continue
@@ -1149,19 +1187,17 @@ def build_series_report(models_root: Path, questions_path: Path,
             cols = [f"{label_px}px"] + [
                 f"repeat(8, {cell_px}px) {agg_px}px {sp_px}px"] * len(groups)
             cells = ['<div class="uhead"></div>']
-            for think, runs_list, flip_by_id, base_avg, total_avg, sok, fl \
-                    in groups:
+            for think, runs_list, flip_by_id, fam_s, sok, fl in groups:
                 cells.append(
                     f'<div class="uhead" style="grid-column: span 9">'
-                    f'think: {esc(think)}<span class="umeta">{base_avg}% '
-                    f'(с верс.: {total_avg}%) · нестаб. '
-                    f'{pct(fl, len(questions))}%</span></div>')
+                    f'think: {esc(think)}<span class="umeta">{fam_s} · '
+                    f'нестаб. {pct(fl, len(questions))}%</span></div>')
                 cells.append('<div class="uhead"></div>')
             for topic in topics:
                 cells.append(f'<div class="rh">{esc(topic)}</div>')
                 tq = sorted((q for q in questions if q["topic"] == topic),
                             key=lambda q: q["level"])
-                for gi, (t, runs_list, flip_by_id, _ba, _ta, _sok, _fl) \
+                for gi, (t, runs_list, flip_by_id, _fam, _sok, _fl) \
                         in enumerate(groups):
                     cmp_name = f"compare-{t}-{lang}-v{qver}.html"
                     cmp_href = ""
@@ -1211,7 +1247,7 @@ def build_series_report(models_root: Path, questions_path: Path,
 
             levels_s = ", ".join(t for t, *_ in groups)
             # ссылка на полный отчёт — в сетке, под картой каждого уровня
-            for gi, (t, _rl, _f, _ba, _ta, _sok, _fl) in enumerate(groups):
+            for gi, (t, _rl, _f, _fam, _sok, _fl) in enumerate(groups):
                 cmp_name = f"compare-{t}-{lang}-v{qver}.html"
                 if not (models_root / md.name / "knowledge-map" / cmp_name).exists():
                     continue
