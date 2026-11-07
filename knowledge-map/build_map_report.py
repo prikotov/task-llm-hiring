@@ -140,7 +140,7 @@ def tooltip(turn: dict | None, q: dict, runs: list[tuple] | None = None) -> str:
         lines = []
         for run_name, ans, ok in runs:
             mark = "⬜" if ans is None else ("✓" if ok else "✗")
-            lines.append(f"{esc(run_name)}: {mark}")
+            lines.append(f"{esc(run_name)}:\u00a0{mark}")
         parts.append(" · ".join(lines))
     elif turn is not None:
         given = given_text(turn)
