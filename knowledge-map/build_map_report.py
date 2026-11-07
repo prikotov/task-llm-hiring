@@ -90,10 +90,10 @@ YES_NO = {"ru": ("да", "нет"), "en": ("yes", "no"), "zh": ("是", "否")}
 FAMILY_IDS = {
     "PHP": [f"T{i:02d}" for i in range(1, 13)],
     "Symfony": ["T13", "T22", "T23", "T16"],
-    "Данные": ["T14", "T15", "T17"],
+    "Doctrine и PostgreSQL": ["T14", "T15", "T17"],
     "Архитектура": ["T25", "T26"],
     "Фронтенд": ["T21", "T24"],
-    "Практики": ["T18", "T19", "T20"],
+    "Тестирование, HTTP, безопасность": ["T18", "T19", "T20"],
 }
 def family_scores(questions: list, run_by_ids: list[dict]) -> list[tuple[str, float]]:
     """Процент верных по семействам, агрегированный по прогонам.
@@ -103,10 +103,11 @@ def family_scores(questions: list, run_by_ids: list[dict]) -> list[tuple[str, fl
             ("PHP+версии", FAMILY_IDS["PHP"] + ["VC", "VF"]),
             ("Symfony", FAMILY_IDS["Symfony"]),
             ("Symfony+версии", FAMILY_IDS["Symfony"] + ["T28", "T29"]),
-            ("Данные", FAMILY_IDS["Данные"]),
+            ("Doctrine и PostgreSQL", FAMILY_IDS["Doctrine и PostgreSQL"]),
             ("Архитектура", FAMILY_IDS["Архитектура"]),
             ("Фронтенд", FAMILY_IDS["Фронтенд"]),
-            ("Практики", FAMILY_IDS["Практики"])]
+            ("Тестирование, HTTP, безопасность",
+             FAMILY_IDS["Тестирование, HTTP, безопасность"])]
     res = []
     for name, ids in defs:
         qs = [q for q in questions if q["id"].split("-L")[0] in ids]
@@ -1278,8 +1279,11 @@ def build_series_report(models_root: Path, questions_path: Path,
     # колонки = семейства, затраты, нестабильность
     fam_heads = [("PHP", "PHP"), ("PHP+версии", "PHP+"),
                  ("Symfony", "Symfony"), ("Symfony+версии", "Symfony+"),
-                 ("Данные", "Данные"), ("Архитектура", "Архитектура"),
-                 ("Фронтенд", "Фронтенд"), ("Практики", "Практики"),
+                 ("Doctrine и PostgreSQL", "Doctrine и PostgreSQL"),
+                 ("Архитектура", "Архитектура"),
+                 ("Фронтенд", "Фронтенд"),
+                 ("Тестирование, HTTP, безопасность",
+                  "Тестирование, HTTP, безопасность"),
                  ("Всего", "Всего")]
     mrows = []
     for model, think, lang, fams_list, cost, fl, nq in metrics:
