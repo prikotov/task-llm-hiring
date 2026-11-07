@@ -134,26 +134,20 @@ def tooltip(turn: dict | None, q: dict, runs: list[tuple] | None = None) -> str:
     """Всплывающая подсказка клетки: утверждение, ответы, обоснование."""
     parts = [f"<b>{esc(q['id'])} · {esc(q['topic'])}</b>",
              esc(cell_text(q))]
-    if runs is not None:  # тепловая карта: ответ каждого прогона
+    right = correct_text(q, turn)
+    if runs is not None:  # тепловая карта: вопрос, эталон, прогоны
+        parts.append(f"Верный ответ: <b>{esc(right)}</b>")
         lines = []
         for run_name, ans, ok in runs:
-            if ans is None:
-                shown, mark = "—", "⬜"
-            elif isinstance(ans, bool):
-                shown = "да" if ans else "нет"
-                mark = "✓" if ok else "✗"
-            else:
-                shown = norm_display(str(ans))
-                mark = "✓" if ok else "✗"
-            lines.append(f"{esc(run_name)}: {esc(shown)} {mark}")
+            mark = "⬜" if ans is None else ("✓" if ok else "✗")
+            lines.append(f"{esc(run_name)}: {mark}")
         parts.append("<br>" + "<br>".join(lines))
     elif turn is not None:
         given = given_text(turn)
         if turn.get("p") is not None:
             given += f" (p={turn['p']})"
         parts.append(f"Модель: «{esc(given)}»")
-    right = correct_text(q, turn)
-    parts.append(f"Верный ответ: <b>{esc(right)}</b>")
+        parts.append(f"Верный ответ: <b>{esc(right)}</b>")
     return "<br>".join(parts)
 
 
@@ -468,9 +462,10 @@ def map_grid_compare(questions: list, runs: list[tuple[str, dict]],
                     if q["id"] in by_id and is_correct(by_id[q["id"]])) / len(runs)
             cls = "flip" if flip_by_id.get(q["id"]) else ""
             tip = tooltip(None, q, runs=answers)
-            cells.append(f'<div class="cell {cls}" style="background:{heat_color(p)}">'
+            cells.append(f'<a class="cell {cls}" href="#row-{esc(q["id"])}" '
+                         f'style="background:{heat_color(p)}">'
                          f'<div class="num">{round(p * 100)}</div>'
-                         f'<div class="tip">{tip}</div></div>')
+                         f'<div class="tip">{tip}</div></a>')
         correct = sum(1 for q in tq for _, by_id in runs
                       if q["id"] in by_id and is_correct(by_id[q["id"]]))
         cells.append(f'<div class="agg">{pct(correct, len(tq) * len(runs))}%</div>')
@@ -908,7 +903,9 @@ def build_compare(model_dir: Path, questions_path: Path,
            for a in accs)}
 </table>
 <h2>Флипующие клетки</h2>
-{flips_table(questions, runs, flip_by_id)}"""
+{flips_table(questions, runs, flip_by_id)}
+<h2>Все клетки</h2>
+{compare_appendix_table(questions, runs)}"""
     footer = (f"построено knowledge-map/build_map_report.py · "
               f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} · "
               f"данные: run-*/session.json")
@@ -934,6 +931,31 @@ def build_compare(model_dir: Path, questions_path: Path,
     ]
     (model_dir / f"compare-{tag}.md").write_text("\n".join(lines), encoding="utf-8")
     print(f"отчёт: {model_dir / f'compare-{tag}.html'}")
+
+
+def compare_appendix_table(questions: list,
+                           runs_list: list[tuple[str, dict]]) -> str:
+    """Таблица всех клеток compare-отчёта с якорями строк: ответы каждого
+    прогона пометками ✓/✗/—, эталон справа."""
+    rows = []
+    for q in questions:
+        marks = []
+        for name, by_id in runs_list:
+            t = by_id.get(q["id"], {})
+            a = t.get("answer")
+            mark = "—" if a is None else ("✓" if is_correct(t) else "✗")
+            marks.append(f"{esc(name)}: {mark}")
+        right = correct_text(q, None)
+        rows.append(
+            f'<tr id="row-{esc(q["id"])}">'
+            f'<td><code class="id">{esc(q["id"])}</code><br>'
+            f'<small>{esc(q["topic"])}</small></td>'
+            f'<td class="assert">{esc(cell_text(q))}</td>'
+            f'<td class="assert"><small>{" · ".join(marks)}</small></td>'
+            f'<td>{esc(right)}</td></tr>')
+    return ('<table class="data">'
+            '<tr><th>Клетка</th><th>Вопрос</th><th>Ответы по прогонам</th>'
+            '<th>Верный ответ</th></tr>\n' + "\n".join(rows) + "</table>")
 
 
 def flips_table(questions: list, runs: list[tuple[str, dict]],
