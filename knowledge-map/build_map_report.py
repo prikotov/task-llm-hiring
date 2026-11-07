@@ -1109,6 +1109,7 @@ def build_series_report(models_root: Path, questions_path: Path,
     экране), метки тем — общий блок слева."""
     think_order = {"off": 0, "low": 1, "medium": 2, "high": 3, "xhigh": 4}
     sections = []
+    metrics = []
     model_dirs = sorted(d for d in models_root.iterdir()
                         if d.is_dir() and (d / "knowledge-map").is_dir())
     n_maps = 0
@@ -1170,25 +1171,24 @@ def build_series_report(models_root: Path, questions_path: Path,
                                for _n, by_id in runs_list}
                     answers.discard(None)
                     flip_by_id[q["id"]] = len(answers) > 1
-                fam_s = " · ".join(
-                    f"{FAMILY_SHORT.get(n, n)} {p}"
-                    for n, p in family_scores(questions, [b for _n, b in runs_list]))
+                fams_list = family_scores(questions, [b for _n, b in runs_list])
                 turns_all = [t for _n, b in runs_list for t in b.values()]
                 dur_total = sum(t.get("duration_s") or 0 for t in turns_all)
                 tin_total = sum(t.get("prompt_eval_count") or 0
                                 for t in turns_all)
                 tout_total = sum(t.get("eval_count") or 0
                                  for t in turns_all)
-                cost_s = (f"серия {dur_total:.0f}с · "
-                          f"{tin_total / 1000:.1f}k+{tout_total / 1000:.1f}k ток")
+                cost = (dur_total, tin_total, tout_total)
                 stable_ok = sum(
                     1 for q in questions
                     if all(by_id.get(q["id"], {}).get("answer") is not None
                            and is_correct(by_id[q["id"]])
                            for _rd, _s, by_id in items))
                 flips = sum(1 for q in questions if flip_by_id[q["id"]])
-                groups.append((think, runs_list, flip_by_id, fam_s,
-                               cost_s, stable_ok, flips))
+                groups.append((think, runs_list, flip_by_id, fams_list,
+                               cost, stable_ok, flips))
+                metrics.append((model, think, lang, fams_list, cost, flips,
+                                len(questions)))
             if not groups:
                 continue
 
@@ -1197,19 +1197,18 @@ def build_series_report(models_root: Path, questions_path: Path,
             cols = [f"{label_px}px"] + [
                 f"repeat(8, {cell_px}px) {agg_px}px {sp_px}px"] * len(groups)
             cells = ['<div class="uhead"></div>']
-            for think, runs_list, flip_by_id, fam_s, cost_s, sok, fl \
+            for think, runs_list, flip_by_id, fams_list, cost, sok, fl \
                     in groups:
                 cells.append(
                     f'<div class="uhead" style="grid-column: span 9">'
-                    f'think: {esc(think)}<span class="umeta">{fam_s} · '
-                    f'{cost_s} · нестаб. {pct(fl, len(questions))}%'
-                    f'</span></div>')
+                    f'think: {esc(think)}<span class="umeta">'
+                    f'нестаб. {pct(fl, len(questions))}%</span></div>')
                 cells.append('<div class="uhead"></div>')
             for topic in topics:
                 cells.append(f'<div class="rh">{esc(topic)}</div>')
                 tq = sorted((q for q in questions if q["topic"] == topic),
                             key=lambda q: q["level"])
-                for gi, (t, runs_list, flip_by_id, _fam, _cs, _sok, _fl) \
+                for gi, (t, runs_list, flip_by_id, _fams, _cost, _sok, _fl) \
                         in enumerate(groups):
                     cmp_name = f"compare-{t}-{lang}-v{qver}.html"
                     cmp_href = ""
@@ -1259,7 +1258,7 @@ def build_series_report(models_root: Path, questions_path: Path,
 
             levels_s = ", ".join(t for t, *_ in groups)
             # ссылка на полный отчёт — в сетке, под картой каждого уровня
-            for gi, (t, _rl, _f, _fam, _cs, _sok, _fl) in enumerate(groups):
+            for gi, (t, _rl, _f, _fams, _cost, _sok, _fl) in enumerate(groups):
                 cmp_name = f"compare-{t}-{lang}-v{qver}.html"
                 if not (models_root / md.name / "knowledge-map" / cmp_name).exists():
                     continue
@@ -1279,13 +1278,46 @@ def build_series_report(models_root: Path, questions_path: Path,
     if not sections:
         raise SystemExit("нет серий: ни у одной модели нет ≥2 прогонов "
                          "на одной версии вопросника")
+
+    # таблица метрик серий: строки = модель × think × язык,
+    # колонки = семейства, затраты, нестабильность
+    fam_heads = [("PHP", "PHP"), ("PHP+версии", "PHP+в"),
+                 ("Symfony", "Sym"), ("Symfony+версии", "Sym+в"),
+                 ("Данные", "Дан"), ("Дизайн", "Диз"),
+                 ("Фронтенд", "Фр"), ("Практики", "Пр"), ("Всего", "Все")]
+    mrows = []
+    for model, think, lang, fams_list, cost, fl, nq in metrics:
+        pm = dict(fams_list)
+        cells = [f'<td>{esc(model)}</td>', f'<td>{esc(think)}</td>',
+                 f'<td>{esc(lang)}</td>']
+        for key, _h in fam_heads:
+            p_ = pm.get(key)
+            cells.append(f'<td class="num" style="background:{heat_color(p_ / 100)}">{p_}</td>'
+                         if p_ is not None else '<td class="num">—</td>')
+        dur, tin, tout = cost
+        cells.append(f'<td class="num">{dur:.0f}с</td>')
+        cells.append(f'<td class="num">{tin / 1000:.1f}k</td>')
+        cells.append(f'<td class="num">{tout / 1000:.1f}k</td>')
+        cells.append(f'<td class="num" style="background:{heat_color(1 - fl / max(1, nq))}">{pct(fl, nq)}%</td>')
+        mrows.append("<tr>" + "".join(cells) + "</tr>")
+    head = ('<tr><th>Модель</th><th>think</th><th>Язык</th>'
+            + "".join(f"<th>{h}</th>" for _k, h in fam_heads)
+            + "<th>Время</th><th>Ток вх</th><th>Ток вых</th><th>Нестаб.</th></tr>")
+    sections.insert(0, '<h2>Метрики серий</h2>\n<table class="data metrics">'
+                     + head + "".join(mrows) + "</table>")
+
     title = "Карты знаний PHP — единая карта серий прогонов"
-    proto = ("строка = модель × версия вопросника × язык; единая карта: строки "
-             "тем, группы колонок — уровни мышления (границы между ними); "
-             "клетка = доля верных ответов по серии (число — %), пунктир — "
-             "флип; метки тем — общий блок слева; карта всегда одной строкой "
-             "(горизонтальная прокрутка при узком экране)")
-    extra = "main { max-width: 100%; padding: 28px 22px 60px; }"
+    proto = ("сверху — таблица метрик серий: по строке на (модель × think × "
+             "язык), колонки — семейства (тепловая заливка), суммарные время "
+             "и токены серии, нестабильность; ниже — карты: строка = модель × "
+             "версия вопросника × язык, строки тем, группы колонок — уровни "
+             "мышления; клетка = доля верных ответов по серии (число — %), "
+             "пунктир — флип; карта всегда одной строкой (горизонтальная "
+             "прокрутка при узком экране)")
+    extra = ("main { max-width: 100%; padding: 28px 22px 60px; }"
+             "table.metrics td.num { text-align: right; font-variant-numeric: tabular-nums; }"
+             "table.metrics th { white-space: nowrap; }"
+             "table.metrics td:first-child { white-space: nowrap; }")
     html = page(title, proto, "", "\n".join(sections),
                 "построено knowledge-map/build_map_report.py · "
                 f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
