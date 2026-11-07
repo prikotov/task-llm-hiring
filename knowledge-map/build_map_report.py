@@ -728,7 +728,8 @@ def write_summary_single(run_dir: Path, session: dict, by_id: dict,
 
 
 def build_compare(model_dir: Path, questions_path: Path,
-                  think_filter: str | None = None) -> None:
+                  think_filter: str | None = None,
+                  qver_filter: int | None = None) -> None:
     q_version, questions = load_questions(questions_path)
     run_dirs = sorted(p for p in model_dir.glob("run-*") if p.is_dir())
     sessions = []
@@ -737,6 +738,10 @@ def build_compare(model_dir: Path, questions_path: Path,
             sessions.append((rd.name, *load_run(rd)))
         except FileNotFoundError:
             print(f"  пропускаю {rd.name}: нет session.json", file=sys.stderr)
+    # фильтр по версии вопросника (серии разных версий не смешиваются)
+    if qver_filter:
+        sessions = [(n, s, b) for n, s, b in sessions
+                    if s.get("questionnaire") == qver_filter]
     if not sessions:
         raise SystemExit(f"в {model_dir} нет прогонов (run-*/session.json)")
 
@@ -836,7 +841,8 @@ def build_compare(model_dir: Path, questions_path: Path,
     footer = (f"построено knowledge-map/build_map_report.py · "
               f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} · "
               f"данные: run-*/session.json")
-    (model_dir / "compare.html").write_text(
+    tag = think_filter or "mixed"
+    (model_dir / f"compare-{tag}.html").write_text(
         page(title, protocol, chips, body, footer), encoding="utf-8")
 
     lines = [
@@ -851,11 +857,11 @@ def build_compare(model_dir: Path, questions_path: Path,
         f"токены по всем прогонам: {tot_in} вх / {tot_out} вых, "
         f"флипующих клеток: {flips_total} / {len(questions)}.",
         "",
-        "Тепловая карта: [compare.html](compare.html). "
+        f"Тепловая карта: [compare-{tag}.html](compare-{tag}.html). "
         "Карты отдельных прогонов: run-*/report.html.",
     ]
-    (model_dir / "summary.md").write_text("\n".join(lines), encoding="utf-8")
-    print(f"отчёт: {model_dir / 'compare.html'}")
+    (model_dir / f"compare-{tag}.md").write_text("\n".join(lines), encoding="utf-8")
+    print(f"отчёт: {model_dir / f'compare-{tag}.html'}")
 
 
 def flips_table(questions: list, runs: list[tuple[str, dict]],
@@ -948,6 +954,78 @@ def build_model_report(model_dir: Path, questions_path: Path) -> None:
              '<th>%</th><th>Время</th><th>Токены (вх / вых)</th></tr>\n'
              + "\n".join(rows) + "</table>")
 
+    # сводка серий: группа прогонов одной версии вопросника и одного think
+    latest_qver = max(
+        (s.get("questionnaire") or 0 for _, s, _ in runs), default=None)
+    series_map = defaultdict(list)
+    for rd, session, by_id in runs:
+        if session.get("questionnaire") != latest_qver:
+            continue
+        if session.get("protocol", "chat") != "chat":
+            continue
+        series_map[session.get("think")].append((rd, session, by_id))
+
+    def series_stats(items):
+        by_cell = defaultdict(list)
+        for _rd, _s, b in items:
+            for cid, t in b.items():
+                if t.get("answer") is not None:
+                    by_cell[cid].append(t["is_correct"])
+        scores = [sum(1 for t in b.values() if is_correct(t)) / len(b)
+                  for _rd, _s, b in items]
+        stable_ok = sum(1 for v in by_cell.values() if all(v))
+        stable_bad = sum(1 for v in by_cell.values() if not any(v))
+        flips = sum(1 for v in by_cell.values() if 0 < sum(v) < len(v))
+        zones = {}
+        for zk in ("base", "current", "future"):
+            zc = zn = 0
+            for cid, v in by_cell.items():
+                if zone_of(cid) == zk:
+                    zc += sum(v)
+                    zn += len(v)
+            zones[zk] = pct(zc, zn) if zn else "—"
+        return scores, stable_ok, stable_bad, flips, zones
+
+    def zone_of(cid: str) -> str:
+        return zone_by_id.get(cid, "base")
+
+    zone_by_id = {}
+    if latest_qver is not None:
+        try:
+            _qv, _qss = load_questions(
+                questions_for_run(questions_path,
+                                  max(runs, key=lambda x: x[0].name)[1]))
+            zone_by_id = {q["id"]: q.get("zone", "base") for q in _qss}
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    series_rows = []
+    for think in sorted(series_map):
+        items = series_map[think]
+        if len(items) < 2:
+            continue
+        scores, stable_ok, stable_bad, flips, zones = series_stats(items)
+        scores_pct = " – ".join(f"{pct(round(s * 100), 100)}%"
+                                for s in (min(scores), max(scores)))
+        series_rows.append(
+            f'<tr><td>think: {esc(think)}</td><td>{len(items)}</td>'
+            f'<td>{scores_pct}</td><td>{stable_ok}</td><td>{stable_bad}</td>'
+            f'<td>{flips}</td>'
+            f'<td>{zones.get("base", "—")}</td>'
+            f'<td>{zones.get("current", "—")}</td>'
+            f'<td>{zones.get("future", "—")}</td></tr>')
+    series_html = ""
+    if series_rows:
+        links = " · ".join(f'<a href="compare-{esc(t)}.html">think: {esc(t)}</a>'
+                           for t in sorted(series_map) if len(series_map[t]) >= 2)
+        series_html = (
+            f'<h2>Серии (вопросник v{latest_qver})</h2>\n<table class="data">'
+            '<tr><th>Уровень</th><th>Прогонов</th><th>Точность (min–max)</th>'
+            '<th>Стабильно верные</th><th>Стабильно неверные</th><th>Флипующие</th>'
+            '<th>База</th><th>8.4–8.5</th><th>Будущее</th></tr>\n'
+            + "\n".join(series_rows) + "</table>\n"
+            + f'<p class="proto">тепловые карты серий: {links}</p>')
+
     sections = []
     for si, f in enumerate(sorted(latest, key=section_order.get)):
         no, rd, session, by_id = latest[f]
@@ -975,7 +1053,7 @@ def build_model_report(model_dir: Path, questions_path: Path) -> None:
     proto = ("полный отчёт модели: основной вопросник (слой A+B), версионная "
              "панель (cutoff-зонд, as_of — дата снимка) и экспериментальные "
              "наборы; в каждом разделе — последний прогон этого вопросника.")
-    html = page(title, proto, "", table + "\n" + "\n".join(sections),
+    html = page(title, proto, "", table + series_html + "\n" + "\n".join(sections),
                 "построено knowledge-map/build_map_report.py · "
                 f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} · "
                 "полные данные: run-*/session.json")
@@ -1011,6 +1089,9 @@ def main() -> int:
                    help="уровень рассуждений для тепловой карты; обязателен, "
                         "когда в папке прогоны нескольких think — смешивать "
                         "уровни нельзя")
+    p.add_argument("--version", type=int, default=None,
+                   help="версия вопросника для тепловой карты (серии разных "
+                        "версий не смешиваются)")
     p.add_argument("--questions", default=str(SCRIPT_DIR / "questions.json"))
     args = p.parse_args()
 
@@ -1018,7 +1099,8 @@ def main() -> int:
     if args.run_dir:
         build_single(Path(args.run_dir), questions_path)
     elif args.think:
-        build_compare(Path(args.model_dir), questions_path, args.think)
+        build_compare(Path(args.model_dir), questions_path, args.think,
+                      args.version)
     else:
         build_model_report(Path(args.model_dir), questions_path)
     return 0
