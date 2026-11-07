@@ -945,13 +945,10 @@ def build_series_report(models_root: Path, questions_path: Path,
                 answers.discard(None)
                 flip_by_id[q["id"]] = len(answers) > 1
             grid = map_grid_compare(questions, runs_list, flip_by_id)
-            scores = [sum(1 for t in b.values() if is_correct(t)) for _r, b in
-                      [(rd, b) for rd, _s, b in items]]
-            scores_s = " – ".join(
-                f"{pct(min(scores), len(questions))}%",
-                ) if False else (
-                f"{pct(min(scores), len(questions))}% – "
-                f"{pct(max(scores), len(questions))}%")
+            scores = [sum(1 for t in b.values() if is_correct(t))
+                      for _rd, _s, b in items]
+            scores_s = (f"{pct(min(scores), len(questions))}% – "
+                        f"{pct(max(scores), len(questions))}%")
             stable_ok = sum(
                 1 for q in questions
                 if all(by_id.get(q["id"], {}).get("answer") is not None
