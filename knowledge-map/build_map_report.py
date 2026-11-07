@@ -140,7 +140,8 @@ def tooltip(turn: dict | None, q: dict, runs: list[tuple] | None = None) -> str:
         lines = []
         for run_name, ans, ok in runs:
             mark = "⬜" if ans is None else ("✓" if ok else "✗")
-            lines.append(f"{esc(run_name)}:\u00a0{mark}")
+            lines.append(f'<span class="nb">{esc(run_name)}:'
+                         f'\u00a0{mark}</span>')
         parts.append(" · ".join(lines))
     elif turn is not None:
         given = given_text(turn)
@@ -202,6 +203,7 @@ def page_css() -> str:
                  text-align: left; white-space: normal;
                  box-shadow: 0 6px 18px rgba(0,0,0,.35); }
     .cell:hover .tip { display: block; }
+    .tip .nb { white-space: nowrap; }
     .cell .num { position: absolute; inset: 0; display: flex; align-items: center;
                  justify-content: center; font-weight: 700; font-size: 13px;
                  color: rgba(20,24,32,.75); }
