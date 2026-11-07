@@ -1285,6 +1285,7 @@ def build_series_report(models_root: Path, questions_path: Path,
                  ("Тестирование, HTTP, безопасность",
                   "Тестирование, HTTP, безопасность"),
                  ("Всего", "Всего")]
+    metrics.sort(key=lambda m: (m[0], think_order.get(m[1], 99), m[2]))
     mrows = []
     for model, think, lang, fams_list, cost, fl, nq in metrics:
         pm = dict(fams_list)
