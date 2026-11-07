@@ -366,8 +366,8 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
 def map_grid_single(by_id: dict, questions: list,
                     anchor_prefix: str = "", lang: str = "ru") -> str:
     zone_names = {"base": "Зона 1 · База: PHP и стек (Symfony, Doctrine, PostgreSQL)",
-                  "current": "Зона 2 · PHP 8.4–8.5 (текущая эра)",
-                  "future": "Зона 3 · Будущее: 8.6+, trunk, RFC (cutoff-зонд)"}
+                  "current": "Зона 2 · Текущие версии (PHP 8.4–8.5, Symfony 8.1)",
+                  "future": "Зона 3 · Будущее (PHP 8.6+, Symfony 8.2)"}
     def zone_of(topic: str) -> str:
         for q in questions:
             if q["topic"] == topic:
