@@ -517,8 +517,8 @@
       "level": 5,
       "type": "answer",
       "kind": "fact",
-      "prompt": "get_class(new class {}) 返回什么？请用 PHP 打印的短形式回答。",
-      "note": "Анонимный класс печатается как class@anonymous (путь в имени — служебный, ответ засчитываем по префиксу).",
+      "prompt": "get_class(new class {}) 返回什么？请回答 NUL 字节之前的部分（不含文件路径）。",
+      "note": "get_class анонимного класса печатает class@anonymous\\0<файл>:<строка>$n; короткая форма — часть до NUL-байта. Проверено php -r (hex).",
       "grader": {
         "accept": [
           "class@anonymous"
@@ -693,9 +693,9 @@
       "topic": "异常与错误",
       "level": 4,
       "kind": "fact",
-      "note": "DivisionByZeroError (наследник ArithmeticError).",
+      "note": "DivisionByZeroError (иерархия Error, не Exception); php-грейдер объективен.",
       "type": "answer",
-      "prompt": "intdiv(5, 0) 会抛出哪个异常类？",
+      "prompt": "intdiv(5, 0) 会抛出哪个错误类？",
       "grader": {
         "php": "try { intdiv(5, 0); } catch (Throwable $e) { echo get_class($e); }"
       },
@@ -1246,7 +1246,7 @@
       "note": "PFA v2 принят 05.12.2025 (33-0-0), реализован в PHP 8.6.",
       "type": "answer",
       "answer": false,
-      "prompt": "截至 2026-11-06，RFC Partial Function Application v2 被接受进入哪个 PHP 版本？请回答版本号。",
+      "prompt": "截至 2026-11-07，RFC Partial Function Application v2 被接受进入哪个 PHP 版本？请回答版本号。",
       "grader": {
         "regex": "^(php )?8\\.6(\\.0)?$",
         "accept": [
@@ -1260,10 +1260,10 @@
       "level": 1,
       "kind": "version",
       "zone": "future",
-      "note": "clamp_v2 — реализован в PHP 8.6 (v1 отозван).",
+      "note": "По данным владельца (wiki.php.net/rfc): clamp_v2 — 8.6; clamp() в 8.5.11 отсутствует (косвенное подтверждение). Дата-якорь делает клетку монотонной.",
       "type": "answer",
       "answer": false,
-      "prompt": "RFC clamp_v2（函数 clamp()）在哪个 PHP 版本中实现？请回答版本号。",
+      "prompt": "截至 2026-11-07，RFC clamp_v2（函数 clamp()）在哪个 PHP 版本中实现？请回答版本号。",
       "grader": {
         "regex": "^(php )?8\\.6(\\.0)?$",
         "accept": [
@@ -1279,7 +1279,7 @@
       "zone": "future",
       "note": "На 06.11.2026 — в обсуждении (создан 2026-10-23); не принят.",
       "type": "yesno",
-      "text": "截至 2026-11-06，RFC Context Managers v2 已被 PHP 接受。",
+      "text": "截至 2026-11-07，RFC Context Managers v2 已被 PHP 接受。",
       "answer": false
     },
     {
@@ -1299,9 +1299,9 @@
       "level": 4,
       "kind": "version",
       "zone": "future",
-      "note": "Такого принятого RFC нет: true_async отменён (Canceled), Concurrency Support — в обсуждении (wiki.php.net/rfc, 06.11.2026).",
+      "note": "Такого принятого RFC нет на дату якоря; якорь делает клетку монотонной — при принятии RFC позже клетка не перевернётся.",
       "type": "yesno",
-      "text": "关于默认启用多线程（ZTS）的 RFC 已被 PHP 接受。",
+      "text": "截至 2026-11-07，默认启用多线程（ZTS）的 RFC 已在 PHP 中被接受。",
       "answer": false
     },
     {
@@ -1323,7 +1323,7 @@
       "zone": "future",
       "note": "8.5 — релиз осени 2025; 8.6 GA 19.11.2026 (wiki.php.net/todo/php86). Дата снимка — 06.11.2026.",
       "type": "yesno",
-      "text": "截至 2026-11-06，PHP 的最新稳定版本是 8.5，PHP 8.6 尚未发布（GA 为 2026-11-19）。",
+      "text": "截至 2026-11-07，PHP 的最新稳定版本是 8.5，PHP 8.6 尚未发布（GA 为 2026-11-19）。",
       "answer": true
     },
     {
@@ -1392,7 +1392,9 @@
       "grader": {
         "accept": [
           "domain model",
-          "领域模型"
+          "领域模型",
+          "领域",
+          "域模型"
         ]
       },
       "prompt": "洋葱架构的最中心是什么？"
@@ -1429,8 +1431,10 @@
       "type": "answer",
       "grader": {
         "accept": [
-          "репозиторий",
-          "repository"
+          "repository",
+          "仓储",
+          "仓库",
+          "存储库"
         ]
       },
       "prompt": "在接口背后隐藏存储机制、并提供聚合/实体集合的组件叫什么？"
@@ -1479,8 +1483,8 @@
       "grader": {
         "accept": [
           "aggregate root",
-          "корень агрегата",
-          "агрегатный корень"
+          "聚合根",
+          "聚合的根"
         ]
       },
       "prompt": "聚合的唯一外部入口——所有变更必须经过它——叫什么？"
@@ -1518,7 +1522,9 @@
       "grader": {
         "accept": [
           "bounded context",
-          "ограниченный контекст"
+          "限界上下文",
+          "有界上下文",
+          "受限上下文"
         ]
       },
       "prompt": "哪种边界内部模型和语言一致，而边界外同样的词对应别的模型？"
@@ -1949,7 +1955,7 @@
       "note": "Symfony 8.0 поднял требование до PHP >= 8.4.1 (в vendor проекта: \"php\": \">=8.4.1\").",
       "type": "answer",
       "grader": {
-        "regex": "^(php )?8\\.4(\\.0)?$",
+        "regex": "^(php[- ]?)?8\\.4(\\.\\d+)?$",
         "accept": [
           "8.4"
         ]
@@ -2058,7 +2064,7 @@
       "note": "8.2 — следующий минорный релиз (ноябрь 2026); после его выхода проект переходит с 8.1.* на 8.2.*.",
       "type": "answer",
       "grader": {
-        "regex": "^(php-)?8\\.2$",
+        "regex": "^((symfony|симфони)[ .-]?)?8\\.2(\\.0)?$",
         "accept": [
           "8.2"
         ]
@@ -2096,7 +2102,7 @@
       "note": "По циклу: 8.2 (ноя 2026), 8.3 (май 2027), 8.4 (ноя 2027, вместе с 9.0) — как 6.4 выходила вместе с 7.0.",
       "type": "answer",
       "grader": {
-        "regex": "^(php-)?8\\.4$",
+        "regex": "^((symfony|симфони)[ .-]?)?8\\.4(\\.0)?$",
         "accept": [
           "8.4"
         ]
@@ -2265,10 +2271,10 @@
       "level": 4,
       "kind": "fact",
       "zone": "base",
-      "note": "576 / 768 / 992 / 1200 / 1400 px; Bootstrap 5.",
+      "note": "Тиров всего шесть: xs (без инфикса) + пять именованных (576/768/992/1200/1400 px).",
       "type": "yesno",
       "answer": true,
-      "text": "Bootstrap 的标准断点是 sm、md、lg、xl、xxl（共五个）。"
+      "text": "Bootstrap 的命名断点（类名中的中缀）是 sm、md、lg、xl、xxl——共五个。"
     },
     {
       "id": "T24-L5",
@@ -2350,10 +2356,10 @@
       "level": 3,
       "kind": "myth",
       "zone": "base",
-      "note": "merge() возвращает НОВУЮ управляемую копию; исходный объект остаётся отсоединённым (docs Doctrine).",
+      "note": "В ORM 3 merge() удалён (в vendor проекта 3.7.6 метода нет); в Doctrine 2.x merge() возвращал управляемую копию. Версия зафиксирована — ORM 3.",
       "type": "yesno",
       "answer": false,
-      "text": "EntityManager::merge() 会把传入的对象变成受管理的。"
+      "text": "在 Doctrine ORM 3 中，EntityManager::merge() 方法存在，并把传入的对象变成受管理的。"
     },
     {
       "id": "T14-L4",
@@ -2868,10 +2874,10 @@
       "level": 6,
       "kind": "fact",
       "zone": "base",
-      "note": "PHPUnit 10 вводит метаданные-атрибуты. Проверено на 10.5: тест на #[DataProvider] выполняется.",
+      "note": "Аннотация ещё парсится в PHPUnit 10/11 (AnnotationParser в 10.5.66), удаление — в 12; атрибут — стандарт.",
       "type": "yesno",
       "answer": true,
-      "text": "在 PHPUnit 10+ 中，#[DataProvider] 属性取代了 @dataProvider 注解。"
+      "text": "在 PHPUnit 10+ 中，向测试传递数据的推荐方式是 #[DataProvider] 属性（@dataProvider 注解已弃用）。"
     },
     {
       "id": "T18-L7",

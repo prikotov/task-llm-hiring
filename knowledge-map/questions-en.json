@@ -517,8 +517,8 @@
       "level": 5,
       "type": "answer",
       "kind": "fact",
-      "prompt": "What does get_class(new class {}) return? Answer in the short form PHP prints.",
-      "note": "Анонимный класс печатается как class@anonymous (путь в имени — служебный, ответ засчитываем по префиксу).",
+      "prompt": "What does get_class(new class {}) return? Answer with the part of the name before the NUL byte (without the file path).",
+      "note": "get_class анонимного класса печатает class@anonymous\\0<файл>:<строка>$n; короткая форма — часть до NUL-байта. Проверено php -r (hex).",
       "grader": {
         "accept": [
           "class@anonymous"
@@ -693,9 +693,9 @@
       "topic": "Exceptions and errors",
       "level": 4,
       "kind": "fact",
-      "note": "DivisionByZeroError (наследник ArithmeticError).",
+      "note": "DivisionByZeroError (иерархия Error, не Exception); php-грейдер объективен.",
       "type": "answer",
-      "prompt": "Which exception class does intdiv(5, 0) throw?",
+      "prompt": "What error class does intdiv(5, 0) throw?",
       "grader": {
         "php": "try { intdiv(5, 0); } catch (Throwable $e) { echo get_class($e); }"
       },
@@ -1242,7 +1242,7 @@
       "note": "PFA v2 принят 05.12.2025 (33-0-0), реализован в PHP 8.6.",
       "type": "answer",
       "answer": false,
-      "prompt": "For which PHP version was RFC Partial Function Application v2 adopted (as of 2026-11-06)? Answer with the version number.",
+      "prompt": "For which PHP version was RFC Partial Function Application v2 adopted (as of 2026-11-07)? Answer with the version number.",
       "grader": {
         "regex": "^(php )?8\\.6(\\.0)?$",
         "accept": [
@@ -1256,10 +1256,10 @@
       "level": 1,
       "kind": "version",
       "zone": "future",
-      "note": "clamp_v2 — реализован в PHP 8.6 (v1 отозван).",
+      "note": "По данным владельца (wiki.php.net/rfc): clamp_v2 — 8.6; clamp() в 8.5.11 отсутствует (косвенное подтверждение). Дата-якорь делает клетку монотонной.",
       "type": "answer",
       "answer": false,
-      "prompt": "For which PHP version was RFC clamp_v2 (the clamp() function) implemented? Answer with the version number.",
+      "prompt": "For which PHP version was the RFC clamp_v2 (the clamp() function) implemented, as of 2026-11-07? Answer with the version number.",
       "grader": {
         "regex": "^(php )?8\\.6(\\.0)?$",
         "accept": [
@@ -1275,7 +1275,7 @@
       "zone": "future",
       "note": "На 06.11.2026 — в обсуждении (создан 2026-10-23); не принят.",
       "type": "yesno",
-      "text": "RFC Context Managers v2 has already been adopted in PHP (as of 2026-11-06).",
+      "text": "RFC Context Managers v2 has already been adopted in PHP (as of 2026-11-07).",
       "answer": false
     },
     {
@@ -1295,9 +1295,9 @@
       "level": 4,
       "kind": "version",
       "zone": "future",
-      "note": "Такого принятого RFC нет: true_async отменён (Canceled), Concurrency Support — в обсуждении (wiki.php.net/rfc, 06.11.2026).",
+      "note": "Такого принятого RFC нет на дату якоря; якорь делает клетку монотонной — при принятии RFC позже клетка не перевернётся.",
       "type": "yesno",
-      "text": "An RFC to enable multithreading (ZTS) by default has been adopted in PHP.",
+      "text": "As of 2026-11-07, the RFC enabling multithreading (ZTS) by default has already been accepted in PHP.",
       "answer": false
     },
     {
@@ -1319,7 +1319,7 @@
       "zone": "future",
       "note": "8.5 — релиз осени 2025; 8.6 GA 19.11.2026 (wiki.php.net/todo/php86). Дата снимка — 06.11.2026.",
       "type": "yesno",
-      "text": "As of 2026-11-06, the latest stable PHP version is 8.5, and PHP 8.6 has not been released yet (GA — 2026-11-19).",
+      "text": "As of 2026-11-07, the latest stable PHP version is 8.5, and PHP 8.6 has not been released yet (GA — 2026-11-19).",
       "answer": true
     },
     {
@@ -1424,7 +1424,6 @@
       "type": "answer",
       "grader": {
         "accept": [
-          "репозиторий",
           "repository"
         ]
       },
@@ -1473,9 +1472,7 @@
       "type": "answer",
       "grader": {
         "accept": [
-          "aggregate root",
-          "корень агрегата",
-          "агрегатный корень"
+          "aggregate root"
         ]
       },
       "prompt": "What is the single external entry point of an aggregate, through which all changes must go, called?"
@@ -1512,8 +1509,7 @@
       "type": "answer",
       "grader": {
         "accept": [
-          "bounded context",
-          "ограниченный контекст"
+          "bounded context"
         ]
       },
       "prompt": "What is the boundary called within which a model and its language are consistent, while outside the same words mean other models?"
@@ -1944,7 +1940,7 @@
       "note": "Symfony 8.0 поднял требование до PHP >= 8.4.1 (в vendor проекта: \"php\": \">=8.4.1\").",
       "type": "answer",
       "grader": {
-        "regex": "^(php )?8\\.4(\\.0)?$",
+        "regex": "^(php[- ]?)?8\\.4(\\.\\d+)?$",
         "accept": [
           "8.4"
         ]
@@ -2053,7 +2049,7 @@
       "note": "8.2 — следующий минорный релиз (ноябрь 2026); после его выхода проект переходит с 8.1.* на 8.2.*.",
       "type": "answer",
       "grader": {
-        "regex": "^(php-)?8\\.2$",
+        "regex": "^((symfony|симфони)[ .-]?)?8\\.2(\\.0)?$",
         "accept": [
           "8.2"
         ]
@@ -2091,7 +2087,7 @@
       "note": "По циклу: 8.2 (ноя 2026), 8.3 (май 2027), 8.4 (ноя 2027, вместе с 9.0) — как 6.4 выходила вместе с 7.0.",
       "type": "answer",
       "grader": {
-        "regex": "^(php-)?8\\.4$",
+        "regex": "^((symfony|симфони)[ .-]?)?8\\.4(\\.0)?$",
         "accept": [
           "8.4"
         ]
@@ -2260,10 +2256,10 @@
       "level": 4,
       "kind": "fact",
       "zone": "base",
-      "note": "576 / 768 / 992 / 1200 / 1400 px; Bootstrap 5.",
+      "note": "Тиров всего шесть: xs (без инфикса) + пять именованных (576/768/992/1200/1400 px).",
       "type": "yesno",
       "answer": true,
-      "text": "Bootstrap's standard breakpoints are sm, md, lg, xl, xxl (five in total)."
+      "text": "Bootstrap's named breakpoints (the infix used in class names) are sm, md, lg, xl, xxl — five of them."
     },
     {
       "id": "T24-L5",
@@ -2345,10 +2341,10 @@
       "level": 3,
       "kind": "myth",
       "zone": "base",
-      "note": "merge() возвращает НОВУЮ управляемую копию; исходный объект остаётся отсоединённым (docs Doctrine).",
+      "note": "В ORM 3 merge() удалён (в vendor проекта 3.7.6 метода нет); в Doctrine 2.x merge() возвращал управляемую копию. Версия зафиксирована — ORM 3.",
       "type": "yesno",
       "answer": false,
-      "text": "EntityManager::merge() makes the passed object managed."
+      "text": "In Doctrine ORM 3, the EntityManager::merge() method exists and makes the passed object managed."
     },
     {
       "id": "T14-L4",
@@ -2863,10 +2859,10 @@
       "level": 6,
       "kind": "fact",
       "zone": "base",
-      "note": "PHPUnit 10 вводит метаданные-атрибуты. Проверено на 10.5: тест на #[DataProvider] выполняется.",
+      "note": "Аннотация ещё парсится в PHPUnit 10/11 (AnnotationParser в 10.5.66), удаление — в 12; атрибут — стандарт.",
       "type": "yesno",
       "answer": true,
-      "text": "In PHPUnit 10+, the #[DataProvider] attribute replaced the @dataProvider annotation."
+      "text": "In PHPUnit 10+, the recommended way to pass data to a test is the #[DataProvider] attribute (the @dataProvider annotation is deprecated)."
     },
     {
       "id": "T18-L7",

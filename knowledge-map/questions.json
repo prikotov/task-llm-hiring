@@ -516,8 +516,8 @@
       "level": 5,
       "type": "answer",
       "kind": "fact",
-      "prompt": "Что вернёт get_class(new class {})? Ответь сокращённой формой, которую печатает PHP.",
-      "note": "Анонимный класс печатается как class@anonymous (путь в имени — служебный, ответ засчитываем по префиксу).",
+      "prompt": "Что вернёт get_class(new class {})? Ответь частью имени до нулевого байта (без пути к файлу).",
+      "note": "get_class анонимного класса печатает class@anonymous\\0<файл>:<строка>$n; короткая форма — часть до NUL-байта. Проверено php -r (hex).",
       "grader": {
         "accept": [
           "class@anonymous"
@@ -692,9 +692,9 @@
       "topic": "Исключения и ошибки",
       "level": 4,
       "kind": "fact",
-      "note": "DivisionByZeroError (наследник ArithmeticError).",
+      "note": "DivisionByZeroError (иерархия Error, не Exception); php-грейдер объективен.",
       "type": "answer",
-      "prompt": "Какой класс исключения бросит intdiv(5, 0)?",
+      "prompt": "Какой класс ошибки бросит intdiv(5, 0)?",
       "grader": {
         "php": "try { intdiv(5, 0); } catch (Throwable $e) { echo get_class($e); }"
       },
@@ -1241,7 +1241,7 @@
       "note": "PFA v2 принят 05.12.2025 (33-0-0), реализован в PHP 8.6.",
       "type": "answer",
       "answer": false,
-      "prompt": "Для какой версии PHP был принят RFC Partial Function Application v2 (по состоянию на 06.11.2026)? Ответь номером версии.",
+      "prompt": "Для какой версии PHP был принят RFC Partial Function Application v2 (по состоянию на 07.11.2026)? Ответь номером версии.",
       "grader": {
         "regex": "^(php )?8\\.6(\\.0)?$",
         "accept": [
@@ -1255,10 +1255,10 @@
       "level": 1,
       "kind": "version",
       "zone": "future",
-      "note": "clamp_v2 — реализован в PHP 8.6 (v1 отозван).",
+      "note": "По данным владельца (wiki.php.net/rfc): clamp_v2 — 8.6; clamp() в 8.5.11 отсутствует (косвенное подтверждение). Дата-якорь делает клетку монотонной.",
       "type": "answer",
       "answer": false,
-      "prompt": "Для какой версии PHP реализован RFC clamp_v2 (функция clamp())? Ответь номером версии.",
+      "prompt": "Для какой версии PHP реализован RFC clamp_v2 (функция clamp()) по состоянию на 07.11.2026? Ответь номером версии.",
       "grader": {
         "regex": "^(php )?8\\.6(\\.0)?$",
         "accept": [
@@ -1274,7 +1274,7 @@
       "zone": "future",
       "note": "На 06.11.2026 — в обсуждении (создан 2026-10-23); не принят.",
       "type": "yesno",
-      "text": "RFC Context Managers v2 уже принят в PHP (на 06.11.2026).",
+      "text": "RFC Context Managers v2 уже принят в PHP (на 07.11.2026).",
       "answer": false
     },
     {
@@ -1294,9 +1294,9 @@
       "level": 4,
       "kind": "version",
       "zone": "future",
-      "note": "Такого принятого RFC нет: true_async отменён (Canceled), Concurrency Support — в обсуждении (wiki.php.net/rfc, 06.11.2026).",
+      "note": "Такого принятого RFC нет на дату якоря; якорь делает клетку монотонной — при принятии RFC позже клетка не перевернётся.",
       "type": "yesno",
-      "text": "RFC о включении многопоточности (ZTS) по умолчанию принят в PHP.",
+      "text": "На 07.11.2026 RFC о включении многопоточности (ZTS) по умолчанию уже принят в PHP.",
       "answer": false
     },
     {
@@ -1318,7 +1318,7 @@
       "zone": "future",
       "note": "8.5 — релиз осени 2025; 8.6 GA 19.11.2026 (wiki.php.net/todo/php86). Дата снимка — 06.11.2026.",
       "type": "yesno",
-      "text": "На 06.11.2026 последняя стабильная версия PHP — 8.5, а PHP 8.6 ещё не выпущена (GA — 19.11.2026).",
+      "text": "На 07.11.2026 последняя стабильная версия PHP — 8.5, а PHP 8.6 ещё не выпущена (GA — 19.11.2026).",
       "answer": true
     },
     {
@@ -1945,7 +1945,7 @@
       "note": "Symfony 8.0 поднял требование до PHP >= 8.4.1 (в vendor проекта: \"php\": \">=8.4.1\").",
       "type": "answer",
       "grader": {
-        "regex": "^(php )?8\\.4(\\.0)?$",
+        "regex": "^(php[- ]?)?8\\.4(\\.\\d+)?$",
         "accept": [
           "8.4"
         ]
@@ -2054,7 +2054,7 @@
       "note": "8.2 — следующий минорный релиз (ноябрь 2026); после его выхода проект переходит с 8.1.* на 8.2.*.",
       "type": "answer",
       "grader": {
-        "regex": "^(php-)?8\\.2$",
+        "regex": "^((symfony|симфони)[ .-]?)?8\\.2(\\.0)?$",
         "accept": [
           "8.2"
         ]
@@ -2092,7 +2092,7 @@
       "note": "По циклу: 8.2 (ноя 2026), 8.3 (май 2027), 8.4 (ноя 2027, вместе с 9.0) — как 6.4 выходила вместе с 7.0.",
       "type": "answer",
       "grader": {
-        "regex": "^(php-)?8\\.4$",
+        "regex": "^((symfony|симфони)[ .-]?)?8\\.4(\\.0)?$",
         "accept": [
           "8.4"
         ]
@@ -2261,10 +2261,10 @@
       "level": 4,
       "kind": "fact",
       "zone": "base",
-      "note": "576 / 768 / 992 / 1200 / 1400 px; Bootstrap 5.",
+      "note": "Тиров всего шесть: xs (без инфикса) + пять именованных (576/768/992/1200/1400 px).",
       "type": "yesno",
       "answer": true,
-      "text": "Стандартные брейкпоинты Bootstrap — sm, md, lg, xl, xxl (всего пять)."
+      "text": "Именованные брейкпоинты Bootstrap (с инфиксом в классах) — sm, md, lg, xl, xxl; их пять."
     },
     {
       "id": "T24-L5",
@@ -2346,10 +2346,10 @@
       "level": 3,
       "kind": "myth",
       "zone": "base",
-      "note": "merge() возвращает НОВУЮ управляемую копию; исходный объект остаётся отсоединённым (docs Doctrine).",
+      "note": "В ORM 3 merge() удалён (в vendor проекта 3.7.6 метода нет); в Doctrine 2.x merge() возвращал управляемую копию. Версия зафиксирована — ORM 3.",
       "type": "yesno",
       "answer": false,
-      "text": "EntityManager::merge() делает переданный объект управляемым."
+      "text": "В Doctrine ORM 3 метод EntityManager::merge() доступен и делает переданный объект управляемым."
     },
     {
       "id": "T14-L4",
@@ -2864,10 +2864,10 @@
       "level": 6,
       "kind": "fact",
       "zone": "base",
-      "note": "PHPUnit 10 вводит метаданные-атрибуты. Проверено на 10.5: тест на #[DataProvider] выполняется.",
+      "note": "Аннотация ещё парсится в PHPUnit 10/11 (AnnotationParser в 10.5.66), удаление — в 12; атрибут — стандарт.",
       "type": "yesno",
       "answer": true,
-      "text": "В PHPUnit 10+ атрибут #[DataProvider] заменил аннотацию @dataProvider."
+      "text": "В PHPUnit 10+ рекомендуемый способ передачи данных в тест — атрибут #[DataProvider] (аннотация @dataProvider устарела)."
     },
     {
       "id": "T18-L7",
