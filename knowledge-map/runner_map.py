@@ -280,6 +280,97 @@ def parse_answer(raw: str) -> tuple[bool | None, str]:
     return None, "none"
 
 
+def acc_pattern(v: str) -> str:
+    """Regex эталона accept-клетки: дефисы/подчёркивания/пробелы/равно/
+    двоеточия/запятые эталона соответствуют любому из них в ответе; зачёт
+    только на
+    границах «слов» — сосед-спереди не буква/цифра/_, сосед-сзади не
+    буква/цифра/_/- (иначе container-xxl ловит «container», а
+    --random-order — «random»; см. аудит trust-mimo)."""
+    parts = [re.escape(x) for x in re.split(r"[-\s_:,=]+", v) if x]
+    return r"[-\s_:,=]+".join(parts)
+
+
+def resolve_questions_file(km_dir: Path, session: dict) -> Path | None:
+    """Вопросник прогона по версии/языку из session.json — только строгие
+    совпадения версий; без уверенного резолвинга None (прогон пропускается:
+    переразметка чужими эталонами недопустима)."""
+    qver = session.get("questionnaire")
+    if not qver:
+        return None
+    lang = session.get("lang", "ru")
+    repo = Path(__file__).parent
+    qfile = session.get("questionnaire_file")
+
+    def version_of(cand: Path):
+        try:
+            return json.loads(cand.read_text(encoding="utf-8")).get("version")
+        except (OSError, json.JSONDecodeError):
+            return None
+
+    stems = [f"questions.v{qver}-{lang}", f"questions.v{qver}"] \
+        if lang != "ru" else [f"questions.v{qver}"]
+    for base in (repo, km_dir):
+        for cand in ([base / qfile] if qfile else []) + \
+                    [base / f"{stem}.json" for stem in stems]:
+            if cand.exists() and version_of(cand) == qver:
+                return cand
+    return None
+
+
+def regrade(model_dir: Path, timeout: int) -> None:
+    """Переоценка is_correct/strict по сохранённым ответам текущими
+    грейдерами (перепрогон не нужен; аудит trust-mimo)."""
+    cache: dict = {}
+    fixed_cells = 0
+    for s_path in sorted(model_dir.glob("run-*/session.json")):
+        out_dir = s_path.parent
+        session = json.loads(s_path.read_text(encoding="utf-8"))
+        qpath = resolve_questions_file(model_dir, session)
+        if qpath is None:
+            print(f"  {out_dir.name}: пропускаю — вопросник не резолвится "
+                  f"уверенно (questionnaire={session.get('questionnaire')})")
+            continue
+        questions = {q["id"]: q for q in json.loads(
+            qpath.read_text(encoding="utf-8"))["questions"]}
+        changed = []
+        for t in session.get("turns", []):
+            q = questions.get(t["id"])
+            if q is None:
+                continue
+            answer = t.get("answer")
+            if t.get("type") == "answer":
+                expected = expected_value(q["grader"], cache)
+                expected = normalize(expected) if expected else expected
+                if "regex" in q["grader"]:
+                    ok = answer is not None and re.fullmatch(
+                        q["grader"]["regex"], answer) is not None
+                else:
+                    variants = [normalize(v)
+                                for v in q["grader"].get("accept", [expected])]
+                    ok = answer is not None and any(
+                        re.search(rf"(?<![\w_]){acc_pattern(v)}(?![\w-])",
+                                  answer) for v in variants)
+                strict = answer is not None and answer == normalize(expected)
+            else:
+                if "answer" not in q:
+                    continue  # старый формат вопроса без эталона — не трогаем
+                ok = answer is not None and answer == q["answer"]
+                strict = ok
+            if ok != t.get("is_correct") or strict != t.get("strict"):
+                changed.append((t["id"], t.get("is_correct"), ok))
+                t["is_correct"], t["strict"] = ok, strict
+        if changed:
+            s_path.write_text(json.dumps(session, ensure_ascii=False, indent=2),
+                              encoding="utf-8")
+            write_answers_csv(out_dir, session["turns"])
+            fixed_cells += len(changed)
+            print(f"  {out_dir.name}: переоценено {len(changed)} клеток: "
+                  + ", ".join(f"{cid} {_old}→{new}" for cid, _old, new
+                              in changed))
+    print(f"regrade готов: изменённых клеток {fixed_cells}")
+
+
 def check_questionnaire(questions: list) -> None:
     """Санитария вопросника: уникальные id, полные поля по типам клеток."""
     ids = [q["id"] for q in questions]
@@ -444,7 +535,10 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
                     answer = normalize(str(obj["answer"]))
                     parsed = "json"
                 else:
-                    answer = normalize(answer_raw) if answer_raw else None
+                    # фолбэк: только первая строка сырого ответа — эталон в
+                    # пояснении зачёту не подлежит (аудит trust-mimo)
+                    answer = (normalize(answer_raw.split("\n", 1)[0])
+                              if answer_raw else None)
                     parsed = "late" if answer else "none"
                 done_reason = resp.get("done_reason")
             else:
@@ -477,8 +571,12 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
             else:
                 # эталоны: php-вывод или все варианты accept-списка
                 variants = [normalize(v) for v in q["grader"].get("accept", [expected])]
+                # зачёт — эталон на границах «слов»: соседний символ не буква/
+                # цифра/подчёркивание/дефис (иначе container-xxl ловит «container»,
+                # --random-order ловит «random» — см. аудит trust-mimo)
                 is_correct = answer is not None and any(
-                    squeeze(v) in squeeze(answer) for v in variants)
+                    re.search(rf"(?<![\w_]){acc_pattern(v)}(?![\w-])", answer)
+                    for v in variants)
                 strict = answer is not None and answer == normalize(expected)
         else:
             is_correct = answer is not None and answer == q["answer"]
@@ -553,7 +651,9 @@ def write_answers_csv(out_dir: Path, turns: list) -> None:
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--model", required=True, help="ollama-тег модели на сервере ollama")
+    p.add_argument("--model", default=None,
+                   help="ollama-тег модели на сервере ollama (не нужен для "
+                        "--regrade)")
     p.add_argument("--runs", type=int, default=1, help="число прогонов (default 1)")
     p.add_argument("--base-url", default=DEFAULT_BASE_URL)
     p.add_argument("--questions", default=str(SCRIPT_DIR / "questions.json"))
@@ -568,6 +668,10 @@ def main() -> int:
                    default="off",
                    help="режим thinking (default off — стандарт локальных собесов; "
                         "в decision-протоколе не применяется)")
+    p.add_argument("--regrade", metavar="MODEL_DIR",
+                   help="переоценить сохранённые ответы всех прогонов модели "
+                        "текущими грейдерами (без перепрогона); вопросник "
+                        "берётся по версии/языку из session.json")
     p.add_argument("--lang", choices=["ru", "en", "zh"], default="ru",
                    help="язык прогона: system-промпт и вопросы (вопросник "
                         "--questions должен соответствовать языку)")
@@ -581,6 +685,12 @@ def main() -> int:
     p.add_argument("--timeout", type=int, default=600,
                    help="таймаут одного запроса, сек (default 600)")
     args = p.parse_args()
+
+    if args.regrade:
+        regrade(Path(args.regrade), args.timeout)
+        return 0
+    if not args.model:
+        p.error("укажите --model (или --regrade MODEL_DIR)")
 
     _qdata = json.loads(Path(args.questions).read_text(encoding="utf-8"))
     q_version = _qdata.get("version") if isinstance(_qdata, dict) else None
