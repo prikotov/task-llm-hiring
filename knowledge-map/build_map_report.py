@@ -81,10 +81,28 @@ def norm_display(s: str | None) -> str:
     return s.strip("«»\"' .") or (s or "—")
 
 
+_EXPECTED_CACHE: dict = {}
+
+
+def expected_of(q: dict) -> str:
+    """Эталон recall-клетки: вычисляется php-интерпретатором (grader.php)
+    или берётся из accept-списка — независимо от прогонов."""
+    g = q.get("grader", {})
+    if "accept" in g:
+        return g["accept"][0]
+    key = q["id"]
+    if key not in _EXPECTED_CACHE:
+        import subprocess
+        r = subprocess.run(["php", "-r", g["php"]], capture_output=True,
+                           text=True, timeout=30)
+        _EXPECTED_CACHE[key] = r.stdout.strip()
+    return _EXPECTED_CACHE[key]
+
+
 def correct_text(q: dict, turn: dict | None) -> str:
-    """Эталон клетки: для recall — нормализованное значение, для да/нет — да/нет."""
+    """Эталон клетки: для recall — значение из грейдера, для да/нет — да/нет."""
     if q.get("type") == "answer":
-        return norm_display(turn.get("correct_answer")) if turn else "—"
+        return norm_display(expected_of(q))
     return "да" if q["answer"] else "нет"
 
 
