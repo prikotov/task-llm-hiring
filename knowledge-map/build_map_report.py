@@ -212,18 +212,21 @@ def page_css() -> str:
                   border-radius: 6px; padding: 6px 8px; margin: 4px 0 0;
                   font: 11.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
                   white-space: pre-wrap; word-break: break-word; }
-    .map.compact .cell { height: 24px; border-radius: 4px; }
+    .compact-w { padding: 10px; }
+    .compact-w .map { gap: 2px; }
+    .map.compact .cell { height: 20px; border-radius: 3px; }
     .map.compact .rh { font-size: 11px; white-space: nowrap; }
     .map.compact .hd, .map.compact .agg { white-space: nowrap; }
     .map.compact .hd { font-size: 10.5px; padding-bottom: 2px; }
     .map.compact .agg { font-size: 10.5px; }
     .map.compact .zonehdr { font-size: 11px; padding: 3px 8px; margin-top: 4px; }
     .map.compact .cell .num { font-size: 9.5px; }
-    .seriesrow { display: flex; flex-wrap: wrap; gap: 22px;
+    .seriesrow { display: flex; flex-wrap: wrap; gap: 14px;
                  align-items: flex-start; margin: 8px 0 30px; }
     .series { min-width: 300px; }
     .serhead { font-weight: 600; margin-bottom: 2px; }
-    .sermeta { color: var(--mut); font-size: 12.5px; margin-bottom: 8px; }
+    .sermeta { color: var(--mut); font-size: 11.5px; margin-bottom: 8px;
+               max-width: 300px; }
     .serlink { margin-top: 8px; font-size: 13px; }
     .zonehdr { grid-column: 1 / -1; font-weight: 600; font-size: 13px;
                color: var(--fg); background: #eef1f4; border-radius: 6px;
@@ -435,15 +438,16 @@ def map_grid_compare(questions: list, runs: list[tuple[str, dict]],
                       if q["id"] in by_id and is_correct(by_id[q["id"]]))
         cells.append(f'<div class="agg">{pct(correct, len(tq) * len(runs))}%</div>')
 
-    cell_px = 24 if compact else 46
-    agg_px = 56 if compact else 84
+    cell_px = 20 if compact else 46
+    agg_px = 48 if compact else 84
     cols = []
     if show_labels:
-        cols.append("200px" if compact else "minmax(190px, 250px)")
+        cols.append("170px" if compact else "minmax(190px, 250px)")
     cols.append(f"repeat({max_level}, {cell_px}px)")
     cols.append(f"{agg_px}px")
     cls = "map compact" if compact else "map"
-    return ('<div class="mapwrap"><div class="' + cls + '" '
+    wrap_cls = "mapwrap compact-w" if compact else "mapwrap"
+    return ('<div class="' + wrap_cls + '"><div class="' + cls + '" '
             f'style="grid-template-columns: {" ".join(cols)};">'
             f'{"".join(cells)}</div></div>')
 
@@ -955,22 +959,23 @@ def build_series_report(models_root: Path, questions_path: Path,
             continue
         model = esc(runs[0][1].get("model", md.name))
         latest_qver = max((s.get("questionnaire") or 0 for _, s, _ in runs))
-        # ряд = (модель, язык); внутри ряда — карты уровней рассуждений
-        rows_map = defaultdict(lambda: defaultdict(list))
+        # одна модель — один ряд: карты (язык × уровень рассуждений)
+        series_map = defaultdict(list)
         for rd, session, by_id in runs:
             if session.get("questionnaire") != latest_qver:
                 continue
-            lang = session.get("lang", "ru")
-            rows_map[lang][session.get("think")].append((rd, session, by_id))
+            key = (session.get("lang", "ru"), session.get("think"))
+            series_map[key].append((rd, session, by_id))
 
-        for lang in sorted(rows_map, key=lambda l: (l != "ru", l)):
-            blocks = []
-            first_in_row = True
-            for think in sorted(rows_map[lang],
-                                key=lambda t: (think_order.get(t, 99), t)):
-                items = rows_map[lang][think]
-                if len(items) < 2:
-                    continue
+        blocks = []
+        first_in_row = True
+        for key in sorted(series_map,
+                          key=lambda k: (k[0] != "ru", k[0],
+                                         think_order.get(k[1], 99), k[1])):
+            lang, think = key
+            items = series_map[key]
+            if len(items) < 2:
+                continue
             qpath = questions_for_run(questions_path, items[0][1])
             q_version, questions = load_questions(qpath)
             runs_list = [(rd.name, by_id) for rd, _s, by_id in items]
@@ -999,14 +1004,18 @@ def build_series_report(models_root: Path, questions_path: Path,
                             f'серии (compare-{esc(think)}.html)</a></div>')
                 blocks.append(
                     f'<div class="series">'
-                    f'<div class="serhead">think: {esc(think)}</div>'
+                    f'<div class="serhead">{esc(lang)} · think: {esc(think)}</div>'
                     f'<div class="sermeta">{len(items)} прогонов · вопросник '
                     f'v{q_version} · точность {scores_s} · стабильно верных '
                     f'{stable_ok} · флипующих {flips}</div>{grid}{cmp_link}</div>')
-            if blocks:
-                sections.append(
-                    f'<h2>{model} · {esc(lang)}</h2>\n'
-                    f'<div class="seriesrow">{"".join(blocks)}</div>')
+        if blocks:
+            langs = ", ".join(sorted({k[0] for k in series_map}))
+            levels = ", ".join(sorted({k[1] for k in series_map},
+                                      key=lambda t: (think_order.get(t, 99), t)))
+            sections.append(
+                f'<h2>{model} · язык: {esc(langs)} · уровни мышления: '
+                f'{esc(levels)} · вопросник v{latest_qver}</h2>\n'
+                f'<div class="seriesrow">{"".join(blocks)}</div>')
 
     if not sections:
         raise SystemExit("нет серий: ни у одной модели нет ≥2 прогонов "
