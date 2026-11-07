@@ -237,11 +237,14 @@ def page_css() -> str:
     .umeta { display: block; font-weight: 400; color: var(--mut);
              font-size: 11px; }
     .unimap .rh { font-size: 11px; white-space: nowrap; align-self: center; }
-    .unimap .cell { height: 20px; border-radius: 3px; position: relative; }
-    .unimap .agg { font-size: 10.5px; align-self: center;
+    .unimap .cell { height: 22px; border-radius: 5px; position: relative; }
+    .unimap .cell .num { font-size: 10.5px; }
+    .unimap .cell .tip { font-size: 12px; }
+    .unimap .agg { font-size: 11px; align-self: center;
                    white-space: nowrap; }
-    .unimap .gsp { width: 14px; }
-    .unimap .ph { width: 20px; }
+    .unimap .gsp { width: 16px; }
+    .unimap .ph { width: 26px; }
+    .unimap .rh { font-size: 11.5px; }
     .zonehdr { grid-column: 1 / -1; font-weight: 600; font-size: 13px;
                color: var(--fg); background: #eef1f4; border-radius: 6px;
                padding: 5px 10px; margin-top: 6px; }
@@ -1034,7 +1037,7 @@ def build_series_report(models_root: Path, questions_path: Path,
                 continue
 
             # единая сетка: метки тем + группы (8 клеток + итог + граница)
-            cell_px, agg_px, label_px, sp_px = 20, 48, 200, 16
+            cell_px, agg_px, label_px, sp_px = 26, 52, 200, 16
             cols = [f"{label_px}px"] + [
                 f"repeat(8, {cell_px}px) {agg_px}px {sp_px}px"] * len(groups)
             cells = ['<div class="uhead"></div>']
