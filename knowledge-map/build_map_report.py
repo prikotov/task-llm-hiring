@@ -1281,10 +1281,11 @@ def build_series_report(models_root: Path, questions_path: Path,
 
     # таблица метрик серий: строки = модель × think × язык,
     # колонки = семейства, затраты, нестабильность
-    fam_heads = [("PHP", "PHP"), ("PHP+версии", "PHP+в"),
-                 ("Symfony", "Sym"), ("Symfony+версии", "Sym+в"),
-                 ("Данные", "Дан"), ("Дизайн", "Диз"),
-                 ("Фронтенд", "Фр"), ("Практики", "Пр"), ("Всего", "Все")]
+    fam_heads = [("PHP", "PHP"), ("PHP+версии", "PHP+версии"),
+                 ("Symfony", "Symfony"), ("Symfony+версии", "Symfony+версии"),
+                 ("Данные", "Данные"), ("Дизайн", "Дизайн"),
+                 ("Фронтенд", "Фронтенд"), ("Практики", "Практики"),
+                 ("Всего", "Всего")]
     mrows = []
     for model, think, lang, fams_list, cost, fl, nq in metrics:
         pm = dict(fams_list)
