@@ -223,6 +223,7 @@ def page_css() -> str:
     .series { min-width: 300px; }
     .serhead { font-weight: 600; margin-bottom: 2px; }
     .sermeta { color: var(--mut); font-size: 12.5px; margin-bottom: 8px; }
+    .serlink { margin-top: 8px; font-size: 13px; }
     .zonehdr { grid-column: 1 / -1; font-weight: 600; font-size: 13px;
                color: var(--fg); background: #eef1f4; border-radius: 6px;
                padding: 5px 10px; margin-top: 6px; }
@@ -973,12 +974,17 @@ def build_series_report(models_root: Path, questions_path: Path,
                 if all(by_id.get(q["id"], {}).get("answer") is not None
                        and is_correct(by_id[q["id"]]) for _rd, _s, by_id in items))
             flips = sum(1 for q in questions if flip_by_id[q["id"]])
+            cmp_rel = f"../models/{esc(md.name)}/knowledge-map/compare-{esc(think)}.html"
+            cmp_link = ""
+            if (models_root / md.name / "knowledge-map" / f"compare-{think}.html").exists():
+                cmp_link = (f'<div class="serlink"><a href="{cmp_rel}">Полный отчёт '
+                            f'серии (compare-{esc(think)}.html)</a></div>')
             blocks.append(
                 f'<div class="series">'
                 f'<div class="serhead">think: {esc(think)}</div>'
                 f'<div class="sermeta">{len(items)} прогонов · вопросник '
                 f'v{q_version} · точность {scores_s} · стабильно верных '
-                f'{stable_ok} · флипующих {flips}</div>{grid}</div>')
+                f'{stable_ok} · флипующих {flips}</div>{grid}{cmp_link}</div>')
         if blocks:
             sections.append(f'<h2>{model}</h2>\n'
                             f'<div class="seriesrow">{"".join(blocks)}</div>')
