@@ -1281,8 +1281,8 @@ def build_series_report(models_root: Path, questions_path: Path,
 
     # таблица метрик серий: строки = модель × think × язык,
     # колонки = семейства, затраты, нестабильность
-    fam_heads = [("PHP", "PHP"), ("PHP+версии", "PHP+версии"),
-                 ("Symfony", "Symfony"), ("Symfony+версии", "Symfony+версии"),
+    fam_heads = [("PHP", "PHP"), ("PHP+версии", "PHP+"),
+                 ("Symfony", "Symfony"), ("Symfony+версии", "Symfony+"),
                  ("Данные", "Данные"), ("Дизайн", "Дизайн"),
                  ("Фронтенд", "Фронтенд"), ("Практики", "Практики"),
                  ("Всего", "Всего")]
