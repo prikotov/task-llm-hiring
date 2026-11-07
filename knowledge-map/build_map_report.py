@@ -810,7 +810,6 @@ def build_compare(model_dir: Path, questions_path: Path,
                   think_filter: str | None = None,
                   qver_filter: int | None = None,
                   lang_filter: str | None = None) -> None:
-    q_version, questions = load_questions(questions_path)
     run_dirs = sorted(p for p in model_dir.glob("run-*") if p.is_dir())
     sessions = []
     for rd in run_dirs:
@@ -827,6 +826,14 @@ def build_compare(model_dir: Path, questions_path: Path,
                     if s.get("lang", "ru") == lang_filter]
     if not sessions:
         raise SystemExit(f"в {model_dir} нет прогонов (run-*/session.json)")
+    # вопросник — по сессии (язык и версия): EN-серии читают questions-en.json
+    langs = {s.get("lang", "ru") for _, s, _ in sessions}
+    if len(langs) > 1:
+        raise SystemExit(
+            "в папке прогоны разных языков: "
+            f"{sorted(langs)}. Смешивать нельзя — укажите --lang <ru|en>")
+    q_version, questions = load_questions(
+        questions_for_run(questions_path, sessions[0][1]))
 
     # Прогоны разных уровней рассуждений нельзя смешивать: «флипы» тогда
     # меряют смену режима, а не устойчивость знания. Карта — только внутри
