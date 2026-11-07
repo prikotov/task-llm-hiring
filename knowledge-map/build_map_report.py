@@ -395,7 +395,8 @@ def map_grid_single(by_id: dict, questions: list,
 
 def map_grid_compare(questions: list, runs: list[tuple[str, dict]],
                      flip_by_id: dict[str, bool],
-                     compact: bool = False) -> str:
+                     compact: bool = False,
+                     show_labels: bool = True) -> str:
     """Тепловая карта: клетка = доля верных по прогонам; флип — пунктир."""
     topics = []
     for q in questions:
@@ -405,11 +406,14 @@ def map_grid_compare(questions: list, runs: list[tuple[str, dict]],
     by_topic_level = defaultdict(dict)
     for q in questions:
         by_topic_level[q["topic"]][q["level"]] = q
-    cells = ['<div class="hd"></div>']
+    cells = []
+    if show_labels:
+        cells.append('<div class="hd"></div>')
     cells += [f'<div class="hd">L{i}</div>' for i in range(1, max_level + 1)]
     cells.append('<div class="hd">итог</div>')
     for topic in topics:
-        cells.append(f'<div class="rh">{esc(topic)}</div>')
+        if show_labels:
+            cells.append(f'<div class="rh">{esc(topic)}</div>')
         tq = sorted((q for q in questions if q["topic"] == topic),
                     key=lambda q: q["level"])
         for lvl in range(1, max_level + 1):
@@ -431,12 +435,16 @@ def map_grid_compare(questions: list, runs: list[tuple[str, dict]],
         cells.append(f'<div class="agg">{pct(correct, len(tq) * len(runs))}%</div>')
 
     cell_px = 24 if compact else 46
-    label_px = "minmax(120px, 170px)" if compact else "minmax(190px, 250px)"
     agg_px = 56 if compact else 84
+    cols = []
+    if show_labels:
+        cols.append("minmax(120px, 170px)" if compact else "minmax(190px, 250px)")
+    cols.append(f"repeat({max_level}, {cell_px}px)")
+    cols.append(f"{agg_px}px")
     cls = "map compact" if compact else "map"
     return ('<div class="mapwrap"><div class="' + cls + '" '
-            f'style="grid-template-columns: {label_px} '
-            f'repeat({max_level}, {cell_px}px) {agg_px}px;">{"".join(cells)}</div></div>')
+            f'style="grid-template-columns: {" ".join(cols)};">'
+            f'{"".join(cells)}</div></div>')
 
 
 def topic_rows(by_id: dict, questions: list) -> str:
@@ -949,6 +957,7 @@ def build_series_report(models_root: Path, questions_path: Path,
             series_map[session.get("think")].append((rd, session, by_id))
 
         blocks = []
+        first_in_row = True
         for think in sorted(series_map,
                             key=lambda t: (think_order.get(t, 99), t)):
             items = series_map[think]
@@ -964,7 +973,8 @@ def build_series_report(models_root: Path, questions_path: Path,
                 answers.discard(None)
                 flip_by_id[q["id"]] = len(answers) > 1
             grid = map_grid_compare(questions, runs_list, flip_by_id,
-                                    compact=True)
+                                    compact=True, show_labels=first_in_row)
+            first_in_row = False
             scores = [sum(1 for t in b.values() if is_correct(t))
                       for _rd, _s, b in items]
             scores_s = (f"{pct(min(scores), len(questions))}% – "
