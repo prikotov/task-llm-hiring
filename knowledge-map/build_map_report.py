@@ -875,7 +875,8 @@ def build_compare(model_dir: Path, questions_path: Path,
     footer = (f"построено knowledge-map/build_map_report.py · "
               f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} · "
               f"данные: run-*/session.json")
-    tag = (think_filter or "mixed") + (f"-{lang_filter}" if lang_filter else "")
+    tag = (think_filter or "mixed") + (f"-{lang_filter}" if lang_filter else "") \
+        + (f"-v{qver_filter}" if qver_filter else "")
     (model_dir / f"compare-{tag}.html").write_text(
         page(title, protocol, chips, body, footer), encoding="utf-8")
 
@@ -936,12 +937,16 @@ def protocol_tag(session: dict) -> str:
 
 def build_series_report(models_root: Path, questions_path: Path,
                         out_file: Path) -> None:
-    """Сводный отчёт по всем моделям: одна модель — один ряд, в ряду карты
-    серий (уровень рассуждений), отсортированные по лестнице thinking."""
+    """Сводный отчёт по всем моделям: строка = модель × версия вопросника ×
+    язык; в строке — карты уровней рассуждений (клетка = доля верных,
+    пунктир = флип). Серии разных версий не смешиваются, но и не
+    скрываются: каждая версия вопросника содержит все вопросы и показывается
+    своей строкой."""
     think_order = {"off": 0, "low": 1, "medium": 2, "high": 3, "xhigh": 4}
     sections = []
     model_dirs = sorted(d for d in models_root.iterdir()
                         if d.is_dir() and (d / "knowledge-map").is_dir())
+    n_maps = 0
     for md in model_dirs:
         km = md / "knowledge-map"
         runs = []
@@ -958,21 +963,17 @@ def build_series_report(models_root: Path, questions_path: Path,
         if not runs:
             continue
         model = esc(runs[0][1].get("model", md.name))
-        latest_qver = max((s.get("questionnaire") or 0 for _, s, _ in runs))
-        # одна модель — один ряд: карты (язык × уровень рассуждений)
+        # ряды: (версия вопросника, язык); внутри ряда — карты уровней
         series_map = defaultdict(list)
         for rd, session, by_id in runs:
-            if session.get("questionnaire") != latest_qver:
-                continue
-            key = (session.get("lang", "ru"), session.get("think"))
+            key = (session.get("questionnaire") or 0,
+                   session.get("lang", "ru"), session.get("think"))
             series_map[key].append((rd, session, by_id))
 
-        blocks = []
-        first_in_row = True
         for key in sorted(series_map,
-                          key=lambda k: (k[0] != "ru", k[0],
-                                         think_order.get(k[1], 99), k[1])):
-            lang, think = key
+                          key=lambda k: (-k[0], k[1] != "ru", k[1],
+                                         think_order.get(k[2], 99), k[2])):
+            qver, lang, think = key
             items = series_map[key]
             if len(items) < 2:
                 continue
@@ -986,8 +987,7 @@ def build_series_report(models_root: Path, questions_path: Path,
                 answers.discard(None)
                 flip_by_id[q["id"]] = len(answers) > 1
             grid = map_grid_compare(questions, runs_list, flip_by_id,
-                                    compact=True, show_labels=first_in_row)
-            first_in_row = False
+                                    compact=True, show_labels=(lang == "ru" or True))
             scores = [sum(1 for t in b.values() if is_correct(t))
                       for _rd, _s, b in items]
             scores_s = (f"{pct(min(scores), len(questions))}% – "
@@ -995,43 +995,43 @@ def build_series_report(models_root: Path, questions_path: Path,
             stable_ok = sum(
                 1 for q in questions
                 if all(by_id.get(q["id"], {}).get("answer") is not None
-                       and is_correct(by_id[q["id"]]) for _rd, _s, by_id in items))
+                       and is_correct(by_id[q["id"]])
+                       for _rd, _s, by_id in items))
             flips = sum(1 for q in questions if flip_by_id[q["id"]])
-            cmp_rel = f"../models/{esc(md.name)}/knowledge-map/compare-{esc(think)}.html"
+            cmp_name = f"compare-{think}-{lang}-v{qver}.html"
             cmp_link = ""
-            if (models_root / md.name / "knowledge-map" / f"compare-{think}.html").exists():
-                cmp_link = (f'<div class="serlink"><a href="{cmp_rel}">Полный отчёт '
-                            f'серии (compare-{esc(think)}.html)</a></div>')
-                blocks.append(
-                    f'<div class="series">'
-                    f'<div class="serhead">{esc(lang)} · think: {esc(think)}</div>'
-                    f'<div class="sermeta">{len(items)} прогонов · вопросник '
-                    f'v{q_version} · точность {scores_s} · стабильно верных '
-                    f'{stable_ok} · флипующих {flips}</div>{grid}{cmp_link}</div>')
-        if blocks:
-            langs = ", ".join(sorted({k[0] for k in series_map}))
-            levels = ", ".join(sorted({k[1] for k in series_map},
-                                      key=lambda t: (think_order.get(t, 99), t)))
+            if (models_root / md.name / "knowledge-map" / cmp_name).exists():
+                cmp_link = (f'<div class="serlink"><a '
+                            f'href="../models/{esc(md.name)}/knowledge-map/{cmp_name}">'
+                            f'Полный отчёт серии ({esc(cmp_name)})</a></div>')
+            blocks = [
+                f'<div class="series">'
+                f'<div class="serhead">think: {esc(think)}</div>'
+                f'<div class="sermeta">{len(items)} прогонов · {scores_s}'
+                f' · стаб. верных {stable_ok} · флипов {flips}</div>'
+                f'{grid}{cmp_link}</div>']
+            n_maps += 1
             sections.append(
-                f'<h2>{model} · язык: {esc(langs)} · уровни мышления: '
-                f'{esc(levels)} · вопросник v{latest_qver}</h2>\n'
+                f'<h2>{model} · вопросник v{q_version} · язык: {esc(lang)} · '
+                f'уровень мышления: {esc(think)}</h2>\n'
                 f'<div class="seriesrow">{"".join(blocks)}</div>')
 
     if not sections:
         raise SystemExit("нет серий: ни у одной модели нет ≥2 прогонов "
                          "на одной версии вопросника")
     title = "Карты знаний PHP — карты серий прогонов"
-    proto = ("для каждой модели — ряд карт по уровням рассуждений; клетка = "
-             "доля верных ответов по серии (число — %), пунктир — флип "
-             "(ответы прогонов расходятся)")
-    extra = ("main { max-width: 100%; padding: 28px 22px 60px; }")
+    proto = ("строка = модель × версия вопросника × язык (каждая версия "
+             "вопросника содержит все вопросы); внутри строки — карты уровней "
+             "рассуждений; клетка = доля верных ответов по серии (число — %), "
+             "пунктир — флип (ответы прогонов расходятся)")
+    extra = "main { max-width: 100%; padding: 28px 22px 60px; }"
     html = page(title, proto, "", "\n".join(sections),
                 "построено knowledge-map/build_map_report.py · "
                 f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
                 extra_css=extra)
     out_file.parent.mkdir(parents=True, exist_ok=True)
     out_file.write_text(html, encoding="utf-8")
-    print(f"сводный отчёт серий: {out_file} ({len(sections)} моделей)")
+    print(f"сводный отчёт серий: {out_file} ({n_maps} карт)")
 
 
 def main() -> int:
@@ -1050,6 +1050,9 @@ def main() -> int:
     p.add_argument("--version", type=int, default=None,
                    help="версия вопросника для тепловой карты (серии разных "
                         "версий не смешиваются)")
+    p.add_argument("--lang", choices=["ru", "en"], default=None,
+                   help="язык прогона для тепловой карты (серии разных "
+                        "языков не смешиваются)")
     p.add_argument("--questions", default=str(SCRIPT_DIR / "questions.json"))
     args = p.parse_args()
 
