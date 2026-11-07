@@ -1,7 +1,7 @@
 {
-  "version": 7,
+  "version": 8,
   "lang": "zh",
-  "as_of": "2026-11-06 (версионные клетки; источник — wiki.php.net/rfc, php.net; ревизия mimo v2.6-pro 2026-11-07; версионные мифы → recall-версия по решению kimi 3.1-pro)",
+  "as_of": "2026-11-07 (v8: +3 темы стека — Symfony, Doctrine, PostgreSQL (24 клетки, до 136); переводы EN/ZH выправлены по двойному аудиту mimo v2.6-pro и kimi 3.1-pro; версионные клетки: wiki.php.net/rfc, php.net)",
   "questions": [
     {
       "id": "T01-L1",
@@ -102,7 +102,7 @@
       "kind": "myth",
       "note": "=== для массивов требует совпадения и значений, и их порядка.",
       "type": "yesno",
-      "text": "在严格比较（===）下，只要元素相同，数组就视为相等，与元素顺序无关。",
+      "text": "在严格比较（===）下，数组被视为相等，与元素顺序无关。",
       "answer": false,
       "zone": "base"
     },
@@ -529,7 +529,7 @@
       "kind": "myth",
       "note": "__get срабатывает и для существующих, но недоступных (private/protected извне).",
       "type": "yesno",
-      "text": "魔术方法 __get() 只会对不存在的属性被调用。",
+      "text": "魔术方法 __get() 只会在访问不存在的属性时被调用。",
       "answer": false,
       "zone": "base"
     },
@@ -564,7 +564,7 @@
       "kind": "fact",
       "note": "instanceof.",
       "type": "answer",
-      "prompt": "哪个运算符用于检查对象是否实现了某个类或接口？",
+      "prompt": "哪个运算符用于检查对象是否为某个类或接口的实例？",
       "grader": {
         "accept": [
           "instanceof"
@@ -781,7 +781,7 @@
       "kind": "myth",
       "note": "Резолвится относительно текущего namespace (с учётом импортов).",
       "type": "yesno",
-      "text": "在 new 中，相对类名（不带前导 \\）会从全局根开始解析。",
+      "text": "在 new 中，非限定类名（不带前导 \\）会从全局根开始解析。",
       "answer": false,
       "zone": "base"
     },
@@ -1024,7 +1024,9 @@
       "grader": {
         "accept": [
           "true",
-          "是"
+          "是",
+          "对",
+          "正确"
         ]
       },
       "zone": "base"
@@ -1125,10 +1127,304 @@
       "grader": {
         "accept": [
           "true",
-          "是"
+          "是",
+          "对",
+          "正确"
         ]
       },
       "zone": "base"
+    },
+    {
+      "id": "T13-L1",
+      "topic": "Symfony",
+      "level": 1,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Контейнер инстанцирует сервис при первом извлечении; eager-создания по умолчанию нет.",
+      "type": "yesno",
+      "answer": true,
+      "text": "Symfony 的 DI 容器中的服务默认是惰性创建的——在首次使用时才实例化。"
+    },
+    {
+      "id": "T13-L2",
+      "topic": "Symfony",
+      "level": 2,
+      "kind": "fact",
+      "zone": "base",
+      "note": "bin/console debug:router (FrameworkBundle); в Symfony 3 команда называлась router:debug.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "debug:router"
+        ]
+      },
+      "prompt": "Symfony 的哪条控制台命令会列出所有已注册的路由？"
+    },
+    {
+      "id": "T13-L3",
+      "topic": "Symfony",
+      "level": 3,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Autowire+autoconfigure регистрируют и связывают сервисы автоматически; ручное перечисление — исключение.",
+      "type": "yesno",
+      "answer": false,
+      "text": "Symfony 的自动装配（autowiring）需要在 services.yaml 中手动声明每一个服务。"
+    },
+    {
+      "id": "T13-L4",
+      "topic": "Symfony",
+      "level": 4,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Twig компилирует шаблон один раз; кэш в var/cache/twig, в prod не пересобирается.",
+      "type": "yesno",
+      "answer": true,
+      "text": "Twig 模板会编译成 PHP 类并在请求之间缓存。"
+    },
+    {
+      "id": "T13-L5",
+      "topic": "Symfony",
+      "level": 5,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Контейнер пересобирается только когда изменился отслеживаемый ресурс (проверка freshness), не при каждом запросе.",
+      "type": "yesno",
+      "answer": false,
+      "text": "在 dev 环境下，Symfony 的 DI 容器每次 HTTP 请求都会重新构建。"
+    },
+    {
+      "id": "T13-L6",
+      "topic": "Symfony",
+      "level": 6,
+      "kind": "fact",
+      "zone": "base",
+      "note": "APP_ENV в .env; APP_DEBUG — отдельный флаг отладки.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "APP_ENV"
+        ]
+      },
+      "prompt": "哪个环境变量决定 Symfony 的活动环境（dev/prod）？"
+    },
+    {
+      "id": "T13-L7",
+      "topic": "Symfony",
+      "level": 7,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Действие контроллера должно быть public; приватный метод по маршруту не вызывается.",
+      "type": "yesno",
+      "answer": false,
+      "text": "控制器方法可以是 private——Symfony 的路由对类中的任何方法都有效。"
+    },
+    {
+      "id": "T13-L8",
+      "topic": "Symfony",
+      "level": 8,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Порядок определяет priority, а не тип подписки; приоритеты задаются в getSubscribedEvents() так же, как у слушателей.",
+      "type": "yesno",
+      "answer": false,
+      "text": "事件订阅者（EventSubscriber）总是比监听器（listener）更早收到事件，因为接口赋予它们优先级。"
+    },
+    {
+      "id": "T14-L1",
+      "topic": "Doctrine",
+      "level": 1,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Схему создают инструменты (migrations, schema tool); рантайм структуру БД не меняет.",
+      "type": "yesno",
+      "answer": false,
+      "text": "Doctrine ORM 会在运行时首次使用实体时自动在数据库中创建表。"
+    },
+    {
+      "id": "T14-L2",
+      "topic": "Doctrine",
+      "level": 2,
+      "kind": "fact",
+      "zone": "base",
+      "note": "persist() регистрирует объект в Unit of Work; INSERT выполняется на flush().",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "persist"
+        ]
+      },
+      "prompt": "EntityManager 的哪个方法把新对象标记为受管理（managed），而 SQL 延迟到 flush() 才执行？"
+    },
+    {
+      "id": "T14-L3",
+      "topic": "Doctrine",
+      "level": 3,
+      "kind": "myth",
+      "zone": "base",
+      "note": "merge() возвращает НОВУЮ управляемую копию; исходный объект остаётся отсоединённым (docs Doctrine).",
+      "type": "yesno",
+      "answer": false,
+      "text": "EntityManager::merge() 会把传入的对象变成受管理的。"
+    },
+    {
+      "id": "T14-L4",
+      "topic": "Doctrine",
+      "level": 4,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Doctrine транслирует DQL в SQL; docs — DQL (Doctrine Query Language).",
+      "type": "yesno",
+      "answer": true,
+      "text": "DQL 查询以实体及其字段为单位编写，而不是表和列。"
+    },
+    {
+      "id": "T14-L5",
+      "topic": "Doctrine",
+      "level": 5,
+      "kind": "fact",
+      "zone": "base",
+      "note": "find() возвращает null, если объект не найден (docs Repository methods).",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "null"
+        ]
+      },
+      "prompt": "如果不存在 id 为 999 的记录，$repository->find(999) 返回什么？"
+    },
+    {
+      "id": "T14-L6",
+      "topic": "Doctrine",
+      "level": 6,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Авто-flush нет — flush() зовёт разработчик; незакрытая транзакция в конце запроса откатывается.",
+      "type": "yesno",
+      "answer": false,
+      "text": "Symfony 的 DoctrineBundle 会在每个请求结束时自动调用 flush()。"
+    },
+    {
+      "id": "T14-L7",
+      "topic": "Doctrine",
+      "level": 7,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Dirty checking сравнивает снимки свойств; persist нужен только новым/отсоединённым объектам.",
+      "type": "yesno",
+      "answer": true,
+      "text": "对于受管理的实体，只需修改属性即可：flush() 会在没有显式 persist() 的情况下提交更改——Unit of Work 会追踪变更。"
+    },
+    {
+      "id": "T14-L8",
+      "topic": "Doctrine",
+      "level": 8,
+      "kind": "myth",
+      "zone": "base",
+      "note": "remove() планирует удаление в Unit of Work; DELETE выполняется на flush() (docs — Deleting Objects).",
+      "type": "yesno",
+      "answer": false,
+      "text": "remove() 会立即执行 SQL DELETE，不会等到 flush()。"
+    },
+    {
+      "id": "T15-L1",
+      "topic": "PostgreSQL",
+      "level": 1,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Снимки и xmax; docs PostgreSQL — Concurrency Control (MVCC).",
+      "type": "yesno",
+      "answer": true,
+      "text": "PostgreSQL 使用 MVCC：读不阻塞写，写也不阻塞读。"
+    },
+    {
+      "id": "T15-L2",
+      "topic": "PostgreSQL",
+      "level": 2,
+      "kind": "fact",
+      "zone": "base",
+      "note": "EXPLAIN без ANALYZE только строит план; проверено на PostgreSQL 17.7.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "explain"
+        ]
+      },
+      "prompt": "哪条 SQL 命令会显示查询的执行计划，而不实际执行查询？"
+    },
+    {
+      "id": "T15-L3",
+      "topic": "PostgreSQL",
+      "level": 3,
+      "kind": "myth",
+      "zone": "base",
+      "note": "SERIAL — нестандартный макрос (sequence + DEFAULT), IDENTITY — SQL-стандарт; различаются владением и правами. Оба есть в PG 17 (проверено).",
+      "type": "yesno",
+      "answer": false,
+      "text": "SERIAL 和 GENERATED ... AS IDENTITY 只是同一机制的两个名称。"
+    },
+    {
+      "id": "T15-L4",
+      "topic": "PostgreSQL",
+      "level": 4,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Поведение NULLS DISTINCT по умолчанию; NULLS NOT DISTINCT — опция с PG 15. Проверено на PG 17.7.",
+      "type": "yesno",
+      "answer": true,
+      "text": "默认情况下，UNIQUE 约束把 NULL 视为彼此不同：唯一列中可以插入多行 NULL。"
+    },
+    {
+      "id": "T15-L5",
+      "topic": "PostgreSQL",
+      "level": 5,
+      "kind": "fact",
+      "zone": "base",
+      "note": "string_agg(значение, разделитель); проверено на PostgreSQL 17.7.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "string_agg"
+        ]
+      },
+      "prompt": "PostgreSQL 的哪个聚合函数用分隔符拼接字符串？"
+    },
+    {
+      "id": "T15-L6",
+      "topic": "PostgreSQL",
+      "level": 6,
+      "kind": "myth",
+      "zone": "base",
+      "note": "VACUUM помечает место для переиспользования внутри таблицы; ОС его возвращает только VACUUM FULL (с эксклюзивной блокировкой).",
+      "type": "yesno",
+      "answer": false,
+      "text": "普通 VACUUM 会把死元组占用的空间归还给操作系统。"
+    },
+    {
+      "id": "T15-L7",
+      "topic": "PostgreSQL",
+      "level": 7,
+      "kind": "fact",
+      "zone": "base",
+      "note": "OVER (PARTITION BY ...); проверено на PostgreSQL 17.7.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "partition by"
+        ]
+      },
+      "prompt": "在窗口函数的定义中，哪个关键字把行分成若干组，函数按组计算？"
+    },
+    {
+      "id": "T15-L8",
+      "topic": "PostgreSQL",
+      "level": 8,
+      "kind": "myth",
+      "zone": "base",
+      "note": "READ COMMITTED допускает неповторяющееся чтение; защищает REPEATABLE READ. Проверено: SHOW transaction_isolation → read committed.",
+      "type": "yesno",
+      "answer": false,
+      "text": "READ COMMITTED 隔离级别能防止不可重复读（non-repeatable read）。"
     },
     {
       "id": "VC-L1",
@@ -1259,7 +1555,7 @@
       "note": "clamp_v2 — реализован в PHP 8.6 (v1 отозван).",
       "type": "answer",
       "answer": false,
-      "prompt": "截至 2026-11-06，RFC clamp_v2（函数 clamp()）在哪个 PHP 版本中实现？请回答版本号。",
+      "prompt": "RFC clamp_v2（函数 clamp()）在哪个 PHP 版本中实现？请回答版本号。",
       "grader": {
         "regex": "^(php )?8\\.6(\\.0)?$",
         "accept": [

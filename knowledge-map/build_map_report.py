@@ -365,7 +365,7 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
 
 def map_grid_single(by_id: dict, questions: list,
                     anchor_prefix: str = "", lang: str = "ru") -> str:
-    zone_names = {"base": "Зона 1 · База PHP (вневременное ядро 8.x)",
+    zone_names = {"base": "Зона 1 · База: PHP и стек (Symfony, Doctrine, PostgreSQL)",
                   "current": "Зона 2 · PHP 8.4–8.5 (текущая эра)",
                   "future": "Зона 3 · Будущее: 8.6+, trunk, RFC (cutoff-зонд)"}
     def zone_of(topic: str) -> str:
@@ -626,11 +626,16 @@ def questions_for_run(questions_path: Path, session: dict) -> Path:
         cand = questions_path.parent / qfile
         if cand.exists() and (qver is None or file_version(cand) == qver):
             return cand
-    # 2) замороженная questions.v{N}.json (точная версия сессии)
+    # 2) замороженная questions.v{N}.json (точная версия сессии); для
+    #    en/zh — сначала языковая заморозка questions.v{N}-{lang}.json
     if qver:
-        cand = questions_path.parent / f"questions.v{qver}.json"
-        if cand.exists() and file_version(cand) == qver:
-            return cand
+        lang = session.get("lang", "ru")
+        stems = ([f"questions.v{qver}-{lang}", f"questions.v{qver}"]
+                 if lang != "ru" else [f"questions.v{qver}"])
+        for stem in stems:
+            cand = questions_path.parent / f"{stem}.json"
+            if cand.exists() and file_version(cand) == qver:
+                return cand
     # 3) файл из сессии без сверки версии, 4) текущий вопросник
     if qfile:
         cand = questions_path.parent / qfile

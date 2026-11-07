@@ -1,7 +1,7 @@
 {
-  "version": 7,
+  "version": 8,
   "lang": "en",
-  "as_of": "2026-11-06 (версионные клетки; источник — wiki.php.net/rfc, php.net; ревизия mimo v2.6-pro 2026-11-07; версионные мифы → recall-версия по решению kimi 3.1-pro)",
+  "as_of": "2026-11-07 (v8: +3 темы стека — Symfony, Doctrine, PostgreSQL (24 клетки, до 136); переводы EN/ZH выправлены по двойному аудиту mimo v2.6-pro и kimi 3.1-pro; версионные клетки: wiki.php.net/rfc, php.net)",
   "questions": [
     {
       "id": "T01-L1",
@@ -1131,6 +1131,298 @@
       "zone": "base"
     },
     {
+      "id": "T13-L1",
+      "topic": "Symfony",
+      "level": 1,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Контейнер инстанцирует сервис при первом извлечении; eager-создания по умолчанию нет.",
+      "type": "yesno",
+      "answer": true,
+      "text": "Services in the Symfony DI container are created lazily by default — on first use."
+    },
+    {
+      "id": "T13-L2",
+      "topic": "Symfony",
+      "level": 2,
+      "kind": "fact",
+      "zone": "base",
+      "note": "bin/console debug:router (FrameworkBundle); в Symfony 3 команда называлась router:debug.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "debug:router"
+        ]
+      },
+      "prompt": "Which Symfony console command lists all registered routes?"
+    },
+    {
+      "id": "T13-L3",
+      "topic": "Symfony",
+      "level": 3,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Autowire+autoconfigure регистрируют и связывают сервисы автоматически; ручное перечисление — исключение.",
+      "type": "yesno",
+      "answer": false,
+      "text": "Symfony autowiring requires manually declaring every service in services.yaml."
+    },
+    {
+      "id": "T13-L4",
+      "topic": "Symfony",
+      "level": 4,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Twig компилирует шаблон один раз; кэш в var/cache/twig, в prod не пересобирается.",
+      "type": "yesno",
+      "answer": true,
+      "text": "Twig templates are compiled into PHP classes and cached between requests."
+    },
+    {
+      "id": "T13-L5",
+      "topic": "Symfony",
+      "level": 5,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Контейнер пересобирается только когда изменился отслеживаемый ресурс (проверка freshness), не при каждом запросе.",
+      "type": "yesno",
+      "answer": false,
+      "text": "The Symfony DI container is rebuilt on every HTTP request in the dev environment."
+    },
+    {
+      "id": "T13-L6",
+      "topic": "Symfony",
+      "level": 6,
+      "kind": "fact",
+      "zone": "base",
+      "note": "APP_ENV в .env; APP_DEBUG — отдельный флаг отладки.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "APP_ENV"
+        ]
+      },
+      "prompt": "Which environment variable selects the active Symfony environment (dev/prod)?"
+    },
+    {
+      "id": "T13-L7",
+      "topic": "Symfony",
+      "level": 7,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Действие контроллера должно быть public; приватный метод по маршруту не вызывается.",
+      "type": "yesno",
+      "answer": false,
+      "text": "A controller method can be private — Symfony routing works with any method of the class."
+    },
+    {
+      "id": "T13-L8",
+      "topic": "Symfony",
+      "level": 8,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Порядок определяет priority, а не тип подписки; приоритеты задаются в getSubscribedEvents() так же, как у слушателей.",
+      "type": "yesno",
+      "answer": false,
+      "text": "Event subscribers always receive events before listeners, because the interface gives them priority."
+    },
+    {
+      "id": "T14-L1",
+      "topic": "Doctrine",
+      "level": 1,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Схему создают инструменты (migrations, schema tool); рантайм структуру БД не меняет.",
+      "type": "yesno",
+      "answer": false,
+      "text": "Doctrine ORM creates database tables on the fly the first time an entity is used at runtime."
+    },
+    {
+      "id": "T14-L2",
+      "topic": "Doctrine",
+      "level": 2,
+      "kind": "fact",
+      "zone": "base",
+      "note": "persist() регистрирует объект в Unit of Work; INSERT выполняется на flush().",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "persist"
+        ]
+      },
+      "prompt": "Which EntityManager method marks a new object as managed without executing SQL until flush()?"
+    },
+    {
+      "id": "T14-L3",
+      "topic": "Doctrine",
+      "level": 3,
+      "kind": "myth",
+      "zone": "base",
+      "note": "merge() возвращает НОВУЮ управляемую копию; исходный объект остаётся отсоединённым (docs Doctrine).",
+      "type": "yesno",
+      "answer": false,
+      "text": "EntityManager::merge() makes the passed object managed."
+    },
+    {
+      "id": "T14-L4",
+      "topic": "Doctrine",
+      "level": 4,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Doctrine транслирует DQL в SQL; docs — DQL (Doctrine Query Language).",
+      "type": "yesno",
+      "answer": true,
+      "text": "DQL queries are written in terms of entities and their fields, not tables and columns."
+    },
+    {
+      "id": "T14-L5",
+      "topic": "Doctrine",
+      "level": 5,
+      "kind": "fact",
+      "zone": "base",
+      "note": "find() возвращает null, если объект не найден (docs Repository methods).",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "null"
+        ]
+      },
+      "prompt": "What does $repository->find(999) return when no record with id 999 exists?"
+    },
+    {
+      "id": "T14-L6",
+      "topic": "Doctrine",
+      "level": 6,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Авто-flush нет — flush() зовёт разработчик; незакрытая транзакция в конце запроса откатывается.",
+      "type": "yesno",
+      "answer": false,
+      "text": "DoctrineBundle in Symfony automatically calls flush() at the end of every request."
+    },
+    {
+      "id": "T14-L7",
+      "topic": "Doctrine",
+      "level": 7,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Dirty checking сравнивает снимки свойств; persist нужен только новым/отсоединённым объектам.",
+      "type": "yesno",
+      "answer": true,
+      "text": "For a managed entity, changing a property is enough: flush() commits the change without an explicit persist() — the Unit of Work tracks changes."
+    },
+    {
+      "id": "T14-L8",
+      "topic": "Doctrine",
+      "level": 8,
+      "kind": "myth",
+      "zone": "base",
+      "note": "remove() планирует удаление в Unit of Work; DELETE выполняется на flush() (docs — Deleting Objects).",
+      "type": "yesno",
+      "answer": false,
+      "text": "remove() executes the SQL DELETE immediately, without waiting for flush()."
+    },
+    {
+      "id": "T15-L1",
+      "topic": "PostgreSQL",
+      "level": 1,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Снимки и xmax; docs PostgreSQL — Concurrency Control (MVCC).",
+      "type": "yesno",
+      "answer": true,
+      "text": "PostgreSQL uses MVCC: readers do not block writers, and writers do not block readers."
+    },
+    {
+      "id": "T15-L2",
+      "topic": "PostgreSQL",
+      "level": 2,
+      "kind": "fact",
+      "zone": "base",
+      "note": "EXPLAIN без ANALYZE только строит план; проверено на PostgreSQL 17.7.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "explain"
+        ]
+      },
+      "prompt": "Which SQL command shows a query's execution plan without executing the query?"
+    },
+    {
+      "id": "T15-L3",
+      "topic": "PostgreSQL",
+      "level": 3,
+      "kind": "myth",
+      "zone": "base",
+      "note": "SERIAL — нестандартный макрос (sequence + DEFAULT), IDENTITY — SQL-стандарт; различаются владением и правами. Оба есть в PG 17 (проверено).",
+      "type": "yesno",
+      "answer": false,
+      "text": "SERIAL and GENERATED ... AS IDENTITY are just two names for the same mechanism."
+    },
+    {
+      "id": "T15-L4",
+      "topic": "PostgreSQL",
+      "level": 4,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Поведение NULLS DISTINCT по умолчанию; NULLS NOT DISTINCT — опция с PG 15. Проверено на PG 17.7.",
+      "type": "yesno",
+      "answer": true,
+      "text": "By default, UNIQUE treats NULLs as distinct: a unique column can hold several rows with NULL."
+    },
+    {
+      "id": "T15-L5",
+      "topic": "PostgreSQL",
+      "level": 5,
+      "kind": "fact",
+      "zone": "base",
+      "note": "string_agg(значение, разделитель); проверено на PostgreSQL 17.7.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "string_agg"
+        ]
+      },
+      "prompt": "Which PostgreSQL aggregate function concatenates strings with a separator?"
+    },
+    {
+      "id": "T15-L6",
+      "topic": "PostgreSQL",
+      "level": 6,
+      "kind": "myth",
+      "zone": "base",
+      "note": "VACUUM помечает место для переиспользования внутри таблицы; ОС его возвращает только VACUUM FULL (с эксклюзивной блокировкой).",
+      "type": "yesno",
+      "answer": false,
+      "text": "Plain VACUUM returns the space occupied by dead tuples to the operating system."
+    },
+    {
+      "id": "T15-L7",
+      "topic": "PostgreSQL",
+      "level": 7,
+      "kind": "fact",
+      "zone": "base",
+      "note": "OVER (PARTITION BY ...); проверено на PostgreSQL 17.7.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "partition by"
+        ]
+      },
+      "prompt": "Which keyword in a window function definition partitions rows into groups the function is computed over?"
+    },
+    {
+      "id": "T15-L8",
+      "topic": "PostgreSQL",
+      "level": 8,
+      "kind": "myth",
+      "zone": "base",
+      "note": "READ COMMITTED допускает неповторяющееся чтение; защищает REPEATABLE READ. Проверено: SHOW transaction_isolation → read committed.",
+      "type": "yesno",
+      "answer": false,
+      "text": "The READ COMMITTED isolation level protects against non-repeatable reads."
+    },
+    {
       "id": "VC-L1",
       "topic": "PHP 8.4–8.5",
       "level": 1,
@@ -1176,7 +1468,7 @@
       "note": "#[\\NoDiscard] — PHP 8.5 (marking return values as important).",
       "type": "answer",
       "answer": false,
-      "prompt": "In which PHP version was the #[\\NoDiscard] attribute (marking results that must not be ignored) introduced? Answer with the version number.",
+      "prompt": "In which PHP version was the #[\\NoDiscard] attribute introduced? Answer with the version number.",
       "grader": {
         "regex": "^(php )?8\\.5(\\.0)?$",
         "accept": [
