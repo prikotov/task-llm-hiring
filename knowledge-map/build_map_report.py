@@ -62,14 +62,14 @@ def is_correct(turn: dict) -> bool:
     return a is not None and a == turn.get("correct_answer")
 
 
-def given_text(turn: dict) -> str:
+def given_text(turn: dict, lang: str = "ru") -> str:
     """Ответ модели в читаемом виде: да/нет для verify-клеток,
     значение для recall-клеток."""
     a = turn.get("answer")
     if a is None:
         return "— (нет ответа)"
     if isinstance(a, bool):
-        return "да" if a else "нет"
+        return yes_no(a, lang)
     return norm_display(str(a))
 
 
@@ -79,6 +79,13 @@ def norm_display(s: str | None) -> str:
         return "—"
     s = re.sub(r"\s+", " ", s.strip().lower())
     return s.strip("«»\"' .") or (s or "—")
+
+
+def yes_no(v: bool, lang: str) -> str:
+    """Да/нет в языке вопросника: EN-серии показывают yes/no."""
+    if lang == "en":
+        return "yes" if v else "no"
+    return "да" if v else "нет"
 
 
 _EXPECTED_CACHE: dict = {}
@@ -99,11 +106,11 @@ def expected_of(q: dict) -> str:
     return _EXPECTED_CACHE[key]
 
 
-def correct_text(q: dict, turn: dict | None) -> str:
+def correct_text(q: dict, turn: dict | None, lang: str = "ru") -> str:
     """Эталон клетки: для recall — значение из грейдера, для да/нет — да/нет."""
     if q.get("type") == "answer":
         return norm_display(expected_of(q))
-    return "да" if q["answer"] else "нет"
+    return yes_no(q["answer"], lang)
 
 
 def cell_class(turn: dict | None) -> str:
@@ -130,11 +137,12 @@ def heat_color(p: float) -> str:
     return "#" + "".join(f"{v:02x}" for v in rgb)
 
 
-def tooltip(turn: dict | None, q: dict, runs: list[tuple] | None = None) -> str:
+def tooltip(turn: dict | None, q: dict, runs: list[tuple] | None = None,
+            lang: str = "ru") -> str:
     """Всплывающая подсказка клетки: утверждение, ответы, обоснование."""
     parts = [f"<b>{esc(q['id'])} · {esc(q['topic'])}</b>",
              esc(cell_text(q))]
-    right = correct_text(q, turn)
+    right = correct_text(q, turn, lang)
     if runs is not None:  # тепловая карта: вопрос, эталон, прогоны
         parts.append(f"Верный ответ: <b>{esc(right)}</b>")
         lines = []
@@ -145,7 +153,7 @@ def tooltip(turn: dict | None, q: dict, runs: list[tuple] | None = None) -> str:
             lines.append(f'<span class="nb">{name}:\u00a0{mark}</span>')
         parts.append(" · ".join(lines))
     elif turn is not None:
-        given = given_text(turn)
+        given = given_text(turn, lang)
         if turn.get("p") is not None:
             given += f" (p={turn['p']})"
         parts.append(f"Модель: «{esc(given)}»")
@@ -354,7 +362,7 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
 
 
 def map_grid_single(by_id: dict, questions: list,
-                    anchor_prefix: str = "") -> str:
+                    anchor_prefix: str = "", lang: str = "ru") -> str:
     zone_names = {"base": "Зона 1 · База PHP (вневременное ядро 8.x)",
                   "current": "Зона 2 · PHP 8.4–8.5 (текущая эра)",
                   "future": "Зона 3 · Будущее: 8.6+, trunk, RFC (cutoff-зонд)"}
@@ -389,7 +397,7 @@ def map_grid_single(by_id: dict, questions: list,
                         key=lambda q: q["level"])
             for q in tq:
                 t = by_id.get(q["id"])
-                tip = tooltip(t, q)
+                tip = tooltip(t, q, lang=lang)
                 cells.append(f'<div class="cell {cell_class(t)}">'
                              f'<div class="num">L{q["level"]}</div>'
                              f'<div class="tip">{tip}</div></div>')
@@ -423,7 +431,7 @@ def map_grid_single(by_id: dict, questions: list,
                 cells.append('<div class="ph"></div>')
                 continue
             t = by_id.get(q["id"])
-            tip = tooltip(t, q)
+            tip = tooltip(t, q, lang=lang)
             cells.append(f'<a class="cell {cell_class(t)}" '
                          f'href="#{anchor_prefix}row-{esc(q["id"])}">'
                          f'<div class="tip">{tip}</div></a>')
@@ -440,7 +448,8 @@ def map_grid_compare(questions: list, runs: list[tuple[str, dict]],
                      flip_by_id: dict[str, bool],
                      compact: bool = False,
                      show_labels: bool = True,
-                     run_hrefs: dict[str, str] | None = None) -> str:
+                     run_hrefs: dict[str, str] | None = None,
+                     lang: str = "ru") -> str:
     """Тепловая карта: клетка = доля верных по прогонам; флип — пунктир."""
     topics = []
     for q in questions:
@@ -476,7 +485,7 @@ def map_grid_compare(questions: list, runs: list[tuple[str, dict]],
             p = sum(1 for _, by_id in runs
                     if q["id"] in by_id and is_correct(by_id[q["id"]])) / len(runs)
             cls = "flip" if flip_by_id.get(q["id"]) else ""
-            tip = tooltip(None, q, runs=answers)
+            tip = tooltip(None, q, runs=answers, lang=lang)
             cells.append(
                 f'<div class="cell {cls}" style="background:{heat_color(p)}">'
                 f'<a class="fill" href="#row-{esc(q["id"])}" '
@@ -531,7 +540,8 @@ def level_rows(by_id: dict, questions: list) -> str:
 
 
 def appendix_table_single(by_id: dict, questions: list,
-                          anchor_prefix: str = "") -> str:
+                          anchor_prefix: str = "",
+                          lang: str = "ru") -> str:
     rows = []
     for q in questions:
         t = by_id.get(q["id"])
@@ -540,7 +550,7 @@ def appendix_table_single(by_id: dict, questions: list,
             cls = "na-t"
             raw = ""
         else:
-            given = given_text(t)
+            given = given_text(t, lang)
             if is_correct(t):
                 verdict, cls = "верно", "ok-t"
             elif t.get("answer") is None:
@@ -554,7 +564,7 @@ def appendix_table_single(by_id: dict, questions: list,
             parsed_html = (f'<br><small>парсинг: {esc(parsed)}</small>'
                            if parsed_raw != "json" else "")
             raw = (t.get("answer_raw") or "").strip().replace("\n", " ⏎ ")
-        right = correct_text(q, t)
+        right = correct_text(q, t, lang)
         dur = f'{t.get("duration_s", 0)} c' if t else "—"
         expl = ((t or {}).get("explanation") or "").strip()
         expl_html = (f'<br><small>Пояснение: {esc(expl)}</small>' if expl else "")
@@ -651,6 +661,7 @@ def _render_single_body(session, by_id, questions, q_version,
     if ver and q_version and ver != q_version:
         print(f"⚠️ вопросник прогона: v{ver}, в репозитории: v{q_version} — "
               f"карта построена по текущему вопроснику", file=sys.stderr)
+    lang = session.get("lang", "ru")
 
     n = len(questions)
     correct = sum(1 for q in questions
@@ -716,12 +727,12 @@ def _render_single_body(session, by_id, questions, q_version,
   {na_legend if not n_recall else ''}
 </div>
 <div class="legend"><span class="hint">наведите — вопрос и ответ модели · клик — строка с деталями в «Все утверждения»</span></div>
-{map_grid_single(by_id, questions, anchor_prefix)}
+{map_grid_single(by_id, questions, anchor_prefix, lang=lang)}
 <h2>Все утверждения</h2>
 <table class="data">
 <tr><th>Клетка</th><th>Тема</th><th>Утверждение</th><th>Ответ</th>
     <th>Результат</th><th>Обоснование</th></tr>
-{appendix_table_single(by_id, questions, anchor_prefix)}
+{appendix_table_single(by_id, questions, anchor_prefix, lang=lang)}
 </table>"""
     footer = (f"построено knowledge-map/build_map_report.py · "
               f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} · "
@@ -832,6 +843,7 @@ def build_compare(model_dir: Path, questions_path: Path,
         raise SystemExit(
             "в папке прогоны разных языков: "
             f"{sorted(langs)}. Смешивать нельзя — укажите --lang <ru|en>")
+    lang = sessions[0][1].get("lang", "ru")
     q_version, questions = load_questions(
         questions_for_run(questions_path, sessions[0][1]))
 
@@ -921,7 +933,7 @@ def build_compare(model_dir: Path, questions_path: Path,
   <span><span class="sw" style="background:#fff;outline:2px dashed #8a2d2d"></span>
         флип (ответы прогонов расходятся)</span>
 </div>
-{map_grid_compare(questions, runs, flip_by_id, run_hrefs=report_href)}
+{map_grid_compare(questions, runs, flip_by_id, run_hrefs=report_href, lang=lang)}
 <h2>Прогоны: точность и стоимость</h2>
 <table class="data"><tr><th>Прогон</th><th>think</th><th>Верно</th><th>%</th>
 <th>Время</th><th>Токены (вх / вых / кэш)</th></tr>
@@ -933,9 +945,9 @@ def build_compare(model_dir: Path, questions_path: Path,
            for a in accs)}
 </table>
 <h2>Флипующие клетки</h2>
-{flips_table(questions, runs, flip_by_id, report_href)}
+{flips_table(questions, runs, flip_by_id, report_href, lang)}
 <h2>Все клетки</h2>
-{compare_appendix_table(questions, runs, report_href)}"""
+{compare_appendix_table(questions, runs, report_href, lang)}"""
     footer = (f"построено knowledge-map/build_map_report.py · "
               f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} · "
               f"данные: run-*/session.json")
@@ -970,7 +982,8 @@ def run_link(name: str, href: str) -> str:
 
 def compare_appendix_table(questions: list,
                            runs_list: list[tuple[str, dict]],
-                           report_href: dict[str, str] | None = None) -> str:
+                           report_href: dict[str, str] | None = None,
+                           lang: str = "ru") -> str:
     """Таблица всех клеток compare-отчёта с якорями строк: ответы каждого
     прогона пометками ✓/✗/—, эталон справа. Имя прогона ведёт к строке
     этого вопроса в отчёте прогона."""
@@ -984,7 +997,7 @@ def compare_appendix_table(questions: list,
             base = (report_href or {}).get(name) or ""
             href = f'{base}#row-{esc(q["id"])}' if base else ""
             marks.append(f"{run_link(name, href)}: {mark}")
-        right = correct_text(q, None)
+        right = correct_text(q, None, lang)
         rows.append(
             f'<tr id="row-{esc(q["id"])}">'
             f'<td><code class="id">{esc(q["id"])}</code><br>'
@@ -999,7 +1012,8 @@ def compare_appendix_table(questions: list,
 
 def flips_table(questions: list, runs: list[tuple[str, dict]],
                 flip_by_id: dict[str, bool],
-                report_href: dict[str, str] | None = None) -> str:
+                report_href: dict[str, str] | None = None,
+                lang: str = "ru") -> str:
     """Таблица нестабильных клеток: утверждение и ответы каждого прогона."""
     flipped = [q for q in questions if flip_by_id.get(q["id"])]
     if not flipped:
@@ -1011,7 +1025,7 @@ def flips_table(questions: list, runs: list[tuple[str, dict]],
         cells = []
         for name, by_id in runs:
             a = by_id.get(q["id"], {}).get("answer")
-            cells.append("—" if a is None else ("да" if a else "нет"))
+            cells.append("—" if a is None else yes_no(a, lang))
         rows.append(
             f'<tr><td><code class="id">{esc(q["id"])}</code></td>'
             f'<td class="assert">{esc(cell_text(q))}</td>'
@@ -1169,7 +1183,7 @@ def build_series_report(models_root: Path, questions_path: Path,
                                  is_correct(by_id.get(q["id"], {})), href))
                         p_share = (sum(1 for _n, _a, ok, _h in answers if ok)
                                    / max(1, len(runs_list)))
-                        tip = tooltip(None, q, runs=answers)
+                        tip = tooltip(None, q, runs=answers, lang=lang)
                         flip_cls = " flip" if flip_by_id.get(q["id"]) else ""
                         fill = (f'<a class="fill" href="{cmp_href}'
                                 f'#row-{esc(q["id"])}" '
