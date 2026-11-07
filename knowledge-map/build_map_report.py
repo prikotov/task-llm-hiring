@@ -228,13 +228,20 @@ def page_css() -> str:
     .map.compact .agg { font-size: 10.5px; }
     .map.compact .zonehdr { font-size: 11px; padding: 3px 8px; margin-top: 4px; }
     .map.compact .cell .num { font-size: 9.5px; }
-    .seriesrow { display: flex; flex-wrap: wrap; gap: 14px;
-                 align-items: flex-start; margin: 8px 0 30px; }
-    .series { min-width: 300px; }
-    .serhead { font-weight: 600; margin-bottom: 2px; }
-    .sermeta { color: var(--mut); font-size: 11.5px; margin-bottom: 8px;
-               max-width: 300px; }
-    .serlink { margin-top: 8px; font-size: 13px; }
+    .unimap-wrap { overflow-x: auto; background: #fff;
+                   border: 1px solid var(--line); border-radius: 12px;
+                   padding: 12px; margin: 8px 0 30px; }
+    .unimap { display: grid; gap: 2px; width: max-content; }
+    .uhead { align-self: end; font-weight: 600; font-size: 12px;
+             padding: 4px 6px 6px; }
+    .umeta { display: block; font-weight: 400; color: var(--mut);
+             font-size: 11px; }
+    .unimap .rh { font-size: 11px; white-space: nowrap; align-self: center; }
+    .unimap .cell { height: 20px; border-radius: 3px; position: relative; }
+    .unimap .agg { font-size: 10.5px; align-self: center;
+                   white-space: nowrap; }
+    .unimap .gsp { width: 14px; }
+    .unimap .ph { width: 20px; }
     .zonehdr { grid-column: 1 / -1; font-weight: 600; font-size: 13px;
                color: var(--fg); background: #eef1f4; border-radius: 6px;
                padding: 5px 10px; margin-top: 6px; }
@@ -945,11 +952,11 @@ def protocol_tag(session: dict) -> str:
 
 def build_series_report(models_root: Path, questions_path: Path,
                         out_file: Path) -> None:
-    """Сводный отчёт по всем моделям: строка = модель × версия вопросника ×
-    язык; в строке — карты уровней рассуждений (клетка = доля верных,
-    пунктир = флип). Серии разных версий не смешиваются, но и не
-    скрываются: каждая версия вопросника содержит все вопросы и показывается
-    своей строкой."""
+    """Сводный отчёт по всем моделям: единая карта серий — строки тем,
+    колонки сгруппированы по (язык × уровень рассуждений); группы разделены
+    границами. Клетка = доля верных ответов по серии, пунктир = флип.
+    Вся карта всегда одной строкой (горизонтальная прокрутка при узком
+    экране), метки тем — общий блок слева."""
     think_order = {"off": 0, "low": 1, "medium": 2, "high": 3, "xhigh": 4}
     sections = []
     model_dirs = sorted(d for d in models_root.iterdir()
@@ -971,10 +978,9 @@ def build_series_report(models_root: Path, questions_path: Path,
         if not runs:
             continue
         model = esc(runs[0][1].get("model", md.name))
-        # ряды: (версия вопросника, язык); в ряду — карты уровней.
-        # Показываем только последнюю версию вопросника модели — старые
-        # версии (легаси) не выводятся
         latest_qver = max((s.get("questionnaire") or 0 for _, s, _ in runs))
+        # ряды: (версия вопросника, язык) → уровень → прогоны;
+        # показываем только последнюю версию вопросника модели
         rows_map = defaultdict(lambda: defaultdict(list))
         for rd, session, by_id in runs:
             qver = session.get("questionnaire") or 0
@@ -985,15 +991,26 @@ def build_series_report(models_root: Path, questions_path: Path,
 
         for (qver, lang), think_map in sorted(
                 rows_map.items(),
-                key=lambda kv: (-kv[0][0], kv[0][1] != "ru", kv[0][1])):
-            blocks = []
+                key=lambda kv: (kv[0][1] != "ru", kv[0][1])):
+            # одинаковый вопросник для всех уровней ряда
+            any_session = next(iter(think_map.values()))[0][1]
+            qpath = questions_for_run(questions_path, any_session)
+            q_version, questions = load_questions(qpath)
+            topics = []
+            for q in questions:
+                if q["topic"] not in topics:
+                    topics.append(q["topic"])
+            max_level = max(q["level"] for q in questions)
+            by_topic_level = defaultdict(dict)
+            for q in questions:
+                by_topic_level[q["topic"]][q["level"]] = q
+
+            groups = []
             for think in sorted(think_map,
                                 key=lambda t: (think_order.get(t, 99), t)):
                 items = think_map[think]
                 if len(items) < 2:
                     continue
-                qpath = questions_for_run(questions_path, items[0][1])
-                q_version, questions = load_questions(qpath)
                 runs_list = [(rd.name, by_id) for rd, _s, by_id in items]
                 flip_by_id = {}
                 for q in questions:
@@ -1001,8 +1018,6 @@ def build_series_report(models_root: Path, questions_path: Path,
                                for _n, by_id in runs_list}
                     answers.discard(None)
                     flip_by_id[q["id"]] = len(answers) > 1
-                grid = map_grid_compare(questions, runs_list, flip_by_id,
-                                        compact=True)
                 scores = [sum(1 for t in b.values() if is_correct(t))
                           for _rd, _s, b in items]
                 scores_s = (f"{pct(min(scores), len(questions))}% – "
@@ -1013,32 +1028,75 @@ def build_series_report(models_root: Path, questions_path: Path,
                            and is_correct(by_id[q["id"]])
                            for _rd, _s, by_id in items))
                 flips = sum(1 for q in questions if flip_by_id[q["id"]])
+                groups.append((think, runs_list, flip_by_id, len(items),
+                               scores_s, stable_ok, flips))
+            if not groups:
+                continue
+
+            # единая сетка: метки тем + группы (8 клеток + итог + граница)
+            cell_px, agg_px, label_px, sp_px = 20, 48, 200, 16
+            cols = [f"{label_px}px"] + [
+                f"repeat(8, {cell_px}px) {agg_px}px {sp_px}px"] * len(groups)
+            cells = ['<div class="uhead"></div>']
+            for think, runs_list, flip_by_id, cnt, ss, sok, fl in groups:
                 cmp_name = f"compare-{think}-{lang}-v{qver}.html"
                 cmp_link = ""
                 if (models_root / md.name / "knowledge-map" / cmp_name).exists():
-                    cmp_link = (f'<div class="serlink"><a '
-                                f'href="../models/{esc(md.name)}/knowledge-map/{cmp_name}">'
-                                f'Полный отчёт серии ({esc(cmp_name)})</a></div>')
-                blocks.append(
-                    f'<div class="series">'
-                    f'<div class="serhead">think: {esc(think)}</div>'
-                    f'<div class="sermeta">{len(items)} прогонов · {scores_s}'
-                    f' · стаб. верных {stable_ok} · флипов {flips}</div>'
-                    f'{grid}{cmp_link}</div>')
-                n_maps += 1
-            if blocks:
-                sections.append(
-                    f'<h2>{model} · вопросник v{qver} · язык: {esc(lang)}</h2>\n'
-                    f'<div class="seriesrow">{"".join(blocks)}</div>')
+                    cmp_link = (f' · <a href="../models/{esc(md.name)}/'
+                                f'knowledge-map/{cmp_name}">полный отчёт серии</a>')
+                cells.append(
+                    f'<div class="uhead" style="grid-column: span 9">'
+                    f'think: {esc(think)}<span class="umeta">{cnt} прогонов · '
+                    f'{ss} · стаб. верных {sok} · флипов {fl}{cmp_link}'
+                    f'</span></div>')
+                cells.append('<div class="uhead"></div>')
+            for topic in topics:
+                cells.append(f'<div class="rh">{esc(topic)}</div>')
+                tq = sorted((q for q in questions if q["topic"] == topic),
+                            key=lambda q: q["level"])
+                for _think, runs_list, flip_by_id, cnt, _ss, _sok, _fl in groups:
+                    for lvl in range(1, max_level + 1):
+                        q = by_topic_level[topic].get(lvl)
+                        if q is None:
+                            cells.append('<div class="ph"></div>')
+                            continue
+                        answers = [(name, by_id.get(q["id"], {}).get("answer"),
+                                    is_correct(by_id.get(q["id"], {})))
+                                   for name, by_id in runs_list]
+                        p_share = (sum(1 for _n, _a, ok in answers if ok)
+                                   / max(1, len(runs_list)))
+                        tip = tooltip(None, q, runs=answers)
+                        flip_cls = " flip" if flip_by_id.get(q["id"]) else ""
+                        cells.append(
+                            f'<div class="cell{flip_cls}" '
+                            f'style="background:{heat_color(p_share)}">'
+                            f'<div class="num">{round(p_share * 100)}</div>'
+                            f'<div class="tip">{tip}</div></div>')
+                    correct = sum(1 for q in tq for _n, by_id in runs_list
+                                  if q["id"] in by_id
+                                  and is_correct(by_id[q["id"]]))
+                    cells.append(f'<div class="agg">'
+                                 f'{pct(correct, len(tq) * len(runs_list))}%</div>')
+                    cells.append('<div class="gsp"></div>')
+
+            levels_s = ", ".join(t for t, *_ in groups)
+            sections.append(
+                f'<h2>{model} · вопросник v{q_version} · язык: {esc(lang)} · '
+                f'уровни мышления: {esc(levels_s)}</h2>\n'
+                f'<div class="unimap-wrap"><div class="unimap" '
+                f'style="grid-template-columns: {" ".join(cols)};">'
+                f'{"".join(cells)}</div></div>')
+            n_maps += len(groups)
 
     if not sections:
         raise SystemExit("нет серий: ни у одной модели нет ≥2 прогонов "
                          "на одной версии вопросника")
-    title = "Карты знаний PHP — карты серий прогонов"
-    proto = ("строка = модель × версия вопросника × язык (каждая версия "
-             "вопросника содержит все вопросы); в строке — карты уровней "
-             "рассуждений; клетка = доля верных ответов по серии (число — %), "
-             "пунктир — флип (ответы прогонов расходятся)")
+    title = "Карты знаний PHP — единая карта серий прогонов"
+    proto = ("строка = модель × версия вопросника × язык; единая карта: строки "
+             "тем, группы колонок — уровни мышления (границы между ними); "
+             "клетка = доля верных ответов по серии (число — %), пунктир — "
+             "флип; метки тем — общий блок слева; карта всегда одной строкой "
+             "(горизонтальная прокрутка при узком экране)")
     extra = "main { max-width: 100%; padding: 28px 22px 60px; }"
     html = page(title, proto, "", "\n".join(sections),
                 "построено knowledge-map/build_map_report.py · "
