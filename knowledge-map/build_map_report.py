@@ -228,7 +228,7 @@ def page_css() -> str:
     .map.compact .agg { font-size: 10.5px; }
     .map.compact .zonehdr { font-size: 11px; padding: 3px 8px; margin-top: 4px; }
     .map.compact .cell .num { font-size: 9.5px; }
-    .unimap-wrap { overflow-x: auto; background: #fff;
+    .unimap-wrap { overflow: visible; background: #fff;
                    border: 1px solid var(--line); border-radius: 12px;
                    padding: 12px; margin: 8px 0 30px; }
     .unimap { display: grid; gap: 2px; width: max-content; }
