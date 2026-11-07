@@ -1051,8 +1051,7 @@ def build_series_report(models_root: Path, questions_path: Path,
                 cells.append(
                     f'<div class="uhead" style="grid-column: span 9">'
                     f'think: {esc(think)}<span class="umeta">{base_avg}% '
-                    f'без версионных · {total_avg}% с ними · '
-                    f'нестабильных клеток: {fl}</span></div>')
+                    f'(с верс.: {total_avg}%) · нестаб. {fl}</span></div>')
                 cells.append('<div class="uhead"></div>')
             for topic in topics:
                 cells.append(f'<div class="rh">{esc(topic)}</div>')
@@ -1085,20 +1084,22 @@ def build_series_report(models_root: Path, questions_path: Path,
                     cells.append('<div class="gsp"></div>')
 
             levels_s = ", ".join(t for t, *_ in groups)
-            links = " · ".join(
-                f'<a href="../models/{esc(md.name)}/knowledge-map/'
-                f'compare-{esc(t)}-{esc(lang)}-v{qver}.html">think: {esc(t)}</a>'
-                for t, _rl, _f, _ba, _ta, _sok, _fl in groups
-                if (models_root / md.name / "knowledge-map" /
-                    f"compare-{t}-{lang}-v{qver}.html").exists())
-            links_html = (f'<div class="serlink">Полный отчёт серии: {links}</div>'
-                          if links else "")
+            # ссылка на полный отчёт — в сетке, под картой каждого уровня
+            for t, _rl, _f, _ba, _ta, _sok, _fl in groups:
+                cmp_name = f"compare-{t}-{lang}-v{qver}.html"
+                if not (models_root / md.name / "knowledge-map" / cmp_name).exists():
+                    continue
+                cells.append(
+                    f'<div class="ulink" style="grid-column: span 9">'
+                    f'<a href="../models/{esc(md.name)}/knowledge-map/{cmp_name}">'
+                    f'Полный отчёт серии</a></div>')
+                cells.append('<div class="gsp"></div>')
             sections.append(
                 f'<h2>{model} · вопросник v{q_version} · язык: {esc(lang)} · '
                 f'уровни мышления: {esc(levels_s)}</h2>\n'
                 f'<div class="unimap-wrap"><div class="unimap" '
                 f'style="grid-template-columns: {" ".join(cols)};">'
-                f'{"".join(cells)}</div></div>{links_html}')
+                f'{"".join(cells)}</div></div>')
             n_maps += len(groups)
 
     if not sections:
