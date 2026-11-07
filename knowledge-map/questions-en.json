@@ -1,7 +1,7 @@
 {
   "version": 8,
   "lang": "en",
-  "as_of": "2026-11-07 (v8: +14 тем стека и практик под проект TasK — Symfony×4, Doctrine, PostgreSQL×2, PHPUnit, HTTP/REST, безопасность/OAuth, Twig, Bootstrap 5.3, чистая архитектура, луковичная архитектура, DDD; 224 клетки; факты проверены живьём: PG 17.7, Twig 3.30, PHPUnit 10.5, Bootstrap 5.3.3; клетки отсортированы кластерами; переводы EN/ZH выправлены по двойному аудиту)",
+  "as_of": "2026-11-07 (v8: +14 тем стека и практик под проект TasK — Symfony×4, Doctrine, PostgreSQL×2, PHPUnit, HTTP/REST, безопасность/OAuth, Twig, Bootstrap 5.3, чистая архитектура, луковичная архитектура, DDD; 224 клетки; факты проверены живьём: PG 17.7, Twig 3.30, PHPUnit 10.5, Bootstrap 5.3.3; клетки отсортированы кластерами; 26 клеток переформулированы против наивного «да» (13 мифов + 13 фактов-контрастов, баланс столбцов сохранён); переводы EN/ZH выправлены по двойному аудиту)",
   "questions": [
     {
       "id": "T01-L1",
@@ -110,11 +110,11 @@
       "id": "T02-L2",
       "topic": "Types and comparisons",
       "level": 2,
-      "kind": "fact",
-      "note": "Нестрогое сравнение: 0 и false взаимно приводимы.",
+      "kind": "myth",
+      "note": "Наоборот: == — нестрогое сравнение и возвращает true; строгое — это === (0 === false → false).",
       "type": "yesno",
-      "text": "The comparison 0 == false returns true.",
-      "answer": true,
+      "text": "The comparison 0 == false returns false because it is a strict comparison.",
+      "answer": false,
       "zone": "base"
     },
     {
@@ -224,11 +224,11 @@
       "id": "T03-L4",
       "topic": "Strings",
       "level": 4,
-      "kind": "fact",
-      "note": "Дефолтный набор: \" \\t\\n\\r\\0\\x0B\".",
+      "kind": "myth",
+      "note": "Список символов по умолчанию: « \\t\\n\\r\\0\\x0B» — пробелы, табы, переводы строк, возврат каретки, null-байт, вертикальный таб. Проверено php -r.",
       "type": "yesno",
-      "text": "By default, trim() strips spaces, tabs, line breaks, and the null byte from both ends of a string.",
-      "answer": true,
+      "text": "By default trim() strips only spaces, leaving tabs and newlines intact.",
+      "answer": false,
       "zone": "base"
     },
     {
@@ -421,11 +421,11 @@
       "id": "T05-L5",
       "topic": "Functions and closures",
       "level": 5,
-      "kind": "fact",
-      "note": "Auto-capture по значению — главное отличие fn от замыкания.",
+      "kind": "myth",
+      "note": "fn захватывает только по значению, автоматически; по ссылке — только &$var в use у обычной функции (fn так не умеет).",
       "type": "yesno",
-      "text": "An arrow function fn automatically captures outer variables by value.",
-      "answer": true,
+      "text": "An arrow function fn captures outer variables by reference (lazily, at use time).",
+      "answer": false,
       "zone": "base"
     },
     {
@@ -705,11 +705,11 @@
       "id": "T08-L5",
       "topic": "Exceptions and errors",
       "level": 5,
-      "kind": "fact",
-      "note": "finally выполняется всегда — и при пойманном, и при пробрасываемом исключении.",
+      "kind": "myth",
+      "note": "Наоборот: finally выполняется всегда — даже когда исключение не поймано и уходит выше. Проверено php -r.",
       "type": "yesno",
-      "text": "The finally block executes even if the exception is not caught and propagates upward.",
-      "answer": true,
+      "text": "The finally block runs only if the exception was caught by a catch block.",
+      "answer": false,
       "zone": "base"
     },
     {
@@ -923,11 +923,11 @@
       "id": "T10-L7",
       "topic": "References and scope",
       "level": 7,
-      "kind": "fact",
-      "note": "Статика принадлежит классу, а не объекту.",
+      "kind": "myth",
+      "note": "Наоборот: статическое свойство общее для всех экземпляров класса. Проверено php -r.",
       "type": "yesno",
-      "text": "A static property of a class is shared across all instances of that class.",
-      "answer": true,
+      "text": "A static property belongs to each instance separately: changes in one object are not visible in others.",
+      "answer": false,
       "zone": "base"
     },
     {
@@ -1182,12 +1182,12 @@
       "id": "T25-L5",
       "topic": "Clean architecture",
       "level": 5,
-      "kind": "myth",
+      "kind": "fact",
       "zone": "base",
-      "note": "Суть правила в том, что его не нарушают; иначе архитектура деградирует в «большой ком грязи».",
+      "note": "depfile.yaml в проекте TasK: CI проверяет правила слоёв на каждом пайплайне.",
       "type": "yesno",
-      "answer": false,
-      "text": "It is acceptable to violate layer boundaries if it speeds up development noticeably — as long as you document it."
+      "answer": true,
+      "text": "Layer boundary violations can be caught automatically: a layer-dependency analyzer (e.g. deptrac) fails on a forbidden call."
     },
     {
       "id": "T25-L6",
@@ -1270,12 +1270,12 @@
       "id": "T26-L4",
       "topic": "DDD",
       "level": 4,
-      "kind": "myth",
+      "kind": "fact",
       "zone": "base",
-      "note": "Репозиторий — на агрегат (его корень), а не на каждую сущность.",
+      "note": "Репозиторий корня хранит границу согласованности агрегата; вложенные сущности доступны только через корень.",
       "type": "yesno",
-      "answer": false,
-      "text": "By DDD rules, every domain entity must have its own repository."
+      "answer": true,
+      "text": "In DDD, a repository is declared for an aggregate (its root), not for every entity."
     },
     {
       "id": "T26-L5",
@@ -1319,12 +1319,12 @@
       "id": "T26-L8",
       "topic": "DDD",
       "level": 8,
-      "kind": "myth",
+      "kind": "fact",
       "zone": "base",
-      "note": "Наоборот: контекстов несколько, у каждого своя модель; между ними — интеграция (ACL и др.).",
+      "note": "Модели контекстов независимы; между ними — явная интеграция (ACL, published language).",
       "type": "yesno",
-      "answer": false,
-      "text": "Bounded context means one single model must serve the entire company."
+      "answer": true,
+      "text": "Bounded context means each context has its own model: the same concept in different contexts is a different class."
     },
     {
       "id": "T13-L1",
@@ -1378,12 +1378,12 @@
       "id": "T13-L5",
       "topic": "Symfony",
       "level": 5,
-      "kind": "myth",
+      "kind": "fact",
       "zone": "base",
-      "note": "Контейнер пересобирается только когда изменился отслеживаемый ресурс (проверка freshness), не при каждом запросе.",
+      "note": "Kernel проверяет freshness ресурсов (конфиги, классы); иначе переиспользуется кэш контейнера.",
       "type": "yesno",
-      "answer": false,
-      "text": "The Symfony DI container is rebuilt on every HTTP request in the dev environment."
+      "answer": true,
+      "text": "In the Symfony dev environment the DI container is rebuilt only after tracked files change, not on every request."
     },
     {
       "id": "T13-L6",
@@ -1474,12 +1474,12 @@
       "id": "T22-L5",
       "topic": "Symfony: Security and forms",
       "level": 5,
-      "kind": "myth",
+      "kind": "fact",
       "zone": "base",
-      "note": "Наоборот: CSRF-атака исходит именно от авторизованного пользователя (чужой сайт шлёт запрос с его cookie); symfony/security-csrf в проекте.",
+      "note": "FormType добавляет скрытое поле _token и проверяет его при валидации; отключение — осознанное исключение (csrf: false).",
       "type": "yesno",
-      "answer": false,
-      "text": "It is safe to disable CSRF protection for a form if only authenticated users can access it."
+      "answer": true,
+      "text": "CSRF protection of Symfony forms is enabled by default: the form validates the token on submission."
     },
     {
       "id": "T22-L6",
@@ -1533,12 +1533,12 @@
       "id": "T23-L2",
       "topic": "Symfony: configuration and services",
       "level": 2,
-      "kind": "myth",
+      "kind": "fact",
       "zone": "base",
-      "note": ".env с dev-дефолтами коммитится; секреты — в .env.local (gitignored) или в хранилище secrets.*.",
+      "note": "symfony/dotenv: .env — общий безопасный набор значений; локальные секреты — .env.local (gitignored) или secrets-хранилище.",
       "type": "yesno",
-      "answer": false,
-      "text": "The .env file contains production secrets and is therefore excluded from the repository."
+      "answer": true,
+      "text": "The .env file with dev defaults is committed to the repository, while real secrets live in the non-committed .env.local."
     },
     {
       "id": "T23-L3",
@@ -1629,12 +1629,12 @@
       "id": "T16-L2",
       "topic": "Symfony: Messenger",
       "level": 2,
-      "kind": "fact",
+      "kind": "myth",
       "zone": "base",
-      "note": "sync-транспорт — обработка в момент dispatch без очереди; docs Messenger.",
+      "note": "Наоборот: sync обрабатывает немедленно в том же процессе, что и отправка; очередь — это async-транспорт.",
       "type": "yesno",
-      "answer": true,
-      "text": "The sync transport in Messenger runs the handler immediately, in the same process that dispatched the message."
+      "answer": false,
+      "text": "The sync transport in Messenger queues the message for a worker, just like async."
     },
     {
       "id": "T16-L3",
@@ -1725,23 +1725,23 @@
       "id": "T21-L2",
       "topic": "Twig",
       "level": 2,
-      "kind": "myth",
+      "kind": "fact",
       "zone": "base",
-      "note": "Автоэкранирование включено по умолчанию. Проверено на Twig 3.30: {{ '<b>' }} → &lt;b&gt;.",
+      "note": "Autoescape включён по умолчанию; {{ '<b>' }} → &lt;b&gt;. Проверено на Twig 3.30.",
       "type": "yesno",
-      "answer": false,
-      "text": "By default Twig does not escape variables — the developer must apply the |e filter."
+      "answer": true,
+      "text": "By default, Twig auto-escapes printed variables."
     },
     {
       "id": "T21-L3",
       "topic": "Twig",
       "level": 3,
-      "kind": "myth",
+      "kind": "fact",
       "zone": "base",
-      "note": "|e — экранирование для вывода (HTML/JS); от SQL-инъекций — подготовленные запросы Doctrine.",
+      "note": "|e ('html') по умолчанию; есть контексты js/url/css. От SQL-инъекций он не защищает — это задача подготовленных запросов Doctrine.",
       "type": "yesno",
-      "answer": false,
-      "text": "The Twig |e filter protects against SQL injection."
+      "answer": true,
+      "text": "The Twig |e filter escapes a string for safe output in an HTML context."
     },
     {
       "id": "T21-L4",
@@ -1774,12 +1774,12 @@
       "id": "T21-L6",
       "topic": "Twig",
       "level": 6,
-      "kind": "myth",
+      "kind": "fact",
       "zone": "base",
-      "note": "Наоборот: {{ }} — вывод, {% %} — теги (if/for/set/block).",
+      "note": "Два блока синтаксиса Twig: вывод (echo) против логики.",
       "type": "yesno",
-      "answer": false,
-      "text": "In Twig, {{ }} controls logic (conditions, loops), while {% %} prints an expression value."
+      "answer": true,
+      "text": "In Twig, {{ }} prints an expression value, while {% %} executes tags — conditions, loops, set."
     },
     {
       "id": "T21-L7",
@@ -1811,12 +1811,12 @@
       "id": "T24-L1",
       "topic": "Bootstrap",
       "level": 1,
-      "kind": "myth",
+      "kind": "fact",
       "zone": "base",
-      "note": "Bootstrap — CSS/JS-библиотека интерфейсных компонентов, не SPA-фреймворк. В проекте vendored Bootstrap 5.3.3.",
+      "note": "Компоненты и утилиты поверх вашего HTML; SPA-фреймворки (React/Vue) — другой класс инструментов. В проекте vendored 5.3.3.",
       "type": "yesno",
-      "answer": false,
-      "text": "Bootstrap is a JavaScript SPA framework with a virtual DOM."
+      "answer": true,
+      "text": "Bootstrap is a CSS/JS library of ready-made UI components, not an SPA framework."
     },
     {
       "id": "T24-L2",
@@ -1837,12 +1837,12 @@
       "id": "T24-L3",
       "topic": "Bootstrap",
       "level": 3,
-      "kind": "fact",
+      "kind": "myth",
       "zone": "base",
-      "note": "row/col-*; 12 колонок — docs Bootstrap Grid.",
+      "note": "Наоборот: flexbox (с Bootstrap 4) и 12 колонок; float-сетка — это Bootstrap 3.",
       "type": "yesno",
-      "answer": true,
-      "text": "The Bootstrap grid is built on flexbox and splits a row into 12 columns."
+      "answer": false,
+      "text": "The Bootstrap grid is built on CSS floats and splits a row into 16 columns."
     },
     {
       "id": "T24-L4",
@@ -1885,23 +1885,23 @@
       "id": "T24-L7",
       "topic": "Bootstrap",
       "level": 7,
-      "kind": "myth",
+      "kind": "fact",
       "zone": "base",
-      "note": "Наоборот: jQuery убран в Bootstrap 5.0 — только vanilla JS.",
+      "note": "jQuery удалён в Bootstrap 5.0: data-bs-* атрибуты и JS API. В проекте vendored 5.3.3.",
       "type": "yesno",
-      "answer": false,
-      "text": "Bootstrap 5 components (modals, tooltips) require jQuery."
+      "answer": true,
+      "text": "Bootstrap 5 components work without jQuery — in plain vanilla JS."
     },
     {
       "id": "T24-L8",
       "topic": "Bootstrap",
       "level": 8,
-      "kind": "fact",
+      "kind": "myth",
       "zone": "base",
-      "note": "Color modes добавлены в 5.3; в проекте ровно 5.3.3 — фича доступна.",
+      "note": "Наоборот: тема включается атрибутом data-bs-theme=\"dark\" (Color modes, с 5.3); класса .dark не существует. В проекте 5.3.3.",
       "type": "yesno",
-      "answer": true,
-      "text": "Dark mode in Bootstrap is enabled with data-bs-theme=\"dark\" — a feature since version 5.3."
+      "answer": false,
+      "text": "Dark mode in Bootstrap is enabled with a .dark class on the root element."
     },
     {
       "id": "T14-L1",
@@ -2003,12 +2003,12 @@
       "id": "T15-L1",
       "topic": "PostgreSQL",
       "level": 1,
-      "kind": "fact",
+      "kind": "myth",
       "zone": "base",
-      "note": "Снимки и xmax; docs PostgreSQL — Concurrency Control (MVCC).",
+      "note": "Наоборот: благодаря MVCC читатели не блокируют писателей и наоборот (снимки строк); docs PostgreSQL — Concurrency Control.",
       "type": "yesno",
-      "answer": true,
-      "text": "PostgreSQL uses MVCC: readers do not block writers, and writers do not block readers."
+      "answer": false,
+      "text": "PostgreSQL uses MVCC, therefore readers block writers and writers block readers."
     },
     {
       "id": "T15-L2",
@@ -2040,12 +2040,12 @@
       "id": "T15-L4",
       "topic": "PostgreSQL",
       "level": 4,
-      "kind": "fact",
+      "kind": "myth",
       "zone": "base",
-      "note": "Поведение NULLS DISTINCT по умолчанию; NULLS NOT DISTINCT — опция с PG 15. Проверено на PG 17.7.",
+      "note": "Наоборот: NULLS DISTINCT по умолчанию — несколько NULL допустимы; NULLS NOT DISTINCT — опция с PG 15. Проверено на PG 17.7.",
       "type": "yesno",
-      "answer": true,
-      "text": "By default, UNIQUE treats NULLs as distinct: a unique column can hold several rows with NULL."
+      "answer": false,
+      "text": "By default, a PostgreSQL UNIQUE constraint allows only one row with NULL in the column."
     },
     {
       "id": "T15-L5",
@@ -2140,23 +2140,23 @@
       "id": "T17-L4",
       "topic": "PostgreSQL: transactions and indexes",
       "level": 4,
-      "kind": "myth",
+      "kind": "fact",
       "zone": "base",
-      "note": "Частичный откат — только SAVEPOINT/ROLLBACK TO; ошибка оператора переводит транзакцию в aborted. Проверено на PG 17.",
+      "note": "SAVEPOINT name; ROLLBACK TO name — частичный откат без отмены всей транзакции. Проверено на PG 17.",
       "type": "yesno",
-      "answer": false,
-      "text": "A PostgreSQL transaction can roll back some statements and commit the rest without SAVEPOINT."
+      "answer": true,
+      "text": "To roll back part of the statements inside a transaction, PostgreSQL uses SAVEPOINT."
     },
     {
       "id": "T17-L5",
       "topic": "PostgreSQL: transactions and indexes",
       "level": 5,
-      "kind": "fact",
+      "kind": "myth",
       "zone": "base",
-      "note": "EXPLAIN — только план; EXPLAIN ANALYZE — план + реальное выполнение. Проверено на PG 17.",
+      "note": "Наоборот: ANALYZE реально выполняет запрос (с побочными эффектами!) и показывает фактические времена узлов; план без выполнения — plain EXPLAIN.",
       "type": "yesno",
-      "answer": true,
-      "text": "EXPLAIN ANALYZE actually executes the query and shows the real time of each plan node."
+      "answer": false,
+      "text": "EXPLAIN ANALYZE shows the query plan without executing the query."
     },
     {
       "id": "T17-L6",
@@ -2226,12 +2226,12 @@
       "id": "T19-L3",
       "topic": "HTTP and REST API",
       "level": 3,
-      "kind": "myth",
+      "kind": "fact",
       "zone": "base",
-      "note": "Наоборот: DELETE идемпотентен — повторный вызов по тому же ресурсу не меняет результат; RFC 9110.",
+      "note": "RFC 9110: DELETE идемпотентен (как PUT); идемпотентность ≠ безопасность — ресурс удаляется при первом вызове.",
       "type": "yesno",
-      "answer": false,
-      "text": "Per the HTTP specification, the DELETE method is not idempotent."
+      "answer": true,
+      "text": "The DELETE method is idempotent per the HTTP specification: repeating the request for the same resource does not change the outcome."
     },
     {
       "id": "T19-L4",
@@ -2259,12 +2259,12 @@
       "id": "T19-L6",
       "topic": "HTTP and REST API",
       "level": 6,
-      "kind": "fact",
+      "kind": "myth",
       "zone": "base",
-      "note": "Классы статусов RFC 9110: 400/404 против 500/503.",
+      "note": "Наоборот: 4xx — ошибка клиента (400, 404), 5xx — сервера (500, 503); классы статусов RFC 9110.",
       "type": "yesno",
-      "answer": true,
-      "text": "4xx codes mean a client error, while 5xx means a server-side error."
+      "answer": false,
+      "text": "5xx codes mean a client error, while 4xx means a server-side error."
     },
     {
       "id": "T19-L7",
@@ -2414,12 +2414,12 @@
       "id": "T18-L3",
       "topic": "Testing: PHPUnit",
       "level": 3,
-      "kind": "fact",
+      "kind": "myth",
       "zone": "base",
-      "note": "DataProvider возвращает наборы аргументов → тест выполняется по разу на каждый. Проверено на PHPUnit 10.5 (#[DataProvider]).",
+      "note": "Наоборот: наборов может быть сколько угодно — тест выполняется по разу на каждый. Проверено на PHPUnit 10.5 (#[DataProvider]).",
       "type": "yesno",
-      "answer": true,
-      "text": "A data provider lets a single test run against multiple sets of arguments."
+      "answer": false,
+      "text": "A data provider lets a test run with exactly one set of arguments."
     },
     {
       "id": "T18-L4",

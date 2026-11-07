@@ -1,7 +1,7 @@
 {
   "version": 8,
   "lang": "zh",
-  "as_of": "2026-11-07 (v8: +14 тем стека и практик под проект TasK — Symfony×4, Doctrine, PostgreSQL×2, PHPUnit, HTTP/REST, безопасность/OAuth, Twig, Bootstrap 5.3, чистая архитектура, луковичная архитектура, DDD; 224 клетки; факты проверены живьём: PG 17.7, Twig 3.30, PHPUnit 10.5, Bootstrap 5.3.3; клетки отсортированы кластерами; переводы EN/ZH выправлены по двойному аудиту)",
+  "as_of": "2026-11-07 (v8: +14 тем стека и практик под проект TasK — Symfony×4, Doctrine, PostgreSQL×2, PHPUnit, HTTP/REST, безопасность/OAuth, Twig, Bootstrap 5.3, чистая архитектура, луковичная архитектура, DDD; 224 клетки; факты проверены живьём: PG 17.7, Twig 3.30, PHPUnit 10.5, Bootstrap 5.3.3; клетки отсортированы кластерами; 26 клеток переформулированы против наивного «да» (13 мифов + 13 фактов-контрастов, баланс столбцов сохранён); переводы EN/ZH выправлены по двойному аудиту)",
   "questions": [
     {
       "id": "T01-L1",
@@ -110,11 +110,11 @@
       "id": "T02-L2",
       "topic": "类型与比较",
       "level": 2,
-      "kind": "fact",
-      "note": "Нестрогое сравнение: 0 и false взаимно приводимы.",
+      "kind": "myth",
+      "note": "Наоборот: == — нестрогое сравнение и возвращает true; строгое — это === (0 === false → false).",
       "type": "yesno",
-      "text": "表达式 0 == false 的结果是 true。",
-      "answer": true,
+      "text": "表达式 0 == false 返回 false，因为这是严格比较。",
+      "answer": false,
       "zone": "base"
     },
     {
@@ -224,11 +224,11 @@
       "id": "T03-L4",
       "topic": "字符串",
       "level": 4,
-      "kind": "fact",
-      "note": "Дефолтный набор: \" \\t\\n\\r\\0\\x0B\".",
+      "kind": "myth",
+      "note": "Список символов по умолчанию: « \\t\\n\\r\\0\\x0B» — пробелы, табы, переводы строк, возврат каретки, null-байт, вертикальный таб. Проверено php -r.",
       "type": "yesno",
-      "text": "默认情况下，trim() 会去掉字符串两端的空格、制表符、换行符和 null 字节。",
-      "answer": true,
+      "text": "默认情况下 trim() 只去掉空格，不会处理制表符和换行符。",
+      "answer": false,
       "zone": "base"
     },
     {
@@ -421,11 +421,11 @@
       "id": "T05-L5",
       "topic": "函数与闭包",
       "level": 5,
-      "kind": "fact",
-      "note": "Auto-capture по значению — главное отличие fn от замыкания.",
+      "kind": "myth",
+      "note": "fn захватывает только по значению, автоматически; по ссылке — только &$var в use у обычной функции (fn так не умеет).",
       "type": "yesno",
-      "text": "箭头函数 fn 自动按值捕获外部变量。",
-      "answer": true,
+      "text": "箭头函数 fn 按引用捕获外部变量（惰性地，在使用时才取值）。",
+      "answer": false,
       "zone": "base"
     },
     {
@@ -705,11 +705,11 @@
       "id": "T08-L5",
       "topic": "异常与错误",
       "level": 5,
-      "kind": "fact",
-      "note": "finally выполняется всегда — и при пойманном, и при пробрасываемом исключении.",
+      "kind": "myth",
+      "note": "Наоборот: finally выполняется всегда — даже когда исключение не поймано и уходит выше. Проверено php -r.",
       "type": "yesno",
-      "text": "即使异常未被捕获并继续向上抛，finally 块也会执行。",
-      "answer": true,
+      "text": "只有当异常被 catch 块捕获时，finally 块才会执行。",
+      "answer": false,
       "zone": "base"
     },
     {
@@ -925,11 +925,11 @@
       "id": "T10-L7",
       "topic": "引用与作用域",
       "level": 7,
-      "kind": "fact",
-      "note": "Статика принадлежит классу, а не объекту.",
+      "kind": "myth",
+      "note": "Наоборот: статическое свойство общее для всех экземпляров класса. Проверено php -r.",
       "type": "yesno",
-      "text": "类的静态属性为该类的所有实例所共享。",
-      "answer": true,
+      "text": "静态属性在每个实例中各自独立：一个对象中的修改对其他对象不可见。",
+      "answer": false,
       "zone": "base"
     },
     {
@@ -1187,12 +1187,12 @@
       "id": "T25-L5",
       "topic": "整洁架构",
       "level": 5,
-      "kind": "myth",
+      "kind": "fact",
       "zone": "base",
-      "note": "Суть правила в том, что его не нарушают; иначе архитектура деградирует в «большой ком грязи».",
+      "note": "depfile.yaml в проекте TasK: CI проверяет правила слоёв на каждом пайплайне.",
       "type": "yesno",
-      "answer": false,
-      "text": "如果明显加快开发速度，可以违反层边界——只要记录在案。"
+      "answer": true,
+      "text": "层边界的破坏可以自动捕获：层间依赖分析器（如 deptrac）会在出现禁止的调用时报错。"
     },
     {
       "id": "T25-L6",
@@ -1275,12 +1275,12 @@
       "id": "T26-L4",
       "topic": "DDD",
       "level": 4,
-      "kind": "myth",
+      "kind": "fact",
       "zone": "base",
-      "note": "Репозиторий — на агрегат (его корень), а не на каждую сущность.",
+      "note": "Репозиторий корня хранит границу согласованности агрегата; вложенные сущности доступны только через корень.",
       "type": "yesno",
-      "answer": false,
-      "text": "按照 DDD 规则，每个领域实体都必须有自己的仓储。"
+      "answer": true,
+      "text": "在 DDD 中，仓储是针对聚合（其根）声明的，而不是针对每个实体。"
     },
     {
       "id": "T26-L5",
@@ -1324,12 +1324,12 @@
       "id": "T26-L8",
       "topic": "DDD",
       "level": 8,
-      "kind": "myth",
+      "kind": "fact",
       "zone": "base",
-      "note": "Наоборот: контекстов несколько, у каждого своя модель; между ними — интеграция (ACL и др.).",
+      "note": "Модели контекстов независимы; между ними — явная интеграция (ACL, published language).",
       "type": "yesno",
-      "answer": false,
-      "text": "限界上下文的意思是：一个统一的模型必须服务整个公司。"
+      "answer": true,
+      "text": "限界上下文意味着每个上下文都有自己的模型：同一个概念在不同上下文中是不同的类。"
     },
     {
       "id": "T13-L1",
@@ -1383,12 +1383,12 @@
       "id": "T13-L5",
       "topic": "Symfony",
       "level": 5,
-      "kind": "myth",
+      "kind": "fact",
       "zone": "base",
-      "note": "Контейнер пересобирается только когда изменился отслеживаемый ресурс (проверка freshness), не при каждом запросе.",
+      "note": "Kernel проверяет freshness ресурсов (конфиги, классы); иначе переиспользуется кэш контейнера.",
       "type": "yesno",
-      "answer": false,
-      "text": "在 dev 环境下，Symfony 的 DI 容器每次 HTTP 请求都会重新构建。"
+      "answer": true,
+      "text": "在 Symfony 的 dev 环境中，DI 容器只在被跟踪的文件变化后重建，而不是每个请求都重建。"
     },
     {
       "id": "T13-L6",
@@ -1479,12 +1479,12 @@
       "id": "T22-L5",
       "topic": "Symfony：安全与表单",
       "level": 5,
-      "kind": "myth",
+      "kind": "fact",
       "zone": "base",
-      "note": "Наоборот: CSRF-атака исходит именно от авторизованного пользователя (чужой сайт шлёт запрос с его cookie); symfony/security-csrf в проекте.",
+      "note": "FormType добавляет скрытое поле _token и проверяет его при валидации; отключение — осознанное исключение (csrf: false).",
       "type": "yesno",
-      "answer": false,
-      "text": "如果只有已登录用户能访问表单，那么安全地关闭该表单的 CSRF 保护是没问题的。"
+      "answer": true,
+      "text": "Symfony 表单的 CSRF 保护默认开启：表单在提交时会校验令牌。"
     },
     {
       "id": "T22-L6",
@@ -1538,12 +1538,12 @@
       "id": "T23-L2",
       "topic": "Symfony：配置与服务",
       "level": 2,
-      "kind": "myth",
+      "kind": "fact",
       "zone": "base",
-      "note": ".env с dev-дефолтами коммитится; секреты — в .env.local (gitignored) или в хранилище secrets.*.",
+      "note": "symfony/dotenv: .env — общий безопасный набор значений; локальные секреты — .env.local (gitignored) или secrets-хранилище.",
       "type": "yesno",
-      "answer": false,
-      "text": ".env 文件包含生产环境的机密，因此被排除在仓库之外。"
+      "answer": true,
+      "text": "包含开发默认值的 .env 文件会提交到仓库，而真正的机密放在不提交的 .env.local 中。"
     },
     {
       "id": "T23-L3",
@@ -1634,12 +1634,12 @@
       "id": "T16-L2",
       "topic": "Symfony：Messenger",
       "level": 2,
-      "kind": "fact",
+      "kind": "myth",
       "zone": "base",
-      "note": "sync-транспорт — обработка в момент dispatch без очереди; docs Messenger.",
+      "note": "Наоборот: sync обрабатывает немедленно в том же процессе, что и отправка; очередь — это async-транспорт.",
       "type": "yesno",
-      "answer": true,
-      "text": "Messenger 的 sync 传输会立即执行处理者，与发送消息在同一个进程中。"
+      "answer": false,
+      "text": "Messenger 的 sync 传输会把消息放进队列交给 worker 处理，和 async 一样。"
     },
     {
       "id": "T16-L3",
@@ -1730,23 +1730,23 @@
       "id": "T21-L2",
       "topic": "Twig",
       "level": 2,
-      "kind": "myth",
+      "kind": "fact",
       "zone": "base",
-      "note": "Автоэкранирование включено по умолчанию. Проверено на Twig 3.30: {{ '<b>' }} → &lt;b&gt;.",
+      "note": "Autoescape включён по умолчанию; {{ '<b>' }} → &lt;b&gt;. Проверено на Twig 3.30.",
       "type": "yesno",
-      "answer": false,
-      "text": "Twig 默认不转义变量——开发者必须自己使用 |e 过滤器。"
+      "answer": true,
+      "text": "默认情况下，Twig 会自动转义输出的变量。"
     },
     {
       "id": "T21-L3",
       "topic": "Twig",
       "level": 3,
-      "kind": "myth",
+      "kind": "fact",
       "zone": "base",
-      "note": "|e — экранирование для вывода (HTML/JS); от SQL-инъекций — подготовленные запросы Doctrine.",
+      "note": "|e ('html') по умолчанию; есть контексты js/url/css. От SQL-инъекций он не защищает — это задача подготовленных запросов Doctrine.",
       "type": "yesno",
-      "answer": false,
-      "text": "Twig 的 |e 过滤器能防 SQL 注入。"
+      "answer": true,
+      "text": "Twig 的 |e 过滤器会对字符串进行转义，以便在 HTML 上下文中安全输出。"
     },
     {
       "id": "T21-L4",
@@ -1779,12 +1779,12 @@
       "id": "T21-L6",
       "topic": "Twig",
       "level": 6,
-      "kind": "myth",
+      "kind": "fact",
       "zone": "base",
-      "note": "Наоборот: {{ }} — вывод, {% %} — теги (if/for/set/block).",
+      "note": "Два блока синтаксиса Twig: вывод (echo) против логики.",
       "type": "yesno",
-      "answer": false,
-      "text": "在 Twig 中，{{ }} 控制逻辑（条件、循环），而 {% %} 输出表达式的值。"
+      "answer": true,
+      "text": "在 Twig 中，{{ }} 输出表达式的值，而 {% %} 执行标签——条件、循环、set。"
     },
     {
       "id": "T21-L7",
@@ -1816,12 +1816,12 @@
       "id": "T24-L1",
       "topic": "Bootstrap",
       "level": 1,
-      "kind": "myth",
+      "kind": "fact",
       "zone": "base",
-      "note": "Bootstrap — CSS/JS-библиотека интерфейсных компонентов, не SPA-фреймворк. В проекте vendored Bootstrap 5.3.3.",
+      "note": "Компоненты и утилиты поверх вашего HTML; SPA-фреймворки (React/Vue) — другой класс инструментов. В проекте vendored 5.3.3.",
       "type": "yesno",
-      "answer": false,
-      "text": "Bootstrap 是一个带虚拟 DOM 的 JavaScript SPA 框架。"
+      "answer": true,
+      "text": "Bootstrap 是一套现成 UI 组件的 CSS/JS 库，而不是 SPA 框架。"
     },
     {
       "id": "T24-L2",
@@ -1842,12 +1842,12 @@
       "id": "T24-L3",
       "topic": "Bootstrap",
       "level": 3,
-      "kind": "fact",
+      "kind": "myth",
       "zone": "base",
-      "note": "row/col-*; 12 колонок — docs Bootstrap Grid.",
+      "note": "Наоборот: flexbox (с Bootstrap 4) и 12 колонок; float-сетка — это Bootstrap 3.",
       "type": "yesno",
-      "answer": true,
-      "text": "Bootstrap 的栅格系统基于 flexbox，把一行分成 12 列。"
+      "answer": false,
+      "text": "Bootstrap 的栅格基于 CSS float，把一行分成 16 列。"
     },
     {
       "id": "T24-L4",
@@ -1890,23 +1890,23 @@
       "id": "T24-L7",
       "topic": "Bootstrap",
       "level": 7,
-      "kind": "myth",
+      "kind": "fact",
       "zone": "base",
-      "note": "Наоборот: jQuery убран в Bootstrap 5.0 — только vanilla JS.",
+      "note": "jQuery удалён в Bootstrap 5.0: data-bs-* атрибуты и JS API. В проекте vendored 5.3.3.",
       "type": "yesno",
-      "answer": false,
-      "text": "Bootstrap 5 的组件（模态框、tooltip）需要 jQuery。"
+      "answer": true,
+      "text": "Bootstrap 5 的组件不依赖 jQuery——使用原生 JS。"
     },
     {
       "id": "T24-L8",
       "topic": "Bootstrap",
       "level": 8,
-      "kind": "fact",
+      "kind": "myth",
       "zone": "base",
-      "note": "Color modes добавлены в 5.3; в проекте ровно 5.3.3 — фича доступна.",
+      "note": "Наоборот: тема включается атрибутом data-bs-theme=\"dark\" (Color modes, с 5.3); класса .dark не существует. В проекте 5.3.3.",
       "type": "yesno",
-      "answer": true,
-      "text": "Bootstrap 的深色模式通过 data-bs-theme=\"dark\" 开启——这是 5.3 起的功能。"
+      "answer": false,
+      "text": "Bootstrap 的深色模式是通过在根元素上添加 .dark 类开启的。"
     },
     {
       "id": "T14-L1",
@@ -2008,12 +2008,12 @@
       "id": "T15-L1",
       "topic": "PostgreSQL",
       "level": 1,
-      "kind": "fact",
+      "kind": "myth",
       "zone": "base",
-      "note": "Снимки и xmax; docs PostgreSQL — Concurrency Control (MVCC).",
+      "note": "Наоборот: благодаря MVCC читатели не блокируют писателей и наоборот (снимки строк); docs PostgreSQL — Concurrency Control.",
       "type": "yesno",
-      "answer": true,
-      "text": "PostgreSQL 使用 MVCC：读不阻塞写，写也不阻塞读。"
+      "answer": false,
+      "text": "PostgreSQL 使用 MVCC，因此读会阻塞写，写也会阻塞读。"
     },
     {
       "id": "T15-L2",
@@ -2045,12 +2045,12 @@
       "id": "T15-L4",
       "topic": "PostgreSQL",
       "level": 4,
-      "kind": "fact",
+      "kind": "myth",
       "zone": "base",
-      "note": "Поведение NULLS DISTINCT по умолчанию; NULLS NOT DISTINCT — опция с PG 15. Проверено на PG 17.7.",
+      "note": "Наоборот: NULLS DISTINCT по умолчанию — несколько NULL допустимы; NULLS NOT DISTINCT — опция с PG 15. Проверено на PG 17.7.",
       "type": "yesno",
-      "answer": true,
-      "text": "默认情况下，UNIQUE 约束把 NULL 视为彼此不同：唯一列中可以插入多行 NULL。"
+      "answer": false,
+      "text": "默认情况下，PostgreSQL 的 UNIQUE 约束在列中只允许一行 NULL。"
     },
     {
       "id": "T15-L5",
@@ -2145,23 +2145,23 @@
       "id": "T17-L4",
       "topic": "PostgreSQL：事务与索引",
       "level": 4,
-      "kind": "myth",
+      "kind": "fact",
       "zone": "base",
-      "note": "Частичный откат — только SAVEPOINT/ROLLBACK TO; ошибка оператора переводит транзакцию в aborted. Проверено на PG 17.",
+      "note": "SAVEPOINT name; ROLLBACK TO name — частичный откат без отмены всей транзакции. Проверено на PG 17.",
       "type": "yesno",
-      "answer": false,
-      "text": "PostgreSQL 事务可以在不使用 SAVEPOINT 的情况下回滚部分语句并提交其余语句。"
+      "answer": true,
+      "text": "要回滚事务中的部分语句，PostgreSQL 使用 SAVEPOINT。"
     },
     {
       "id": "T17-L5",
       "topic": "PostgreSQL：事务与索引",
       "level": 5,
-      "kind": "fact",
+      "kind": "myth",
       "zone": "base",
-      "note": "EXPLAIN — только план; EXPLAIN ANALYZE — план + реальное выполнение. Проверено на PG 17.",
+      "note": "Наоборот: ANALYZE реально выполняет запрос (с побочными эффектами!) и показывает фактические времена узлов; план без выполнения — plain EXPLAIN.",
       "type": "yesno",
-      "answer": true,
-      "text": "EXPLAIN ANALYZE 会真正执行查询，并显示计划中每个节点的实际耗时。"
+      "answer": false,
+      "text": "EXPLAIN ANALYZE 显示查询计划，而不实际执行查询。"
     },
     {
       "id": "T17-L6",
@@ -2231,12 +2231,12 @@
       "id": "T19-L3",
       "topic": "HTTP 与 REST API",
       "level": 3,
-      "kind": "myth",
+      "kind": "fact",
       "zone": "base",
-      "note": "Наоборот: DELETE идемпотентен — повторный вызов по тому же ресурсу не меняет результат; RFC 9110.",
+      "note": "RFC 9110: DELETE идемпотентен (как PUT); идемпотентность ≠ безопасность — ресурс удаляется при первом вызове.",
       "type": "yesno",
-      "answer": false,
-      "text": "按照 HTTP 规范，DELETE 方法不是幂等的。"
+      "answer": true,
+      "text": "按 HTTP 规范，DELETE 方法是幂等的：对同一资源重复请求不会改变结果。"
     },
     {
       "id": "T19-L4",
@@ -2264,12 +2264,12 @@
       "id": "T19-L6",
       "topic": "HTTP 与 REST API",
       "level": 6,
-      "kind": "fact",
+      "kind": "myth",
       "zone": "base",
-      "note": "Классы статусов RFC 9110: 400/404 против 500/503.",
+      "note": "Наоборот: 4xx — ошибка клиента (400, 404), 5xx — сервера (500, 503); классы статусов RFC 9110.",
       "type": "yesno",
-      "answer": true,
-      "text": "4xx 表示客户端错误，5xx 表示服务器端错误。"
+      "answer": false,
+      "text": "5xx 表示客户端错误，而 4xx 表示服务器端错误。"
     },
     {
       "id": "T19-L7",
@@ -2419,12 +2419,12 @@
       "id": "T18-L3",
       "topic": "测试：PHPUnit",
       "level": 3,
-      "kind": "fact",
+      "kind": "myth",
       "zone": "base",
-      "note": "DataProvider возвращает наборы аргументов → тест выполняется по разу на каждый. Проверено на PHPUnit 10.5 (#[DataProvider]).",
+      "note": "Наоборот: наборов может быть сколько угодно — тест выполняется по разу на каждый. Проверено на PHPUnit 10.5 (#[DataProvider]).",
       "type": "yesno",
-      "answer": true,
-      "text": "数据提供者（data provider）允许用多组参数运行同一个测试。"
+      "answer": false,
+      "text": "数据提供者（data provider）只允许用一组参数运行测试。"
     },
     {
       "id": "T18-L4",
