@@ -793,6 +793,8 @@ def write_summary_single(run_dir: Path, session: dict, by_id: dict,
     n = len(questions)
     correct = sum(1 for q in questions
                   if q["id"] in by_id and is_correct(by_id[q["id"]]))
+    fam_line_s = " · ".join(f"{name} {p}%" for name, p in
+                            family_scores(questions, [by_id]))
     parsed = [t for t in (by_id.get(q["id"]) for q in questions)
               if t and t.get("answer") is not None]
     bool_parsed = [t for t in parsed if isinstance(t.get("answer"), bool)]
@@ -1171,6 +1173,14 @@ def build_series_report(models_root: Path, questions_path: Path,
                 fam_s = " · ".join(
                     f"{FAMILY_SHORT.get(n, n)} {p}"
                     for n, p in family_scores(questions, [b for _n, b in runs_list]))
+                turns_all = [t for _n, b in runs_list for t in b.values()]
+                ncell = max(1, len(questions) * len(runs_list))
+                dur_s = sum(t.get("duration_s") or 0 for t in turns_all) / ncell
+                tin = round(sum(t.get("prompt_eval_count") or 0
+                                for t in turns_all) / ncell)
+                tout = round(sum(t.get("eval_count") or 0
+                                 for t in turns_all) / ncell)
+                cell_s = (f"клетка {dur_s:.1f}с · {tin}+{tout} ток")
                 stable_ok = sum(
                     1 for q in questions
                     if all(by_id.get(q["id"], {}).get("answer") is not None
@@ -1178,7 +1188,7 @@ def build_series_report(models_root: Path, questions_path: Path,
                            for _rd, _s, by_id in items))
                 flips = sum(1 for q in questions if flip_by_id[q["id"]])
                 groups.append((think, runs_list, flip_by_id, fam_s,
-                               stable_ok, flips))
+                               cell_s, stable_ok, flips))
             if not groups:
                 continue
 
@@ -1187,17 +1197,19 @@ def build_series_report(models_root: Path, questions_path: Path,
             cols = [f"{label_px}px"] + [
                 f"repeat(8, {cell_px}px) {agg_px}px {sp_px}px"] * len(groups)
             cells = ['<div class="uhead"></div>']
-            for think, runs_list, flip_by_id, fam_s, sok, fl in groups:
+            for think, runs_list, flip_by_id, fam_s, cell_s, sok, fl \
+                    in groups:
                 cells.append(
                     f'<div class="uhead" style="grid-column: span 9">'
                     f'think: {esc(think)}<span class="umeta">{fam_s} · '
-                    f'нестаб. {pct(fl, len(questions))}%</span></div>')
+                    f'{cell_s} · нестаб. {pct(fl, len(questions))}%'
+                    f'</span></div>')
                 cells.append('<div class="uhead"></div>')
             for topic in topics:
                 cells.append(f'<div class="rh">{esc(topic)}</div>')
                 tq = sorted((q for q in questions if q["topic"] == topic),
                             key=lambda q: q["level"])
-                for gi, (t, runs_list, flip_by_id, _fam, _sok, _fl) \
+                for gi, (t, runs_list, flip_by_id, _fam, _cs, _sok, _fl) \
                         in enumerate(groups):
                     cmp_name = f"compare-{t}-{lang}-v{qver}.html"
                     cmp_href = ""
@@ -1247,7 +1259,7 @@ def build_series_report(models_root: Path, questions_path: Path,
 
             levels_s = ", ".join(t for t, *_ in groups)
             # ссылка на полный отчёт — в сетке, под картой каждого уровня
-            for gi, (t, _rl, _f, _fam, _sok, _fl) in enumerate(groups):
+            for gi, (t, _rl, _f, _fam, _cs, _sok, _fl) in enumerate(groups):
                 cmp_name = f"compare-{t}-{lang}-v{qver}.html"
                 if not (models_root / md.name / "knowledge-map" / cmp_name).exists():
                     continue
