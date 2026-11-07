@@ -1,7 +1,7 @@
 {
   "version": 8,
   "lang": "en",
-  "as_of": "2026-11-07 (v8: +14 тем стека и практик под проект TasK — Symfony, Doctrine, PostgreSQL, Messenger, PG-транзакции, PHPUnit, HTTP/REST, безопасность/OAuth, Twig, Symfony: Security и формы, Symfony: конфигурация и сервисы, Bootstrap 5.3, чистая архитектура, DDD; 224 клетки; факты проверены живьём: PG 17.7, Twig 3.30, PHPUnit 10.5, Bootstrap 5.3.3 (vendored в проекте); клетки отсортированы по кластерам; переводы EN/ZH выправлены по двойному аудиту)",
+  "as_of": "2026-11-07 (v8: +15 тем стека и практик под проект TasK — Symfony×4, Doctrine, PostgreSQL×2, PHPUnit, HTTP/REST, безопасность/OAuth, Twig, Bootstrap 5.3, чистая архитектура, луковичная архитектура, DDD; 232 клетки; факты проверены живьём: PG 17.7, Twig 3.30, PHPUnit 10.5, Bootstrap 5.3.3; клетки отсортированы кластерами; переводы EN/ZH выправлены по двойному аудиту)",
   "questions": [
     {
       "id": "T01-L1",
@@ -1326,6 +1326,103 @@
       "type": "yesno",
       "answer": false,
       "text": "Bounded context means one single model must serve the entire company."
+    },
+    {
+      "id": "T27-L1",
+      "topic": "Onion architecture",
+      "level": 1,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Суть луковичной архитектуры (Jeffrey Palermo, 2008): зависимости направлены внутрь, к домену.",
+      "type": "yesno",
+      "answer": true,
+      "text": "In onion architecture all dependencies point toward the center: the outer layer knows about the inner one, the inner never knows about the outer."
+    },
+    {
+      "id": "T27-L2",
+      "topic": "Onion architecture",
+      "level": 2,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Центральное кольцо — Domain Model: сущности и бизнес-правила, без зависимостей от чего-либо.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "domain model"
+        ]
+      },
+      "prompt": "What sits at the very center of the onion architecture?"
+    },
+    {
+      "id": "T27-L3",
+      "topic": "Onion architecture",
+      "level": 3,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Кольца от центра: Domain Model → Domain Services → Application Services → Infrastructure/UI/Tests.",
+      "type": "yesno",
+      "answer": true,
+      "text": "Infrastructure — database, web framework, external APIs — sits on the outermost ring of the onion architecture."
+    },
+    {
+      "id": "T27-L4",
+      "topic": "Onion architecture",
+      "level": 4,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Наоборот: домен объявляет интерфейс (порт), инфраструктура его реализует; конкретика — только снаружи.",
+      "type": "yesno",
+      "answer": false,
+      "text": "In onion architecture the domain depends on infrastructure: entities use a concrete DB connection class directly."
+    },
+    {
+      "id": "T27-L5",
+      "topic": "Onion architecture",
+      "level": 5,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Application Services — предпоследнее кольцо: оркестрация сценариев; их отличие от доменных сервисов — см. T27-L6.",
+      "type": "yesno",
+      "answer": true,
+      "text": "Application services in onion architecture coordinate domain objects and reach external systems through interfaces declared inside."
+    },
+    {
+      "id": "T27-L6",
+      "topic": "Onion architecture",
+      "level": 6,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Доменные сервисы — бизнес-правила (внутреннее кольцо); application services — оркестрация (внешнее).",
+      "type": "yesno",
+      "answer": false,
+      "text": "In onion architecture, application services and domain services are the same thing; there is no distinction between them."
+    },
+    {
+      "id": "T27-L7",
+      "topic": "Onion architecture",
+      "level": 7,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Наоборот: тесты — внешний слой (Infrastructure/UI/Tests); они зависят от всего, от них не зависит ничто.",
+      "type": "yesno",
+      "answer": false,
+      "text": "In onion architecture tests belong to the center because they check the domain model."
+    },
+    {
+      "id": "T27-L8",
+      "topic": "Onion architecture",
+      "level": 8,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Инверсия зависимостей (DIP): интерфейсы объявляются внутри, реализации подставляются снаружи.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "dependency inversion",
+          "inversion of control"
+        ]
+      },
+      "prompt": "Which principle underlies the onion architecture, letting inner layers know nothing about outer implementations?"
     },
     {
       "id": "T13-L1",

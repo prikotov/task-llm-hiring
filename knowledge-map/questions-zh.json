@@ -1,7 +1,7 @@
 {
   "version": 8,
   "lang": "zh",
-  "as_of": "2026-11-07 (v8: +14 тем стека и практик под проект TasK — Symfony, Doctrine, PostgreSQL, Messenger, PG-транзакции, PHPUnit, HTTP/REST, безопасность/OAuth, Twig, Symfony: Security и формы, Symfony: конфигурация и сервисы, Bootstrap 5.3, чистая архитектура, DDD; 224 клетки; факты проверены живьём: PG 17.7, Twig 3.30, PHPUnit 10.5, Bootstrap 5.3.3 (vendored в проекте); клетки отсортированы по кластерам; переводы EN/ZH выправлены по двойному аудиту)",
+  "as_of": "2026-11-07 (v8: +15 тем стека и практик под проект TasK — Symfony×4, Doctrine, PostgreSQL×2, PHPUnit, HTTP/REST, безопасность/OAuth, Twig, Bootstrap 5.3, чистая архитектура, луковичная архитектура, DDD; 232 клетки; факты проверены живьём: PG 17.7, Twig 3.30, PHPUnit 10.5, Bootstrap 5.3.3; клетки отсортированы кластерами; переводы EN/ZH выправлены по двойному аудиту)",
   "questions": [
     {
       "id": "T01-L1",
@@ -1330,6 +1330,105 @@
       "type": "yesno",
       "answer": false,
       "text": "限界上下文的意思是：一个统一的模型必须服务整个公司。"
+    },
+    {
+      "id": "T27-L1",
+      "topic": "洋葱架构",
+      "level": 1,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Суть луковичной архитектуры (Jeffrey Palermo, 2008): зависимости направлены внутрь, к домену.",
+      "type": "yesno",
+      "answer": true,
+      "text": "在洋葱架构中，所有依赖都指向中心：外层知道内层，而内层永远不知道外层。"
+    },
+    {
+      "id": "T27-L2",
+      "topic": "洋葱架构",
+      "level": 2,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Центральное кольцо — Domain Model: сущности и бизнес-правила, без зависимостей от чего-либо.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "domain model",
+          "领域模型"
+        ]
+      },
+      "prompt": "洋葱架构的最中心是什么？"
+    },
+    {
+      "id": "T27-L3",
+      "topic": "洋葱架构",
+      "level": 3,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Кольца от центра: Domain Model → Domain Services → Application Services → Infrastructure/UI/Tests.",
+      "type": "yesno",
+      "answer": true,
+      "text": "基础设施——数据库、Web 框架、外部 API——位于洋葱架构的最外层。"
+    },
+    {
+      "id": "T27-L4",
+      "topic": "洋葱架构",
+      "level": 4,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Наоборот: домен объявляет интерфейс (порт), инфраструктура его реализует; конкретика — только снаружи.",
+      "type": "yesno",
+      "answer": false,
+      "text": "在洋葱架构中，领域依赖基础设施：实体直接使用具体的数据库连接类。"
+    },
+    {
+      "id": "T27-L5",
+      "topic": "洋葱架构",
+      "level": 5,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Application Services — предпоследнее кольцо: оркестрация сценариев; их отличие от доменных сервисов — см. T27-L6.",
+      "type": "yesno",
+      "answer": true,
+      "text": "洋葱架构中的应用服务（application services）协调领域对象，并通过内部声明的接口访问外部系统。"
+    },
+    {
+      "id": "T27-L6",
+      "topic": "洋葱架构",
+      "level": 6,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Доменные сервисы — бизнес-правила (внутреннее кольцо); application services — оркестрация (внешнее).",
+      "type": "yesno",
+      "answer": false,
+      "text": "在洋葱架构中，应用服务和领域服务是同一回事；两者之间没有区别。"
+    },
+    {
+      "id": "T27-L7",
+      "topic": "洋葱架构",
+      "level": 7,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Наоборот: тесты — внешний слой (Infrastructure/UI/Tests); они зависят от всего, от них не зависит ничто.",
+      "type": "yesno",
+      "answer": false,
+      "text": "在洋葱架构中，测试属于中心，因为它们验证领域模型。"
+    },
+    {
+      "id": "T27-L8",
+      "topic": "洋葱架构",
+      "level": 8,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Инверсия зависимостей (DIP): интерфейсы объявляются внутри, реализации подставляются снаружи.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "dependency inversion",
+          "依赖倒置",
+          "依赖反转"
+        ]
+      },
+      "prompt": "洋葱架构建立在哪个原则之上，使内层对外部实现一无所知？"
     },
     {
       "id": "T13-L1",

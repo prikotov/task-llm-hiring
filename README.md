@@ -82,7 +82,7 @@ API, DeepSeek через родный API.
 | `<модель>/backend/interview/run-XX/` | протоколы собесов: `session.json` (messages, thinking, тайминги) и `transcript.md` |
 | `<модель>/backend/interview/judgments/` | вердикты судей (clef, GLM-5.3-Flash) и сводные CSV |
 | `<модель>/backend/test-assignment/run-XX/` | тестовое задание (этап 2): solution, pi-сессия, чекер, метрики, scorecard |
-| `knowledge-map/` | методология «карты знаний PHP» (по мотивам теста Карпаты «Land or Water?»): blueprint с историей наводки, вопросник v8 — 224 клетки в 3 зонах (база 208: 26 тем × 8 — 12 тем PHP + 14 тем стека и практик TasK: Symfony×4, Twig, Bootstrap, Doctrine, PostgreSQL×2, HTTP/REST, безопасность/OAuth, PHPUnit, чистая архитектура, DDD; версии 8.4–8.5 — 8; будущее 8.6+ — 8, cutoff-зонд), `questions-versions.json` — версионная панель (cutoff-зонд, as_of), раннер и сборка карты |
+| `knowledge-map/` | методология «карты знаний PHP» (по мотивам теста Карпаты «Land or Water?»): blueprint с историей наводки, вопросник v8 — 232 клетки в 3 зонах (база 216: 27 тем × 8 — 12 тем PHP + 15 тем стека и практик TasK: Symfony×4, Twig, Bootstrap, Doctrine, PostgreSQL×2, HTTP/REST, безопасность/OAuth, PHPUnit, чистая/луковичная архитектура, DDD; версии 8.4–8.5 — 8; будущее 8.6+ — 8, cutoff-зонд), `questions-versions.json` — версионная панель (cutoff-зонд, as_of), раннер и сборка карты |
 | `<модель>/knowledge-map/run-XX/` | прогоны карты: `session.json`, `answers.csv`, `report.html` (карта зелёный/красный/серый; `compare.html` — тепловая по всем прогонам) |
 | `reports/` | кросс-модельные агрегаты, итоговый отчёт `REPORT.html` |
 
