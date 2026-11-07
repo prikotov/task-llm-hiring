@@ -900,195 +900,98 @@ def protocol_tag(session: dict) -> str:
     return "текст"
 
 
-def build_model_report(model_dir: Path, questions_path: Path) -> None:
-    """Полный отчёт модели: сводная таблица всех прогонов + разделы по
-    вопросникам (последний прогон каждого: основная карта, версионная
-    панель, экспериментальные наборы)."""
-    runs = []
-    for rd in sorted(model_dir.glob("run-*")):
-        if not (rd / "session.json").exists():
-            continue
-        try:
-            session, by_id = load_run(rd)
-        except FileNotFoundError:
-            continue
-        runs.append((rd, session, by_id))
-    if not runs:
-        raise SystemExit(f"в {model_dir} нет прогонов (run-*/session.json)")
-
-    FILE_LABEL = {
-        "questions.json": "A+B · основная матрица",
-        "questions.v1.json": "A · да/нет v1",
-        "questions-recall.json": "B · recall-пилот",
-        "questions-versions.json": "версионная панель",
-    }
-    section_order = {"questions.json": 0, "questions-versions.json": 1,
-                     "questions-recall.json": 2}
-
-    # последний прогон по каждому вопроснику
-    latest = {}
-    for rd, session, by_id in runs:
-        f = session.get("questionnaire_file") or "questions.json"
-        no = session.get("run") or 0
-        if f not in latest or no > latest[f][0]:
-            latest[f] = (no, rd, session, by_id)
-
-    rows = []
-    for rd, session, by_id in sorted(runs, key=lambda x: x[0].name):
-        f = session.get("questionnaire_file") or "questions.json"
-        n_all = len(by_id)
-        c = sum(1 for t in by_id.values() if is_correct(t))
-        tot = session.get("totals") or {}
-        layer_label = f'{FILE_LABEL.get(f, f)} v{session.get("questionnaire")}'
-        rows.append(
-            f'<tr><td>{esc(rd.name)}</td>'
-            f'<td>{esc(layer_label)}</td>'
-            f'<td>{esc(protocol_tag(session))}</td>'
-            f'<td>{esc(session.get("think"))}</td>'
-            f'<td>{c} / {n_all}</td><td>{pct(c, n_all)}%</td>'
-            f'<td>{tot.get("duration_s", 0)} c</td>'
-            f'<td>{tot.get("prompt_tokens", 0)} / '
-            f'{tot.get("output_tokens", 0)}</td></tr>')
-    table = ('<h2>Прогоны модели</h2>\n<table class="data">'
-             '<tr><th>Прогон</th><th>Слой</th><th>Протокол</th><th>think</th><th>Верно</th>'
-             '<th>%</th><th>Время</th><th>Токены (вх / вых)</th></tr>\n'
-             + "\n".join(rows) + "</table>")
-
-    # сводка серий: группа прогонов одной версии вопросника и одного think
-    latest_qver = max(
-        (s.get("questionnaire") or 0 for _, s, _ in runs), default=None)
-    series_map = defaultdict(list)
-    for rd, session, by_id in runs:
-        if session.get("questionnaire") != latest_qver:
-            continue
-        if session.get("protocol", "chat") != "chat":
-            continue
-        series_map[session.get("think")].append((rd, session, by_id))
-
-    def series_stats(items):
-        by_cell = defaultdict(list)
-        for _rd, _s, b in items:
-            for cid, t in b.items():
-                if t.get("answer") is not None:
-                    by_cell[cid].append(t["is_correct"])
-        scores = [sum(1 for t in b.values() if is_correct(t)) / len(b)
-                  for _rd, _s, b in items]
-        stable_ok = sum(1 for v in by_cell.values() if all(v))
-        stable_bad = sum(1 for v in by_cell.values() if not any(v))
-        flips = sum(1 for v in by_cell.values() if 0 < sum(v) < len(v))
-        zones = {}
-        for zk in ("base", "current", "future"):
-            zc = zn = 0
-            for cid, v in by_cell.items():
-                if zone_of(cid) == zk:
-                    zc += sum(v)
-                    zn += len(v)
-            zones[zk] = pct(zc, zn) if zn else "—"
-        return scores, stable_ok, stable_bad, flips, zones
-
-    def zone_of(cid: str) -> str:
-        return zone_by_id.get(cid, "base")
-
-    zone_by_id = {}
-    if latest_qver is not None:
-        try:
-            _qv, _qss = load_questions(
-                questions_for_run(questions_path,
-                                  max(runs, key=lambda x: x[0].name)[1]))
-            zone_by_id = {q["id"]: q.get("zone", "base") for q in _qss}
-        except (OSError, json.JSONDecodeError):
-            pass
-
-    series_rows = []
-    for think in sorted(series_map):
-        items = series_map[think]
-        if len(items) < 2:
-            continue
-        scores, stable_ok, stable_bad, flips, zones = series_stats(items)
-        scores_pct = " – ".join(f"{pct(round(s * 100), 100)}%"
-                                for s in (min(scores), max(scores)))
-        series_rows.append(
-            f'<tr><td>think: {esc(think)}</td><td>{len(items)}</td>'
-            f'<td>{scores_pct}</td><td>{stable_ok}</td><td>{stable_bad}</td>'
-            f'<td>{flips}</td>'
-            f'<td>{zones.get("base", "—")}</td>'
-            f'<td>{zones.get("current", "—")}</td>'
-            f'<td>{zones.get("future", "—")}</td></tr>')
-    series_html = ""
-    if series_rows:
-        links = " · ".join(f'<a href="compare-{esc(t)}.html">think: {esc(t)}</a>'
-                           for t in sorted(series_map) if len(series_map[t]) >= 2)
-        series_html = (
-            f'<h2>Серии (вопросник v{latest_qver})</h2>\n<table class="data">'
-            '<tr><th>Уровень</th><th>Прогонов</th><th>Точность (min–max)</th>'
-            '<th>Стабильно верные</th><th>Стабильно неверные</th><th>Флипующие</th>'
-            '<th>База</th><th>8.4–8.5</th><th>Будущее</th></tr>\n'
-            + "\n".join(series_rows) + "</table>\n"
-            + f'<p class="proto">тепловые карты серий: {links}</p>')
-
+def build_series_report(models_root: Path, questions_path: Path,
+                        out_file: Path) -> None:
+    """Сводный отчёт по всем моделям: для каждой модели и каждого уровня
+    рассуждений (серия ≥2 прогонов на одной версии вопросника) — карта
+    серии: клетка = доля верных ответов, пунктир = флипы."""
     sections = []
-    for si, f in enumerate(sorted(latest, key=section_order.get)):
-        no, rd, session, by_id = latest[f]
-        qpath = questions_for_run(questions_path, session)
-        q_version, questions = load_questions(qpath)
-        title, protocol, chips, body, _footer = _render_single_body(
-            session, by_id, questions, q_version, rd, qpath,
-            anchor_prefix=f"s{si}-")
-        section_id = f"s{si}"
-        extra = ""
-        if f == "questions-versions.json":
-            wrong = sorted(t["level"] for t in by_id.values()
-                           if not is_correct(t))
-            if wrong:
-                extra = (f'<p class="proto">cutoff-сигнал: первые ошибки — '
-                         f'L{wrong[0]} (по возрастанию версии: '
-                         f'{", ".join("L" + str(w) for w in wrong)})</p>')
-        sections.append(f'<h2 id="{esc(section_id)}">{esc(title)}</h2>\n'
-                        f'<p class="proto">{esc(protocol)}</p>\n'
-                        f'{chips}\n{extra}\n{body}')
+    model_dirs = sorted(d for d in models_root.iterdir()
+                        if d.is_dir() and (d / "knowledge-map").is_dir())
+    for md in model_dirs:
+        km = md / "knowledge-map"
+        runs = []
+        for rd in sorted(km.glob("run-*")):
+            if not (rd / "session.json").exists():
+                continue
+            try:
+                session, by_id = load_run(rd)
+            except FileNotFoundError:
+                continue
+            if session.get("protocol", "chat") != "chat":
+                continue
+            runs.append((rd, session, by_id))
+        if not runs:
+            continue
+        model = esc(runs[0][1].get("model", md.name))
+        latest_qver = max((s.get("questionnaire") or 0 for _, s, _ in runs))
+        series_map = defaultdict(list)
+        for rd, session, by_id in runs:
+            if session.get("questionnaire") != latest_qver:
+                continue
+            series_map[session.get("think")].append((rd, session, by_id))
 
-    first = min(latest, key=section_order.get)
-    model_name = esc(latest[first][2].get("model", "?"))
-    title = f"Карта знаний PHP — {model_name}: полная система тестирования"
-    proto = ("полный отчёт модели: основной вопросник (слой A+B), версионная "
-             "панель (cutoff-зонд, as_of — дата снимка) и экспериментальные "
-             "наборы; в каждом разделе — последний прогон этого вопросника.")
-    html = page(title, proto, "", table + series_html + "\n" + "\n".join(sections),
+        for si, think in enumerate(sorted(series_map)):
+            items = series_map[think]
+            if len(items) < 2:
+                continue
+            qpath = questions_for_run(questions_path, items[0][1])
+            q_version, questions = load_questions(qpath)
+            runs_list = [(rd.name, by_id) for rd, _s, by_id in items]
+            flip_by_id = {}
+            for q in questions:
+                answers = {by_id.get(q["id"], {}).get("answer")
+                           for _n, by_id in runs_list}
+                answers.discard(None)
+                flip_by_id[q["id"]] = len(answers) > 1
+            grid = map_grid_compare(questions, runs_list, flip_by_id)
+            scores = [sum(1 for t in b.values() if is_correct(t)) for _r, b in
+                      [(rd, b) for rd, _s, b in items]]
+            scores_s = " – ".join(
+                f"{pct(min(scores), len(questions))}%",
+                ) if False else (
+                f"{pct(min(scores), len(questions))}% – "
+                f"{pct(max(scores), len(questions))}%")
+            stable_ok = sum(
+                1 for q in questions
+                if all(by_id.get(q["id"], {}).get("answer") is not None
+                       and is_correct(by_id[q["id"]]) for _rd, _s, by_id in items))
+            flips = sum(1 for q in questions if flip_by_id[q["id"]])
+            proto = (f"{len(items)} прогонов · вопросник v{q_version} · "
+                     f"точность {scores_s} · стабильно верных {stable_ok} · "
+                     f"флипующих {flips}")
+            sections.append(
+                f'<h2 id="{esc(md.name)}-{si}">{model} · think: {esc(think)}</h2>\n'
+                f'<p class="proto">{esc(proto)}</p>\n{grid}')
+
+    if not sections:
+        raise SystemExit("нет серий: ни у одной модели нет ≥2 прогонов "
+                         "на одной версии вопросника")
+    title = "Карты знаний PHP — карты серий прогонов"
+    proto = ("для каждой модели и уровня рассуждений: клетка = доля верных "
+             "ответов по серии (0% красная → 100% зелёная, число — %), "
+             "пунктир — флип (ответы прогонов расходятся)")
+    html = page(title, proto, "", "\n".join(sections),
                 "построено knowledge-map/build_map_report.py · "
-                f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} · "
-                "полные данные: run-*/session.json")
-    (model_dir / "report.html").write_text(html, encoding="utf-8")
-
-    lines = [f"# Карта знаний PHP — {latest[first][2].get('model', '?')}", "",
-             "| Прогон | Слой | Протокол | think | Верно | % | Время |",
-             "|---|---|---|---|---|---|---|"]
-    for rd, session, by_id in sorted(runs, key=lambda x: x[0].name):
-        f = session.get("questionnaire_file") or "questions.json"
-        n_all = len(by_id)
-        c = sum(1 for t in by_id.values() if is_correct(t))
-        tot = session.get("totals") or {}
-        layer_label = f'{FILE_LABEL.get(f, f)} v{session.get("questionnaire")}'
-        lines.append(f"| {rd.name} | {layer_label} | "
-                     f"{protocol_tag(session)} | {session.get('think')} | "
-                     f"{c}/{n_all} | {pct(c, n_all)}% | "
-                     f"{tot.get('duration_s', 0)} c |")
-    lines += ["", "Полный отчёт: [report.html](report.html). "
-              "Тепловая карта уровня: `--model-dir --think <уровень>` → "
-              "compare.html."]
-    (model_dir / "summary.md").write_text("\n".join(lines), encoding="utf-8")
-    print(f"полный отчёт модели: {model_dir / 'report.html'}")
+                f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+    out_file.write_text(html, encoding="utf-8")
+    print(f"сводный отчёт серий: {out_file} ({len(sections)} карт)")
 
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    g = p.add_mutually_exclusive_group(required=True)
+    g = p.add_mutually_exclusive_group(required=False)
     g.add_argument("--run-dir", help="папка прогона (карта зелёный/красный)")
     g.add_argument("--model-dir", help="папка модели: полный отчёт модели (report.html); с --think — тепловая карта уровня (compare.html)")
     p.add_argument("--think", default=None,
                    help="уровень рассуждений для тепловой карты; обязателен, "
                         "когда в папке прогоны нескольких think — смешивать "
                         "уровни нельзя")
+    p.add_argument("--models-root", default=None,
+                   help="сводный отчёт по всем моделям: карты серий "
+                        "модель → уровень размышлений (out: reports/)")
     p.add_argument("--version", type=int, default=None,
                    help="версия вопросника для тепловой карты (серии разных "
                         "версий не смешиваются)")
@@ -1096,13 +999,20 @@ def main() -> int:
     args = p.parse_args()
 
     questions_path = Path(args.questions)
+    if args.models_root:
+        out = Path(args.models_root).parent / "reports" / "knowledge-map-series.html"
+        build_series_report(Path(args.models_root), questions_path, out)
+        return 0
     if args.run_dir:
         build_single(Path(args.run_dir), questions_path)
     elif args.think:
         build_compare(Path(args.model_dir), questions_path, args.think,
                       args.version)
     else:
-        build_model_report(Path(args.model_dir), questions_path)
+        print("--model-dir без --think не поддерживается: тепловая карта "
+              "серии — с --think <уровень> (и при необходимости --version N); "
+              "сводный отчёт по всем моделям — --models-root", file=sys.stderr)
+        return 2
     return 0
 
 
