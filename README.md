@@ -82,6 +82,8 @@ API, DeepSeek через родный API.
 | `<модель>/backend/interview/run-XX/` | протоколы собесов: `session.json` (messages, thinking, тайминги) и `transcript.md` |
 | `<модель>/backend/interview/judgments/` | вердикты судей (clef, GLM-5.3-Flash) и сводные CSV |
 | `<модель>/backend/test-assignment/run-XX/` | тестовое задание (этап 2): solution, pi-сессия, чекер, метрики, scorecard |
+| `knowledge-map/` | методология «карты знаний PHP» (по мотивам теста Карпаты «Land or Water?»): blueprint с историей наводки, вопросник v8 — 240 клеток в 3 зонах (база 208: 26 тем × 8 — 12 тем PHP + 14 тем стека и практик TasK: Symfony×4, Symfony-версии×2, Twig, Bootstrap, Doctrine, PostgreSQL×2, HTTP/REST, безопасность/OAuth, PHPUnit, чистая архитектура (вкл. луковичную), DDD; текущие версии — 16 (PHP 8.4–8.5 + Symfony 8.1); будущее — 16 (PHP 8.6+ + Symfony 8.2, cutoff-зонд)), `questions-versions.json` — версионная панель (cutoff-зонд, as_of), раннер и сборка карты |
+| `<модель>/knowledge-map/run-XX/` | прогоны карты: `session.json`, `answers.csv`, `report.html` (карта зелёный/красный/серый; `compare.html` — тепловая по всем прогонам) |
 | `reports/` | кросс-модельные агрегаты, итоговый отчёт `REPORT.html` |
 
 ## Быстрый старт
@@ -91,7 +93,7 @@ API, DeepSeek через родный API.
 
 | Переменная | Что задаёт | Кто читает |
 |---|---|---|
-| `OLLAMA_BASE_URL` | адрес сервера ollama (дефолт `http://localhost:11434`) | `runner.py`, `score.py`, `embed_compare.py` |
+| `OLLAMA_BASE_URL` | адрес сервера ollama (дефолт `http://localhost:11434`) | `runner.py`, `score.py`, `embed_compare.py`, `runner_map.py` |
 | `MODELS_RU_ENV` | путь к env-файлу с ключами GigaChat/Яндекс/DeepSeek (`GIGACHAT_AUTHORIZATION_KEY`, `YANDEXFM_API_KEY`, `DEEPSEEK_API_KEY`) | `runner_ru_cloud.py` |
 | `YANDEXFM_FOLDER_ID` | ID каталога Яндекса для `gpt://<folder>/yandexgpt/latest` | `runner_ru_cloud.py` |
 | `OPENROUTER_KEY_FILE` | путь к файлу с ключом OpenRouter | `runner_openrouter.py`, `judge_openrouter.py` |
@@ -110,6 +112,11 @@ python3 interview/runner.py --questions interview/roles/backend/questions.json \
 # оценка ярусом 1: decision-модель clef по протоколу прогона,
 # одним запросом на ответ: балл, галлюцинации и эскалационные признаки
 python3 interview/score.py --run qwen3.8/backend/interview/run-01 --judge clef
+
+# карта знаний PHP: 96 да/нет-утверждений, одна клетка = один независимый
+# запрос; карта зелёный/красный в report.html (5 прогонов -> compare.html)
+python3 knowledge-map/runner_map.py --model huihui-ai:pi-100k --runs 1
+python3 knowledge-map/build_map_report.py --run-dir models/huihui-ai-pi-100k/knowledge-map/run-01
 ```
 
 Судья яруса 2 (GLM-5.3-Flash) запускается скриптом `interview/judge_glm.py`
