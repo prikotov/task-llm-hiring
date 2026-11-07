@@ -402,14 +402,6 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
 
 def map_grid_single(by_id: dict, questions: list,
                     anchor_prefix: str = "", lang: str = "ru") -> str:
-    zone_names = {"base": "Зона 1 · База: PHP и стек (Symfony, Doctrine, PostgreSQL)",
-                  "current": "Зона 2 · Текущие версии (PHP 8.4–8.5, Symfony 8.1)",
-                  "future": "Зона 3 · Будущее (PHP 8.6+, Symfony 8.2)"}
-    def zone_of(topic: str) -> str:
-        for q in questions:
-            if q["topic"] == topic:
-                return q.get("zone", "base")
-        return "base"
     topics = []
     for q in questions:
         if q["topic"] not in topics:
@@ -453,13 +445,10 @@ def map_grid_single(by_id: dict, questions: list,
     cells = ['<div class="hd"></div>']
     cells += [f'<div class="hd">L{i}</div>' for i in range(1, max_level + 1)]
     cells.append('<div class="hd">итог</div>')
-    prev_zone = None
+    # зонные полосы не рисуются: порядок тем кластерный (версии прилегают
+    # к своим семействам), перемежающиеся полосы только ломают карту;
+    # проценты по зонам — в чипе «По зонам»
     for topic in topics:
-        z = zone_of(topic)
-        if z != prev_zone:
-            zn = zone_names.get(z, z)
-            cells.append(f'<div class="zonehdr">{esc(zn)}</div>')
-            prev_zone = z
         cells.append(f'<div class="rh">{esc(topic)}</div>')
         tq = sorted((q for q in questions if q["topic"] == topic),
                     key=lambda q: q["level"])
