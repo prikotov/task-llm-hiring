@@ -93,7 +93,9 @@ FAMILY_IDS = {
     "БД и ORM": ["T14", "T15", "T17"],
     "Архитектура": ["T25", "T26"],
     "Фронтенд": ["T21", "T24"],
-    "Тесты/HTTP/безопасность": ["T18", "T19", "T20"],
+    "HTTP": ["T19"],
+    "Безопасность": ["T20"],
+    "Тесты": ["T18"],
 }
 def family_scores(questions: list, run_by_ids: list[dict]) -> list[tuple[str, float]]:
     """Процент верных по семействам, агрегированный по прогонам.
@@ -106,8 +108,9 @@ def family_scores(questions: list, run_by_ids: list[dict]) -> list[tuple[str, fl
             ("БД и ORM", FAMILY_IDS["БД и ORM"]),
             ("Архитектура", FAMILY_IDS["Архитектура"]),
             ("Фронтенд", FAMILY_IDS["Фронтенд"]),
-            ("Тесты/HTTP/безопасность",
-             FAMILY_IDS["Тесты/HTTP/безопасность"])]
+            ("HTTP", FAMILY_IDS["HTTP"]),
+            ("Безопасность", FAMILY_IDS["Безопасность"]),
+            ("Тесты", FAMILY_IDS["Тесты"])]
     res = []
     for name, ids in defs:
         qs = [q for q in questions if q["id"].split("-L")[0] in ids]
@@ -1271,11 +1274,12 @@ def build_series_report(models_root: Path, questions_path: Path,
                  ("БД и ORM", "БД и ORM"),
                  ("Архитектура", "Архитектура"),
                  ("Фронтенд", "Фронтенд"),
-                 ("Тесты/HTTP/безопасность", "Тесты/HTTP/безопасность"),
-                 ("Всего", "Всего")]
+                 ("HTTP", "HTTP"), ("Безопасность", "Безопасность"),
+                 ("Тесты", "Тесты"), ("Всего", "Всего")]
     fam_titles = {"БД и ORM": "Doctrine, PostgreSQL, транзакции и индексы",
-                  "Тесты/HTTP/безопасность":
-                      "PHPUnit, HTTP и REST API, Безопасность и OAuth"}
+                  "HTTP": "HTTP и REST API",
+                  "Безопасность": "Безопасность и OAuth",
+                  "Тесты": "Тестирование: PHPUnit"}
     metrics.sort(key=lambda m: (m[0], think_order.get(m[1], 99), m[2]))
     mrows = []
     for model, think, lang, fams_list, cost, fl, nq in metrics:
