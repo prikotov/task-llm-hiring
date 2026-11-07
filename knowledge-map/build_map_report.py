@@ -1101,8 +1101,14 @@ def build_series_report(models_root: Path, questions_path: Path,
                 cells.append(f'<div class="rh">{esc(topic)}</div>')
                 tq = sorted((q for q in questions if q["topic"] == topic),
                             key=lambda q: q["level"])
-                for _think, runs_list, flip_by_id, _ba, _ta, _sok, _fl \
-                        in groups:
+                for gi, (t, runs_list, flip_by_id, _ba, _ta, _sok, _fl) \
+                        in enumerate(groups):
+                    cmp_name = f"compare-{t}-{lang}-v{qver}.html"
+                    cmp_href = ""
+                    if (models_root / md.name / "knowledge-map"
+                            / cmp_name).exists():
+                        cmp_href = (f"../models/{esc(md.name)}/knowledge-map/"
+                                    f"{cmp_name}")
                     for lvl in range(1, max_level + 1):
                         q = by_topic_level[topic].get(lvl)
                         if q is None:
@@ -1115,11 +1121,14 @@ def build_series_report(models_root: Path, questions_path: Path,
                                    / max(1, len(runs_list)))
                         tip = tooltip(None, q, runs=answers)
                         flip_cls = " flip" if flip_by_id.get(q["id"]) else ""
+                        tag = "a" if cmp_href else "div"
+                        href = (f' href="{cmp_href}'
+                                f'#row-{esc(q["id"])}"') if cmp_href else ""
                         cells.append(
-                            f'<div class="cell{flip_cls}" '
+                            f'<{tag} class="cell{flip_cls}"{href} '
                             f'style="background:{heat_color(p_share)}">'
                             f'<div class="num">{round(p_share * 100)}</div>'
-                            f'<div class="tip">{tip}</div></div>')
+                            f'<div class="tip">{tip}</div></{tag}>')
                     correct = sum(1 for q in tq for _n, by_id in runs_list
                                   if q["id"] in by_id
                                   and is_correct(by_id[q["id"]]))
