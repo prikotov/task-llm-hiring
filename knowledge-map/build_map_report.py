@@ -955,21 +955,22 @@ def build_series_report(models_root: Path, questions_path: Path,
             continue
         model = esc(runs[0][1].get("model", md.name))
         latest_qver = max((s.get("questionnaire") or 0 for _, s, _ in runs))
-        series_map = defaultdict(list)
+        # ряд = (модель, язык); внутри ряда — карты уровней рассуждений
+        rows_map = defaultdict(lambda: defaultdict(list))
         for rd, session, by_id in runs:
             if session.get("questionnaire") != latest_qver:
                 continue
-            key = (session.get("think"), session.get("lang", "ru"))
-            series_map[key].append((rd, session, by_id))
+            lang = session.get("lang", "ru")
+            rows_map[lang][session.get("think")].append((rd, session, by_id))
 
-        blocks = []
-        first_in_row = True
-        for key in sorted(series_map,
-                          key=lambda k: (think_order.get(k[0], 99), k[0], k[1])):
-            think, lang = key
-            items = series_map[key]
-            if len(items) < 2:
-                continue
+        for lang in sorted(rows_map, key=lambda l: (l != "ru", l)):
+            blocks = []
+            first_in_row = True
+            for think in sorted(rows_map[lang],
+                                key=lambda t: (think_order.get(t, 99), t)):
+                items = rows_map[lang][think]
+                if len(items) < 2:
+                    continue
             qpath = questions_for_run(questions_path, items[0][1])
             q_version, questions = load_questions(qpath)
             runs_list = [(rd.name, by_id) for rd, _s, by_id in items]
@@ -996,15 +997,16 @@ def build_series_report(models_root: Path, questions_path: Path,
             if (models_root / md.name / "knowledge-map" / f"compare-{think}.html").exists():
                 cmp_link = (f'<div class="serlink"><a href="{cmp_rel}">Полный отчёт '
                             f'серии (compare-{esc(think)}.html)</a></div>')
-            blocks.append(
-                f'<div class="series">'
-                f'<div class="serhead">think: {esc(think)} · {esc(lang)}</div>'
-                f'<div class="sermeta">{len(items)} прогонов · вопросник '
-                f'v{q_version} · точность {scores_s} · стабильно верных '
-                f'{stable_ok} · флипующих {flips}</div>{grid}{cmp_link}</div>')
-        if blocks:
-            sections.append(f'<h2>{model}</h2>\n'
-                            f'<div class="seriesrow">{"".join(blocks)}</div>')
+                blocks.append(
+                    f'<div class="series">'
+                    f'<div class="serhead">think: {esc(think)}</div>'
+                    f'<div class="sermeta">{len(items)} прогонов · вопросник '
+                    f'v{q_version} · точность {scores_s} · стабильно верных '
+                    f'{stable_ok} · флипующих {flips}</div>{grid}{cmp_link}</div>')
+            if blocks:
+                sections.append(
+                    f'<h2>{model} · {esc(lang)}</h2>\n'
+                    f'<div class="seriesrow">{"".join(blocks)}</div>')
 
     if not sections:
         raise SystemExit("нет серий: ни у одной модели нет ≥2 прогонов "
