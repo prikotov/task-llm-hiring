@@ -1,7 +1,7 @@
 {
   "version": 8,
   "lang": "en",
-  "as_of": "2026-11-07 (v8: +9 тем стека под проект TasK — Symfony, Doctrine, PostgreSQL, Messenger, PG-транзакции и индексы, PHPUnit, HTTP/REST, безопасность/OAuth, Twig; 184 клетки; факты новых тем проверены живьём: PG 17.7, Twig 3.30, PHPUnit 10.5; переводы EN/ZH выправлены по двойному аудиту mimo v2.6-pro и kimi 3.1-pro; версионные: wiki.php.net/rfc, php.net)",
+  "as_of": "2026-11-07 (v8: +14 тем стека и практик под проект TasK — Symfony, Doctrine, PostgreSQL, Messenger, PG-транзакции, PHPUnit, HTTP/REST, безопасность/OAuth, Twig, Symfony: Security и формы, Symfony: конфигурация и сервисы, Bootstrap 5.3, чистая архитектура, DDD; 224 клетки; факты проверены живьём: PG 17.7, Twig 3.30, PHPUnit 10.5, Bootstrap 5.3.3 (vendored в проекте); клетки отсортированы по кластерам; переводы EN/ZH выправлены по двойному аудиту)",
   "questions": [
     {
       "id": "T01-L1",
@@ -512,6 +512,21 @@
       "zone": "base"
     },
     {
+      "id": "T06-L5",
+      "topic": "OOP: classes and inheritance",
+      "level": 5,
+      "type": "answer",
+      "kind": "fact",
+      "prompt": "What does get_class(new class {}) return? Answer in the short form PHP prints.",
+      "note": "Анонимный класс печатается как class@anonymous (путь в имени — служебный, ответ засчитываем по префиксу).",
+      "grader": {
+        "accept": [
+          "class@anonymous"
+        ]
+      },
+      "zone": "base"
+    },
+    {
       "id": "T06-L6",
       "topic": "OOP: classes and inheritance",
       "level": 6,
@@ -630,6 +645,17 @@
       "zone": "base"
     },
     {
+      "id": "T07-L8",
+      "topic": "Interfaces, traits, enum",
+      "level": 8,
+      "type": "yesno",
+      "kind": "myth",
+      "text": "A trait can declare constants.",
+      "answer": true,
+      "note": "С PHP 8.2 трейты могут объявлять константы (RFC constants_in_traits); до 8.2 — нет.",
+      "zone": "base"
+    },
+    {
       "id": "T08-L1",
       "topic": "Exceptions and errors",
       "level": 1,
@@ -695,6 +721,22 @@
       "type": "yesno",
       "text": "An exception thrown inside a finally block has no effect on the result of the try block.",
       "answer": false,
+      "zone": "base"
+    },
+    {
+      "id": "T08-L7",
+      "topic": "Exceptions and errors",
+      "level": 7,
+      "type": "answer",
+      "kind": "fact",
+      "prompt": "What does the expression (bool) new Exception('x') return?",
+      "note": "Любой объект при приведении к bool — true. Формы ответа: true или да.",
+      "grader": {
+        "accept": [
+          "true",
+          "yes"
+        ]
+      },
       "zone": "base"
     },
     {
@@ -1089,46 +1131,201 @@
       "zone": "base"
     },
     {
-      "id": "T06-L5",
-      "topic": "OOP: classes and inheritance",
-      "level": 5,
-      "type": "answer",
+      "id": "T25-L1",
+      "topic": "Clean architecture",
+      "level": 1,
       "kind": "fact",
-      "prompt": "What does get_class(new class {}) return? Answer in the short form PHP prints.",
-      "note": "Анонимный класс печатается как class@anonymous (путь в имени — служебный, ответ засчитываем по префиксу).",
-      "grader": {
-        "accept": [
-          "class@anonymous"
-        ]
-      },
-      "zone": "base"
-    },
-    {
-      "id": "T07-L8",
-      "topic": "Interfaces, traits, enum",
-      "level": 8,
+      "zone": "base",
+      "note": "Clean Architecture (Robert C. Martin): Dependencies Point Inward.",
       "type": "yesno",
-      "kind": "myth",
-      "text": "A trait can declare constants.",
       "answer": true,
-      "note": "С PHP 8.2 трейты могут объявлять константы (RFC constants_in_traits); до 8.2 — нет.",
-      "zone": "base"
+      "text": "The dependency rule: inner layers (domain, use cases) know nothing about outer ones (DB, UI, framework) — dependencies point inward."
     },
     {
-      "id": "T08-L7",
-      "topic": "Exceptions and errors",
-      "level": 7,
-      "type": "answer",
+      "id": "T25-L2",
+      "topic": "Clean architecture",
+      "level": 2,
       "kind": "fact",
-      "prompt": "What does the expression (bool) new Exception('x') return?",
-      "note": "Любой объект при приведении к bool — true. Формы ответа: true или да.",
+      "zone": "base",
+      "note": "Изоляция домена от инфраструктуры; deptrac в проекте как раз следит за слоями.",
+      "type": "yesno",
+      "answer": true,
+      "text": "Domain entities import neither Doctrine nor Symfony — only the language and, possibly, the standard library."
+    },
+    {
+      "id": "T25-L3",
+      "topic": "Clean architecture",
+      "level": 3,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Наоборот: это интерфейсные адаптеры (внешний слой); они зависят от use cases, а не наоборот.",
+      "type": "yesno",
+      "answer": false,
+      "text": "Controllers and Twig templates belong to the business-logic layer because they are the ones calling use cases."
+    },
+    {
+      "id": "T25-L4",
+      "topic": "Clean architecture",
+      "level": 4,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Порт (port) — интерфейс ядра; адаптер (adapter) — его реализация снаружи. Ports & Adapters (Alistair Cockburn).",
+      "type": "answer",
       "grader": {
         "accept": [
-          "true",
-          "yes"
+          "порт",
+          "port"
         ]
       },
-      "zone": "base"
+      "prompt": "In hexagonal architecture, what is the interface through which the core talks to the outside world (DB, HTTP) called?"
+    },
+    {
+      "id": "T25-L5",
+      "topic": "Clean architecture",
+      "level": 5,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Суть правила в том, что его не нарушают; иначе архитектура деградирует в «большой ком грязи».",
+      "type": "yesno",
+      "answer": false,
+      "text": "It is acceptable to violate layer boundaries if it speeds up development noticeably — as long as you document it."
+    },
+    {
+      "id": "T25-L6",
+      "topic": "Clean architecture",
+      "level": 6,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Use case принимает DTO и порты; привязка к HTTP/ORM протекает инфраструктуру во внутренние слои.",
+      "type": "yesno",
+      "answer": false,
+      "text": "A use case (interactor) may accept an HTTP request or an EntityManager as arguments — it is simpler that way."
+    },
+    {
+      "id": "T25-L7",
+      "topic": "Clean architecture",
+      "level": 7,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Repository pattern (DDD/Evans); в проекте — Doctrine-репозитории за портами.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "репозиторий",
+          "repository"
+        ]
+      },
+      "prompt": "What is the component called that provides a collection of aggregates/entities while hiding the storage mechanism behind an interface?"
+    },
+    {
+      "id": "T25-L8",
+      "topic": "Clean architecture",
+      "level": 8,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Следствие правила зависимостей: инфраструктура взаимозаменяема.",
+      "type": "yesno",
+      "answer": true,
+      "text": "In clean architecture, swapping PostgreSQL for another database touches only the outer layer — the domain and use cases stay unchanged."
+    },
+    {
+      "id": "T26-L1",
+      "topic": "DDD",
+      "level": 1,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Агрегат — кластер объектов с границей согласованности (транзакционной вокруг корня); таблица — деталь хранения.",
+      "type": "yesno",
+      "answer": false,
+      "text": "In DDD, an aggregate is just another name for a database table."
+    },
+    {
+      "id": "T26-L2",
+      "topic": "DDD",
+      "level": 2,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Классика Evans: Money, Email; равенство структурное.",
+      "type": "yesno",
+      "answer": true,
+      "text": "A Value Object is immutable and compared by the values of its fields, not by identity."
+    },
+    {
+      "id": "T26-L3",
+      "topic": "DDD",
+      "level": 3,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Aggregate Root: внешние объекты ссылаются только на корень; он защищает инварианты агрегата.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "aggregate root",
+          "корень агрегата",
+          "агрегатный корень"
+        ]
+      },
+      "prompt": "What is the single external entry point of an aggregate, through which all changes must go, called?"
+    },
+    {
+      "id": "T26-L4",
+      "topic": "DDD",
+      "level": 4,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Репозиторий — на агрегат (его корень), а не на каждую сущность.",
+      "type": "yesno",
+      "answer": false,
+      "text": "By DDD rules, every domain entity must have its own repository."
+    },
+    {
+      "id": "T26-L5",
+      "topic": "DDD",
+      "level": 5,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Evans: язык из требований переходит в имена классов и методов.",
+      "type": "yesno",
+      "answer": true,
+      "text": "Ubiquitous language is the model's shared language common to developers and domain experts."
+    },
+    {
+      "id": "T26-L6",
+      "topic": "DDD",
+      "level": 6,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Bounded Context; «Заказ» в биллинге и в доставке — разные модели.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "bounded context",
+          "ограниченный контекст"
+        ]
+      },
+      "prompt": "What is the boundary called within which a model and its language are consistent, while outside the same words mean other models?"
+    },
+    {
+      "id": "T26-L7",
+      "topic": "DDD",
+      "level": 7,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Наоборот: Evans называет анемичность антипаттерном — поведение должно жить в доменных объектах.",
+      "type": "yesno",
+      "answer": false,
+      "text": "An anemic model (objects with only getters/setters, logic in services) is the recommended DDD style."
+    },
+    {
+      "id": "T26-L8",
+      "topic": "DDD",
+      "level": 8,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Наоборот: контекстов несколько, у каждого своя модель; между ними — интеграция (ACL и др.).",
+      "type": "yesno",
+      "answer": false,
+      "text": "Bounded context means one single model must serve the entire company."
     },
     {
       "id": "T13-L1",
@@ -1225,6 +1422,487 @@
       "type": "yesno",
       "answer": false,
       "text": "Event subscribers always receive events before listeners, because the interface gives them priority."
+    },
+    {
+      "id": "T22-L1",
+      "topic": "Symfony: Security and forms",
+      "level": 1,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Guard объявлен устаревшим в 5.3 и удалён в 6.0; в проекте symfony/security-bundle 8.1.",
+      "type": "yesno",
+      "answer": true,
+      "text": "In modern Symfony (6.0+) authentication is built on authenticator classes (AuthenticatorInterface); the old guard system has been removed."
+    },
+    {
+      "id": "T22-L2",
+      "topic": "Symfony: Security and forms",
+      "level": 2,
+      "kind": "fact",
+      "zone": "base",
+      "note": "#[IsGranted('ROLE_ADMIN')]; атрибут из symfony/security-http.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "isgranted"
+        ]
+      },
+      "prompt": "Which Symfony attribute checks a role/permission right on a controller method (403 without it)?"
+    },
+    {
+      "id": "T22-L3",
+      "topic": "Symfony: Security and forms",
+      "level": 3,
+      "kind": "fact",
+      "zone": "base",
+      "note": "VoterInterface->vote(); docs Symfony — Voters.",
+      "type": "yesno",
+      "answer": true,
+      "text": "Voters are Symfony's mechanism for checking access to a specific object: isGranted('EDIT', $post)."
+    },
+    {
+      "id": "T22-L4",
+      "topic": "Symfony: Security and forms",
+      "level": 4,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Докблок-аннотации удалены в Symfony 7.0; стандарт — атрибуты. В проекте symfony/validator 8.1.",
+      "type": "yesno",
+      "answer": true,
+      "text": "In modern Symfony (7+) validation constraints are declared as PHP attributes (#[Assert\\NotBlank]); doctrine annotations are no longer supported."
+    },
+    {
+      "id": "T22-L5",
+      "topic": "Symfony: Security and forms",
+      "level": 5,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Наоборот: CSRF-атака исходит именно от авторизованного пользователя (чужой сайт шлёт запрос с его cookie); symfony/security-csrf в проекте.",
+      "type": "yesno",
+      "answer": false,
+      "text": "It is safe to disable CSRF protection for a form if only authenticated users can access it."
+    },
+    {
+      "id": "T22-L6",
+      "topic": "Symfony: Security and forms",
+      "level": 6,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Клиентская валидация — только удобство; серверная обязательна и идёт по метаданным объекта формы.",
+      "type": "yesno",
+      "answer": true,
+      "text": "Form validation in Symfony runs server-side even if the client-side (HTML5) checks passed."
+    },
+    {
+      "id": "T22-L7",
+      "topic": "Symfony: Security and forms",
+      "level": 7,
+      "kind": "fact",
+      "zone": "base",
+      "note": "bin/console make:form (symfony/maker-bundle — в проекте).",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "make:form"
+        ]
+      },
+      "prompt": "Which Symfony maker command generates a form class (FormType)?"
+    },
+    {
+      "id": "T22-L8",
+      "topic": "Symfony: Security and forms",
+      "level": 8,
+      "kind": "myth",
+      "zone": "base",
+      "note": "В сессии живёт объект пользователя в токене; хеш затирается eraseCredentials(), plaintext там никогда не лежит.",
+      "type": "yesno",
+      "answer": false,
+      "text": "Symfony stores the user's password in the session in plain text."
+    },
+    {
+      "id": "T23-L1",
+      "topic": "Symfony: configuration and services",
+      "level": 1,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Стандартная структура (config/packages/*.yaml); перегрузка — config/packages/<env>.",
+      "type": "yesno",
+      "answer": true,
+      "text": "Symfony bundle configuration lives in config/packages — one file per bundle or topic."
+    },
+    {
+      "id": "T23-L2",
+      "topic": "Symfony: configuration and services",
+      "level": 2,
+      "kind": "myth",
+      "zone": "base",
+      "note": ".env с dev-дефолтами коммитится; секреты — в .env.local (gitignored) или в хранилище secrets.*.",
+      "type": "yesno",
+      "answer": false,
+      "text": "The .env file contains production secrets and is therefore excluded from the repository."
+    },
+    {
+      "id": "T23-L3",
+      "topic": "Symfony: configuration and services",
+      "level": 3,
+      "kind": "fact",
+      "zone": "base",
+      "note": "bin/console debug:container; параметры контейнера — debug:parameter.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "debug:container"
+        ]
+      },
+      "prompt": "Which Symfony command lists the container's registered services and their aliases?"
+    },
+    {
+      "id": "T23-L4",
+      "topic": "Symfony: configuration and services",
+      "level": 4,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Контейнер компилируется и замораживается; runtime-значения — только через переменные окружения.",
+      "type": "yesno",
+      "answer": false,
+      "text": "The Symfony container allows changing parameters at runtime: $container->setParameter() works from a controller."
+    },
+    {
+      "id": "T23-L5",
+      "topic": "Symfony: configuration and services",
+      "level": 5,
+      "kind": "myth",
+      "zone": "base",
+      "note": "С Symfony 4.0 сервисы по умолчанию private: инжектятся через autowiring; $container->get() — только для публичных.",
+      "type": "yesno",
+      "answer": false,
+      "text": "By default, Symfony services are public (public: true) — you can fetch them directly from the container."
+    },
+    {
+      "id": "T23-L6",
+      "topic": "Symfony: configuration and services",
+      "level": 6,
+      "kind": "myth",
+      "zone": "base",
+      "note": "У бандлов есть встроенные умолчания (Extension); конфиг нужен только для отклонений от них.",
+      "type": "yesno",
+      "answer": false,
+      "text": "Without a config file in config/packages a bundle will not work — configuration is mandatory for every bundle."
+    },
+    {
+      "id": "T23-L7",
+      "topic": "Symfony: configuration and services",
+      "level": 7,
+      "kind": "fact",
+      "zone": "base",
+      "note": "%env(...)% резолвится в рантайме env-процессорами; docs — Env Var Processors.",
+      "type": "yesno",
+      "answer": true,
+      "text": "Environment variable values are injected into services.yaml using the %env(VAR)% syntax."
+    },
+    {
+      "id": "T23-L8",
+      "topic": "Symfony: configuration and services",
+      "level": 8,
+      "kind": "fact",
+      "zone": "base",
+      "note": "APP_DEBUG=1 (в .env dev-окружения); окружение выбирает APP_ENV — см. T13-L6.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "app_debug"
+        ]
+      },
+      "prompt": "Which Symfony environment variable enables debug mode (affects the profiler and Twig debugging)?"
+    },
+    {
+      "id": "T16-L1",
+      "topic": "Symfony: Messenger",
+      "level": 1,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Messenger вызывает все хендлеры, подписанные на класс сообщения (docs — Multiple Handlers).",
+      "type": "yesno",
+      "answer": false,
+      "text": "A single message in Symfony Messenger can only have one handler."
+    },
+    {
+      "id": "T16-L2",
+      "topic": "Symfony: Messenger",
+      "level": 2,
+      "kind": "fact",
+      "zone": "base",
+      "note": "sync-транспорт — обработка в момент dispatch без очереди; docs Messenger.",
+      "type": "yesno",
+      "answer": true,
+      "text": "The sync transport in Messenger runs the handler immediately, in the same process that dispatched the message."
+    },
+    {
+      "id": "T16-L3",
+      "topic": "Symfony: Messenger",
+      "level": 3,
+      "kind": "fact",
+      "zone": "base",
+      "note": "bin/console messenger:consume async; воркеры под supervisord/systemd в проде.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "messenger:consume"
+        ]
+      },
+      "prompt": "Which console command starts the worker that processes Messenger queue messages?"
+    },
+    {
+      "id": "T16-L4",
+      "topic": "Symfony: Messenger",
+      "level": 4,
+      "kind": "fact",
+      "zone": "base",
+      "note": "retry_strategy на транспорте: max_retries, delay, multiplier; docs — Failed Messages & Retries.",
+      "type": "yesno",
+      "answer": true,
+      "text": "Retries for failed messages (retry_strategy) are configured per Messenger transport."
+    },
+    {
+      "id": "T16-L5",
+      "topic": "Symfony: Messenger",
+      "level": 5,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Дефолтный сериализатор — PhpSerializer (serialize()); JSON-сериализатор включается отдельно.",
+      "type": "yesno",
+      "answer": false,
+      "text": "By default, Messenger serializes messages to JSON."
+    },
+    {
+      "id": "T16-L6",
+      "topic": "Symfony: Messenger",
+      "level": 6,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Schedule → RecurringMessage → шина Messenger; docs — Scheduler.",
+      "type": "yesno",
+      "answer": true,
+      "text": "Symfony Scheduler produces messages on a schedule and dispatches them through Messenger."
+    },
+    {
+      "id": "T16-L7",
+      "topic": "Symfony: Messenger",
+      "level": 7,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Транспорт doctrine (symfony/doctrine-messenger); таблица messenger_messages. В проекте стоит amqp-messenger + doctrine-messenger.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "doctrine"
+        ]
+      },
+      "prompt": "Which built-in Messenger transport stores messages in database tables via Doctrine?"
+    },
+    {
+      "id": "T16-L8",
+      "topic": "Symfony: Messenger",
+      "level": 8,
+      "kind": "fact",
+      "zone": "base",
+      "note": "messenger.bus.*.middleware в yaml; docs — Middleware.",
+      "type": "yesno",
+      "answer": true,
+      "text": "The Messenger pipeline can be extended with custom middleware, placed before or after the built-in ones."
+    },
+    {
+      "id": "T21-L1",
+      "topic": "Twig",
+      "level": 1,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Twig — DSL: только разрешённые окружением функции/фильтры; произвольный PHP не исполняется.",
+      "type": "yesno",
+      "answer": false,
+      "text": "Inside {{ }}, Twig allows calling arbitrary PHP code directly."
+    },
+    {
+      "id": "T21-L2",
+      "topic": "Twig",
+      "level": 2,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Автоэкранирование включено по умолчанию. Проверено на Twig 3.30: {{ '<b>' }} → &lt;b&gt;.",
+      "type": "yesno",
+      "answer": false,
+      "text": "By default Twig does not escape variables — the developer must apply the |e filter."
+    },
+    {
+      "id": "T21-L3",
+      "topic": "Twig",
+      "level": 3,
+      "kind": "myth",
+      "zone": "base",
+      "note": "|e — экранирование для вывода (HTML/JS); от SQL-инъекций — подготовленные запросы Doctrine.",
+      "type": "yesno",
+      "answer": false,
+      "text": "The Twig |e filter protects against SQL injection."
+    },
+    {
+      "id": "T21-L4",
+      "topic": "Twig",
+      "level": 4,
+      "kind": "fact",
+      "zone": "base",
+      "note": "|format_number(locale=...) из IntlExtension (twig/intl-extra есть в проекте). Проверено на Twig 3.30: 12345.6 → 12 345,6 (ru).",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "format_number",
+          "format number"
+        ]
+      },
+      "prompt": "Which filter from twig/intl-extra formats a number according to a locale?"
+    },
+    {
+      "id": "T21-L5",
+      "topic": "Twig",
+      "level": 5,
+      "kind": "fact",
+      "zone": "base",
+      "note": "{{ x|raw }} выводит HTML как есть; опасно с пользовательскими данными. Проверено на Twig 3.30.",
+      "type": "yesno",
+      "answer": true,
+      "text": "The |raw filter disables auto-escaping for the value."
+    },
+    {
+      "id": "T21-L6",
+      "topic": "Twig",
+      "level": 6,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Наоборот: {{ }} — вывод, {% %} — теги (if/for/set/block).",
+      "type": "yesno",
+      "answer": false,
+      "text": "In Twig, {{ }} controls logic (conditions, loops), while {% %} prints an expression value."
+    },
+    {
+      "id": "T21-L7",
+      "topic": "Twig",
+      "level": 7,
+      "kind": "myth",
+      "zone": "base",
+      "note": "{% set y = ... %} объявляет переменную в шаблоне. Проверено на Twig 3.30.",
+      "type": "yesno",
+      "answer": false,
+      "text": "In Twig you cannot declare a variable inside a template — values only come from the controller."
+    },
+    {
+      "id": "T21-L8",
+      "topic": "Twig",
+      "level": 8,
+      "kind": "fact",
+      "zone": "base",
+      "note": "{{ dump(x) }} (DebugExtension; в Symfony доступна в dev-окружении).",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "dump"
+        ]
+      },
+      "prompt": "Which Twig function dumps the debug structure of a variable (array, object)?"
+    },
+    {
+      "id": "T24-L1",
+      "topic": "Bootstrap",
+      "level": 1,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Bootstrap — CSS/JS-библиотека интерфейсных компонентов, не SPA-фреймворк. В проекте vendored Bootstrap 5.3.3.",
+      "type": "yesno",
+      "answer": false,
+      "text": "Bootstrap is a JavaScript SPA framework with a virtual DOM."
+    },
+    {
+      "id": "T24-L2",
+      "topic": "Bootstrap",
+      "level": 2,
+      "kind": "fact",
+      "zone": "base",
+      "note": ".container (фиксированная макс-ширина по брейкпоинтам) vs .container-fluid (на всю ширину).",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "container"
+        ]
+      },
+      "prompt": "Which Bootstrap class gives a responsive container with a fixed max width per breakpoint?"
+    },
+    {
+      "id": "T24-L3",
+      "topic": "Bootstrap",
+      "level": 3,
+      "kind": "fact",
+      "zone": "base",
+      "note": "row/col-*; 12 колонок — docs Bootstrap Grid.",
+      "type": "yesno",
+      "answer": true,
+      "text": "The Bootstrap grid is built on flexbox and splits a row into 12 columns."
+    },
+    {
+      "id": "T24-L4",
+      "topic": "Bootstrap",
+      "level": 4,
+      "kind": "fact",
+      "zone": "base",
+      "note": "576 / 768 / 992 / 1200 / 1400 px; Bootstrap 5.",
+      "type": "yesno",
+      "answer": true,
+      "text": "Bootstrap's standard breakpoints are sm, md, lg, xl, xxl (five in total)."
+    },
+    {
+      "id": "T24-L5",
+      "topic": "Bootstrap",
+      "level": 5,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Spacing utilities; $spacer = 1rem.",
+      "type": "yesno",
+      "answer": true,
+      "text": "Utilities like .mt-3 or .px-2 use the spacing scale: the number is a multiple of $spacer."
+    },
+    {
+      "id": "T24-L6",
+      "topic": "Bootstrap",
+      "level": 6,
+      "kind": "fact",
+      "zone": "base",
+      "note": "data-bs-toggle=\"dropdown\" и т.п.; в Bootstrap 4 атрибут назывался data-toggle.",
+      "type": "answer",
+      "grader": {
+        "accept": [
+          "data-bs-toggle"
+        ]
+      },
+      "prompt": "Which Bootstrap 5 data attribute enables an interactive component (e.g. dropdown) on an element?"
+    },
+    {
+      "id": "T24-L7",
+      "topic": "Bootstrap",
+      "level": 7,
+      "kind": "myth",
+      "zone": "base",
+      "note": "Наоборот: jQuery убран в Bootstrap 5.0 — только vanilla JS.",
+      "type": "yesno",
+      "answer": false,
+      "text": "Bootstrap 5 components (modals, tooltips) require jQuery."
+    },
+    {
+      "id": "T24-L8",
+      "topic": "Bootstrap",
+      "level": 8,
+      "kind": "fact",
+      "zone": "base",
+      "note": "Color modes добавлены в 5.3; в проекте ровно 5.3.3 — фича доступна.",
+      "type": "yesno",
+      "answer": true,
+      "text": "Dark mode in Bootstrap is enabled with data-bs-theme=\"dark\" — a feature since version 5.3."
     },
     {
       "id": "T14-L1",
@@ -1423,102 +2101,6 @@
       "text": "The READ COMMITTED isolation level protects against non-repeatable reads."
     },
     {
-      "id": "T16-L1",
-      "topic": "Symfony: Messenger",
-      "level": 1,
-      "kind": "myth",
-      "zone": "base",
-      "note": "Messenger вызывает все хендлеры, подписанные на класс сообщения (docs — Multiple Handlers).",
-      "type": "yesno",
-      "answer": false,
-      "text": "A single message in Symfony Messenger can only have one handler."
-    },
-    {
-      "id": "T16-L2",
-      "topic": "Symfony: Messenger",
-      "level": 2,
-      "kind": "fact",
-      "zone": "base",
-      "note": "sync-транспорт — обработка в момент dispatch без очереди; docs Messenger.",
-      "type": "yesno",
-      "answer": true,
-      "text": "The sync transport in Messenger runs the handler immediately, in the same process that dispatched the message."
-    },
-    {
-      "id": "T16-L3",
-      "topic": "Symfony: Messenger",
-      "level": 3,
-      "kind": "fact",
-      "zone": "base",
-      "note": "bin/console messenger:consume async; воркеры под supervisord/systemd в проде.",
-      "type": "answer",
-      "grader": {
-        "accept": [
-          "messenger:consume"
-        ]
-      },
-      "prompt": "Which console command starts the worker that processes Messenger queue messages?"
-    },
-    {
-      "id": "T16-L4",
-      "topic": "Symfony: Messenger",
-      "level": 4,
-      "kind": "fact",
-      "zone": "base",
-      "note": "retry_strategy на транспорте: max_retries, delay, multiplier; docs — Failed Messages & Retries.",
-      "type": "yesno",
-      "answer": true,
-      "text": "Retries for failed messages (retry_strategy) are configured per Messenger transport."
-    },
-    {
-      "id": "T16-L5",
-      "topic": "Symfony: Messenger",
-      "level": 5,
-      "kind": "myth",
-      "zone": "base",
-      "note": "Дефолтный сериализатор — PhpSerializer (serialize()); JSON-сериализатор включается отдельно.",
-      "type": "yesno",
-      "answer": false,
-      "text": "By default, Messenger serializes messages to JSON."
-    },
-    {
-      "id": "T16-L6",
-      "topic": "Symfony: Messenger",
-      "level": 6,
-      "kind": "fact",
-      "zone": "base",
-      "note": "Schedule → RecurringMessage → шина Messenger; docs — Scheduler.",
-      "type": "yesno",
-      "answer": true,
-      "text": "Symfony Scheduler produces messages on a schedule and dispatches them through Messenger."
-    },
-    {
-      "id": "T16-L7",
-      "topic": "Symfony: Messenger",
-      "level": 7,
-      "kind": "fact",
-      "zone": "base",
-      "note": "Транспорт doctrine (symfony/doctrine-messenger); таблица messenger_messages. В проекте стоит amqp-messenger + doctrine-messenger.",
-      "type": "answer",
-      "grader": {
-        "accept": [
-          "doctrine"
-        ]
-      },
-      "prompt": "Which built-in Messenger transport stores messages in database tables via Doctrine?"
-    },
-    {
-      "id": "T16-L8",
-      "topic": "Symfony: Messenger",
-      "level": 8,
-      "kind": "fact",
-      "zone": "base",
-      "note": "messenger.bus.*.middleware в yaml; docs — Middleware.",
-      "type": "yesno",
-      "answer": true,
-      "text": "The Messenger pipeline can be extended with custom middleware, placed before or after the built-in ones."
-    },
-    {
       "id": "T17-L1",
       "topic": "PostgreSQL: transactions and indexes",
       "level": 1,
@@ -1614,104 +2196,6 @@
       "type": "yesno",
       "answer": false,
       "text": "The SERIALIZABLE level in PostgreSQL is implemented by locking the rows a transaction reads."
-    },
-    {
-      "id": "T18-L1",
-      "topic": "Testing: PHPUnit",
-      "level": 1,
-      "kind": "myth",
-      "zone": "base",
-      "note": "Тестом считается метод класса, наследующего TestCase (PHPUnit 10).",
-      "type": "yesno",
-      "answer": false,
-      "text": "PHPUnit runs test methods of any class — extending TestCase is not required."
-    },
-    {
-      "id": "T18-L2",
-      "topic": "Testing: PHPUnit",
-      "level": 2,
-      "kind": "myth",
-      "zone": "base",
-      "note": "setUp() — перед КАЖДЫМ тестом; один раз на класс — setUpBeforeClass(). Проверено живым счётчиком на PHPUnit 10.5.",
-      "type": "yesno",
-      "answer": false,
-      "text": "In PHPUnit, setUp() runs once before all tests of the class."
-    },
-    {
-      "id": "T18-L3",
-      "topic": "Testing: PHPUnit",
-      "level": 3,
-      "kind": "fact",
-      "zone": "base",
-      "note": "DataProvider возвращает наборы аргументов → тест выполняется по разу на каждый. Проверено на PHPUnit 10.5 (#[DataProvider]).",
-      "type": "yesno",
-      "answer": true,
-      "text": "A data provider lets a single test run against multiple sets of arguments."
-    },
-    {
-      "id": "T18-L4",
-      "topic": "Testing: PHPUnit",
-      "level": 4,
-      "kind": "fact",
-      "zone": "base",
-      "note": "$this->expectException(\\LogicException::class); проверено на PHPUnit 10.5.",
-      "type": "answer",
-      "grader": {
-        "accept": [
-          "expectException"
-        ]
-      },
-      "prompt": "Which PHPUnit method declares an expectation that an exception of a given class is thrown?"
-    },
-    {
-      "id": "T18-L5",
-      "topic": "Testing: PHPUnit",
-      "level": 5,
-      "kind": "myth",
-      "zone": "base",
-      "note": "Наоборот: стаб подставляет данные, мок проверяет взаимодействия (createStub/createMock); docs PHPUnit — Test Doubles.",
-      "type": "yesno",
-      "answer": false,
-      "text": "In PHPUnit, a stub verifies which methods were called on it, while a mock only returns data."
-    },
-    {
-      "id": "T18-L6",
-      "topic": "Testing: PHPUnit",
-      "level": 6,
-      "kind": "fact",
-      "zone": "base",
-      "note": "PHPUnit 10 вводит метаданные-атрибуты. Проверено на 10.5: тест на #[DataProvider] выполняется.",
-      "type": "yesno",
-      "answer": true,
-      "text": "In PHPUnit 10+, the #[DataProvider] attribute replaced the @dataProvider annotation."
-    },
-    {
-      "id": "T18-L7",
-      "topic": "Testing: PHPUnit",
-      "level": 7,
-      "kind": "myth",
-      "zone": "base",
-      "note": "Зависимости есть: #[Depends] — зависимый тест не запустится, еслиProducer упал.",
-      "type": "yesno",
-      "answer": false,
-      "text": "PHPUnit does not allow one test to depend on the result of another."
-    },
-    {
-      "id": "T18-L8",
-      "topic": "Testing: PHPUnit",
-      "level": 8,
-      "kind": "fact",
-      "zone": "base",
-      "note": "--order-by=random (PHPUnit 9+); опция есть в --help PHPUnit 10.5 (проектная).",
-      "type": "answer",
-      "grader": {
-        "accept": [
-          "--order-by=random",
-          "--order-by random",
-          "random"
-        ]
-      },
-      "prompt": "Which PHPUnit command-line option makes tests run in random order?"
     },
     {
       "id": "T19-L1",
@@ -1906,101 +2390,102 @@
       "text": "A password salt must be kept secret: without it the hash cannot be verified."
     },
     {
-      "id": "T21-L1",
-      "topic": "Twig",
+      "id": "T18-L1",
+      "topic": "Testing: PHPUnit",
       "level": 1,
       "kind": "myth",
       "zone": "base",
-      "note": "Twig — DSL: только разрешённые окружением функции/фильтры; произвольный PHP не исполняется.",
+      "note": "Тестом считается метод класса, наследующего TestCase (PHPUnit 10).",
       "type": "yesno",
       "answer": false,
-      "text": "Inside {{ }}, Twig allows calling arbitrary PHP code directly."
+      "text": "PHPUnit runs test methods of any class — extending TestCase is not required."
     },
     {
-      "id": "T21-L2",
-      "topic": "Twig",
+      "id": "T18-L2",
+      "topic": "Testing: PHPUnit",
       "level": 2,
       "kind": "myth",
       "zone": "base",
-      "note": "Автоэкранирование включено по умолчанию. Проверено на Twig 3.30: {{ '<b>' }} → &lt;b&gt;.",
+      "note": "setUp() — перед КАЖДЫМ тестом; один раз на класс — setUpBeforeClass(). Проверено живым счётчиком на PHPUnit 10.5.",
       "type": "yesno",
       "answer": false,
-      "text": "By default Twig does not escape variables — the developer must apply the |e filter."
+      "text": "In PHPUnit, setUp() runs once before all tests of the class."
     },
     {
-      "id": "T21-L3",
-      "topic": "Twig",
+      "id": "T18-L3",
+      "topic": "Testing: PHPUnit",
       "level": 3,
-      "kind": "myth",
+      "kind": "fact",
       "zone": "base",
-      "note": "|e — экранирование для вывода (HTML/JS); от SQL-инъекций — подготовленные запросы Doctrine.",
+      "note": "DataProvider возвращает наборы аргументов → тест выполняется по разу на каждый. Проверено на PHPUnit 10.5 (#[DataProvider]).",
       "type": "yesno",
-      "answer": false,
-      "text": "The Twig |e filter protects against SQL injection."
+      "answer": true,
+      "text": "A data provider lets a single test run against multiple sets of arguments."
     },
     {
-      "id": "T21-L4",
-      "topic": "Twig",
+      "id": "T18-L4",
+      "topic": "Testing: PHPUnit",
       "level": 4,
       "kind": "fact",
       "zone": "base",
-      "note": "|format_number(locale=...) из IntlExtension (twig/intl-extra есть в проекте). Проверено на Twig 3.30: 12345.6 → 12 345,6 (ru).",
+      "note": "$this->expectException(\\LogicException::class); проверено на PHPUnit 10.5.",
       "type": "answer",
       "grader": {
         "accept": [
-          "format_number",
-          "format number"
+          "expectException"
         ]
       },
-      "prompt": "Which filter from twig/intl-extra formats a number according to a locale?"
+      "prompt": "Which PHPUnit method declares an expectation that an exception of a given class is thrown?"
     },
     {
-      "id": "T21-L5",
-      "topic": "Twig",
+      "id": "T18-L5",
+      "topic": "Testing: PHPUnit",
       "level": 5,
-      "kind": "fact",
-      "zone": "base",
-      "note": "{{ x|raw }} выводит HTML как есть; опасно с пользовательскими данными. Проверено на Twig 3.30.",
-      "type": "yesno",
-      "answer": true,
-      "text": "The |raw filter disables auto-escaping for the value."
-    },
-    {
-      "id": "T21-L6",
-      "topic": "Twig",
-      "level": 6,
       "kind": "myth",
       "zone": "base",
-      "note": "Наоборот: {{ }} — вывод, {% %} — теги (if/for/set/block).",
+      "note": "Наоборот: стаб подставляет данные, мок проверяет взаимодействия (createStub/createMock); docs PHPUnit — Test Doubles.",
       "type": "yesno",
       "answer": false,
-      "text": "In Twig, {{ }} controls logic (conditions, loops), while {% %} prints an expression value."
+      "text": "In PHPUnit, a stub verifies which methods were called on it, while a mock only returns data."
     },
     {
-      "id": "T21-L7",
-      "topic": "Twig",
+      "id": "T18-L6",
+      "topic": "Testing: PHPUnit",
+      "level": 6,
+      "kind": "fact",
+      "zone": "base",
+      "note": "PHPUnit 10 вводит метаданные-атрибуты. Проверено на 10.5: тест на #[DataProvider] выполняется.",
+      "type": "yesno",
+      "answer": true,
+      "text": "In PHPUnit 10+, the #[DataProvider] attribute replaced the @dataProvider annotation."
+    },
+    {
+      "id": "T18-L7",
+      "topic": "Testing: PHPUnit",
       "level": 7,
       "kind": "myth",
       "zone": "base",
-      "note": "{% set y = ... %} объявляет переменную в шаблоне. Проверено на Twig 3.30.",
+      "note": "Зависимости есть: #[Depends] — зависимый тест не запустится, еслиProducer упал.",
       "type": "yesno",
       "answer": false,
-      "text": "In Twig you cannot declare a variable inside a template — values only come from the controller."
+      "text": "PHPUnit does not allow one test to depend on the result of another."
     },
     {
-      "id": "T21-L8",
-      "topic": "Twig",
+      "id": "T18-L8",
+      "topic": "Testing: PHPUnit",
       "level": 8,
       "kind": "fact",
       "zone": "base",
-      "note": "{{ dump(x) }} (DebugExtension; в Symfony доступна в dev-окружении).",
+      "note": "--order-by=random (PHPUnit 9+); опция есть в --help PHPUnit 10.5 (проектная).",
       "type": "answer",
       "grader": {
         "accept": [
-          "dump"
+          "--order-by=random",
+          "--order-by random",
+          "random"
         ]
       },
-      "prompt": "Which Twig function dumps the debug structure of a variable (array, object)?"
+      "prompt": "Which PHPUnit command-line option makes tests run in random order?"
     },
     {
       "id": "VC-L1",
