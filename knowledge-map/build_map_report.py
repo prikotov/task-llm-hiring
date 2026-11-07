@@ -213,7 +213,8 @@ def page_css() -> str:
                   font: 11.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
                   white-space: pre-wrap; word-break: break-word; }
     .map.compact .cell { height: 24px; border-radius: 4px; }
-    .map.compact .rh { font-size: 11px; }
+    .map.compact .rh { font-size: 11px; white-space: nowrap; }
+    .map.compact .hd, .map.compact .agg { white-space: nowrap; }
     .map.compact .hd { font-size: 10.5px; padding-bottom: 2px; }
     .map.compact .agg { font-size: 10.5px; }
     .map.compact .zonehdr { font-size: 11px; padding: 3px 8px; margin-top: 4px; }
@@ -438,7 +439,7 @@ def map_grid_compare(questions: list, runs: list[tuple[str, dict]],
     agg_px = 56 if compact else 84
     cols = []
     if show_labels:
-        cols.append("minmax(120px, 170px)" if compact else "minmax(190px, 250px)")
+        cols.append("200px" if compact else "minmax(190px, 250px)")
     cols.append(f"repeat({max_level}, {cell_px}px)")
     cols.append(f"{agg_px}px")
     cls = "map compact" if compact else "map"
