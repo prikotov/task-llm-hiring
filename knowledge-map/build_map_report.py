@@ -138,10 +138,11 @@ def tooltip(turn: dict | None, q: dict, runs: list[tuple] | None = None) -> str:
     if runs is not None:  # тепловая карта: вопрос, эталон, прогоны
         parts.append(f"Верный ответ: <b>{esc(right)}</b>")
         lines = []
-        for run_name, ans, ok in runs:
+        for run_name, ans, ok, href in runs:
             mark = "⬜" if ans is None else ("✓" if ok else "✗")
-            lines.append(f'<span class="nb">{esc(run_name)}:'
-                         f'\u00a0{mark}</span>')
+            name = (f'<a href="{href}">{esc(run_name)}</a>' if href
+                    else esc(run_name))
+            lines.append(f'<span class="nb">{name}:\u00a0{mark}</span>')
         parts.append(" · ".join(lines))
     elif turn is not None:
         given = given_text(turn)
@@ -204,6 +205,12 @@ def page_css() -> str:
                  box-shadow: 0 6px 18px rgba(0,0,0,.35); }
     .cell:hover .tip { display: block; }
     .tip .nb { white-space: nowrap; }
+    .tip a { color: #9ecbff; }
+    /* клетка-контейнер с невидимой ссылкой-подложкой: клик по клетке
+       ведёт к таблице, а ссылки внутри тултипа не вкладываются в <a> */
+    .cell .fill { position: absolute; inset: 0; border-radius: inherit;
+                  color: inherit; text-decoration: none; }
+    .cell .num { pointer-events: none; }
     .cell .num { position: absolute; inset: 0; display: flex; align-items: center;
                  justify-content: center; font-weight: 700; font-size: 13px;
                  color: rgba(20,24,32,.75); }
@@ -432,7 +439,8 @@ def map_grid_single(by_id: dict, questions: list,
 def map_grid_compare(questions: list, runs: list[tuple[str, dict]],
                      flip_by_id: dict[str, bool],
                      compact: bool = False,
-                     show_labels: bool = True) -> str:
+                     show_labels: bool = True,
+                     run_hrefs: dict[str, str] | None = None) -> str:
     """Тепловая карта: клетка = доля верных по прогонам; флип — пунктир."""
     topics = []
     for q in questions:
@@ -457,17 +465,24 @@ def map_grid_compare(questions: list, runs: list[tuple[str, dict]],
             if q is None:
                 cells.append('<div class="ph"></div>')
                 continue
-            answers = [(name, by_id.get(q["id"], {}).get("answer"),
-                        is_correct(by_id.get(q["id"], {})))
-                       for name, by_id in runs]
+            answers = []
+            for name, by_id in runs:
+                href = ""
+                base = (run_hrefs or {}).get(name)
+                if base:
+                    href = f'{base}#row-{esc(q["id"])}'
+                answers.append((name, by_id.get(q["id"], {}).get("answer"),
+                                is_correct(by_id.get(q["id"], {})), href))
             p = sum(1 for _, by_id in runs
                     if q["id"] in by_id and is_correct(by_id[q["id"]])) / len(runs)
             cls = "flip" if flip_by_id.get(q["id"]) else ""
             tip = tooltip(None, q, runs=answers)
-            cells.append(f'<a class="cell {cls}" href="#row-{esc(q["id"])}" '
-                         f'style="background:{heat_color(p)}">'
-                         f'<div class="num">{round(p * 100)}</div>'
-                         f'<div class="tip">{tip}</div></a>')
+            cells.append(
+                f'<div class="cell {cls}" style="background:{heat_color(p)}">'
+                f'<a class="fill" href="#row-{esc(q["id"])}" '
+                f'aria-label="строка клетки в таблице"></a>'
+                f'<div class="num">{round(p * 100)}</div>'
+                f'<div class="tip">{tip}</div></div>')
         correct = sum(1 for q in tq for _, by_id in runs
                       if q["id"] in by_id and is_correct(by_id[q["id"]]))
         cells.append(f'<div class="agg">{pct(correct, len(tq) * len(runs))}%</div>')
@@ -836,6 +851,11 @@ def build_compare(model_dir: Path, questions_path: Path,
         return
 
     runs = [(name, by_id) for name, _session, by_id in sessions]
+    # ссылки на отчёты прогонов (report.html внутри папки прогона)
+    report_href = {name: (f"{name}/report.html"
+                          if (model_dir / name / "report.html").exists()
+                          else "")
+                   for name, _ in runs}
     # флип = клетка, где разобранные ответы прогонов не совпали
     flip_by_id: dict[str, bool] = {}
     for q in questions:
@@ -894,20 +914,21 @@ def build_compare(model_dir: Path, questions_path: Path,
   <span><span class="sw" style="background:#fff;outline:2px dashed #8a2d2d"></span>
         флип (ответы прогонов расходятся)</span>
 </div>
-{map_grid_compare(questions, runs, flip_by_id)}
+{map_grid_compare(questions, runs, flip_by_id, run_hrefs=report_href)}
 <h2>Прогоны: точность и стоимость</h2>
 <table class="data"><tr><th>Прогон</th><th>think</th><th>Верно</th><th>%</th>
 <th>Время</th><th>Токены (вх / вых / кэш)</th></tr>
-{"\n".join(f'<tr><td>{esc(a["name"])}</td><td>{esc(a["think"])}</td>'
+{"\n".join(f'<tr><td>{run_link(a["name"], report_href.get(a["name"], ""))}</td>'
+           f'<td>{esc(a["think"])}</td>'
            f'<td>{a["correct"]} / {a["n"]}</td><td>{pct(a["correct"], a["n"])}%</td>'
            f'<td>{a["duration_s"]} c</td>'
            f'<td>{a["prompt_tokens"]} / {a["output_tokens"]} / {a["cached_tokens"]}</td></tr>'
            for a in accs)}
 </table>
 <h2>Флипующие клетки</h2>
-{flips_table(questions, runs, flip_by_id)}
+{flips_table(questions, runs, flip_by_id, report_href)}
 <h2>Все клетки</h2>
-{compare_appendix_table(questions, runs)}"""
+{compare_appendix_table(questions, runs, report_href)}"""
     footer = (f"построено knowledge-map/build_map_report.py · "
               f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} · "
               f"данные: run-*/session.json")
@@ -935,10 +956,17 @@ def build_compare(model_dir: Path, questions_path: Path,
     print(f"отчёт: {model_dir / f'compare-{tag}.html'}")
 
 
+def run_link(name: str, href: str) -> str:
+    """Имя прогона как ссылка на его отчёт (или просто имя, если отчёта нет)."""
+    return f'<a href="{href}">{esc(name)}</a>' if href else esc(name)
+
+
 def compare_appendix_table(questions: list,
-                           runs_list: list[tuple[str, dict]]) -> str:
+                           runs_list: list[tuple[str, dict]],
+                           report_href: dict[str, str] | None = None) -> str:
     """Таблица всех клеток compare-отчёта с якорями строк: ответы каждого
-    прогона пометками ✓/✗/—, эталон справа."""
+    прогона пометками ✓/✗/—, эталон справа. Имя прогона ведёт к строке
+    этого вопроса в отчёте прогона."""
     rows = []
     for q in questions:
         marks = []
@@ -946,7 +974,9 @@ def compare_appendix_table(questions: list,
             t = by_id.get(q["id"], {})
             a = t.get("answer")
             mark = "—" if a is None else ("✓" if is_correct(t) else "✗")
-            marks.append(f"{esc(name)}: {mark}")
+            base = (report_href or {}).get(name) or ""
+            href = f'{base}#row-{esc(q["id"])}' if base else ""
+            marks.append(f"{run_link(name, href)}: {mark}")
         right = correct_text(q, None)
         rows.append(
             f'<tr id="row-{esc(q["id"])}">'
@@ -961,12 +991,14 @@ def compare_appendix_table(questions: list,
 
 
 def flips_table(questions: list, runs: list[tuple[str, dict]],
-                flip_by_id: dict[str, bool]) -> str:
+                flip_by_id: dict[str, bool],
+                report_href: dict[str, str] | None = None) -> str:
     """Таблица нестабильных клеток: утверждение и ответы каждого прогона."""
     flipped = [q for q in questions if flip_by_id.get(q["id"])]
     if not flipped:
         return ("<p>Ни одна клетка не флипует: все 96 ответов одинаковы во "
                 "всех прогонах.</p>")
+    names = [run_link(n, (report_href or {}).get(n) or "") for n, _ in runs]
     rows = []
     for q in flipped:
         cells = []
@@ -979,7 +1011,7 @@ def flips_table(questions: list, runs: list[tuple[str, dict]],
             f'<td>{" · ".join(esc(c) for c in cells)}</td></tr>')
     return f"""<table class="data">
 <tr><th>Клетка</th><th>Утверждение</th>
-<th>Ответы по прогонам ({esc(" → ".join(n for n, _ in runs))})</th></tr>
+<th>Ответы по прогонам ({" → ".join(names)})</th></tr>
 {"\n".join(rows)}
 </table>"""
 
@@ -1109,26 +1141,39 @@ def build_series_report(models_root: Path, questions_path: Path,
                             / cmp_name).exists():
                         cmp_href = (f"../models/{esc(md.name)}/knowledge-map/"
                                     f"{cmp_name}")
+                    run_base = {}
+                    for name, _b in runs_list:
+                        if (models_root / md.name / "knowledge-map" / name
+                                / "report.html").exists():
+                            run_base[name] = (f"../models/{esc(md.name)}/"
+                                              f"knowledge-map/{name}/"
+                                              f"report.html")
                     for lvl in range(1, max_level + 1):
                         q = by_topic_level[topic].get(lvl)
                         if q is None:
                             cells.append('<div class="ph"></div>')
                             continue
-                        answers = [(name, by_id.get(q["id"], {}).get("answer"),
-                                    is_correct(by_id.get(q["id"], {})))
-                                   for name, by_id in runs_list]
-                        p_share = (sum(1 for _n, _a, ok in answers if ok)
+                        answers = []
+                        for name, by_id in runs_list:
+                            href = (f'{run_base[name]}#row-{esc(q["id"])}'
+                                    if name in run_base else "")
+                            answers.append(
+                                (name, by_id.get(q["id"], {}).get("answer"),
+                                 is_correct(by_id.get(q["id"], {})), href))
+                        p_share = (sum(1 for _n, _a, ok, _h in answers if ok)
                                    / max(1, len(runs_list)))
                         tip = tooltip(None, q, runs=answers)
                         flip_cls = " flip" if flip_by_id.get(q["id"]) else ""
-                        tag = "a" if cmp_href else "div"
-                        href = (f' href="{cmp_href}'
-                                f'#row-{esc(q["id"])}"') if cmp_href else ""
+                        fill = (f'<a class="fill" href="{cmp_href}'
+                                f'#row-{esc(q["id"])}" '
+                                f'aria-label="строка клетки в таблице"></a>'
+                                if cmp_href else "")
                         cells.append(
-                            f'<{tag} class="cell{flip_cls}"{href} '
+                            f'<div class="cell{flip_cls}" '
                             f'style="background:{heat_color(p_share)}">'
+                            f'{fill}'
                             f'<div class="num">{round(p_share * 100)}</div>'
-                            f'<div class="tip">{tip}</div></{tag}>')
+                            f'<div class="tip">{tip}</div></div>')
                     correct = sum(1 for q in tq for _n, by_id in runs_list
                                   if q["id"] in by_id
                                   and is_correct(by_id[q["id"]]))
