@@ -118,9 +118,16 @@ def tooltip(turn: dict | None, q: dict, runs: list[tuple] | None = None) -> str:
              esc(cell_text(q))]
     if runs is not None:  # тепловая карта: ответ каждого прогона
         lines = []
-        for run_name, ans in runs:
-            mark = "— ⬜" if ans is None else ("да ✅" if ans else "нет ❌")
-            lines.append(f"{esc(run_name)}: {mark}")
+        for run_name, ans, ok in runs:
+            if ans is None:
+                shown, mark = "—", "⬜"
+            elif isinstance(ans, bool):
+                shown = "да" if ans else "нет"
+                mark = "✓" if ok else "✗"
+            else:
+                shown = norm_display(str(ans))
+                mark = "✓" if ok else "✗"
+            lines.append(f"{esc(run_name)}: {esc(shown)} {mark}")
         parts.append("<br>" + "<br>".join(lines))
     elif turn is not None:
         given = given_text(turn)
@@ -425,7 +432,8 @@ def map_grid_compare(questions: list, runs: list[tuple[str, dict]],
             if q is None:
                 cells.append('<div class="ph"></div>')
                 continue
-            answers = [(name, by_id.get(q["id"], {}).get("answer"))
+            answers = [(name, by_id.get(q["id"], {}).get("answer"),
+                        is_correct(by_id.get(q["id"], {})))
                        for name, by_id in runs]
             p = sum(1 for _, by_id in runs
                     if q["id"] in by_id and is_correct(by_id[q["id"]])) / len(runs)
@@ -979,7 +987,6 @@ def build_series_report(models_root: Path, questions_path: Path,
                 rows_map.items(),
                 key=lambda kv: (-kv[0][0], kv[0][1] != "ru", kv[0][1])):
             blocks = []
-            first_in_row = True
             for think in sorted(think_map,
                                 key=lambda t: (think_order.get(t, 99), t)):
                 items = think_map[think]
@@ -995,8 +1002,7 @@ def build_series_report(models_root: Path, questions_path: Path,
                     answers.discard(None)
                     flip_by_id[q["id"]] = len(answers) > 1
                 grid = map_grid_compare(questions, runs_list, flip_by_id,
-                                        compact=True,
-                                        show_labels=first_in_row)
+                                        compact=True)
                 scores = [sum(1 for t in b.values() if is_correct(t))
                           for _rd, _s, b in items]
                 scores_s = (f"{pct(min(scores), len(questions))}% – "
@@ -1019,7 +1025,6 @@ def build_series_report(models_root: Path, questions_path: Path,
                     f'<div class="sermeta">{len(items)} прогонов · {scores_s}'
                     f' · стаб. верных {stable_ok} · флипов {flips}</div>'
                     f'{grid}{cmp_link}</div>')
-                first_in_row = False
                 n_maps += 1
             if blocks:
                 sections.append(
