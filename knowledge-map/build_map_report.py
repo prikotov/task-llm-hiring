@@ -130,7 +130,8 @@ def family_scores(questions: list, run_by_ids: list[dict]) -> list[tuple[str, fl
                 if q["id"] in b and is_correct(b[q["id"]]))
         res.append(("Глубина", pct(c, len(deep_qs) * len(run_by_ids))))
     if base:
-        c = sum(1 for b in run_by_ids for t in b.values() if is_correct(t))
+        c = sum(1 for b in run_by_ids for q in base
+                if q["id"] in b and is_correct(b[q["id"]]))
         res.append(("Всего", pct(c, len(base) * len(run_by_ids))))
     return res
 
