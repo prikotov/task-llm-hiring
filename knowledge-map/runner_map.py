@@ -216,13 +216,17 @@ def deepseek_chat(api_key: str, model: str, prompt: str, effort: str,
     ch = (resp.get("choices") or [{}])[0]
     msg = ch.get("message") or {}
     u = resp.get("usage") or {}
-    det = u.get("prompt_tokens_details") or {}
+    # кэш: у DeepSeek нативное поле prompt_cache_hit_tokens, у OpenAI-стиля —
+    # prompt_tokens_details.cached_tokens; на deepseek-flash наблюдается 0
+    cached = u.get("prompt_cache_hit_tokens")
+    if cached is None:
+        cached = (u.get("prompt_tokens_details") or {}).get("cached_tokens")
     return {"message": {"content": (msg.get("content") or "").strip(),
                         "thinking": (msg.get("reasoning_content") or "").strip() or None},
             "done_reason": ch.get("finish_reason"),
             "eval_count": u.get("completion_tokens"),
             "prompt_eval_count": u.get("prompt_tokens"),
-            "prompt_eval_cached_count": det.get("cached_tokens")}
+            "prompt_eval_cached_count": cached}
 
 
 def cloud_safe(api_key: str, model: str, prompt: str, effort: str,
@@ -682,8 +686,9 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
         "provider": provider,
         "keep_alive": (keep_alive if protocol == "chat" and provider == "ollama"
                        else None),
-        "kv_cache": ("cloud: серверный prefix-cache, прогоны изолированы "
-                     "независимостью запросов" if provider == "deepseek" else
+        "kv_cache": ("cloud: прогоны изолированы независимостью запросов "
+                     "(серверный кэш не наблюдается — cached_tokens=0)"
+                     if provider == "deepseek" else
                      ("weights-only (клетки независимы, префиксы не шарятся)"
                       if protocol == "chat" else None)),
         "think": ("— (decision-протокол: вероятностный ответ noul)"
