@@ -153,6 +153,16 @@ def check_phpunit(c: dict) -> str:
     args = ["--filter", "test_sum"] if c["id"] == "T18-L9" else []
     r = run([f"{VENDOR}/bin/phpunit", f"{cls}.php", *args], timeout=120,
             cwd=d)
+    if c["id"] == "T18-L10":
+        # эталон '2,1': выполнено и упало — deprecation не считается failure
+        m_t = re.search(r"Tests: (\d+)", r.stdout)
+        m_f = re.search(r"Failures: (\d+)", r.stdout)
+        if not m_t or not m_f:
+            return f"нет счётчиков Tests/Failures: {r.stdout[:150]!r}"
+        got = f"{m_t.group(1)},{m_f.group(1)}"
+        if got != c["exp"]:
+            return f"Tests/Failures {got} != exp {c['exp']}"
+        return "ok"
     m = (re.search(r"Tests: (\d+)", r.stdout)
          or re.search(r"\((\d+) tests", r.stdout))
     if not m:

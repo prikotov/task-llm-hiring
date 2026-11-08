@@ -168,14 +168,15 @@ function outer(): Generator
 }
 echo implode(',', iterator_to_array(outer()));"""
 
-T12_L9 = """echo base64_encode('a:b');"""
+T12_L9 = """$hash = password_hash('x', PASSWORD_BCRYPT, ['cost' => 4]);
+echo password_needs_rehash($hash, PASSWORD_BCRYPT, ['cost' => 4]) ? 'yes' : 'no';
+echo password_needs_rehash($hash, PASSWORD_BCRYPT, ['cost' => 5]) ? 'yes' : 'no';"""
 
-T12_L10 = """error_reporting(E_ALL & ~E_NOTICE);
-echo error_reporting();"""
+T12_L10 = """echo (E_ALL & 2048) === 0 ? 'strict-out' : 'strict-in';"""
 
 T13_L9 = """use Symfony\\Component\\HttpFoundation\\Request;
 $r = Request::create('/demo', 'GET', [], [], [], ['HTTP_X_TOKEN' => 'abc']);
-echo $r->headers->get('X-Token');"""
+echo $r->headers->get('X-Token') === 'abc' ? 'mapped' : 'missing';"""
 
 T13_L10 = """use Symfony\\Component\\EventDispatcher\\EventDispatcher;
 use Symfony\\Contracts\\EventDispatcher\\Event;
@@ -255,7 +256,7 @@ final class Calc2Test extends TestCase
 {
     public function prov(): array
     {
-        return [[1], [2]];
+        return [[1], [-1]];
     }
 
     #[DataProvider('prov')]
@@ -265,7 +266,7 @@ final class Calc2Test extends TestCase
     }
 }"""
 
-T21_L9 = """{{ false|default('c') }}"""
+T21_L9 = """{{ false|default(2) * 3 }}"""
 
 T21_L10 = """{{ 'a' ~ 1 + 2 }}"""
 
@@ -294,8 +295,9 @@ T23_L10 = """use Symfony\\Component\\DependencyInjection\\ContainerBuilder;
 $c = new ContainerBuilder();
 $c->setParameter('name', 'Bob');
 $c->setParameter('greeting', 'hi %name%');
+$c->setParameter('message', '%greeting%!');
 $c->compile();
-echo $c->getParameter('greeting');"""
+echo $c->getParameter('message');"""
 
 T25_L9 = """namespace App\\Domain;
 use App\\Application\\PlaceOrder;
@@ -343,6 +345,11 @@ T26_L10 = """final class Order
         $this->items[$sku] = true;
     }
 
+    public function count(): int
+    {
+        return count($this->items);
+    }
+
     public function remove(string $sku): void
     {
         if (count($this->items) === 1) {
@@ -355,9 +362,9 @@ $o = new Order;
 $o->add('a');
 try {
     $o->remove('a');
-} catch (Throwable $e) {
-    echo get_class($e);
-}"""
+} catch (DomainException) {
+}
+echo $o->count();"""
 
 T15_L9 = """CREATE TEMP TABLE t (x int);
 INSERT INTO t VALUES (1), (NULL);
@@ -479,11 +486,11 @@ CELLS = [
          note={"ru": "Сортировка стабильна с 8.0: x и z при равном ключе сохраняют порядок.",
                "en": "Sorts are stable since 8.0: x and z keep their order on a tie.",
                "zh": "自 8.0 起排序稳定：键相同时 x 和 z 保持原顺序。"}),
-    dict(id="T05-L9", level=9, code=T05_L9, exp="4",
+    dict(id="T05-L10", level=10, code=T05_L9, exp="4",
          note={"ru": "Строковые ключи распакованного массива становятся именованными аргументами.",
                "en": "String keys of a spread array become named arguments.",
                "zh": "展开数组的字符串键会成为命名参数。"}),
-    dict(id="T05-L10", level=10, code=T05_L10, exp="3",
+    dict(id="T05-L9", level=9, code=T05_L10, exp="3",
          note={"ru": "Первая-class callable синтаксис привязывает $this при создании.",
                "en": "First-class callable syntax binds $this at creation time.",
                "zh": "一等可调用语法在创建时就绑定了 $this。"}),
@@ -506,11 +513,11 @@ CELLS = [
          note={"ru": "Статическое свойство трейта копируется в каждый использующий класс.",
                "en": "A trait's static property is copied into each consuming class.",
                "zh": "trait 的静态属性会复制到每个使用它的类中。"}),
-    dict(id="T08-L9", level=9, code=T08_L9, exp="2",
+    dict(id="T08-L10", level=10, code=T08_L9, exp="2",
          note={"ru": "return в finally перезаписывает return из try.",
                "en": "A return in finally overrides the return from try.",
                "zh": "finally 中的 return 会覆盖 try 中的 return。"}),
-    dict(id="T08-L10", level=10, code=T08_L10, exp="second",
+    dict(id="T08-L9", level=9, code=T08_L10, exp="second",
          note={"ru": "Исключение из finally подменяет уже летящее — ловится последнее.",
                "en": "An exception from finally replaces the in-flight one — the last thrown is caught.",
                "zh": "finally 抛出的异常会替换正在传播的异常——捕获最后抛出的那个。"}),
@@ -538,43 +545,43 @@ CELLS = [
          note={"ru": "yield from не двигает авто-ключ внешнего генератора: yield $r получает ключ 0 и перезаписывает единицу — 'ok' оказывается первым.",
                "en": "yield from does not advance the outer auto-key: yield $r gets key 0 and overwrites the 1 — 'ok' comes out first.",
                "zh": "yield from 不推进外层自动键：yield $r 得到键 0 并覆盖 1——'ok' 排在最前面。"}),
-    dict(id="T12-L9", level=9, code=T12_L9, exp="YTpi",
-         note={"ru": "base64 'a:b' — три байта 61:3a:62 → YTpi.",
-               "en": "base64 of 'a:b' — three bytes 61:3a:62 → YTpi.",
-               "zh": "'a:b' 的 base64——三个字节 61:3a:62 → YTpi。"}),
-    dict(id="T12-L10", level=10, code=T12_L10, exp="30711",
+    dict(id="T12-L9", level=9, code=T12_L9, exp="noyes",
+         note={"ru": "password_needs_rehash сравнивает параметры хэша с целевыми: cost 4 = 4 → 'no', cost 5 ≠ 4 → 'yes'.",
+               "en": "password_needs_rehash compares the hash's options with the target: cost 4 = 4 → 'no', cost 5 ≠ 4 → 'yes'.",
+               "zh": "password_needs_rehash 比较哈希参数与目标：cost 4 = 4 → 'no'，cost 5 ≠ 4 → 'yes'。"}),
+    dict(id="T12-L10", level=10, code=T12_L10, exp="strict-out",
          prompt={"ru": "Что выведет этот код на PHP 8.5?\n\n```php\n{code}\n```",
                  "en": "What does this code output on PHP 8.5?\n\n```php\n{code}\n```",
                  "zh": "这段代码在 PHP 8.5 上会输出什么？\n\n```php\n{code}\n```"},
-         note={"ru": "В PHP 8.4+ E_STRICT удалён: E_ALL = 30719 (не 32767 из доков 8.0–8.3), минус E_NOTICE (8) = 30711.",
-               "en": "Since PHP 8.4 E_STRICT is gone: E_ALL = 30719 (not the 32767 of 8.0–8.3 docs), minus E_NOTICE (8) = 30711.",
-               "zh": "PHP 8.4+ 移除了 E_STRICT：E_ALL = 30719（不是 8.0–8.3 文档中的 32767），减 E_NOTICE（8）= 30711。"}),
-    dict(id="T13-L9", level=9, code=T13_L9, exp="abc",
-         grader={"accept": ["abc"]},
-         note={"ru": "HttpFoundation маппит HTTP_X_TOKEN серверных параметров в заголовок X-Token (регистр не важен).",
-               "en": "HttpFoundation maps the HTTP_X_TOKEN server param to the X-Token header (case-insensitive).",
-               "zh": "HttpFoundation 把服务器参数 HTTP_X_TOKEN 映射为 X-Token 头（大小写不敏感）。"}),
+         note={"ru": "В PHP 8.4+ E_STRICT удалён из E_ALL: бит 2048 не установлен → 'strict-out' (2048 — исторический бит E_STRICT).",
+               "en": "Since PHP 8.4, E_STRICT is out of E_ALL: the 2048 bit is unset → 'strict-out' (2048 is the historical E_STRICT bit).",
+               "zh": "PHP 8.4+ 将 E_STRICT 移出了 E_ALL：2048 位未设置 → 'strict-out'（2048 是历史上的 E_STRICT 位）。"}),
+    dict(id="T13-L9", level=9, code=T13_L9, exp="mapped",
+         grader={"accept": ["mapped"]},
+         note={"ru": "Сравнение с литералом требует знания маппинга: HttpFoundation переводит HTTP_X_TOKEN в заголовок X-Token (регистр не важен); не знающий маппинг ответит 'missing'.",
+               "en": "The literal comparison requires knowing the mapping: HttpFoundation turns HTTP_X_TOKEN into the X-Token header (case-insensitive); without it the answer is 'missing'.",
+               "zh": "与字面量的比较需要知道映射规则：HttpFoundation 把 HTTP_X_TOKEN 转换为 X-Token 头（大小写不敏感）；不知道映射会答 'missing'。"}),
     dict(id="T13-L10", level=10, code=T13_L10, exp="BCA",
          grader={"accept": ["BCA"]},
          note={"ru": "Порядок листенеров — по убыванию приоритета: 10 (B), 5 (C), 0 (A).",
                "en": "Listeners run by descending priority: 10 (B), 5 (C), 0 (A).",
                "zh": "监听器按优先级降序执行：10 (B)、5 (C)、0 (A)。"}),
-    dict(id="T14-L9", level=9, ctx="doctrine", code=T14_L9, exp="same",
+    dict(id="T14-L10", level=10, ctx="doctrine", code=T14_L9, exp="same",
          grader={"accept": ["same"]},
          note={"ru": "Identity map: повторный find того же id возвращает тот же инстанс.",
                "en": "Identity map: a second find for the same id returns the same instance.",
                "zh": "identity map：对同一 id 的再次 find 返回同一个实例。"}),
-    dict(id="T14-L10", level=10, ctx="doctrine", code=T14_L10, exp="0",
+    dict(id="T14-L9", level=9, ctx="doctrine", code=T14_L10, exp="0",
          grader={"accept": ["0"]},
          note={"ru": "Unit of work откладывает INSERT до flush: remove после persist отменяет вставку.",
                "en": "The unit of work schedules INSERT at flush: remove after persist cancels it.",
                "zh": "工作单元在 flush 时才安排 INSERT：persist 后 remove 会取消插入。"}),
-    dict(id="T15-L9", level=9, sql=T15_L9, exp="1",
+    dict(id="T15-L10", level=10, sql=T15_L9, exp="1",
          grader={"accept": ["1"]},
          note={"ru": "count(столбец) не считает NULL; count(*) считал бы 2.",
                "en": "count(column) skips NULLs; count(*) would return 2.",
                "zh": "count(列) 不计 NULL；count(*) 会返回 2。"}),
-    dict(id="T15-L10", level=10, sql=T15_L10, exp="10,30,60",
+    dict(id="T15-L9", level=9, sql=T15_L10, exp="10,30,60",
          grader={"accept": ["10,30,60", "10 30 60"]},
          note={"ru": "С ORDER BY кадр окна по умолчанию — running (от начала до текущей строки).",
                "en": "With ORDER BY the default window frame is running (start to current row).",
@@ -607,14 +614,17 @@ CELLS = [
          note={"ru": "--filter — подстрочное совпадение: test_sum ловит и test_sum_abs (3+3 датасета).",
                "en": "--filter is a substring match: test_sum also matches test_sum_abs (3+3 datasets).",
                "zh": "--filter 是子串匹配：test_sum 也会匹配 test_sum_abs（3+3 个数据集）。"}),
-    dict(id="T18-L10", level=10, code=T18_L10, exp="2",
-         grader={"accept": ["2"]},
+    dict(id="T18-L10", level=10, code=T18_L10, exp="2,1",
+         grader={"accept": ["2,1"]},
+         frame={"ru": "Сколько тестов выполнит эта команда и сколько из них завершится failure? Ответь двумя числами через запятую (выполнено, упало).",
+                "en": "How many tests will this command run, and how many of them will fail? Answer with two comma-separated numbers (ran, failed).",
+                "zh": "这条命令会执行多少个测试，其中多少个失败（failure）？用逗号分隔的两个数字回答（执行数, 失败数）。"},
          cmd={"ru": "Команда: `phpunit Calc2Test.php` (PHPUnit 10.5)",
               "en": "Command: `phpunit Calc2Test.php` (PHPUnit 10.5)",
               "zh": "命令：`phpunit Calc2Test.php`（PHPUnit 10.5）"},
-         note={"ru": "Не-static провайдер — только deprecation в PHPUnit 10: оба датасета выполнятся.",
-               "en": "A non-static provider is just a deprecation in PHPUnit 10: both datasets run.",
-               "zh": "在 PHPUnit 10 中非静态 provider 只是 deprecation：两个数据集都会执行。"}),
+         note={"ru": "Не-static провайдер — только deprecation в PHPUnit 10: оба датасета выполнятся, датасет [-1] валит assert — 2 выполнено, 1 failure.",
+               "en": "A non-static provider is just a deprecation in PHPUnit 10: both datasets run and the [-1] dataset fails the assert — 2 ran, 1 failure.",
+               "zh": "在 PHPUnit 10 中非静态 provider 只是 deprecation：两个数据集都会执行，[-1] 数据集断言失败——执行 2 个，失败 1 个。"}),
     dict(id="T19-L9", level=9, cmd=T19_L9, exp="POST",
          grader={"accept": ["POST"]},
          note={"ru": "-d/-F переключает curl на POST по умолчанию.",
@@ -645,12 +655,12 @@ CELLS = [
          note={"ru": "Implicit-поток передаёт токен в фрагменте URL (#) — он не уходит на сервер.",
                "en": "The implicit flow passes the token in the URL fragment (#) — it never reaches the server.",
                "zh": "隐式流通过 URL 片段（#）传递令牌——它不会到达服务器。"}),
-    dict(id="T21-L9", level=9, code=T21_L9, exp="c",
-         grader={"accept": ["c"]},
+    dict(id="T21-L9", level=9, code=T21_L9, exp="6",
+         grader={"accept": ["6"]},
          lang="twig",
-         note={"ru": "default срабатывает не только на undefined, но и на falsy.",
-               "en": "default triggers not only on undefined but on any falsy value.",
-               "zh": "default 不仅对 undefined 生效，对任何 falsy 值都生效。"}),
+         note={"ru": "default заменяет exactly false/null/''/[] — false подменится на 2, 2*3 = 6; наивное «default только для undefined» даёт 0.",
+               "en": "default replaces exactly false/null/''/[] — false becomes 2, 2*3 = 6; the naive 'default is for undefined only' yields 0.",
+               "zh": "default 只替换 exactly false/null/''/[]——false 会变成 2，2*3 = 6；天真的「default 只用于 undefined」会得到 0。"}),
     dict(id="T21-L10", level=10, code=T21_L10, exp="RuntimeError",
          grader={"accept": ["RuntimeError", "Twig\\Error\\RuntimeError"]},
          lang="twig",
@@ -677,11 +687,11 @@ CELLS = [
          note={"ru": "Сервисы в контейнере общие (shared): get() дважды — один инстанс.",
                "en": "Container services are shared: two get() calls yield one instance.",
                "zh": "容器中的服务是共享的：两次 get() 得到同一实例。"}),
-    dict(id="T23-L10", level=10, code=T23_L10, exp="hi Bob",
-         grader={"accept": ["hi Bob"]},
-         note={"ru": "compile() резолвит %-ссылки между параметрами: 'hi %name%' → 'hi Bob'.",
-               "en": "compile() resolves %-references between parameters: 'hi %name%' → 'hi Bob'.",
-               "zh": "compile() 会解析参数间的 % 引用：'hi %name%' → 'hi Bob'。"}),
+    dict(id="T23-L10", level=10, code=T23_L10, exp="hi Bob!",
+         grader={"accept": ["hi Bob!"]},
+         note={"ru": "compile() резолвит %-ссылки транзитивно: %greeting% → 'hi %name%' → 'hi Bob!', ответ собирается из двух шагов.",
+               "en": "compile() resolves %-references transitively: %greeting% → 'hi %name%' → 'hi Bob!', the answer assembles over two hops.",
+               "zh": "compile() 传递性地解析 % 引用：%greeting% → 'hi %name%' → 'hi Bob!'，答案需要两步拼接。"}),
     dict(id="T24-L9", level=9, exp="960",
          grader={"accept": ["960", "960px"]},
          prompt={"ru": "Какая max-width у .container в Bootstrap 5.3 при ширине окна 992px?",
@@ -716,14 +726,14 @@ CELLS = [
          note={"ru": "Inline-FQCN \\App\\Infrastructure\\Logger тоже считается: Application + Db + Logger = 3.",
                "en": "The inline FQCN \\App\\Infrastructure\\Logger counts too: Application + Db + Logger = 3.",
                "zh": "内联 FQCN \\App\\Infrastructure\\Logger 也计入：Application + Db + Logger = 3。"}),
-    dict(id="T26-L9", level=9, code=T26_L9, exp="10,15",
+    dict(id="T26-L10", level=10, code=T26_L9, exp="10,15",
          note={"ru": "VO иммутабелен: add() возвращает новый инстанс, исходный не меняется.",
                "en": "The VO is immutable: add() returns a new instance; the original is unchanged.",
                "zh": "值对象不可变：add() 返回新实例，原对象不变。"}),
-    dict(id="T26-L10", level=10, code=T26_L10, exp="DomainException",
-         note={"ru": "Инвариант агрегата: удаление последнего товара запрещено — DomainException.",
-               "en": "Aggregate invariant: removing the last item is forbidden — DomainException.",
-               "zh": "聚合不变量：不允许移除最后一个商品——DomainException。"}),
+    dict(id="T26-L9", level=9, code=T26_L10, exp="1",
+         note={"ru": "Сорванный remove не меняет состояние агрегата: инвариант бросил исключение до unset — count остался 1.",
+               "en": "The failed remove leaves aggregate state unchanged: the invariant threw before unset — count stays 1.",
+               "zh": "失败的 remove 不改变聚合状态：不变量在 unset 之前抛出——count 仍为 1。"}),
     dict(id="VC-L9", level=9, code=VC_L9, exp="hi",
          prompt={"ru": "Что выведет этот код на PHP 8.5?\n\n```php\n{code}\n```",
                  "en": "What does this code output on PHP 8.5?\n\n```php\n{code}\n```",

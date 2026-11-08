@@ -56,8 +56,9 @@ def build_prompt(c: dict, lang: str) -> str:
         return f"{frame}\n\n```sql\n{c['sql']}\n```"
     if "cmd" in c and isinstance(c["cmd"], str):  # curl
         return f"{CURL_FRAME[lang]}\n\n```bash\n{c['cmd']}\n```"
-    if "cmd" in c:  # phpunit: код + команда
-        return (f"{TESTS_FRAME[lang]}\n\n```php\n{c['code']}\n```\n\n"
+    if "cmd" in c:  # phpunit: код + команда (frame можно переопределить клеткой)
+        frame = c.get("frame") or TESTS_FRAME
+        return (f"{frame[lang]}\n\n```php\n{c['code']}\n```\n\n"
                 f"{c['cmd'][lang]}")
     code_frame = FRAME[lang]
     ctx = DOCTRINE_CTX[lang] if c.get("ctx") == "doctrine" else ""
@@ -93,7 +94,7 @@ def main() -> int:
             })
         out = SCRIPT_DIR / f"questions-deep{suffix}.json"
         out.write_text(json.dumps(
-            {"version": 3, "deep_for": 8, "questions": questions},
+            {"version": 4, "deep_for": 8, "questions": questions},
             ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         print(f"{out.name}: {len(questions)} клеток")
     return 0

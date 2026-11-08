@@ -258,51 +258,51 @@ T03-L9,字符串,9,answer,1,2c,json,2c,0,0,strtr 会查找字符串中的替换�
 T03-L10,字符串,10,answer,['h'],[hello],json,[hello],0,0,"substr('hello', -10) 会从字符串末尾开始截取10个字符，由于字符串长度小于10，它会截取从开头开始的字符，但负数索引在PHP中从末尾开始计数。",0.18,136,76,0
 T04-L9,数组,9,answer,"k,n,m","k,n,m",json,"k,n,m",1,1,array_keys($a + $b) 返回合并后数组的键的数组，implode 会将它们用逗号连接。,0.14,170,55,0
 T04-L10,数组,10,answer,xyzy1,yxz,json,yxz,0,0,usort根据第三个元素（索引2）对数组进行排序，然后将所有第二列的元素连接起来。,0.14,190,50,0
-T05-L9,函数与闭包,9,answer,json,4,late,4,0,0,"$。注意：在 PHP 中，当使用 `...` 展开一个数组作为函数参数时，它会以数组的键作为参数值传递，但对于这种标量类型（int）的函数，它会按顺序解包数组的值作为参数。这里的调用是 `f(5, 1)`。但代码中 `echo f(...['b' => 1, 'a' => 5]);` 实际执行的是 `echo f(1, 5);` (因为默认按索引顺序，如果数组是关联数组，它会按键排序或按数值顺序，但对于 `...` 展开数组，通常是值)。 让我们重新审视这个特定的用法。对于 `f(...$array)`，它会展开数组的值作为参数。如果数组是 `['b' => 1, 'a' => 5]`，它会展",1.42,165,641,0
-T05-L10,函数与闭包,10,answer,null,3,json,3,0,0,调用一个 null 对象的方法会导致致命错误，但在这里，由于 $p 变成了 null，后续调用 $f() 会尝试调用一个非对象的方法，或者更准确地说，尝试调用一个 null 对象的方法。,0.2,181,67,0
 T06-L9,OOP：类与继承,9,answer,a,b,json,b,0,0,static::class 在 B 类中解析为 A 类。,0.08,156,35,0
 T06-L10,OOP：类与继承,10,answer,10,10,json,10,1,1,调用 `set` 方法，将 `$x` 设置为 $5 * 2 = 10。,0.1,180,46,0
 T07-L9,接口、trait 与 enum,9,answer,ba,ba,json,ba,1,1,TB::f insteadof TA 会覆盖 TA::f 的实现，而 TA::f as g 会捕获原始的 TA::f 实现。,0.12,204,53,0
 T07-L10,接口、trait 与 enum,10,answer,1,0,json,0,0,0,Trait 中的静态属性在被使用类中是共享的，修改一个类会影响另一个类。,0.12,169,44,0
-T08-L9,异常与错误,9,answer,2,2,json,2,1,1,finally 块中的返回值会覆盖 try 块中的返回值。,0.09,150,36,0
-T08-L10,异常与错误,10,answer,second,second,json,second,1,1,LogicException 被捕获并输出其消息。,0.08,174,33,0
 T09-L9,命名空间与自动加载,9,answer,n\app\foo|n\app\foo,app\foo|baz,json,app\foo|baz,0,0,代码会输出两个类名，它们之间用管道符连接。,0.13,147,47,0
 T09-L10,命名空间与自动加载,10,answer,no,noyes,json,noyes,0,0,class_exists('Foo') 返回 false，因为 'Foo' 不是一个类名。,0.1,179,39,0
 T10-L9,引用与作用域,9,answer,"1,2,3","1,2,99",json,"1,2,99",0,0,foreach 循环中的引用变量 $v 被修改，但数组 $a 本身没有被修改，implode 会输出数组的元素。,0.13,158,56,0
 T10-L10,引用与作用域,10,answer,2,3,json,3,0,0,静态变量$n在类A中是共享的，每次调用inc()都会递增。,0.12,196,43,0
 T11-L9,生成器、迭代器与 SPL,9,answer,11,11,json,11,1,1,yield 1 返回 1，然后执行 $x + 1，即 1 + 1 = 2。send(10) 将 10 赋给 $x，此时 $x 是 10，返回 $x + 1，即 10 + 1 = 11。,0.18,171,89,0
 T11-L10,生成器、迭代器与 SPL,10,answer,"1,2","ok,2",json,"ok,2",0,0,outer()生成1和2，implode将它们用逗号连接。,0.11,184,41,0
-T12-L9,配置与安全,9,answer,ywfh,ytpi,json,ytpi,0,0,base64_encode() 函数对字符串进行 Base64 编码。,0.1,133,39,0
-T12-L10,配置与安全,10,answer,77,30711,json,30711,0,0,error_reporting() 返回一个整数，表示被报告的错误级别。,0.09,141,39,0
-T13-L9,Symfony,9,answer,abc,abc,json,abc,1,1,代码从请求头中获取名为 'X-Token' 的值。,0.09,171,36,0
 T13-L10,Symfony,10,answer,abc,bca,json,bca,0,0,事件监听器按优先级顺序执行，其中优先级数字越小，优先级越高，但对于同等优先级，回调函数的执行顺序取决于注册顺序（或在某些情况下，如果优先级相同，则取决于添加顺序）。在此例中，'C' (优先级5) 会先于 'B' (优先级10) 和 'A' (无优先级，默认通常是0或较低)，但由于所有监听器都注册了相同的事件 'e'，并且没有明确的优先级冲突，事件触发时，它们按优先级顺序执行。然而，在 Symfony EventDispatcher 的实际行为中，优先级数字越小越优先。这里，优先级5的函数先执行，然后是第二个函数（优先级默认或较低），最后是优先级10的函数。但观察代码，第二个监听器没有明确的优先,0.96,250,342,0
-T14-L9,Doctrine,9,answer,same,same,json,same,1,1,flush()后，find()会返回同一个实体实例。,0.1,235,35,0
-T14-L10,Doctrine,10,answer,0,0,json,0,1,1,移除实体后，flush 操作会删除该记录，导致查询结果为空。,0.09,197,39,0
-T15-L9,PostgreSQL,9,answer,2,1,json,1,0,0,COUNT(x) 计算非NULL值的数量，其中第一个值为1，第二个值为NULL，所以结果是1。,0.12,157,47,0
-T15-L10,PostgreSQL,10,answer,"10,30,50","10,30,60",json,"10,30,60",0,0,"查询计算了每个id对应的x值，然后按id排序并用逗号连接起来，其中50是(10+20+30)的累积和，但由于窗口函数内部的`sum(x) OVER (ORDER BY id)`是计算累积和，实际结果是10,30,60（如果按照窗口函数的结果来看）。重新分析：t中是(1,10), (2,20), (3,30)。窗口函数计算：id=1, sum=10; id=2, sum=30; id=3, sum=60。因此结果是'10,30,60'。",0.4,206,180,0
 T16-L9,Symfony：Messenger,9,answer,m1m2,m1m2,json,m1m2,1,1,Trace::handle方法会依次执行两个Trace实例的echo，输出'M1'和'M2'。,0.13,271,50,0
 T16-L10,Symfony：Messenger,10,answer,10,11,json,11,0,0,第一个处理器使计数器加1，第二个处理器使计数器加10，最终结果是10。,0.12,318,45,0
 T17-L9,PostgreSQL：事务与索引,9,answer,1,1,json,1,1,1,由于有 UNIQUE 约束，第二个 INSERT 会被忽略，所以表中只有一个唯一值。,0.11,181,41,0
 T17-L10,PostgreSQL：事务与索引,10,answer,1,2,json,2,0,0,由于 'a' 列有 UNIQUE 约束，第二个 INSERT 会失败，但由于是 TEMP 表且事务未回滚，'count(*)' 统计的是成功插入的行数。,0.16,173,62,0
 T18-L9,测试：PHPUnit,9,answer,3,6,json,6,0,0,`--filter test_sum` 只会运行名称匹配 'test_sum' 的测试方法，该方法会通过 DataProvider 运行 3 次。,0.14,297,53,0
-T18-L10,测试：PHPUnit,10,answer,2,2,json,2,1,1,DataProvider会为每个提供的数据集中的元素运行一次测试。,0.1,226,36,0
 T19-L9,HTTP 与 REST API,9,answer,post,post,json,post,1,1,使用 -d 选项在 cURL 中发送数据通常默认使用 POST 方法。,0.1,140,40,0
 T19-L10,HTTP 与 REST API,10,answer,post,get,json,get,0,0,使用 -d 选项在 curl 命令中发送数据，通常对应 POST 方法。,0.09,142,40,0
 T20-L9,安全与 OAuth,9,answer,401 unauthorized,invalid_client,json,invalid_client,0,0,客户端未提供有效的凭证，因此服务器返回 401 状态码。,0.1,138,42,0
 T20-L10,安全与 OAuth,10,answer,query_parameters,fragment,json,fragment,0,0,Access token 通常作为 URL 的查询参数（query parameters）返回。,0.1,141,39,0
-T21-L9,Twig,9,answer,c,c,json,c,1,1,当 `false` 为空值时，`default` 过滤器会返回提供的默认值 'c'。,0.1,133,46,0
 T21-L10,Twig,10,answer,null,runtimeerror,json,runtimeerror,0,0,在 Twig 中，表达式的评估结果是最终输出，不直接抛出异常。,0.1,140,42,0
 T22-L9,Symfony：安全与表单,9,answer,1,0,json,0,0,0,验证器会执行一次验证，并因为输入为空字符串而报告一个错误。,0.11,168,40,0
 T22-L10,Symfony：安全与表单,10,answer,invalid,symfony\component\form\exception\logicexception,json,symfony\component\form\exception\logicexception,0,0,TextType 默认情况下，一个空表单是无效的。,0.1,216,35,0
 T23-L9,Symfony：配置与服务,9,answer,same,same,json,same,1,1,get() 方法返回的是容器中已注册的实例，因此它们的对象ID是相同的。,0.12,200,42,0
-T23-L10,Symfony：配置与服务,10,answer,hi bob,hi bob,json,hi bob,1,1,代码会获取并输出设置的参数 'greeting'，其中 '%name%' 会被替换为 'Bob'。,0.13,181,48,0
 T24-L9,Bootstrap,9,answer,1140px,960,json,960,0,0,在 Bootstrap 5.3 中，当视口宽度达到 992px 时，.container 的最大宽度是 1140px。,0.11,136,60,0
 T24-L10,Bootstrap,10,answer,text-danger,text-danger,json,text-danger,1,1,text-danger 类决定了文本的颜色，但在 Bootstrap 中，颜色类通常会覆盖或组合效果。,0.11,147,48,0
 T25-L9,整洁架构,9,answer,2,2,json,2,1,1,OrderService 在 Domain 层引用了 Application 层的 PlaceOrder，以及 Infrastructure 层的 Db。,0.11,221,42,0
 T25-L10,整洁架构,10,answer,2,3,json,3,0,0,"BillingService 在 Domain 层引用了 Application 层 (PlaceOrder) 和 Infrastructure 层 (Db, Logger)，这违反了 deptrac 规则。",0.13,233,53,0
-T26-L9,DDD,9,answer,"15,15","10,15",json,"10,15",0,0,代码将计算 10 + 5，并输出初始对象和新对象的 amount。,0.13,213,46,0
-T26-L10,DDD,10,answer,domainexception,domainexception,json,domainexception,1,1,当移除'a'后，数组中剩余的元素数量为0，但代码中的逻辑是检查移除前剩余的元素数量。这里是错误分析：add('a')后 count是1。remove('a')时，count是1，会抛出异常。,0.24,268,82,0
 VC-L9,PHP 8.4–8.5,9,answer,hi,hi,json,hi,1,1,代码实例化类 C 并调用其 hi 方法，返回字符串 'hi'。,2.53,155,39,0
 T28-L9,Symfony：版本,9,answer,yes,no,json,no,0,0,AbstractGuardAuthenticator 类在 Symfony Security 组件中仍然存在。,0.08,172,35,0
 T28-L10,Symfony：版本,10,answer,no,noyes,json,noyes,0,0,在 Symfony 6.4 和 8.1 中，`AnnotationClassLoader` 存在，但 `AttributeClassLoader` 在 Symfony 8.1 中通常是用于替代或替代后的类，但直接检查这两个类名在新的结构下是否可用，取决于 Symfony 的具体结构调整，但通常 `AttributeClassLoader` 可能会被替换或移动，导致检查失败。,0.26,200,99,0
 VC-L10,PHP 8.4–8.5,10,answer,no,yesno,json,yesno,0,0,newLazyGhost 已经初始化了对象，所以 isUninitializedLazyObject 返回 false。,2.69,236,41,0
+T05-L10,函数与闭包,10,answer,typeerror,4,json,4,0,0,函数期望两个整数参数，但传入了一个数组，导致类型错误。,3.18,165,38,0
+T05-L9,函数与闭包,9,answer,warning: call to a member function on null in p,3,json,3,0,0,当 $p 被设置为 null 后，尝试调用 $f() 时会触发一个警告。,0.64,181,52,0
+T08-L10,异常与错误,10,answer,2,2,json,2,1,1,finally 块中的返回值会覆盖 try 块中的返回值。,0.1,150,36,0
+T08-L9,异常与错误,9,answer,second,second,json,second,1,1,LogicException被捕获并打印了它的消息。,0.26,174,34,0
+T12-L9,配置与安全,9,answer,no,noyes,json,noyes,0,0,密码哈希的成本参数不匹配，因此不需要重新哈希。,0.37,208,38,0
+T12-L10,配置与安全,10,answer,strict-in,strict-out,json,strict-out,0,0,E_ALL 是一个整数，与 2048 进行按位与操作的结果不是 0，所以条件为假。,0.37,156,53,0
+T13-L9,Symfony,9,answer,mapped,mapped,json,mapped,1,1,代码会检查请求头 'X-Token' 是否等于 'abc'，结果为真。,0.1,183,41,0
+T14-L10,Doctrine,10,answer,same,same,json,same,1,1,find() 方法会返回同一个实体实例，因为它们都引用了同一个数据库记录。,1.2,235,39,0
+T14-L9,Doctrine,9,answer,0,0,json,0,1,1,`em->remove($u)` 标记了实体为删除，`$em->flush()` 执行了删除操作，因此表中的记录被移除。,0.5,197,53,0
+T15-L10,PostgreSQL,10,answer,2,1,json,1,0,0,COUNT(x) 统计非NULL值的数量，表中有一个非NULL的值。,0.46,157,40,0
+T15-L9,PostgreSQL,9,answer,"10,30,50","10,30,60",json,"10,30,60",0,0,查询对 id 排序后的 x 值进行累积和，然后将结果用逗号连接起来。,0.6,206,52,0
+T18-L10,测试：PHPUnit,10,answer,"2,2","2,1",json,"2,1",0,0,DataProvider会为数组中的每个元素运行一次测试，并且测试_x函数会对所有输入（1和-1）都失败。,0.18,259,53,0
+T21-L9,Twig,9,answer,6,6,json,6,1,1,如果 false 为假值，则使用 default 值 2 进行计算：2 * 3 = 6。,0.72,136,46,0
+T23-L10,Symfony：配置与服务,10,answer,hi bob!,hi bob!,json,hi bob!,1,1,代码会设置参数，并编译后获取 'message' 参数的值。,0.47,193,39,0
+T26-L10,DDD,10,answer,"15,15","10,15",json,"10,15",0,0,代码创建了两个 Money 对象，计算它们的总和并打印了初始金额和总金额。,0.62,213,47,0
+T26-L9,DDD,9,answer,0,1,json,1,0,0,移除'a'后，数组为空，count()返回0。,0.4,287,37,0

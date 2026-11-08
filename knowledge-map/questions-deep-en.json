@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "deep_for": 8,
   "questions": [
     {
@@ -110,9 +110,9 @@
       }
     },
     {
-      "id": "T05-L9",
+      "id": "T05-L10",
       "topic": "Functions and closures",
-      "level": 9,
+      "level": 10,
       "kind": "deep",
       "zone": "base",
       "type": "answer",
@@ -123,9 +123,9 @@
       }
     },
     {
-      "id": "T05-L10",
+      "id": "T05-L9",
       "topic": "Functions and closures",
-      "level": 10,
+      "level": 9,
       "kind": "deep",
       "zone": "base",
       "type": "answer",
@@ -188,9 +188,9 @@
       }
     },
     {
-      "id": "T08-L9",
+      "id": "T08-L10",
       "topic": "Exceptions and errors",
-      "level": 9,
+      "level": 10,
       "kind": "deep",
       "zone": "base",
       "type": "answer",
@@ -201,9 +201,9 @@
       }
     },
     {
-      "id": "T08-L10",
+      "id": "T08-L9",
       "topic": "Exceptions and errors",
-      "level": 10,
+      "level": 9,
       "kind": "deep",
       "zone": "base",
       "type": "answer",
@@ -298,10 +298,10 @@
       "kind": "deep",
       "zone": "base",
       "type": "answer",
-      "note": "base64 of 'a:b' — three bytes 61:3a:62 → YTpi.",
-      "prompt": "What does this code output?\n\n```php\necho base64_encode('a:b');\n```",
+      "note": "password_needs_rehash compares the hash's options with the target: cost 4 = 4 → 'no', cost 5 ≠ 4 → 'yes'.",
+      "prompt": "What does this code output?\n\n```php\n$hash = password_hash('x', PASSWORD_BCRYPT, ['cost' => 4]);\necho password_needs_rehash($hash, PASSWORD_BCRYPT, ['cost' => 4]) ? 'yes' : 'no';\necho password_needs_rehash($hash, PASSWORD_BCRYPT, ['cost' => 5]) ? 'yes' : 'no';\n```",
       "grader": {
-        "php": "echo base64_encode('a:b');"
+        "php": "$hash = password_hash('x', PASSWORD_BCRYPT, ['cost' => 4]);\necho password_needs_rehash($hash, PASSWORD_BCRYPT, ['cost' => 4]) ? 'yes' : 'no';\necho password_needs_rehash($hash, PASSWORD_BCRYPT, ['cost' => 5]) ? 'yes' : 'no';"
       }
     },
     {
@@ -311,10 +311,10 @@
       "kind": "deep",
       "zone": "base",
       "type": "answer",
-      "note": "Since PHP 8.4 E_STRICT is gone: E_ALL = 30719 (not the 32767 of 8.0–8.3 docs), minus E_NOTICE (8) = 30711.",
-      "prompt": "What does this code output on PHP 8.5?\n\n```php\nerror_reporting(E_ALL & ~E_NOTICE);\necho error_reporting();\n```",
+      "note": "Since PHP 8.4, E_STRICT is out of E_ALL: the 2048 bit is unset → 'strict-out' (2048 is the historical E_STRICT bit).",
+      "prompt": "What does this code output on PHP 8.5?\n\n```php\necho (E_ALL & 2048) === 0 ? 'strict-out' : 'strict-in';\n```",
       "grader": {
-        "php": "error_reporting(E_ALL & ~E_NOTICE);\necho error_reporting();"
+        "php": "echo (E_ALL & 2048) === 0 ? 'strict-out' : 'strict-in';"
       }
     },
     {
@@ -324,11 +324,11 @@
       "kind": "deep",
       "zone": "base",
       "type": "answer",
-      "note": "HttpFoundation maps the HTTP_X_TOKEN server param to the X-Token header (case-insensitive).",
-      "prompt": "What does this code output?\n\n```php\nuse Symfony\\Component\\HttpFoundation\\Request;\n$r = Request::create('/demo', 'GET', [], [], [], ['HTTP_X_TOKEN' => 'abc']);\necho $r->headers->get('X-Token');\n```",
+      "note": "The literal comparison requires knowing the mapping: HttpFoundation turns HTTP_X_TOKEN into the X-Token header (case-insensitive); without it the answer is 'missing'.",
+      "prompt": "What does this code output?\n\n```php\nuse Symfony\\Component\\HttpFoundation\\Request;\n$r = Request::create('/demo', 'GET', [], [], [], ['HTTP_X_TOKEN' => 'abc']);\necho $r->headers->get('X-Token') === 'abc' ? 'mapped' : 'missing';\n```",
       "grader": {
         "accept": [
-          "abc"
+          "mapped"
         ]
       }
     },
@@ -348,9 +348,9 @@
       }
     },
     {
-      "id": "T14-L9",
+      "id": "T14-L10",
       "topic": "Doctrine",
-      "level": 9,
+      "level": 10,
       "kind": "deep",
       "zone": "base",
       "type": "answer",
@@ -363,9 +363,9 @@
       }
     },
     {
-      "id": "T14-L10",
+      "id": "T14-L9",
       "topic": "Doctrine",
-      "level": 10,
+      "level": 9,
       "kind": "deep",
       "zone": "base",
       "type": "answer",
@@ -378,9 +378,9 @@
       }
     },
     {
-      "id": "T15-L9",
+      "id": "T15-L10",
       "topic": "PostgreSQL",
-      "level": 9,
+      "level": 10,
       "kind": "deep",
       "zone": "base",
       "type": "answer",
@@ -393,9 +393,9 @@
       }
     },
     {
-      "id": "T15-L10",
+      "id": "T15-L9",
       "topic": "PostgreSQL",
-      "level": 10,
+      "level": 9,
       "kind": "deep",
       "zone": "base",
       "type": "answer",
@@ -490,11 +490,11 @@
       "kind": "deep",
       "zone": "base",
       "type": "answer",
-      "note": "A non-static provider is just a deprecation in PHPUnit 10: both datasets run.",
-      "prompt": "How many tests will this command run?\n\n```php\nuse PHPUnit\\Framework\\TestCase;\nuse PHPUnit\\Framework\\Attributes\\DataProvider;\n\nfinal class Calc2Test extends TestCase\n{\n    public function prov(): array\n    {\n        return [[1], [2]];\n    }\n\n    #[DataProvider('prov')]\n    public function test_x(int $x): void\n    {\n        $this->assertTrue($x > 0);\n    }\n}\n```\n\nCommand: `phpunit Calc2Test.php` (PHPUnit 10.5)",
+      "note": "A non-static provider is just a deprecation in PHPUnit 10: both datasets run and the [-1] dataset fails the assert — 2 ran, 1 failure.",
+      "prompt": "How many tests will this command run, and how many of them will fail? Answer with two comma-separated numbers (ran, failed).\n\n```php\nuse PHPUnit\\Framework\\TestCase;\nuse PHPUnit\\Framework\\Attributes\\DataProvider;\n\nfinal class Calc2Test extends TestCase\n{\n    public function prov(): array\n    {\n        return [[1], [-1]];\n    }\n\n    #[DataProvider('prov')]\n    public function test_x(int $x): void\n    {\n        $this->assertTrue($x > 0);\n    }\n}\n```\n\nCommand: `phpunit Calc2Test.php` (PHPUnit 10.5)",
       "grader": {
         "accept": [
-          "2"
+          "2,1"
         ]
       }
     },
@@ -567,11 +567,11 @@
       "kind": "deep",
       "zone": "base",
       "type": "answer",
-      "note": "default triggers not only on undefined but on any falsy value.",
-      "prompt": "What does this Twig template output?\n\n```twig\n{{ false|default('c') }}\n```",
+      "note": "default replaces exactly false/null/''/[] — false becomes 2, 2*3 = 6; the naive 'default is for undefined only' yields 0.",
+      "prompt": "What does this Twig template output?\n\n```twig\n{{ false|default(2) * 3 }}\n```",
       "grader": {
         "accept": [
-          "c"
+          "6"
         ]
       }
     },
@@ -644,11 +644,11 @@
       "kind": "deep",
       "zone": "base",
       "type": "answer",
-      "note": "compile() resolves %-references between parameters: 'hi %name%' → 'hi Bob'.",
-      "prompt": "What does this code output?\n\n```php\nuse Symfony\\Component\\DependencyInjection\\ContainerBuilder;\n$c = new ContainerBuilder();\n$c->setParameter('name', 'Bob');\n$c->setParameter('greeting', 'hi %name%');\n$c->compile();\necho $c->getParameter('greeting');\n```",
+      "note": "compile() resolves %-references transitively: %greeting% → 'hi %name%' → 'hi Bob!', the answer assembles over two hops.",
+      "prompt": "What does this code output?\n\n```php\nuse Symfony\\Component\\DependencyInjection\\ContainerBuilder;\n$c = new ContainerBuilder();\n$c->setParameter('name', 'Bob');\n$c->setParameter('greeting', 'hi %name%');\n$c->setParameter('message', '%greeting%!');\n$c->compile();\necho $c->getParameter('message');\n```",
       "grader": {
         "accept": [
-          "hi Bob"
+          "hi Bob!"
         ]
       }
     },
@@ -714,9 +714,9 @@
       }
     },
     {
-      "id": "T26-L9",
+      "id": "T26-L10",
       "topic": "DDD",
-      "level": 9,
+      "level": 10,
       "kind": "deep",
       "zone": "base",
       "type": "answer",
@@ -727,16 +727,16 @@
       }
     },
     {
-      "id": "T26-L10",
+      "id": "T26-L9",
       "topic": "DDD",
-      "level": 10,
+      "level": 9,
       "kind": "deep",
       "zone": "base",
       "type": "answer",
-      "note": "Aggregate invariant: removing the last item is forbidden — DomainException.",
-      "prompt": "What does this code output?\n\n```php\nfinal class Order\n{\n    private array $items = [];\n\n    public function add(string $sku): void\n    {\n        $this->items[$sku] = true;\n    }\n\n    public function remove(string $sku): void\n    {\n        if (count($this->items) === 1) {\n            throw new DomainException('last item');\n        }\n        unset($this->items[$sku]);\n    }\n}\n$o = new Order;\n$o->add('a');\ntry {\n    $o->remove('a');\n} catch (Throwable $e) {\n    echo get_class($e);\n}\n```",
+      "note": "The failed remove leaves aggregate state unchanged: the invariant threw before unset — count stays 1.",
+      "prompt": "What does this code output?\n\n```php\nfinal class Order\n{\n    private array $items = [];\n\n    public function add(string $sku): void\n    {\n        $this->items[$sku] = true;\n    }\n\n    public function count(): int\n    {\n        return count($this->items);\n    }\n\n    public function remove(string $sku): void\n    {\n        if (count($this->items) === 1) {\n            throw new DomainException('last item');\n        }\n        unset($this->items[$sku]);\n    }\n}\n$o = new Order;\n$o->add('a');\ntry {\n    $o->remove('a');\n} catch (DomainException) {\n}\necho $o->count();\n```",
       "grader": {
-        "php": "final class Order\n{\n    private array $items = [];\n\n    public function add(string $sku): void\n    {\n        $this->items[$sku] = true;\n    }\n\n    public function remove(string $sku): void\n    {\n        if (count($this->items) === 1) {\n            throw new DomainException('last item');\n        }\n        unset($this->items[$sku]);\n    }\n}\n$o = new Order;\n$o->add('a');\ntry {\n    $o->remove('a');\n} catch (Throwable $e) {\n    echo get_class($e);\n}"
+        "php": "final class Order\n{\n    private array $items = [];\n\n    public function add(string $sku): void\n    {\n        $this->items[$sku] = true;\n    }\n\n    public function count(): int\n    {\n        return count($this->items);\n    }\n\n    public function remove(string $sku): void\n    {\n        if (count($this->items) === 1) {\n            throw new DomainException('last item');\n        }\n        unset($this->items[$sku]);\n    }\n}\n$o = new Order;\n$o->add('a');\ntry {\n    $o->remove('a');\n} catch (DomainException) {\n}\necho $o->count();"
       }
     },
     {
