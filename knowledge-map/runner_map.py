@@ -160,7 +160,8 @@ def build_decision_state(assertion: str) -> str:
             f"УТВЕРЖДЕНИЕ:\n{assertion}")
 
 
-def http_json(url: str, payload: dict, timeout: int, retries: int = 3) -> dict:
+def http_json(url: str, payload: dict, timeout: int, retries: int = 3,
+              headers: dict | None = None) -> dict:
     """POST с JSON и повторами ТОЛЬКО на сетевые сбои (контент не ретраим)."""
     data = json.dumps(payload).encode("utf-8")
     last_err = None
@@ -168,7 +169,7 @@ def http_json(url: str, payload: dict, timeout: int, retries: int = 3) -> dict:
         try:
             req = urllib.request.Request(
                 url, data=data,
-                headers={"Content-Type": "application/json"})
+                headers={"Content-Type": "application/json", **(headers or {})})
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except (urllib.error.URLError, ConnectionError, TimeoutError) as e:
@@ -179,6 +180,60 @@ def http_json(url: str, payload: dict, timeout: int, retries: int = 3) -> dict:
                       file=sys.stderr)
                 time.sleep(wait)
     raise RuntimeError(f"запрос к {url} не удался после {retries} попыток: {last_err}")
+
+
+# родное API DeepSeek — калибровочные серии карты (сильная cloud-модель,
+# рекомендация trust-mimo п.5). Ключи в workspace не копируем: DEEPSEEK_API_KEY
+# читается из env-файла облаков (MODELS_RU_ENV), как в interview/runner_ru_cloud.py
+DEEPSEEK_CHAT = "https://api.deepseek.com/chat/completions"
+DEEPSEEK_EFFORTS = ("low", "high", "max")  # off/medium API не поддерживает
+
+
+def cloud_env_value(name: str) -> str:
+    path = os.environ.get("MODELS_RU_ENV")
+    if not path:
+        raise RuntimeError("задайте MODELS_RU_ENV — путь к env-файлу с ключами "
+                           "облаков (какие бывают — README, «Быстрый старт»)")
+    path = Path(path).expanduser()
+    for line in path.read_text().splitlines():
+        if line.startswith(name + "="):
+            return line.split("=", 1)[1].strip()
+    raise RuntimeError(f"{name} не найден в {path}")
+
+
+def deepseek_chat(api_key: str, model: str, prompt: str, effort: str,
+                  timeout: int, system_prompt: str | None = None) -> dict:
+    """Один запрос к chat/completions: ответ нормализуется под ollama-структуру
+    (message.content / thinking / done_reason / eval-поля usage) — отчёты
+    и supplement работают с cloud-сессиями без изменений."""
+    messages = ([{"role": "system", "content": system_prompt}]
+                if system_prompt else [])
+    messages.append({"role": "user", "content": prompt})
+    resp = http_json(DEEPSEEK_CHAT,
+                     {"model": model, "messages": messages,
+                      "max_tokens": 16000, "reasoning_effort": effort},
+                     timeout, headers={"Authorization": f"Bearer {api_key}"})
+    ch = (resp.get("choices") or [{}])[0]
+    msg = ch.get("message") or {}
+    u = resp.get("usage") or {}
+    det = u.get("prompt_tokens_details") or {}
+    return {"message": {"content": (msg.get("content") or "").strip(),
+                        "thinking": (msg.get("reasoning_content") or "").strip() or None},
+            "done_reason": ch.get("finish_reason"),
+            "eval_count": u.get("completion_tokens"),
+            "prompt_eval_count": u.get("prompt_tokens"),
+            "prompt_eval_cached_count": det.get("cached_tokens")}
+
+
+def cloud_safe(api_key: str, model: str, prompt: str, effort: str,
+               timeout: int, system_prompt: str | None = None) -> dict | None:
+    """deepseek_chat, но сбой возвращает None (клетка станет серой)."""
+    try:
+        return deepseek_chat(api_key, model, prompt, effort, timeout,
+                             system_prompt)
+    except Exception as e:
+        print(f"      ⚠️ сбой генерации ({e}); пропускаю", file=sys.stderr)
+        return None
 
 
 def unload_model(base_url: str, model: str, timeout: int) -> None:
@@ -393,16 +448,24 @@ def supplement_deep(model_dir: Path, timeout: int,
         model = session.get("model")
         keep_alive = session.get("keep_alive") or "10m"
         think = session.get("think") or "off"
+        provider = session.get("provider", "ollama")
+        api_key = cloud_env_value("DEEPSEEK_API_KEY") \
+            if provider == "deepseek" else None
+        effort = think if think in DEEPSEEK_EFFORTS else "low"
         sysp, _q_suf, a_suf = prompt_parts(lang)
         turns = session["turns"]
         print(f"[{out_dir.name}] {model} · deep v{ddata.get('version')} · "
               f"язык {lang} · think {think} · клеток {len(missing)}")
-        unload_model(base_url, model, timeout)
+        if provider == "ollama":
+            unload_model(base_url, model, timeout)
         for q in (missing[:limit] if limit else missing):
             t0 = time.monotonic()
             prompt = q["prompt"] + a_suf
-            resp = chat_safe(base_url, model, prompt, keep_alive, think,
-                             timeout, sysp)
+            if provider == "deepseek":
+                resp = cloud_safe(api_key, model, prompt, effort, timeout, sysp)
+            else:
+                resp = chat_safe(base_url, model, prompt, keep_alive, think,
+                                 timeout, sysp)
             duration = time.monotonic() - t0
             thinking = None
             if resp is None:
@@ -479,12 +542,15 @@ def supplement_deep(model_dir: Path, timeout: int,
             print(f"    [{q['id']}] {q['topic']}: {duration:.0f}s → {mark} "
                   f"'{answer or '—'}' (эталон: '{expected}'){warn}")
         write_answers_csv(out_dir, turns)
-        try:
-            unload_model(base_url, model, timeout)
-            print(f"  {out_dir.name}: готово ({len(turns)} клеток), "
-                  f"модель выгружена")
-        except Exception as e:
-            print(f"  не удалось выгрузить модель: {e}", file=sys.stderr)
+        if provider == "deepseek":
+            print(f"  {out_dir.name}: готово ({len(turns)} клеток)")
+        else:
+            try:
+                unload_model(base_url, model, timeout)
+                print(f"  {out_dir.name}: готово ({len(turns)} клеток), "
+                      f"модель выгружена")
+            except Exception as e:
+                print(f"  не удалось выгрузить модель: {e}", file=sys.stderr)
 
 
 def regrade(model_dir: Path, timeout: int) -> None:
@@ -600,8 +666,9 @@ def check_questionnaire(questions: list) -> None:
 def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
             out_dir: Path, keep_alive, think: str, timeout: int,
             limit: int | None, protocol: str = "chat",
-            questions_file: str | None = None, lang: str = "ru") -> None:
-    if protocol == "chat":
+            questions_file: str | None = None, lang: str = "ru",
+            provider: str = "ollama", api_key: str | None = None) -> None:
+    if protocol == "chat" and provider == "ollama":
         print(f"  выгружаю модель перед прогоном...")
         unload_model(base_url, model, timeout)
 
@@ -610,11 +677,15 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
         "model": model,
         "run": run_no,
         "started_at": datetime.now(timezone.utc).isoformat(),
-        "base_url": base_url,
+        "base_url": (DEEPSEEK_CHAT if provider == "deepseek" else base_url),
         "protocol": protocol,
-        "keep_alive": keep_alive if protocol == "chat" else None,
-        "kv_cache": ("weights-only (клетки независимы, префиксы не шарятся)"
-                     if protocol == "chat" else None),
+        "provider": provider,
+        "keep_alive": (keep_alive if protocol == "chat" and provider == "ollama"
+                       else None),
+        "kv_cache": ("cloud: серверный prefix-cache, прогоны изолированы "
+                     "независимостью запросов" if provider == "deepseek" else
+                     ("weights-only (клетки независимы, префиксы не шарятся)"
+                      if protocol == "chat" else None)),
         "think": ("— (decision-протокол: вероятностный ответ noul)"
                   if protocol == "decision" else think),
         "question_count": 0,
@@ -668,12 +739,10 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
         if protocol == "decision":
             resp = decision_safe(base_url, model, q["text"], timeout)
         sysp, q_suf, a_suf = prompt_parts(lang)
-        if qtype == "answer":
-            prompt = q["prompt"] + a_suf
-            resp = chat_safe(base_url, model, prompt, keep_alive, think,
-                             timeout, sysp)
+        prompt = (q["prompt"] + a_suf) if qtype == "answer" else (q["text"] + q_suf)
+        if provider == "deepseek":
+            resp = cloud_safe(api_key, model, prompt, think, timeout, sysp)
         else:
-            prompt = q["text"] + q_suf
             resp = chat_safe(base_url, model, prompt, keep_alive, think,
                              timeout, sysp)
         duration = time.monotonic() - t0
@@ -856,6 +925,10 @@ def main() -> int:
                    help="переоценить сохранённые ответы всех прогонов модели "
                         "текущими грейдерами (без перепрогона); вопросник "
                         "берётся по версии/языку из session.json")
+    p.add_argument("--api", choices=["ollama", "deepseek"], default="ollama",
+                   help="бэкенд запросов: ollama (default) или родное API "
+                        "DeepSeek (калибровка сильной cloud-моделью); "
+                        "ключ — DEEPSEEK_API_KEY из MODELS_RU_ENV")
     p.add_argument("--supplement", metavar="MODEL_DIR",
                    help="дополнить существующие v8-прогоны модели клетками "
                         "зоны «Глубина» (questions-deep) — те же run-каталоги, "
@@ -882,6 +955,13 @@ def main() -> int:
         return 0
     if not args.model:
         p.error("укажите --model (или --regrade MODEL_DIR)")
+    api_key = None
+    if args.api == "deepseek":
+        api_key = cloud_env_value("DEEPSEEK_API_KEY")
+        if args.think not in DEEPSEEK_EFFORTS:
+            p.error(f"--think для --api deepseek — один из "
+                    f"{DEEPSEEK_EFFORTS} (у flashes нет off/medium; "
+                    f"стандарт облачных серий — low)")
 
     _qdata = json.loads(Path(args.questions).read_text(encoding="utf-8"))
     q_version = _qdata.get("version") if isinstance(_qdata, dict) else None
@@ -911,10 +991,11 @@ def main() -> int:
               f"· протокол: {args.protocol}")
         run_map(args.base_url, args.model, questions, q_version, run_no,
                 out_dir, keep_alive, args.think, args.timeout, args.limit,
-                args.protocol, Path(args.questions).name, args.lang)
+                args.protocol, Path(args.questions).name, args.lang,
+                provider=args.api, api_key=api_key)
         run_no += 1
-        if args.protocol == "decision":
-            continue  # decision-сервис не держит модель в ollama — выгружать нечего
+        if args.protocol == "decision" or args.api == "deepseek":
+            continue  # decision/облако не держат модель в ollama — выгружать нечего
         # выгрузка после КАЖДОГО прогона: изоляция прогонов
         try:
             unload_model(args.base_url, args.model, args.timeout)
