@@ -365,6 +365,9 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
     fam_line = " · ".join(f"{name} <b>{p}%</b>" for name, p in
                           family_scores(questions, [by_id]))
     score_chip = f'<div class="chip">Оценка: {fam_line}</div>'
+    json_n = sum(1 for t in turns if t.get("json_ok"))
+    score_chip += (f'<div class="chip">Разобрано JSON: <b>{pct(json_n, len(turns))}%</b>'
+                   f' ({json_n} из {len(turns)})</div>')
     fam_line_s = " · ".join(f"{name} {p}%" for name, p in
                             family_scores(questions, [by_id]))
     zone_stats = []
@@ -960,6 +963,8 @@ def build_compare(model_dir: Path, questions_path: Path,
       <div class="chip">Семейства: {" · ".join(f"{n} <b>{p}%</b>" for n, p in family_scores(questions, [b for _n, b in runs]))}</div>
       <div class="chip">Токены по всем прогонам: <b>{tot_in} вх / {tot_out} вых</b></div>
       <div class="chip">Флипующих клеток: <b>{flips_total} / {len(questions)}</b></div>
+      <div class="chip">Разобрано JSON: <b>{pct(sum(1 for _n, _s, b in sessions for t in b.values() if t.get("json_ok")), sum(len(b) for _n, _s, b in sessions))}%</b>
+           (не-JSON: {sum(1 for _n, _s, b in sessions for t in b.values() if not t.get("json_ok"))} из {sum(len(b) for _n, _s, b in sessions)})</div>
       <div class="chip">Нестабильность = знание под вопросом: соседние прогоны
            дают разные ответы на то же утверждение</div>
     </div>"""
@@ -1167,6 +1172,8 @@ def build_series_report(models_root: Path, questions_path: Path,
                 tout_total = sum(t.get("eval_count") or 0
                                  for t in turns_all)
                 cost = (dur_total, tin_total, tout_total)
+                json_pct_ = pct(sum(1 for t in turns_all if t.get("json_ok")),
+                                max(1, len(turns_all)))
                 stable_ok = sum(
                     1 for q in questions
                     if all(by_id.get(q["id"], {}).get("answer") is not None
@@ -1174,9 +1181,9 @@ def build_series_report(models_root: Path, questions_path: Path,
                            for _rd, _s, by_id in items))
                 flips = sum(1 for q in questions if flip_by_id[q["id"]])
                 groups.append((think, runs_list, flip_by_id, fams_list,
-                               cost, stable_ok, flips))
+                               cost, stable_ok, flips, json_pct_))
                 metrics.append((model, think, lang, fams_list, cost, flips,
-                                len(questions)))
+                                len(questions), json_pct_))
             if not groups:
                 continue
 
@@ -1185,7 +1192,7 @@ def build_series_report(models_root: Path, questions_path: Path,
             cols = [f"{label_px}px"] + [
                 f"repeat(8, {cell_px}px) {agg_px}px {sp_px}px"] * len(groups)
             cells = ['<div class="uhead"></div>']
-            for think, runs_list, flip_by_id, fams_list, cost, sok, fl \
+            for think, runs_list, flip_by_id, fams_list, cost, sok, fl, _jp \
                     in groups:
                 cells.append(
                     f'<div class="uhead" style="grid-column: span 9">'
@@ -1196,8 +1203,8 @@ def build_series_report(models_root: Path, questions_path: Path,
                 cells.append(f'<div class="rh">{esc(topic)}</div>')
                 tq = sorted((q for q in questions if q["topic"] == topic),
                             key=lambda q: q["level"])
-                for gi, (t, runs_list, flip_by_id, _fams, _cost, _sok, _fl) \
-                        in enumerate(groups):
+                for gi, (t, runs_list, flip_by_id, _fams, _cost, _sok, _fl,
+                         _jp) in enumerate(groups):
                     cmp_name = f"compare-{t}-{lang}-v{qver}.html"
                     cmp_href = ""
                     if (models_root / md.name / "knowledge-map"
@@ -1246,7 +1253,8 @@ def build_series_report(models_root: Path, questions_path: Path,
 
             levels_s = ", ".join(t for t, *_ in groups)
             # ссылка на полный отчёт — в сетке, под картой каждого уровня
-            for gi, (t, _rl, _f, _fams, _cost, _sok, _fl) in enumerate(groups):
+            for gi, (t, _rl, _f, _fams, _cost, _sok, _fl, _jp) \
+                    in enumerate(groups):
                 cmp_name = f"compare-{t}-{lang}-v{qver}.html"
                 if not (models_root / md.name / "knowledge-map" / cmp_name).exists():
                     continue
@@ -1282,7 +1290,7 @@ def build_series_report(models_root: Path, questions_path: Path,
                   "Тесты": "Тестирование: PHPUnit"}
     metrics.sort(key=lambda m: (m[0], think_order.get(m[1], 99), m[2]))
     mrows = []
-    for model, think, lang, fams_list, cost, fl, nq in metrics:
+    for model, think, lang, fams_list, cost, fl, nq, jp in metrics:
         pm = dict(fams_list)
         cells = [f'<td>{esc(model)}</td>', f'<td>{esc(think)}</td>',
                  f'<td>{esc(lang)}</td>']
@@ -1295,12 +1303,16 @@ def build_series_report(models_root: Path, questions_path: Path,
         cells.append(f'<td class="num">{tin / 1000:.1f}k</td>')
         cells.append(f'<td class="num">{tout / 1000:.1f}k</td>')
         cells.append(f'<td class="num" style="background:{heat_color(1 - fl / max(1, nq))}">{pct(fl, nq)}%</td>')
+        cells.append(f'<td class="num" style="background:{heat_color(jp / 100)}">{jp}%</td>')
         mrows.append("<tr>" + "".join(cells) + "</tr>")
+    cost_heads = [("Время", "Время"), ("Ток вх", "Ток вх"),
+                  ("Ток вых", "Ток вых"), ("Нестаб.", "Нестаб."),
+                  ("JSON", "JSON")]
     head = ('<tr><th>Модель</th><th>think</th><th>Язык</th>'
             + "".join(f'<th title="{fam_titles[k]}">{h}</th>'
                       if k in fam_titles else f"<th>{h}</th>"
                       for k, h in fam_heads)
-            + "<th>Время</th><th>Ток вх</th><th>Ток вых</th><th>Нестаб.</th></tr>")
+            + "".join(f"<th>{h}</th>" for _k, h in cost_heads) + "</tr>")
     sections.insert(0, '<h2>Метрики серий</h2>\n<table class="data metrics">'
                      + head + "".join(mrows) + "</table>")
 
