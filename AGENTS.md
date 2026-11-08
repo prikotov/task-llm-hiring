@@ -304,7 +304,10 @@ interpolation до ~100k); по API у всех заявлен ctx 262144.
   `https://api.deepseek.com`, модель `deepseek-flash` (DeepSeek-V4.1-Flash);
   `reasoning_effort` задаётся раннером (стандарт серий low), thinking
   пишется в транскрипт; тариф пик $0.30/1M вх, $0.006/1M кэш-хит (×50
-  дешевле), $1.20/1M вых, оф-пик ×0.5 (TARIFFS_USD в раннере); в раннере
+  дешевле), $1.20/1M вых, оф-пик ×0.5 (TARIFFS_USD в раннере);
+  наблюдение 2026-11-08: на deepseek-flash серверный кэш не срабатывает —
+  prompt_cache_hit_tokens=0 даже на идентичных system-префиксах с
+  интервалом в минуты (карта знаний: 1480 запросов — все miss); в раннере
   `max_tokens: 16000` — API-дефолт 4096 режет ответы в полуслове;
 - папки моделей: `gigachat/` (GigaChat-2-Max), `gigachat-3-ultra/`,
   `yandexgpt/`, `deepseek-flash/`.
