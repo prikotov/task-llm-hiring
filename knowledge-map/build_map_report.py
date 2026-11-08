@@ -104,8 +104,10 @@ def family_scores(questions: list, run_by_ids: list[dict]) -> list[tuple[str, fl
     """Процент верных по семействам, агрегированный по прогонам.
     Семейства пересекаются («PHP» входит и в «PHP+версии»); семейства
     без клеток в вопроснике пропускаются, «Всего» — всегда (только
-    уровни L1–L8; зона «Глубина» — отдельной строкой)."""
-    deep_qs = [q for q in questions if q.get("level", 0) >= 9]
+    уровни L1–L8; зона «Глубина» — отдельной строкой). Глубина — по
+    kind=="deep" (не по level≥9: у версионной панели questions-versions
+    уровни 9–12, это не deep)."""
+    deep_qs = [q for q in questions if q.get("kind") == "deep"]
     base = [q for q in questions if q.get("level", 0) <= 8]
     defs = [("PHP", FAMILY_IDS["PHP"]),
             ("PHP+версии", FAMILY_IDS["PHP"] + ["VC", "VF"]),
@@ -354,7 +356,7 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
     # «Точность» и зоны — по стабильным клеткам (L1–L8); зона «Глубина»
     # (L9/L10) — отдельной величиной: сравнимость серий v8
     base_qs = [q for q in questions if q.get("level", 0) <= 8]
-    deep_qs = [q for q in questions if q.get("level", 0) >= 9]
+    deep_qs = [q for q in questions if q.get("kind") == "deep"]
     deep_c = sum(1 for q in deep_qs
                  if q["id"] in by_id and is_correct(by_id[q["id"]]))
     correct = sum(1 for q in base_qs
@@ -867,7 +869,7 @@ def write_summary_single(run_dir: Path, session: dict, by_id: dict,
             "cached_tokens": sum(t.get("prompt_eval_cached_count") or 0 for t in all_turns),
         }
     n_recall = sum(1 for q in questions if q.get("type") == "answer")
-    deep_n = sum(1 for q in questions if q.get("level", 0) >= 9)
+    deep_n = sum(1 for q in questions if q.get("kind") == "deep")
     n_base = n - deep_n
     n_recall_base = sum(1 for q in questions
                         if q.get("type") == "answer"

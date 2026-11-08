@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "deep_for": 8,
   "questions": [
     {
@@ -156,7 +156,7 @@
       "zone": "base",
       "type": "answer",
       "note": "在 set 钩子内 $this->x 写入后备存储（无递归）：5*2。",
-      "prompt": "这段代码会输出什么？\n\n```php\nclass C\n{\n    public int $x = 0 {\n        set { $this->x = $value * 2; }\n    }\n}\n$c = new C;\n$c->x = 5;\necho $c->x;\n```",
+      "prompt": "这段代码在 PHP 8.5 上会输出什么？\n\n```php\nclass C\n{\n    public int $x = 0 {\n        set { $this->x = $value * 2; }\n    }\n}\n$c = new C;\n$c->x = 5;\necho $c->x;\n```",
       "grader": {
         "php": "class C\n{\n    public int $x = 0 {\n        set { $this->x = $value * 2; }\n    }\n}\n$c = new C;\n$c->x = 5;\necho $c->x;"
       }
@@ -285,7 +285,7 @@
       "kind": "deep",
       "zone": "base",
       "type": "answer",
-      "note": "yield from 最后会产出被委托生成器的返回值。",
+      "note": "yield from 不推进外层自动键：yield $r 得到键 0 并覆盖 1——'ok' 排在最前面。",
       "prompt": "这段代码会输出什么？\n\n```php\nfunction inner(): Generator\n{\n    yield 1;\n    yield 2;\n    return 'ok';\n}\nfunction outer(): Generator\n{\n    $r = yield from inner();\n    yield $r;\n}\necho implode(',', iterator_to_array(outer()));\n```",
       "grader": {
         "php": "function inner(): Generator\n{\n    yield 1;\n    yield 2;\n    return 'ok';\n}\nfunction outer(): Generator\n{\n    $r = yield from inner();\n    yield $r;\n}\necho implode(',', iterator_to_array(outer()));"
@@ -312,7 +312,7 @@
       "zone": "base",
       "type": "answer",
       "note": "PHP 8.4+ 移除了 E_STRICT：E_ALL = 30719（不是 8.0–8.3 文档中的 32767），减 E_NOTICE（8）= 30711。",
-      "prompt": "这段代码会输出什么？\n\n```php\nerror_reporting(E_ALL & ~E_NOTICE);\necho error_reporting();\n```",
+      "prompt": "这段代码在 PHP 8.5 上会输出什么？\n\n```php\nerror_reporting(E_ALL & ~E_NOTICE);\necho error_reporting();\n```",
       "grader": {
         "php": "error_reporting(E_ALL & ~E_NOTICE);\necho error_reporting();"
       }
@@ -476,7 +476,7 @@
       "zone": "base",
       "type": "answer",
       "note": "--filter 是子串匹配：test_sum 也会匹配 test_sum_abs（3+3 个数据集）。",
-      "prompt": "这条命令会执行多少个测试？\n\n```php\nuse PHPUnit\\Framework\\TestCase;\nuse PHPUnit\\Framework\\Attributes\\DataProvider;\n\nfinal class CalcTest extends TestCase\n{\n    public static function prov(): array\n    {\n        return [[1], [2], [3]];\n    }\n\n    #[DataProvider('prov')]\n    public function test_sum(int $x): void\n    {\n        $this->assertTrue($x > 0);\n    }\n\n    #[DataProvider('prov')]\n    public function test_sum_abs(int $x): void\n    {\n        $this->assertTrue($x > 0);\n    }\n\n    public function test_other(): void\n    {\n        $this->assertTrue(true);\n    }\n}\n```\n\n命令：`phpunit CalcTest.php --filter test_sum`",
+      "prompt": "这条命令会执行多少个测试？\n\n```php\nuse PHPUnit\\Framework\\TestCase;\nuse PHPUnit\\Framework\\Attributes\\DataProvider;\n\nfinal class CalcTest extends TestCase\n{\n    public static function prov(): array\n    {\n        return [[1], [2], [3]];\n    }\n\n    #[DataProvider('prov')]\n    public function test_sum(int $x): void\n    {\n        $this->assertTrue($x > 0);\n    }\n\n    #[DataProvider('prov')]\n    public function test_sum_abs(int $x): void\n    {\n        $this->assertTrue($x > 0);\n    }\n\n    public function test_other(): void\n    {\n        $this->assertTrue(true);\n    }\n}\n```\n\n命令：`phpunit CalcTest.php --filter test_sum`（PHPUnit 10.5）",
       "grader": {
         "accept": [
           "6"
@@ -491,7 +491,7 @@
       "zone": "base",
       "type": "answer",
       "note": "在 PHPUnit 10 中非静态 provider 只是 deprecation：两个数据集都会执行。",
-      "prompt": "这条命令会执行多少个测试？\n\n```php\nuse PHPUnit\\Framework\\TestCase;\nuse PHPUnit\\Framework\\Attributes\\DataProvider;\n\nfinal class Calc2Test extends TestCase\n{\n    public function prov(): array\n    {\n        return [[1], [2]];\n    }\n\n    #[DataProvider('prov')]\n    public function test_x(int $x): void\n    {\n        $this->assertTrue($x > 0);\n    }\n}\n```\n\n命令：`phpunit Calc2Test.php`",
+      "prompt": "这条命令会执行多少个测试？\n\n```php\nuse PHPUnit\\Framework\\TestCase;\nuse PHPUnit\\Framework\\Attributes\\DataProvider;\n\nfinal class Calc2Test extends TestCase\n{\n    public function prov(): array\n    {\n        return [[1], [2]];\n    }\n\n    #[DataProvider('prov')]\n    public function test_x(int $x): void\n    {\n        $this->assertTrue($x > 0);\n    }\n}\n```\n\n命令：`phpunit Calc2Test.php`（PHPUnit 10.5）",
       "grader": {
         "accept": [
           "2"
@@ -582,7 +582,7 @@
       "kind": "deep",
       "zone": "base",
       "type": "answer",
-      "note": "在 Twig 中 ~ 的优先级高于 +：('a' ~ 1) + 2 → string + int → TypeError/RuntimeError。",
+      "note": "在 Twig 中 ~ 的优先级高于 +：('a' ~ 1) + 2 → string + int → 渲染错误（RuntimeError）。",
       "prompt": "渲染这个模板时 render() 会抛出哪个异常类？\n\n```twig\n{{ 'a' ~ 1 + 2 }}\n```",
       "grader": {
         "accept": [
@@ -787,7 +787,7 @@
       "kind": "deep",
       "zone": "base",
       "type": "answer",
-      "note": "注解加载器在 7.0 中被移除，只保留了特性加载器（Annotation→Attribute）。",
+      "note": "注解加载器在 7.0 中被移除，只保留了属性加载器（Annotation→Attribute）。",
       "prompt": "项目从 Symfony 6.4 升级到 8.1。这段代码在 8.1 上会输出什么？\n\n```php\necho class_exists(\\Symfony\\Component\\Routing\\Loader\\AnnotationClassLoader::class)\n    ? 'yes' : 'no';\necho class_exists(\\Symfony\\Component\\Routing\\Loader\\AttributeClassLoader::class)\n    ? 'yes' : 'no';\n```",
       "grader": {
         "accept": [
