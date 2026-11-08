@@ -930,6 +930,9 @@ def main() -> int:
                    help="переоценить сохранённые ответы всех прогонов модели "
                         "текущими грейдерами (без перепрогона); вопросник "
                         "берётся по версии/языку из session.json")
+    p.add_argument("--yes", action="store_true",
+                   help="подтвердить платный запуск (--api deepseek); без неё "
+                        "раннер печатает оценку стоимости и выходит")
     p.add_argument("--api", choices=["ollama", "deepseek"], default="ollama",
                    help="бэкенд запросов: ollama (default) или родное API "
                         "DeepSeek (калибровка сильной cloud-моделью); "
@@ -972,6 +975,26 @@ def main() -> int:
     q_version = _qdata.get("version") if isinstance(_qdata, dict) else None
     questions = _qdata["questions"] if isinstance(_qdata, dict) else _qdata
     check_questionnaire(questions)
+
+    # предохранитель платных серий: оценка стоимости ДО запросов.
+    # Тариф deepseek-flash: $0.30/1M вх (кэш не учитываем — на flash
+    # не срабатывает), $1.20/1M вых. Оценка грубая (±30%): ru-текст
+    # токенизируется ~6 симв./токен, выход ~220 ток/клетку (замер серии
+    # 2026-11-08: 169 вх / 203 вых на клетку).
+    if args.api == "deepseek" and not args.yes:
+        sysp_chars = len(prompt_parts(args.lang)[0])
+        q_chars = sum(len(q.get("prompt") or q.get("text") or "")
+                      for q in questions)
+        n_req = len(questions) * args.runs
+        in_est = (sysp_chars + q_chars / max(1, len(questions))) * n_req / 6.0
+        out_est = 220 * n_req
+        cost = in_est / 1e6 * 0.30 + out_est / 1e6 * 1.20
+        print(f"оценка платной серии: {len(questions)} клеток × {args.runs} "
+              f"прогонов ≈ {in_est / 1e6:.2f}M вх + {out_est / 1e6:.2f}M вых "
+              f"токенов ≈ ${cost:.2f} (грубо, ±30%; кэш не учитан — на "
+              f"deepseek-flash не срабатывает)")
+        print("для запуска добавьте --yes")
+        return 1
 
     out_root = (Path(args.out) if args.out
                 else resolve_out_root(args.models_root, slugify(args.model)))
