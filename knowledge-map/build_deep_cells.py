@@ -93,7 +93,7 @@ def main() -> int:
             })
         out = SCRIPT_DIR / f"questions-deep{suffix}.json"
         out.write_text(json.dumps(
-            {"version": 1, "deep_for": 8, "questions": questions},
+            {"version": 2, "deep_for": 8, "questions": questions},
             ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         print(f"{out.name}: {len(questions)} клеток")
     return 0

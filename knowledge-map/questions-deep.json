@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "deep_for": 8,
   "questions": [
     {
@@ -737,6 +737,62 @@
       "prompt": "Что выведет этот код?\n\n```php\nfinal class Order\n{\n    private array $items = [];\n\n    public function add(string $sku): void\n    {\n        $this->items[$sku] = true;\n    }\n\n    public function remove(string $sku): void\n    {\n        if (count($this->items) === 1) {\n            throw new DomainException('last item');\n        }\n        unset($this->items[$sku]);\n    }\n}\n$o = new Order;\n$o->add('a');\ntry {\n    $o->remove('a');\n} catch (Throwable $e) {\n    echo get_class($e);\n}\n```",
       "grader": {
         "php": "final class Order\n{\n    private array $items = [];\n\n    public function add(string $sku): void\n    {\n        $this->items[$sku] = true;\n    }\n\n    public function remove(string $sku): void\n    {\n        if (count($this->items) === 1) {\n            throw new DomainException('last item');\n        }\n        unset($this->items[$sku]);\n    }\n}\n$o = new Order;\n$o->add('a');\ntry {\n    $o->remove('a');\n} catch (Throwable $e) {\n    echo get_class($e);\n}"
+      }
+    },
+    {
+      "id": "VC-L9",
+      "topic": "PHP 8.4–8.5",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "С 8.4 new в цепочке методов вызывается без обрамляющих скобок.",
+      "prompt": "Что выведет этот код на PHP 8.5?\n\n```php\nclass C\n{\n    public function hi(): string { return 'hi'; }\n}\necho new C()->hi();\n```",
+      "grader": {
+        "php": "class C\n{\n    public function hi(): string { return 'hi'; }\n}\necho new C()->hi();"
+      }
+    },
+    {
+      "id": "VC-L10",
+      "topic": "PHP 8.4–8.5",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "newLazyGhost (8.4) откладывает инициализацию до первого доступа: чтение $o->v запускает initializer.",
+      "prompt": "Что выведет этот код на PHP 8.5?\n\n```php\nclass Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 42;\n});\necho $o->v;\n```",
+      "grader": {
+        "php": "class Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 42;\n});\necho $o->v;"
+      }
+    },
+    {
+      "id": "T28-L9",
+      "topic": "Symfony: версии",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "Guard-аутентификация удалена в Symfony 7.0 — класса в 8.1 нет.",
+      "prompt": "Проект обновлён с Symfony 6.4 на 8.1. Что выведет этот код на 8.1?\n\n```php\necho class_exists(\\Symfony\\Component\\Security\\Guard\\AbstractGuardAuthenticator::class)\n    ? 'yes' : 'no';\n```",
+      "grader": {
+        "accept": [
+          "no"
+        ]
+      }
+    },
+    {
+      "id": "T28-L10",
+      "topic": "Symfony: версии",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "Аннотационные лоадеры удалены в 7.0, остались атрибутные (Annotation→Attribute).",
+      "prompt": "Проект обновлён с Symfony 6.4 на 8.1. Что выведет этот код на 8.1?\n\n```php\necho class_exists(\\Symfony\\Component\\Routing\\Loader\\AnnotationClassLoader::class)\n    ? 'yes' : 'no';\necho class_exists(\\Symfony\\Component\\Routing\\Loader\\AttributeClassLoader::class)\n    ? 'yes' : 'no';\n```",
+      "grader": {
+        "accept": [
+          "noyes"
+        ]
       }
     }
   ]

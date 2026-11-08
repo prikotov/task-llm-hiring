@@ -347,19 +347,28 @@ def supplement_deep(model_dir: Path, timeout: int,
         ddata = json.loads(dpath.read_text(encoding="utf-8"))
         questions = ddata["questions"]
         check_questionnaire(questions)
-        # резюме: штамп ставится до запросов (крах не теряет серию); при
-        # рестарте недополненный прогон дочищается — частичные deep-ответы
-        # (уровни ≥9) удаляются и запрашиваются заново
-        if session.get("deep"):
-            deep_turns = [t for t in session["turns"]
-                          if t.get("level", 0) >= 9]
-            if len(deep_turns) == len(questions):
+        # резюме и новая версия deep-файла: уже отвеченные клетки не
+        # перезапрашиваются — добавляются только недостающие (частичный
+        # крах и расширение набора обрабатываются одинаково); штамп
+        # обновляется до текущей версии файла
+        have = {t["id"] for t in session["turns"] if t.get("level", 0) >= 9}
+        missing = [q for q in questions if q["id"] not in have]
+        if not missing:
+            if (session.get("deep") or {}).get("version") == ddata.get("version"):
                 print(f"  {out_dir.name}: deep уже дополнен — пропускаю")
                 continue
-            print(f"  {out_dir.name}: deep недополнен ({len(deep_turns)}/"
-                  f"{len(questions)}) — перезапрашиваю")
-            session["turns"] = [t for t in session["turns"]
-                                if t.get("level", 0) < 9]
+            session["deep"] = {"file": stem,
+                               "version": ddata.get("version"),
+                               "added_at": datetime.now(timezone.utc).isoformat()}
+            s_path.write_text(
+                json.dumps(session, ensure_ascii=False, indent=2),
+                encoding="utf-8")
+            print(f"  {out_dir.name}: клетки все на месте — штамп "
+                  f"обновлён до v{ddata.get('version')}")
+            continue
+        if have:
+            print(f"  {out_dir.name}: deep есть {len(have)}/{len(questions)} "
+                  f"— допрашиваю недостающие")
         session["deep"] = {"file": stem, "version": ddata.get("version"),
                            "added_at": datetime.now(timezone.utc).isoformat()}
         base_url = session.get("base_url") or DEFAULT_BASE_URL
@@ -370,9 +379,9 @@ def supplement_deep(model_dir: Path, timeout: int,
         turns = session["turns"]
         expected_cache: dict = {}
         print(f"[{out_dir.name}] {model} · deep v{ddata.get('version')} · "
-              f"язык {lang} · think {think}")
+              f"язык {lang} · think {think} · клеток {len(missing)}")
         unload_model(base_url, model, timeout)
-        for q in (questions[:limit] if limit else questions):
+        for q in (missing[:limit] if limit else missing):
             t0 = time.monotonic()
             prompt = q["prompt"] + a_suf
             resp = chat_safe(base_url, model, prompt, keep_alive, think,

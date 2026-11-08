@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "deep_for": 8,
   "questions": [
     {
@@ -737,6 +737,62 @@
       "prompt": "What does this code output?\n\n```php\nfinal class Order\n{\n    private array $items = [];\n\n    public function add(string $sku): void\n    {\n        $this->items[$sku] = true;\n    }\n\n    public function remove(string $sku): void\n    {\n        if (count($this->items) === 1) {\n            throw new DomainException('last item');\n        }\n        unset($this->items[$sku]);\n    }\n}\n$o = new Order;\n$o->add('a');\ntry {\n    $o->remove('a');\n} catch (Throwable $e) {\n    echo get_class($e);\n}\n```",
       "grader": {
         "php": "final class Order\n{\n    private array $items = [];\n\n    public function add(string $sku): void\n    {\n        $this->items[$sku] = true;\n    }\n\n    public function remove(string $sku): void\n    {\n        if (count($this->items) === 1) {\n            throw new DomainException('last item');\n        }\n        unset($this->items[$sku]);\n    }\n}\n$o = new Order;\n$o->add('a');\ntry {\n    $o->remove('a');\n} catch (Throwable $e) {\n    echo get_class($e);\n}"
+      }
+    },
+    {
+      "id": "VC-L9",
+      "topic": "PHP 8.4–8.5",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "Since 8.4, new in a method chain works without wrapping parentheses.",
+      "prompt": "What does this code output on PHP 8.5?\n\n```php\nclass C\n{\n    public function hi(): string { return 'hi'; }\n}\necho new C()->hi();\n```",
+      "grader": {
+        "php": "class C\n{\n    public function hi(): string { return 'hi'; }\n}\necho new C()->hi();"
+      }
+    },
+    {
+      "id": "VC-L10",
+      "topic": "PHP 8.4–8.5",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "newLazyGhost (8.4) defers initialization until first access: reading $o->v triggers the initializer.",
+      "prompt": "What does this code output on PHP 8.5?\n\n```php\nclass Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 42;\n});\necho $o->v;\n```",
+      "grader": {
+        "php": "class Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 42;\n});\necho $o->v;"
+      }
+    },
+    {
+      "id": "T28-L9",
+      "topic": "Symfony: versions",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "Guard authentication was removed in Symfony 7.0 — the class is gone in 8.1.",
+      "prompt": "The project was upgraded from Symfony 6.4 to 8.1. What does this code output on 8.1?\n\n```php\necho class_exists(\\Symfony\\Component\\Security\\Guard\\AbstractGuardAuthenticator::class)\n    ? 'yes' : 'no';\n```",
+      "grader": {
+        "accept": [
+          "no"
+        ]
+      }
+    },
+    {
+      "id": "T28-L10",
+      "topic": "Symfony: versions",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "Annotation loaders were removed in 7.0; only attribute loaders remain (Annotation→Attribute).",
+      "prompt": "The project was upgraded from Symfony 6.4 to 8.1. What does this code output on 8.1?\n\n```php\necho class_exists(\\Symfony\\Component\\Routing\\Loader\\AnnotationClassLoader::class)\n    ? 'yes' : 'no';\necho class_exists(\\Symfony\\Component\\Routing\\Loader\\AttributeClassLoader::class)\n    ? 'yes' : 'no';\n```",
+      "grader": {
+        "accept": [
+          "noyes"
+        ]
       }
     }
   ]

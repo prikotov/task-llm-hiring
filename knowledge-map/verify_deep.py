@@ -358,7 +358,8 @@ CHECKS = {"T14-L9": check_doctrine, "T14-L10": check_doctrine,
           "T24-L9": check_bootstrap, "T24-L10": check_bootstrap,
           "T21-L9": check_twig, "T21-L10": check_twig}
 VENDOR_IDS = {"T13-L9", "T13-L10", "T16-L9", "T16-L10",
-              "T22-L9", "T22-L10", "T23-L9", "T23-L10"}
+              "T22-L9", "T22-L10", "T23-L9", "T23-L10",
+              "T28-L9", "T28-L10"}
 
 
 def main() -> int:

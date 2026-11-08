@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Клетки зоны «Глубина» (L9/L10) карты знаний: 26 базовых тем × 2 уровня.
+"""Клетки зоны «Глубина» (L9/L10) карты знаний: 26 базовых тем × 2 уровня
++ версии, где эталон исполняется на машине (VC — PHP 8.4–8.5, T28 —
+Symfony: версии). Всего 56 клеток; будущее (VF, T29) без deep — семантику
+невыпущенных версий машинно не верифицировать.
 
 Это данные для build_deep_cells.py (генерирует questions-deep{,-en,-zh}.json)
 и verify_deep.py (батарея машинной верификации эталонов).
@@ -382,6 +385,30 @@ T19_L9 = """curl -s -d 'a=1' http://demo.local/api"""
 
 T19_L10 = """curl -s -G -d 'a=1' http://demo.local/api"""
 
+VC_L9 = """class C
+{
+    public function hi(): string { return 'hi'; }
+}
+echo new C()->hi();"""
+
+VC_L10 = """class Heavy
+{
+    public int $v = 0;
+}
+$r = new ReflectionClass(Heavy::class);
+$o = $r->newLazyGhost(function (Heavy $obj) {
+    $obj->v = 42;
+});
+echo $o->v;"""
+
+T28_L9 = """echo class_exists(\\Symfony\\Component\\Security\\Guard\\AbstractGuardAuthenticator::class)
+    ? 'yes' : 'no';"""
+
+T28_L10 = """echo class_exists(\\Symfony\\Component\\Routing\\Loader\\AnnotationClassLoader::class)
+    ? 'yes' : 'no';
+echo class_exists(\\Symfony\\Component\\Routing\\Loader\\AttributeClassLoader::class)
+    ? 'yes' : 'no';"""
+
 T14_L9 = """$u = new User(name: 'A');
 $em->persist($u);
 $em->flush();
@@ -689,4 +716,34 @@ CELLS = [
          note={"ru": "Инвариант агрегата: удаление последнего товара запрещено — DomainException.",
                "en": "Aggregate invariant: removing the last item is forbidden — DomainException.",
                "zh": "聚合不变量：不允许移除最后一个商品——DomainException。"}),
+    dict(id="VC-L9", level=9, code=VC_L9, exp="hi",
+         prompt={"ru": "Что выведет этот код на PHP 8.5?\n\n```php\n{code}\n```",
+                 "en": "What does this code output on PHP 8.5?\n\n```php\n{code}\n```",
+                 "zh": "这段代码在 PHP 8.5 上会输出什么？\n\n```php\n{code}\n```"},
+         note={"ru": "С 8.4 new в цепочке методов вызывается без обрамляющих скобок.",
+               "en": "Since 8.4, new in a method chain works without wrapping parentheses.",
+               "zh": "自 8.4 起，方法链中的 new 无需外层括号。"}),
+    dict(id="VC-L10", level=10, code=VC_L10, exp="42",
+         prompt={"ru": "Что выведет этот код на PHP 8.5?\n\n```php\n{code}\n```",
+                 "en": "What does this code output on PHP 8.5?\n\n```php\n{code}\n```",
+                 "zh": "这段代码在 PHP 8.5 上会输出什么？\n\n```php\n{code}\n```"},
+         note={"ru": "newLazyGhost (8.4) откладывает инициализацию до первого доступа: чтение $o->v запускает initializer.",
+               "en": "newLazyGhost (8.4) defers initialization until first access: reading $o->v triggers the initializer.",
+               "zh": "newLazyGhost（8.4）把初始化推迟到首次访问：读取 $o->v 时才触发 initializer。"}),
+    dict(id="T28-L9", level=9, code=T28_L9, exp="no",
+         grader={"accept": ["no"]},
+         prompt={"ru": "Проект обновлён с Symfony 6.4 на 8.1. Что выведет этот код на 8.1?\n\n```php\n{code}\n```",
+                 "en": "The project was upgraded from Symfony 6.4 to 8.1. What does this code output on 8.1?\n\n```php\n{code}\n```",
+                 "zh": "项目从 Symfony 6.4 升级到 8.1。这段代码在 8.1 上会输出什么？\n\n```php\n{code}\n```"},
+         note={"ru": "Guard-аутентификация удалена в Symfony 7.0 — класса в 8.1 нет.",
+               "en": "Guard authentication was removed in Symfony 7.0 — the class is gone in 8.1.",
+               "zh": "Guard 认证在 Symfony 7.0 中被移除——8.1 中已无此类。"}),
+    dict(id="T28-L10", level=10, code=T28_L10, exp="noyes",
+         grader={"accept": ["noyes"]},
+         prompt={"ru": "Проект обновлён с Symfony 6.4 на 8.1. Что выведет этот код на 8.1?\n\n```php\n{code}\n```",
+                 "en": "The project was upgraded from Symfony 6.4 to 8.1. What does this code output on 8.1?\n\n```php\n{code}\n```",
+                 "zh": "项目从 Symfony 6.4 升级到 8.1。这段代码在 8.1 上会输出什么？\n\n```php\n{code}\n```"},
+         note={"ru": "Аннотационные лоадеры удалены в 7.0, остались атрибутные (Annotation→Attribute).",
+               "en": "Annotation loaders were removed in 7.0; only attribute loaders remain (Annotation→Attribute).",
+               "zh": "注解加载器在 7.0 中被移除，只保留了特性加载器（Annotation→Attribute）。"}),
 ]
