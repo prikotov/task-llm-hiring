@@ -46,6 +46,7 @@ DOC_CELLS = {"T20-L9": "RFC 6749 §5.2: invalid_client",
              "T20-L10": "RFC 6749 §4.2.2: токен в фрагменте URL"}
 
 RESULTS: list[tuple[str, str, str]] = []
+_PG_STARTED = False
 
 
 def run(cmd: list, timeout: int = 60,
@@ -164,6 +165,25 @@ def check_phpunit(c: dict) -> str:
 def check_psql(c: dict) -> str:
     """psql печатает теги всех команд (CREATE TABLE, INSERT 0 N) — эталон
     в последней непустой строке stdout."""
+    global _PG_STARTED
+    if not _PG_STARTED:
+        probe = run(["docker", "exec", PG, "psql", "-U", "postgres",
+                     "-Atc", "SELECT 1;"])
+        if probe.returncode != 0:
+            print(f"  поднимаю контейнер {PG} (postgres:17-alpine)…")
+            run(["docker", "rm", "-f", PG])
+            up = run(["docker", "run", "--rm", "-d", "--name", PG,
+                      "-e", "POSTGRES_PASSWORD=verify", "postgres:17-alpine"])
+            if up.returncode != 0:
+                return f"не поднять контейнер {PG}: {up.stderr.strip()[:120]}"
+            for _ in range(30):
+                time.sleep(1)
+                if run(["docker", "exec", PG, "psql", "-U", "postgres",
+                        "-Atc", "SELECT 1;"]).returncode == 0:
+                    break
+            else:
+                return f"контейнер {PG} не отвечает после старта"
+        _PG_STARTED = True
     r = run(["docker", "exec", PG, "psql", "-U", "postgres", "-Atc", c["sql"]])
     lines = [x for x in r.stdout.strip().splitlines() if x.strip()]
     out = lines[-1] if lines else ""
