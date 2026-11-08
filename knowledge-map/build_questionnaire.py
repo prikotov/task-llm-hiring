@@ -69,22 +69,38 @@ def main() -> int:
     p.add_argument("--out", default=str(SCRIPT_DIR / "questionnaire.html"))
     args = p.parse_args()
     langs = {}
+    deeps = {}
     for lang, _title, _open in LANGS:
         langs[lang] = json.loads(
             (SCRIPT_DIR / f"questions{'' if lang == 'ru' else '-' + lang}.json")
             .read_text(encoding="utf-8"))
+        dpath = SCRIPT_DIR / (
+            f"questions-deep{'' if lang == 'ru' else '-' + lang}.json")
+        deeps[lang] = (json.loads(dpath.read_text(encoding="utf-8"))
+                       if dpath.exists() else None)
     versions = {d["version"] for d in langs.values()}
     if len(versions) != 1:
         raise SystemExit(f"версии вопросников расходятся: {versions}")
     n = len(langs["ru"]["questions"])
+    deep_n = len(deeps["ru"]["questions"]) if deeps["ru"] else 0
+    # клетки зоны «Глубина» показываются внутри таблиц своих тем
+    # (уровни L9/L10) — единый вопросник v8 + deep
+    merged = {}
+    for lang in langs:
+        if deeps[lang]:
+            m = dict(langs[lang])
+            m["questions"] = langs[lang]["questions"] + deeps[lang]["questions"]
+            merged[lang] = m
+        else:
+            merged[lang] = langs[lang]
     sections = "".join(
-        lang_section(lang, title, langs[lang], open_)
+        lang_section(lang, title, merged[lang], open_)
         for lang, title, open_ in LANGS)
     html = f"""<!doctype html>
 <html lang="ru">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Вопросник v{next(iter(versions))} — темы и вопросы</title>
+<title>Вопросник v{next(iter(versions))} + deep — темы и вопросы</title>
 <style>
 body {{ font: 15px/1.5 system-ui, sans-serif; color: #1c2130;
        background: #f6f7f9; margin: 0; padding: 28px 18px 60px; }}
@@ -111,9 +127,10 @@ tr:target td {{ background: #fffbe8; }}
 footer {{ color: #6b7280; font-size: 12.5px; margin-top: 18px; }}
 </style>
 <main>
-<h1>Вопросник v{next(iter(versions))} — темы и вопросы</h1>
+<h1>Вопросник v{next(iter(versions))} + deep — темы и вопросы</h1>
 <p class="proto">{n} клеток: 21 тема × 8 уровней (12 тем языка PHP + 9 тем
-стека TasK) + 16 версионных (PHP 8.4–8.5 и будущее 8.6+). Типы: да/нет
+стека TasK) + 16 версионных (PHP 8.4–8.5 и будущее 8.6+){f" + зона «Глубина»: {deep_n} клеток L9/L10 (26 тем × 2; машинно проверяемые эталоны — php 8.5, vendor Symfony/Doctrine/Twig/PHPUnit, PostgreSQL 17, curl, deptrac, bootstrap.css, RFC)" if deep_n else ""}.
+Типы: да/нет
 (утверждение, эталон — правда/миф) и recall (ответ — только результат,
 эталон — php-грейдер или accept/regex-список). Эталон и карточка (note)
 приведены для ревью; языки ru/en/zh — параллельные версии одного набора,

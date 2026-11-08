@@ -318,6 +318,149 @@ def resolve_questions_file(km_dir: Path, session: dict) -> Path | None:
     return None
 
 
+def supplement_deep(model_dir: Path, timeout: int,
+                    limit: int | None = None) -> None:
+    """Дополнение СУЩЕСТВУЮЩИХ прогонов клетками зоны «Глубина» (L9/L10).
+
+    Это не новые прогоны и не новая версия вопросника: run-каталоги те же,
+    основной вопросник остаётся v8 — deep-клетки живут в
+    questions-deep{,-en,-zh}.json и дописываются в session.json (штамп
+    «deep») и answers.csv. Условия запроса — из session.json прогона
+    (model, base_url, think, lang, keep_alive); выгрузка модели до и после
+    каждого прогона — изоляция как в основной карте. Дополнение идёт
+    прогонно-прогрессивно: крах серии данные не теряет.
+    """
+    for s_path in sorted(model_dir.glob("run-*/session.json")):
+        out_dir = s_path.parent
+        session = json.loads(s_path.read_text(encoding="utf-8"))
+        if session.get("protocol", "chat") != "chat":
+            print(f"  {out_dir.name}: протокол {session.get('protocol')} — "
+                  f"пропускаю")
+            continue
+        if session.get("questionnaire") != 8:
+            print(f"  {out_dir.name}: вопросник v{session.get('questionnaire')} "
+                  f"— deep-зона собрана для v8, пропускаю")
+            continue
+        lang = session.get("lang", "ru")
+        stem = f"questions-deep{'' if lang == 'ru' else '-' + lang}.json"
+        dpath = SCRIPT_DIR / stem
+        ddata = json.loads(dpath.read_text(encoding="utf-8"))
+        questions = ddata["questions"]
+        check_questionnaire(questions)
+        # резюме: штамп ставится до запросов (крах не теряет серию); при
+        # рестарте недополненный прогон дочищается — частичные deep-ответы
+        # (уровни ≥9) удаляются и запрашиваются заново
+        if session.get("deep"):
+            deep_turns = [t for t in session["turns"]
+                          if t.get("level", 0) >= 9]
+            if len(deep_turns) == len(questions):
+                print(f"  {out_dir.name}: deep уже дополнен — пропускаю")
+                continue
+            print(f"  {out_dir.name}: deep недополнен ({len(deep_turns)}/"
+                  f"{len(questions)}) — перезапрашиваю")
+            session["turns"] = [t for t in session["turns"]
+                                if t.get("level", 0) < 9]
+        session["deep"] = {"file": stem, "version": ddata.get("version"),
+                           "added_at": datetime.now(timezone.utc).isoformat()}
+        base_url = session.get("base_url") or DEFAULT_BASE_URL
+        model = session.get("model")
+        keep_alive = session.get("keep_alive") or "10m"
+        think = session.get("think") or "off"
+        sysp, _q_suf, a_suf = prompt_parts(lang)
+        turns = session["turns"]
+        expected_cache: dict = {}
+        print(f"[{out_dir.name}] {model} · deep v{ddata.get('version')} · "
+              f"язык {lang} · think {think}")
+        unload_model(base_url, model, timeout)
+        for q in (questions[:limit] if limit else questions):
+            t0 = time.monotonic()
+            prompt = q["prompt"] + a_suf
+            resp = chat_safe(base_url, model, prompt, keep_alive, think,
+                             timeout, sysp)
+            duration = time.monotonic() - t0
+            thinking = None
+            if resp is None:
+                answer_raw, json_ok = "", False
+                eval_count = prompt_eval_count = cached_count = None
+                done_reason = "error"
+            else:
+                msg = resp.get("message", {})
+                answer_raw = (msg.get("content") or "").strip()
+                thinking = (msg.get("thinking") or "").strip() or None
+                done_reason = resp.get("done_reason")
+                eval_count = resp.get("eval_count")
+                prompt_eval_count = resp.get("prompt_eval_count")
+                cached_count = resp.get("prompt_eval_cached_count")
+            # разбор и грейдинг — как recall-клетки основной карты
+            obj = extract_json_answer(answer_raw)
+            json_ok = obj is not None and isinstance(
+                obj.get("answer"), (str, int, float, bool))
+            explanation = None
+            if json_ok:
+                explanation = (str(obj.get("пояснение") or obj.get("explanation")
+                                   or obj.get("解释") or "").strip() or None)
+            expected = expected_value(q["grader"], expected_cache)
+            expected = normalize(expected) if expected else expected
+            if json_ok:
+                answer = normalize(str(obj["answer"]))
+                parsed = "json"
+            else:
+                answer = (normalize(answer_raw.split("\n", 1)[0])
+                          if answer_raw else None)
+                parsed = "late" if answer else "none"
+            if "regex" in q["grader"]:
+                is_correct = answer is not None and re.fullmatch(
+                    q["grader"]["regex"], answer) is not None
+                strict = is_correct
+            else:
+                variants = [normalize(v)
+                            for v in q["grader"].get("accept", [expected])]
+                is_correct = answer is not None and any(
+                    re.search(rf"(?<![\w_]){acc_pattern(v)}(?![\w-])", answer)
+                    for v in variants)
+                strict = answer is not None and answer == normalize(expected)
+            if explanation is None:
+                explanation = extract_explanation(answer_raw, "answer", expected)
+            turns.append({
+                "id": q["id"], "topic": q["topic"], "level": q["level"],
+                "type": "answer", "prompt_text": q["prompt"],
+                "explanation": explanation, "json_ok": json_ok,
+                "correct_answer": expected, "prompt": prompt,
+                "answer_raw": answer_raw, "answer": answer, "parsed": parsed,
+                "expected": expected, "is_correct": is_correct,
+                "strict": strict, "p": None, "thinking": thinking,
+                "duration_s": round(duration, 2),
+                "eval_count": eval_count,
+                "prompt_eval_count": prompt_eval_count,
+                "prompt_eval_cached_count": cached_count,
+                "done_reason": done_reason,
+            })
+            session["question_count"] = len(turns)
+            session["totals"] = {
+                "duration_s": round(sum(t["duration_s"] for t in turns), 1),
+                "prompt_tokens": sum(t.get("prompt_eval_count") or 0
+                                     for t in turns),
+                "output_tokens": sum(t.get("eval_count") or 0 for t in turns),
+                "cached_tokens": sum(t.get("prompt_eval_cached_count") or 0
+                                     for t in turns),
+            }
+            s_path.write_text(
+                json.dumps(session, ensure_ascii=False, indent=2),
+                encoding="utf-8")
+            mark = "✅" if is_correct else ("⬜" if answer is None else "❌")
+            warn = (f" ⚠️ ОБРЫВ: {done_reason}"
+                    if done_reason not in (None, "stop") else "")
+            print(f"    [{q['id']}] {q['topic']}: {duration:.0f}s → {mark} "
+                  f"'{answer or '—'}' (эталон: '{expected}'){warn}")
+        write_answers_csv(out_dir, turns)
+        try:
+            unload_model(base_url, model, timeout)
+            print(f"  {out_dir.name}: готово ({len(turns)} клеток), "
+                  f"модель выгружена")
+        except Exception as e:
+            print(f"  не удалось выгрузить модель: {e}", file=sys.stderr)
+
+
 def regrade(model_dir: Path, timeout: int) -> None:
     """Переоценка is_correct/strict по сохранённым ответам текущими
     грейдерами (перепрогон не нужен; аудит trust-mimo)."""
@@ -333,6 +476,21 @@ def regrade(model_dir: Path, timeout: int) -> None:
             continue
         questions = {q["id"]: q for q in json.loads(
             qpath.read_text(encoding="utf-8"))["questions"]}
+        # зона «Глубина»: штамп deep в сессии → добавляем deep-грейдеры
+        deep = session.get("deep")
+        if deep:
+            dpath = Path(__file__).parent / (deep.get("file") or "")
+            try:
+                ddata = json.loads(dpath.read_text(encoding="utf-8")) \
+                    if deep.get("file") else None
+            except (OSError, json.JSONDecodeError):
+                ddata = None
+            if ddata and (deep.get("version") is None
+                          or ddata.get("version") == deep.get("version")):
+                questions.update({q["id"]: q for q in ddata["questions"]})
+            else:
+                print(f"  {out_dir.name}: deep-вопросник не резолвится — "
+                      f"deep-клетки не переоцениваются")
         changed = []
         for t in session.get("turns", []):
             q = questions.get(t["id"])
@@ -672,6 +830,10 @@ def main() -> int:
                    help="переоценить сохранённые ответы всех прогонов модели "
                         "текущими грейдерами (без перепрогона); вопросник "
                         "берётся по версии/языку из session.json")
+    p.add_argument("--supplement", metavar="MODEL_DIR",
+                   help="дополнить существующие v8-прогоны модели клетками "
+                        "зоны «Глубина» (questions-deep) — те же run-каталоги, "
+                        "без новых прогонов; условия из session.json")
     p.add_argument("--lang", choices=["ru", "en", "zh"], default="ru",
                    help="язык прогона: system-промпт и вопросы (вопросник "
                         "--questions должен соответствовать языку)")
@@ -688,6 +850,9 @@ def main() -> int:
 
     if args.regrade:
         regrade(Path(args.regrade), args.timeout)
+        return 0
+    if args.supplement:
+        supplement_deep(Path(args.supplement), args.timeout, args.limit)
         return 0
     if not args.model:
         p.error("укажите --model (или --regrade MODEL_DIR)")

@@ -86,7 +86,10 @@ YES_NO = {"ru": ("да", "нет"), "en": ("yes", "no"), "zh": ("是", "否")}
 
 # Семейства для рейтинга (решение владельца): PHP, PHP+его версии,
 # Symfony, Symfony+его версии и группы остального стека. Клетки
-# сопоставляются семейству по префиксу id.
+# сопоставляются семейству по префиксу id. Клетки зоны «Глубина»
+# (L9/L10) не входят в семейства и в «Всего» — у них отдельная строка
+# «Глубина»: сравнимость серий v8 («Всего» всегда по стабильным клеткам
+# уровней L1–L8) и другой конструкт — исполнение семантики, а не узнавание.
 FAMILY_IDS = {
     "PHP": [f"T{i:02d}" for i in range(1, 13)],
     "Symfony": ["T13", "T22", "T23", "T16"],
@@ -100,7 +103,10 @@ FAMILY_IDS = {
 def family_scores(questions: list, run_by_ids: list[dict]) -> list[tuple[str, float]]:
     """Процент верных по семействам, агрегированный по прогонам.
     Семейства пересекаются («PHP» входит и в «PHP+версии»); семейства
-    без клеток в вопроснике пропускаются, «Всего» — всегда."""
+    без клеток в вопроснике пропускаются, «Всего» — всегда (только
+    уровни L1–L8; зона «Глубина» — отдельной строкой)."""
+    deep_qs = [q for q in questions if q.get("level", 0) >= 9]
+    base = [q for q in questions if q.get("level", 0) <= 8]
     defs = [("PHP", FAMILY_IDS["PHP"]),
             ("PHP+версии", FAMILY_IDS["PHP"] + ["VC", "VF"]),
             ("Symfony", FAMILY_IDS["Symfony"]),
@@ -113,15 +119,19 @@ def family_scores(questions: list, run_by_ids: list[dict]) -> list[tuple[str, fl
             ("Тесты", FAMILY_IDS["Тесты"])]
     res = []
     for name, ids in defs:
-        qs = [q for q in questions if q["id"].split("-L")[0] in ids]
+        qs = [q for q in base if q["id"].split("-L")[0] in ids]
         if not qs:
             continue
         c = sum(1 for b in run_by_ids for q in qs
                 if q["id"] in b and is_correct(b[q["id"]]))
         res.append((name, pct(c, len(qs) * len(run_by_ids))))
-    if questions:
+    if deep_qs:
+        c = sum(1 for b in run_by_ids for q in deep_qs
+                if q["id"] in b and is_correct(b[q["id"]]))
+        res.append(("Глубина", pct(c, len(deep_qs) * len(run_by_ids))))
+    if base:
         c = sum(1 for b in run_by_ids for t in b.values() if is_correct(t))
-        res.append(("Всего", pct(c, len(questions) * len(run_by_ids))))
+        res.append(("Всего", pct(c, len(base) * len(run_by_ids))))
     return res
 
 
@@ -340,8 +350,18 @@ def page_css() -> str:
 def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
     qs = {q["id"]: q for q in questions}
     turns = [by_id[q["id"]] for q in questions if q["id"] in by_id]
-    n = len(questions)
-    correct = sum(1 for t in turns if is_correct(t))
+    # «Точность» и зоны — по стабильным клеткам (L1–L8); зона «Глубина»
+    # (L9/L10) — отдельной величиной: сравнимость серий v8
+    base_qs = [q for q in questions if q.get("level", 0) <= 8]
+    deep_qs = [q for q in questions if q.get("level", 0) >= 9]
+    deep_c = sum(1 for q in deep_qs
+                 if q["id"] in by_id and is_correct(by_id[q["id"]]))
+    correct = sum(1 for q in base_qs
+                  if q["id"] in by_id and is_correct(by_id[q["id"]]))
+    n = len(base_qs)
+    acc_s = f"{correct} / {n}"
+    if deep_qs:
+        acc_s += f" (+ глубина {deep_c} / {len(deep_qs)})"
     parsed = [t for t in turns if t.get("answer") is not None]
     late = sum(1 for t in turns if t.get("parsed") == "late")
     grey = n - len(parsed)
@@ -361,6 +381,9 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
     }
     ver = session.get("questionnaire")
     ver_s = f"вопросник v{ver}" if ver else "вопросник"
+    deep_stamp = session.get("deep") or {}
+    if deep_stamp.get("version"):
+        ver_s += f" + deep v{deep_stamp['version']} (L9/L10)"
     # оценка по семействам: PHP, PHP+версии, Symfony, …, Всего
     fam_line = " · ".join(f"{name} <b>{p}%</b>" for name, p in
                           family_scores(questions, [by_id]))
@@ -373,11 +396,13 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
     zone_stats = []
     for zl, zk in (("База", "base"), ("PHP 8.4–8.5", "current"),
                    ("Будущее", "future")):
-        if zk not in {q.get("zone", "base") for q in questions}:
+        zq = [q for q in base_qs if q.get("zone", "base") == zk]
+        if not zq:
             continue
-        zq = [q for q in questions if q.get("zone", "base") == zk]
         zc = sum(1 for q in zq if q["id"] in by_id and is_correct(by_id[q["id"]]))
         zone_stats.append(f"{zl} {pct(zc, len(zq))}%")
+    if deep_qs:
+        zone_stats.append(f"Глубина {pct(deep_c, len(deep_qs))}%")
     if bool_parsed:
         bias_chip = (f'<div class="chip">Ответов «да»: <b>{yes_share}%</b>\n'
                      '           (баланс вопросника 50/50, базлайн константного '
@@ -395,7 +420,7 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
     <div class="chips">
       {score_chip}
       <div class="chip">По зонам: <b>{esc(" · ".join(zone_stats))}</b></div>
-      <div class="chip">Точность: <b>{correct} / {n}</b></div>
+      <div class="chip">Точность: <b>{acc_s}</b></div>
       <div class="chip">Разобрано ответов: <b>{len(parsed)} / {n}</b>{parse_extra_s}</div>
       {bias_chip}
       <div class="chip">Время: <b>{time_s}</b>
@@ -676,6 +701,29 @@ def questions_for_run(questions_path: Path, session: dict) -> Path:
     return questions_path
 
 
+def deep_for_run(questions_path: Path, session: dict) -> list:
+    """Клетки зоны «Глубина» (L9/L10) прогона: questions-deep{-lang}.json
+    по штампу session['deep'] со строгой сверкой версии; [] — если прогон
+    не дополнен."""
+    deep = session.get("deep")
+    if not deep:
+        return []
+    lang = session.get("lang", "ru")
+    stem = deep.get("file") or \
+        f"questions-deep{'' if lang == 'ru' else '-' + lang}.json"
+    cand = questions_path.parent / stem
+    if not cand.exists():
+        return []
+    try:
+        data = json.loads(cand.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    if deep.get("version") is not None and \
+            data.get("version") != deep.get("version"):
+        return []
+    return data.get("questions", [])
+
+
 def build_single(run_dir: Path, questions_path: Path) -> None:
     try:
         session_probe = json.loads(
@@ -685,6 +733,7 @@ def build_single(run_dir: Path, questions_path: Path) -> None:
     questions_path = questions_for_run(questions_path, session_probe)
     q_version, questions = load_questions(questions_path)
     session, by_id = load_run(run_dir)
+    questions = questions + deep_for_run(questions_path, session)
     title, protocol, chips, body, footer = _render_single_body(
         session, by_id, questions, q_version, run_dir, questions_path)
     (run_dir / "report.html").write_text(
@@ -817,18 +866,27 @@ def write_summary_single(run_dir: Path, session: dict, by_id: dict,
             "cached_tokens": sum(t.get("prompt_eval_cached_count") or 0 for t in all_turns),
         }
     n_recall = sum(1 for q in questions if q.get("type") == "answer")
+    deep_n = sum(1 for q in questions if q.get("level", 0) >= 9)
+    n_base = n - deep_n
+    n_recall_base = sum(1 for q in questions
+                        if q.get("type") == "answer"
+                        and q.get("level", 0) <= 8)
+    deep_s = (f" + deep v{(session.get('deep') or {}).get('version')} "
+              f"({deep_n} клеток L9/L10)" if deep_n else "")
     recall_strict = sum(1 for t in parsed
                         if t.get("strict") and isinstance(t.get("answer"), str))
-    if n_recall and len(parsed) > n_recall:
-        bank_line = (f"вопросник v{q_version} ({n} клеток: {n - n_recall} да/нет "
-                     f"+ {n_recall} recall; эталон recall — php 8.5/accept, "
-                     f"полярность verify сбалансирована).")
+    if n_recall_base and n_base > n_recall_base:
+        bank_line = (f"вопросник v{q_version} ({n_base} клеток: "
+                     f"{n_base - n_recall_base} да/нет + {n_recall_base} recall; "
+                     f"эталон recall — php 8.5/accept, полярность verify "
+                     f"сбалансирована).{deep_s}")
         bias_line = (f"ответов «да»: {pct(yes_n, len(bool_parsed))}% при балансе "
                      f"verify 50/50; строгих совпадений recall: "
                      f"{recall_strict} / {n_recall}.")
-    elif n_recall:
-        bank_line = (f"вопросник v{q_version} ({n} recall-клеток: "
-                     f"эталон — php 8.5/accept-список, ответ без рассуждений).")
+    elif n_recall_base or deep_n:
+        bank_line = (f"вопросник v{q_version} ({n_base} recall-клеток: "
+                     f"эталон — php 8.5/accept-список, ответ без рассуждений)."
+                     f"{deep_s}")
         bias_line = (f"Строгих совпадений (ответ равен эталону): {recall_strict} / "
                      f"{len(parsed)}; у остальных верных эталон входит в ответ.")
     else:
@@ -887,6 +945,12 @@ def build_compare(model_dir: Path, questions_path: Path,
     lang = sessions[0][1].get("lang", "ru")
     q_version, questions = load_questions(
         questions_for_run(questions_path, sessions[0][1]))
+    # зона «Глубина»: если прогоны серии дополнены (штамп deep) — клетки
+    # L9/L10 добавляются к карте; точность прогонов считается по базе L1–L8
+    deep_qs = next((deep_for_run(questions_path, s)
+                    for _n, s, _b in sessions if s.get("deep")), [])
+    questions = questions + deep_qs
+    base_questions = [q for q in questions if q.get("level", 0) <= 8]
 
     # Прогоны разных уровней рассуждений нельзя смешивать: «флипы» тогда
     # меряют смену режима, а не устойчивость знания. Карта — только внутри
@@ -922,7 +986,7 @@ def build_compare(model_dir: Path, questions_path: Path,
         answers = {by_id[q["id"]].get("answer") for _, by_id in runs
                    if q["id"] in by_id and by_id[q["id"]].get("answer") is not None}
         flip_by_id[q["id"]] = len(answers) > 1
-    flips_total = sum(1 for v in flip_by_id.values() if v)
+    flips_total = sum(1 for q in base_questions if flip_by_id.get(q["id"]))
 
     def run_totals(sess: dict, by_id: dict) -> dict:
         t = sess.get("totals")
@@ -938,10 +1002,10 @@ def build_compare(model_dir: Path, questions_path: Path,
 
     accs = []
     for name, sess, by_id in sessions:
-        c = sum(1 for q in questions
+        c = sum(1 for q in base_questions
                 if q["id"] in by_id and is_correct(by_id[q["id"]]))
         accs.append({"name": name, "think": sess.get("think"), "correct": c,
-                     "n": len(questions), **run_totals(sess, by_id)})
+                     "n": len(base_questions), **run_totals(sess, by_id)})
     mean = statistics.mean(a["correct"] for a in accs)
     tot_in = sum(a["prompt_tokens"] for a in accs)
     tot_out = sum(a["output_tokens"] for a in accs)
@@ -958,11 +1022,11 @@ def build_compare(model_dir: Path, questions_path: Path,
     chips = f"""
     <div class="chips">
       <div class="chip">Прогонов: <b>{len(sessions)}</b></div>
-      <div class="chip">Средняя точность: <b>{pct(int(round(mean)), len(questions))}%</b>
-           (разброс {min(a['correct'] for a in accs)}–{max(a['correct'] for a in accs)} из {len(questions)})</div>
+      <div class="chip">Средняя точность: <b>{pct(int(round(mean)), len(base_questions))}%</b>
+           (разброс {min(a['correct'] for a in accs)}–{max(a['correct'] for a in accs)} из {len(base_questions)})</div>
       <div class="chip">Семейства: {" · ".join(f"{n} <b>{p}%</b>" for n, p in family_scores(questions, [b for _n, b in runs]))}</div>
       <div class="chip">Токены по всем прогонам: <b>{tot_in} вх / {tot_out} вых</b></div>
-      <div class="chip">Флипующих клеток: <b>{flips_total} / {len(questions)}</b></div>
+      <div class="chip">Флипующих клеток: <b>{flips_total} / {len(base_questions)}</b></div>
       <div class="chip">Разобрано JSON: <b>{pct(sum(1 for _n, _s, b in sessions for t in b.values() if t.get("json_ok")), sum(len(b) for _n, _s, b in sessions))}%</b>
            (не-JSON: {sum(1 for _n, _s, b in sessions for t in b.values() if not t.get("json_ok"))} из {sum(len(b) for _n, _s, b in sessions)})</div>
       <div class="chip">Нестабильность = знание под вопросом: соседние прогоны
@@ -1140,6 +1204,14 @@ def build_series_report(models_root: Path, questions_path: Path,
             any_session = next(iter(think_map.values()))[0][1]
             qpath = questions_for_run(questions_path, any_session)
             q_version, questions = load_questions(qpath)
+            # зона «Глубина»: если прогоны ряда дополнены (штамп deep) —
+            # клетки L9/L10 добавляются к карте ряда
+            deep_qs = next((deep_for_run(questions_path, s)
+                            for _rd, s, _b in
+                            (x for items in think_map.values() for x in items)
+                            if s.get("deep")), [])
+            if deep_qs:
+                questions = questions + deep_qs
             topics = []
             for q in questions:
                 if q["topic"] not in topics:
@@ -1187,15 +1259,18 @@ def build_series_report(models_root: Path, questions_path: Path,
             if not groups:
                 continue
 
-            # единая сетка: метки тем + группы (8 клеток + итог + граница)
+            # единая сетка: метки тем + группы (max_level клеток + итог +
+            # граница); с зоной «Глубина» уровней 10, без неё — 8
             cell_px, agg_px, label_px, sp_px = 26, 52, 200, 16
             cols = [f"{label_px}px"] + [
-                f"repeat(8, {cell_px}px) {agg_px}px {sp_px}px"] * len(groups)
+                f"repeat({max_level}, {cell_px}px) {agg_px}px "
+                f"{sp_px}px"] * len(groups)
             cells = ['<div class="uhead"></div>']
             for think, runs_list, flip_by_id, fams_list, cost, sok, fl, _jp \
                     in groups:
                 cells.append(
-                    f'<div class="uhead" style="grid-column: span 9">'
+                    f'<div class="uhead" style="grid-column: '
+                    f'span {max_level + 1}">'
                     f'think: {esc(think)}<span class="umeta">'
                     f'нестаб. {pct(fl, len(questions))}%</span></div>')
                 cells.append('<div class="uhead"></div>')
@@ -1258,9 +1333,11 @@ def build_series_report(models_root: Path, questions_path: Path,
                 cmp_name = f"compare-{t}-{lang}-v{qver}.html"
                 if not (models_root / md.name / "knowledge-map" / cmp_name).exists():
                     continue
-                col0 = 2 + gi * 10  # метка + (8 клеток + итог + граница) на группу
+                col0 = 2 + gi * (max_level + 2)  # метка + (клетки + итог +
+                # граница) на группу
                 cells.append(
-                    f'<div class="ulink" style="grid-column: {col0} / span 9">'
+                    f'<div class="ulink" style="grid-column: {col0} / '
+                    f'span {max_level + 1}">'
                     f'<a href="../models/{esc(md.name)}/knowledge-map/{cmp_name}">'
                     f'Полный отчёт серии</a></div>')
                 cells.append('<div class="gsp"></div>')
@@ -1283,11 +1360,14 @@ def build_series_report(models_root: Path, questions_path: Path,
                  ("Архитектура", "Архитектура"),
                  ("Фронтенд", "Фронтенд"),
                  ("HTTP", "HTTP"), ("Безопасность", "Безопасность"),
-                 ("Тесты", "Тесты"), ("Всего", "Всего")]
+                 ("Тесты", "Тесты"), ("Глубина", "Глубина"),
+                 ("Всего", "Всего")]
     fam_titles = {"БД и ORM": "Doctrine, PostgreSQL, транзакции и индексы",
                   "HTTP": "HTTP и REST API",
                   "Безопасность": "Безопасность и OAuth",
-                  "Тесты": "Тестирование: PHPUnit"}
+                  "Тесты": "Тестирование: PHPUnit",
+                  "Глубина": "Зона глубины: уровни L9–L10, "
+                             "26 тем × 2 (машинно проверяемые эталоны)"}
     metrics.sort(key=lambda m: (m[0], think_order.get(m[1], 99), m[2]))
     mrows = []
     for model, think, lang, fams_list, cost, fl, nq, jp in metrics:
