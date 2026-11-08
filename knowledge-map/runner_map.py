@@ -541,6 +541,8 @@ def supplement_deep(model_dir: Path, timeout: int,
         sysp, _q_suf, a_suf = prompt_parts(lang)
         turns = session["turns"]
         supp_costs: list[float] = []
+        supp_in: list[int] = []
+        supp_out: list[int] = []
         print(f"[{out_dir.name}] {model} · deep v{ddata.get('version')} · "
               f"язык {lang} · think {think} · клеток {len(missing)}")
         if provider == "ollama":
@@ -559,6 +561,8 @@ def supplement_deep(model_dir: Path, timeout: int,
             duration = time.monotonic() - t0
             if resp and provider == "openrouter":
                 supp_costs.append(float((resp.get("cost")) or 0))
+                supp_in.append(resp.get("prompt_eval_count") or 0)
+                supp_out.append(resp.get("eval_count") or 0)
             thinking = None
             if resp is None:
                 answer_raw, json_ok = "", False
@@ -639,8 +643,8 @@ def supplement_deep(model_dir: Path, timeout: int,
             append_ledger(model, f"knowledge-map deep v{ddata.get('version')} "
                                  f"{out_dir.name}",
                           {"requests": len(supp_costs),
-                           "input_tokens": sum(t.get("prompt_eval_count") or 0 for t in turns),
-                           "output_tokens": sum(t.get("eval_count") or 0 for t in turns),
+                           "input_tokens": sum(supp_in),
+                           "output_tokens": sum(supp_out),
                            "cost_usd": sum(supp_costs)})
         if provider == "ollama":
             try:
@@ -1093,8 +1097,8 @@ def main() -> int:
                     f"стандарт облачных серий — low)")
     elif args.api == "openrouter":
         api_key, cloud_proxy = openrouter_creds()
-        if args.think not in ("low", "high"):
-            p.error("--think для --api openrouter — low или high "
+        if args.think not in ("low", "medium", "high"):
+            p.error("--think для --api openrouter — low, medium или high "
                     "(стандарт облачных серий — low)")
 
     _qdata = json.loads(Path(args.questions).read_text(encoding="utf-8"))
