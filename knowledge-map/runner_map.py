@@ -240,6 +240,85 @@ def cloud_safe(api_key: str, model: str, prompt: str, effort: str,
         return None
 
 
+def openrouter_chat(model: str, prompt: str, effort: str | None, key: str,
+                    proxy: str, timeout: int,
+                    system_prompt: str | None = None) -> dict:
+    """Один запрос через OpenRouter (curl через прокси — WAF режет прямой
+    доступ), usage.include=true даёт cost для журнала трат; ответ
+    нормализуется под ollama-структуру."""
+    from runner_openrouter import call_openrouter  # curl/прокси/заголовки
+    messages = ([{"role": "system", "content": system_prompt}]
+                if system_prompt else []) + [{"role": "user", "content": prompt}]
+    payload = {"model": model, "messages": messages, "max_tokens": 16000,
+               "usage": {"include": True}}
+    if effort:
+        payload["reasoning"] = {"effort": effort}
+    last = ""
+    for attempt in range(5):
+        code, body = call_openrouter(payload, key, proxy, timeout)
+        if code == 200 and body:
+            resp = json.loads(body)
+            ch = (resp.get("choices") or [{}])[0]
+            msg = ch.get("message") or {}
+            u = resp.get("usage") or {}
+            reasoning = msg.get("reasoning") or ""
+            if isinstance(reasoning, list):
+                reasoning = " ".join(
+                    (x.get("text") or x.get("summary") or "") if isinstance(x, dict)
+                    else str(x) for x in reasoning)
+            return {"message": {"content": (msg.get("content") or "").strip(),
+                                "thinking": (str(reasoning)).strip() or None},
+                    "done_reason": ch.get("finish_reason"),
+                    "eval_count": u.get("completion_tokens"),
+                    "prompt_eval_count": u.get("prompt_tokens"),
+                    "prompt_eval_cached_count":
+                        (u.get("prompt_tokens_details") or {}).get("cached_tokens"),
+                    "cost": u.get("cost")}
+        if code in (429, 500, 502, 503, 524, 529, 0) and attempt < 4:
+            wait = min(90, 5 * (2 ** attempt))
+            last = f"HTTP {code}"
+            print(f"      ⚠️ {last}, повтор через {wait}s", file=sys.stderr)
+            time.sleep(wait)
+            continue
+        raise RuntimeError(f"HTTP {code}: {body[:200] or 'empty'} ({last})")
+
+
+def openrouter_safe(model: str, prompt: str, effort: str | None, key: str,
+                    proxy: str, timeout: int,
+                    system_prompt: str | None = None) -> dict | None:
+    """openrouter_chat, но сбой возвращает None (клетка станет серой)."""
+    try:
+        return openrouter_chat(model, prompt, effort, key, proxy, timeout,
+                               system_prompt)
+    except Exception as e:
+        print(f"      ⚠️ сбой генерации ({e}); пропускаю", file=sys.stderr)
+        return None
+
+
+def openrouter_creds() -> tuple[str, str]:
+    """Ключ и прокси OpenRouter — из файлов по путям env (в git не живут)."""
+    from runner_openrouter import read_secret
+    key = read_secret("OPENROUTER_KEY_FILE")
+    proxy = os.environ.get("OPENROUTER_PROXY") or read_secret("OPENROUTER_PROXY_FILE")
+    return key, proxy
+
+
+def openrouter_price(model_id: str) -> tuple[float, float]:
+    """Живые цены модели с /api/v1/models ($/1M токенов); доступ через прокси."""
+    from runner_openrouter import read_secret
+    proxy = os.environ.get("OPENROUTER_PROXY") or read_secret("OPENROUTER_PROXY_FILE")
+    cmd = ["curl", "-sS", "--max-time", "30", "--proxy", proxy,
+           "https://openrouter.ai/api/v1/models"]
+    out = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    models = json.loads(out.stdout).get("data", [])
+    for m in models:
+        if m.get("id") == model_id:
+            p = m.get("pricing", {})
+            return (float(p.get("prompt") or 0) * 1e6,
+                    float(p.get("completion") or 0) * 1e6)
+    raise RuntimeError(f"модель {model_id} не найдена на OpenRouter")
+
+
 def unload_model(base_url: str, model: str, timeout: int) -> None:
     """Выгрузить модель из памяти (сброс KV-кэша ollama)."""
     http_json(f"{base_url}/api/generate",
@@ -453,11 +532,15 @@ def supplement_deep(model_dir: Path, timeout: int,
         keep_alive = session.get("keep_alive") or "10m"
         think = session.get("think") or "off"
         provider = session.get("provider", "ollama")
-        api_key = cloud_env_value("DEEPSEEK_API_KEY") \
-            if provider == "deepseek" else None
+        api_key = cloud_proxy = None
+        if provider == "deepseek":
+            api_key = cloud_env_value("DEEPSEEK_API_KEY")
+        elif provider == "openrouter":
+            api_key, cloud_proxy = openrouter_creds()
         effort = think if think in DEEPSEEK_EFFORTS else "low"
         sysp, _q_suf, a_suf = prompt_parts(lang)
         turns = session["turns"]
+        supp_costs: list[float] = []
         print(f"[{out_dir.name}] {model} · deep v{ddata.get('version')} · "
               f"язык {lang} · think {think} · клеток {len(missing)}")
         if provider == "ollama":
@@ -467,10 +550,15 @@ def supplement_deep(model_dir: Path, timeout: int,
             prompt = q["prompt"] + a_suf
             if provider == "deepseek":
                 resp = cloud_safe(api_key, model, prompt, effort, timeout, sysp)
+            elif provider == "openrouter":
+                resp = openrouter_safe(model, prompt, effort, api_key,
+                                       cloud_proxy, timeout, sysp)
             else:
                 resp = chat_safe(base_url, model, prompt, keep_alive, think,
                                  timeout, sysp)
             duration = time.monotonic() - t0
+            if resp and provider == "openrouter":
+                supp_costs.append(float((resp.get("cost")) or 0))
             thinking = None
             if resp is None:
                 answer_raw, json_ok = "", False
@@ -546,15 +634,23 @@ def supplement_deep(model_dir: Path, timeout: int,
             print(f"    [{q['id']}] {q['topic']}: {duration:.0f}s → {mark} "
                   f"'{answer or '—'}' (эталон: '{expected}'){warn}")
         write_answers_csv(out_dir, turns)
-        if provider == "deepseek":
-            print(f"  {out_dir.name}: готово ({len(turns)} клеток)")
-        else:
+        if provider == "openrouter" and supp_costs:
+            from runner_openrouter import append_ledger
+            append_ledger(model, f"knowledge-map deep v{ddata.get('version')} "
+                                 f"{out_dir.name}",
+                          {"requests": len(supp_costs),
+                           "input_tokens": sum(t.get("prompt_eval_count") or 0 for t in turns),
+                           "output_tokens": sum(t.get("eval_count") or 0 for t in turns),
+                           "cost_usd": sum(supp_costs)})
+        if provider == "ollama":
             try:
                 unload_model(base_url, model, timeout)
                 print(f"  {out_dir.name}: готово ({len(turns)} клеток), "
                       f"модель выгружена")
             except Exception as e:
                 print(f"  не удалось выгрузить модель: {e}", file=sys.stderr)
+        else:
+            print(f"  {out_dir.name}: готово ({len(turns)} клеток)")
 
 
 def regrade(model_dir: Path, timeout: int) -> None:
@@ -671,7 +767,8 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
             out_dir: Path, keep_alive, think: str, timeout: int,
             limit: int | None, protocol: str = "chat",
             questions_file: str | None = None, lang: str = "ru",
-            provider: str = "ollama", api_key: str | None = None) -> None:
+            provider: str = "ollama", api_key: str | None = None,
+            cloud_proxy: str | None = None) -> None:
     if protocol == "chat" and provider == "ollama":
         print(f"  выгружаю модель перед прогоном...")
         unload_model(base_url, model, timeout)
@@ -681,16 +778,19 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
         "model": model,
         "run": run_no,
         "started_at": datetime.now(timezone.utc).isoformat(),
-        "base_url": (DEEPSEEK_CHAT if provider == "deepseek" else base_url),
+        "base_url": ("openrouter.ai (via proxy)" if provider == "openrouter"
+                     else DEEPSEEK_CHAT if provider == "deepseek" else base_url),
         "protocol": protocol,
         "provider": provider,
         "keep_alive": (keep_alive if protocol == "chat" and provider == "ollama"
                        else None),
-        "kv_cache": ("cloud: прогоны изолированы независимостью запросов "
-                     "(серверный кэш не наблюдается — cached_tokens=0)"
-                     if provider == "deepseek" else
-                     ("weights-only (клетки независимы, префиксы не шарятся)"
-                      if protocol == "chat" else None)),
+        "kv_cache": ("cloud via OpenRouter: прогоны изолированы "
+                     "независимостью запросов" if provider == "openrouter" else
+                     ("cloud: прогоны изолированы независимостью запросов "
+                      "(серверный кэш не наблюдается — cached_tokens=0)"
+                      if provider == "deepseek" else
+                      ("weights-only (клетки независимы, префиксы не шарятся)"
+                       if protocol == "chat" else None))),
         "think": ("— (decision-протокол: вероятностный ответ noul)"
                   if protocol == "decision" else think),
         "question_count": 0,
@@ -724,6 +824,7 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
 
     to_ask = questions[:limit] if limit else questions
     expected_cache: dict = {}
+    run_costs: list[float] = []
     for q in to_ask:
         qtype = q.get("type", "yesno")
         if protocol == "decision" and qtype == "answer":
@@ -747,15 +848,22 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
         prompt = (q["prompt"] + a_suf) if qtype == "answer" else (q["text"] + q_suf)
         if provider == "deepseek":
             resp = cloud_safe(api_key, model, prompt, think, timeout, sysp)
+        elif provider == "openrouter":
+            resp = openrouter_safe(model, prompt, think, api_key, cloud_proxy,
+                                   timeout, sysp)
         else:
             resp = chat_safe(base_url, model, prompt, keep_alive, think,
                              timeout, sysp)
         duration = time.monotonic() - t0
+        if resp and provider == "openrouter":
+            run_costs.append(float((resp.get("cost")) or 0))
         p = None
         thinking = None
         expected = None
         if resp is None:
             answer_raw, answer, parsed = "", None, "none"
+            json_ok = False
+            explanation = None
             eval_count = prompt_eval_count = cached_count = None
             done_reason = "error"
         elif protocol == "decision":
@@ -827,8 +935,12 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
                     q["grader"]["regex"], answer) is not None
                 strict = is_correct
             else:
-                # эталоны: php-вывод или все варианты accept-списка
-                variants = [normalize(v) for v in q["grader"].get("accept", [expected])]
+                # эталоны: php-вывод или все варианты accept-списка; expected
+                # может быть None при серой клетке (сбой запроса)
+                variants = [normalize(v) for v in
+                            q["grader"].get("accept",
+                                            [expected] if expected else [])
+                            if v is not None]
                 # зачёт — эталон на границах «слов»: соседний символ не буква/
                 # цифра/подчёркивание/дефис (иначе container-xxl ловит «container»,
                 # --random-order ловит «random» — см. аудит trust-mimo)
@@ -863,7 +975,7 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
             mark = "✅" if is_correct else ("⬜" if answer is None else "❌")
             given = answer if answer else "—"
             print(f"    [{q['id']}] {q['topic']}: {duration:.0f}s → {mark} "
-                  f"'{given}' (эталон: '{expected}'){warn}")
+                  f"'{given}' (эталон: '{expected or '—'}'){warn}")
         else:
             mark = {True: "да ✅", False: "нет ❌", None: "— ⬜"}[answer]
             print(f"    [{q['id']}] {q['topic']}: {duration:.0f}s → {mark}{p_s}"
@@ -875,6 +987,14 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
     total = sum(t["duration_s"] for t in turns)
     correct = sum(1 for t in turns if t.get("is_correct"))
     print(f"  готово: {out_dir} ({len(turns)} клеток, верных {correct}, {total:.0f}s)")
+    if provider == "openrouter" and run_costs:
+        from runner_openrouter import append_ledger
+        append_ledger(model, f"knowledge-map {out_dir.name}",
+                      {"requests": len(run_costs),
+                       "input_tokens": sum(t.get("prompt_eval_count") or 0 for t in turns),
+                       "output_tokens": sum(t.get("eval_count") or 0 for t in turns),
+                       "cost_usd": sum(run_costs)})
+        print(f"  траты: ${sum(run_costs):.4f} → reports/openrouter-spend.csv")
 
 
 def write_answers_csv(out_dir: Path, turns: list) -> None:
@@ -933,7 +1053,8 @@ def main() -> int:
     p.add_argument("--yes", action="store_true",
                    help="подтвердить платный запуск (--api deepseek); без неё "
                         "раннер печатает оценку стоимости и выходит")
-    p.add_argument("--api", choices=["ollama", "deepseek"], default="ollama",
+    p.add_argument("--api", choices=["ollama", "deepseek", "openrouter"],
+                   default="ollama",
                    help="бэкенд запросов: ollama (default) или родное API "
                         "DeepSeek (калибровка сильной cloud-моделью); "
                         "ключ — DEEPSEEK_API_KEY из MODELS_RU_ENV")
@@ -963,13 +1084,18 @@ def main() -> int:
         return 0
     if not args.model:
         p.error("укажите --model (или --regrade MODEL_DIR)")
-    api_key = None
+    api_key = cloud_proxy = None
     if args.api == "deepseek":
         api_key = cloud_env_value("DEEPSEEK_API_KEY")
         if args.think not in DEEPSEEK_EFFORTS:
             p.error(f"--think для --api deepseek — один из "
                     f"{DEEPSEEK_EFFORTS} (у flashes нет off/medium; "
                     f"стандарт облачных серий — low)")
+    elif args.api == "openrouter":
+        api_key, cloud_proxy = openrouter_creds()
+        if args.think not in ("low", "high"):
+            p.error("--think для --api openrouter — low или high "
+                    "(стандарт облачных серий — low)")
 
     _qdata = json.loads(Path(args.questions).read_text(encoding="utf-8"))
     q_version = _qdata.get("version") if isinstance(_qdata, dict) else None
@@ -993,6 +1119,21 @@ def main() -> int:
               f"прогонов ≈ {in_est / 1e6:.2f}M вх + {out_est / 1e6:.2f}M вых "
               f"токенов ≈ ${cost:.2f} (грубо, ±30%; кэш не учитан — на "
               f"deepseek-flash не срабатывает)")
+        print("для запуска добавьте --yes")
+        return 1
+    if args.api == "openrouter" and not args.yes:
+        price_in, price_out = openrouter_price(args.model)
+        sysp_chars = len(prompt_parts(args.lang)[0])
+        q_chars = sum(len(q.get("prompt") or q.get("text") or "")
+                      for q in questions)
+        n_req = len(questions) * args.runs
+        in_est = (sysp_chars + q_chars / max(1, len(questions))) * n_req / 6.0
+        out_est = 220 * n_req
+        cost = in_est / 1e6 * price_in + out_est / 1e6 * price_out
+        print(f"оценка платной серии: {len(questions)} клеток × {args.runs} "
+              f"прогонов ≈ {in_est / 1e6:.2f}M вх + {out_est / 1e6:.2f}M вых "
+              f"токенов ≈ ${cost:.2f} (живые цены OpenRouter: "
+              f"${price_in:.2f}/1M вх, ${price_out:.2f}/1M вых; кэш не учитан)")
         print("для запуска добавьте --yes")
         return 1
 
@@ -1020,9 +1161,9 @@ def main() -> int:
         run_map(args.base_url, args.model, questions, q_version, run_no,
                 out_dir, keep_alive, args.think, args.timeout, args.limit,
                 args.protocol, Path(args.questions).name, args.lang,
-                provider=args.api, api_key=api_key)
+                provider=args.api, api_key=api_key, cloud_proxy=cloud_proxy)
         run_no += 1
-        if args.protocol == "decision" or args.api == "deepseek":
+        if args.protocol == "decision" or args.api != "ollama":
             continue  # decision/облако не держат модель в ollama — выгружать нечего
         # выгрузка после КАЖДОГО прогона: изоляция прогонов
         try:
