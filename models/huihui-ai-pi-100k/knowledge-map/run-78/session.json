@@ -16,9 +16,9 @@
   "answer_suffix": "Answer with the result (a number, a string, or yes/no).",
   "decision_question": null,
   "totals": {
-    "duration_s": 466.5,
-    "prompt_tokens": 45833,
-    "output_tokens": 69887,
+    "duration_s": 465.0,
+    "prompt_tokens": 45873,
+    "output_tokens": 69274,
     "cached_tokens": 0
   },
   "turns": [
@@ -7055,30 +7055,6 @@
       "done_reason": "stop"
     },
     {
-      "id": "VC-L10",
-      "topic": "PHP 8.4–8.5",
-      "level": 10,
-      "type": "answer",
-      "prompt_text": "What does this code output on PHP 8.5?\n\n```php\nclass Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 42;\n});\necho $o->v;\n```",
-      "explanation": "Accessing $o->v triggers materialization of the lazy ghost, which invokes the callback that sets $obj->v = 42, so the property access returns 42.",
-      "json_ok": true,
-      "correct_answer": "42",
-      "prompt": "What does this code output on PHP 8.5?\n\n```php\nclass Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 42;\n});\necho $o->v;\n```\n\nAnswer with the result (a number, a string, or yes/no).",
-      "answer_raw": "```json\n{\"answer\": 42, \"explanation\": \"Accessing $o->v triggers materialization of the lazy ghost, which invokes the callback that sets $obj->v = 42, so the property access returns 42.\"}\n```",
-      "answer": "42",
-      "parsed": "json",
-      "expected": "42",
-      "is_correct": true,
-      "strict": true,
-      "p": null,
-      "thinking": "Let me analyze this PHP code step by step.\n\nThe code defines a class `Heavy` with a public property `$v` initialized to 0.\n\nThen it creates a ReflectionClass for `Heavy` and calls `$r->newLazyGhost()`.\n\nIn PHP 8.5, the `ReflectionClass::newLazyGhost()` method was introduced as part of the lazy objects RFC (or similar feature). Let me think about what this does.\n\nActually, let me reconsider. In PHP 8.4, there was the \"Asymmetric Visibility\" feature and other changes. In PHP 8.5, let me think about what features were added.\n\nThe `newLazyGhost()` method is part of the Lazy Objects feature that was being discussed for PHP. Let me think about what it does:\n\n- `newLazyGhost()` creates a \"ghost\" object - an object that is not yet fully initialized. The object exists (has an identity, can be used in instanceof checks, etc.) but its properties are not yet initialized with their default values.\n- When you first access a property (or otherwise \"materialize\" the object), the callback is invoked to initialize the object.\n\nSo the key question is: what happens when we access `$o->v`?\n\nWhen we call `$o->v`, this triggers the lazy initialization. The callback `function (Heavy $obj) { $obj->v = 42; }` is called, which sets `$obj->v = 42`.\n\nBut wait - the class definition has `public int $v = 0;` which means the property has a default value of 0. \n\nThe question is: does the ghost object first get the default value (0), and then the callback runs (setting it to 42)? Or does the callback run first, and then...?\n\nActually, let me think more carefully. The way lazy ghosts work:\n\n1. The ghost object is created but not materialized.\n2. When a property is accessed (like `$o->v`), the object is materialized.\n3. During materialization, the callback is called to initialize the object.\n\nBut what about default property values? In PHP 8.5's lazy objects feature:\n\n- A \"ghost\" object has properties that exist but may not have their default values set yet.\n- When the object is materialized (first property access, etc.), the initialization callback is called.\n- The default values from the class definition would normally be applied during object construction.\n\nWait, I need to think about this more carefully. The `newLazyGhost` creates an object where:\n- The object exists but is \"uninitialized\"\n- Properties might be in an \"uninitialized\" state (not yet set to their default)\n- When you access a property, it triggers materialization\n- During materialization, the callback is invoked\n\nSo when we access `$o->v`:\n1. The property access triggers materialization\n2. The callback is called: `$obj->v = 42;`\n3. Now the property is set to 42\n4. The access returns the value 42\n\nSo the output should be `42`.\n\nWait, but there's a subtlety. If the property has a default value of 0, does accessing it first return 0 (the default) and then the callback runs? Or does the callback run first?\n\nBased on the lazy objects RFC design:\n- Ghost objects have uninitialized properties\n- Accessing a property triggers materialization (the callback)\n- After materialization, the property has whatever value the callback set it to\n\nSo the flow would be:\n1. `$o = $r->newLazyGhost(callback)` - creates ghost, properties are uninitialized\n2. `echo $o->v` - accessing property triggers materialization\n3. Callback runs: `$obj->v = 42`\n4. The property access returns 42\n5. `echo 42` outputs \"42\"\n\nThe answer is 42.",
-      "duration_s": 6.25,
-      "eval_count": 915,
-      "prompt_eval_count": 215,
-      "prompt_eval_cached_count": 0,
-      "done_reason": "stop"
-    },
-    {
       "id": "T28-L9",
       "topic": "Symfony: versions",
       "level": 9,
@@ -7125,11 +7101,35 @@
       "prompt_eval_count": 217,
       "prompt_eval_cached_count": 0,
       "done_reason": "stop"
+    },
+    {
+      "id": "VC-L10",
+      "topic": "PHP 8.4–8.5",
+      "level": 10,
+      "type": "answer",
+      "prompt_text": "What does this code output on PHP 8.5?\n\n```php\nclass Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 21;\n});\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n$o->v;\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n```",
+      "explanation": "The lazy ghost is initially uninitialized (yes), but accessing $o->v triggers the init callback, after which it is no longer uninitialized (no).",
+      "json_ok": true,
+      "correct_answer": "yesno",
+      "prompt": "What does this code output on PHP 8.5?\n\n```php\nclass Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 21;\n});\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n$o->v;\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n```\n\nAnswer with the result (a number, a string, or yes/no).",
+      "answer_raw": "{\"answer\": \"yesno\", \"explanation\": \"The lazy ghost is initially uninitialized (yes), but accessing $o->v triggers the init callback, after which it is no longer uninitialized (no).\"}",
+      "answer": "yesno",
+      "parsed": "json",
+      "expected": "yesno",
+      "is_correct": true,
+      "strict": true,
+      "p": null,
+      "thinking": "Let me analyze this PHP code step by step.\n\n1. We create a class `Heavy` with a public int property `$v` initialized to 0.\n2. We get a ReflectionClass for `Heavy`.\n3. We call `$r->newLazyGhost()` with a callback that sets `$obj->v = 21`.\n\n`newLazyGhost()` creates a lazy object that is initially in an \"uninitialized\" state. The callback is the \"init\" callback that will be called when the object is first accessed.\n\n4. `echo $r->isUninitializedLazyObject($o)` - At this point, the lazy object hasn't been accessed yet, so it IS uninitialized. This outputs `'yes'`.\n\n5. `$o->v;` - This accesses the property `$v`, which triggers the lazy initialization. The callback is called, setting `$obj->v = 21`.\n\n6. `echo $r->isUninitializedLazyObject($o)` - Now the object has been initialized (because we accessed `$v`), so it is NO LONGER uninitialized. This outputs `'no'`.\n\nSo the output is: `yesno`\n\nThe answer is the string \"yesno\".",
+      "duration_s": 4.78,
+      "eval_count": 302,
+      "prompt_eval_count": 255,
+      "prompt_eval_cached_count": 0,
+      "done_reason": "stop"
     }
   ],
   "deep": {
     "file": "questions-deep-en.json",
     "version": 2,
-    "added_at": "2026-11-08T05:54:51.827239+00:00"
+    "added_at": "2026-11-08T06:22:28.552458+00:00"
   }
 }

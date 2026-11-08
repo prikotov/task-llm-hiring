@@ -759,10 +759,10 @@
       "kind": "deep",
       "zone": "base",
       "type": "answer",
-      "note": "newLazyGhost (8.4) откладывает инициализацию до первого доступа: чтение $o->v запускает initializer.",
-      "prompt": "Что выведет этот код на PHP 8.5?\n\n```php\nclass Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 42;\n});\necho $o->v;\n```",
+      "note": "newLazyGhost (8.4): объект ленив, пока к нему не обратились — чтение свойства инициализирует и снимает флаг.",
+      "prompt": "Что выведет этот код на PHP 8.5?\n\n```php\nclass Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 21;\n});\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n$o->v;\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n```",
       "grader": {
-        "php": "class Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 42;\n});\necho $o->v;"
+        "php": "class Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 21;\n});\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n$o->v;\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';"
       }
     },
     {

@@ -16,9 +16,9 @@
   "answer_suffix": "Answer with the result (a number, a string, or yes/no).",
   "decision_question": null,
   "totals": {
-    "duration_s": 541.4,
-    "prompt_tokens": 38137,
-    "output_tokens": 81484,
+    "duration_s": 543.0,
+    "prompt_tokens": 38177,
+    "output_tokens": 81344,
     "cached_tokens": 0
   },
   "turns": [
@@ -7055,30 +7055,6 @@
       "done_reason": "stop"
     },
     {
-      "id": "VC-L10",
-      "topic": "PHP 8.4–8.5",
-      "level": 10,
-      "type": "answer",
-      "prompt_text": "What does this code output on PHP 8.5?\n\n```php\nclass Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 42;\n});\necho $o->v;\n```",
-      "explanation": "Accessing $o->v on the lazy ghost triggers the initialization callback first (setting v to 42), then the property read returns 42.",
-      "json_ok": true,
-      "correct_answer": "42",
-      "prompt": "What does this code output on PHP 8.5?\n\n```php\nclass Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 42;\n});\necho $o->v;\n```\n\nAnswer with the result (a number, a string, or yes/no).",
-      "answer_raw": "{\"answer\": 42, \"explanation\": \"Accessing $o->v on the lazy ghost triggers the initialization callback first (setting v to 42), then the property read returns 42.\"}",
-      "answer": "42",
-      "parsed": "json",
-      "expected": "42",
-      "is_correct": true,
-      "strict": true,
-      "p": null,
-      "thinking": "Let me analyze this PHP code carefully.\n\nThe code:\n1. Defines a class `Heavy` with a public int property `$v` initialized to 0.\n2. Creates a ReflectionClass for `Heavy`.\n3. Calls `$r->newLazyGhost()` with a callback function.\n4. Then accesses `$o->v` and echoes it.\n\nNow, `newLazyGhost()` - this is a feature I need to think about carefully. \n\nIn PHP 8.4, `newLazyGhost` was introduced as part of the lazy objects RFI (RFC). Let me recall how it works:\n\n- `ReflectionClass::newLazyGhost(callable $initialize)` creates a \"ghost\" object. A ghost object is one where all uninitialized properties are set to default values (for typed properties, they get their type's default), but the object hasn't actually been \"constructed\" yet - the constructor hasn't been called.\n\n- When a property is accessed (read or write) on the ghost object, the initialization callback is called with the object as its argument, and then the property access proceeds.\n\nSo the flow here:\n1. `$o = $r->newLazyGhost(function (Heavy $obj) { $obj->v = 42; })` - This creates a lazy ghost object. At this point, `$o->v` is in its default state (0, since it's `int $v = 0`). The constructor hasn't been called (though `Heavy` has no constructor anyway).\n\n2. `echo $o->v;` - This reads `$o->v`. When a property is accessed on a ghost object, the initialization callback is triggered first. The callback sets `$obj->v = 42`. Then the property read happens, reading `$o->v` which is now 42.\n\nSo the output should be `42`.\n\nWait, let me reconsider. The property is declared as `public int $v = 0;`. In a ghost object, before initialization, what is the value? For lazy ghosts, properties that have default values retain their default values. The \"ghost\" nature means the object exists in memory but the constructor hasn't run.\n\nWhen `$o->v` is accessed (read), the lazy initialization callback fires. The callback does `$obj->v = 42`. Then the read of `$o->v` returns 42.\n\nSo the answer is 42.\n\nActually, wait - the question says PHP 8.5. `newLazyGhost` was introduced in PHP 8.4. So in 8.5 it should still work the same way.\n\nThe answer is 42.",
-      "duration_s": 4.21,
-      "eval_count": 614,
-      "prompt_eval_count": 189,
-      "prompt_eval_cached_count": 0,
-      "done_reason": "stop"
-    },
-    {
       "id": "T28-L9",
       "topic": "Symfony: versions",
       "level": 9,
@@ -7125,11 +7101,35 @@
       "prompt_eval_count": 191,
       "prompt_eval_cached_count": 0,
       "done_reason": "stop"
+    },
+    {
+      "id": "VC-L10",
+      "topic": "PHP 8.4–8.5",
+      "level": 10,
+      "type": "answer",
+      "prompt_text": "What does this code output on PHP 8.5?\n\n```php\nclass Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 21;\n});\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n$o->v;\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n```",
+      "explanation": "After newLazyGhost the object is uninitialized (prints 'yes'); accessing $o->v triggers the initialization callback, so the second check prints 'no'.",
+      "json_ok": true,
+      "correct_answer": "yesno",
+      "prompt": "What does this code output on PHP 8.5?\n\n```php\nclass Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 21;\n});\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n$o->v;\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n```\n\nAnswer with the result (a number, a string, or yes/no).",
+      "answer_raw": "{\"answer\": \"yesno\", \"explanation\": \"After newLazyGhost the object is uninitialized (prints 'yes'); accessing $o->v triggers the initialization callback, so the second check prints 'no'.\"}",
+      "answer": "yesno",
+      "parsed": "json",
+      "expected": "yesno",
+      "is_correct": true,
+      "strict": true,
+      "p": null,
+      "thinking": "Let me analyze this PHP code step by step.\n\n1. A class `Heavy` is defined with a public property `$v` initialized to 0.\n2. A `ReflectionClass` is created for `Heavy`.\n3. `$o = $r->newLazyGhost(function (Heavy $obj) { $obj->v = 21; });` - This creates a lazy ghost object. The callback is the initialization function. At this point, the object is in an \"uninitialized\" state - it's a proxy that hasn't been initialized yet.\n4. `echo $r->isUninitializedLazyObject($o) ? 'yes' : 'no';` - The object `$o` is a lazy ghost that hasn't been initialized yet. So this should output \"yes\".\n5. `$o->v;` - Accessing a property on the lazy ghost triggers initialization. The callback is called, which sets `$obj->v = 21`. After this, the object is now initialized.\n6. `echo $r->isUninitializedLazyObject($o) ? 'yes' : 'no';` - Now the object has been initialized, so this should output \"no\".\n\nSo the output would be \"yesno\".\n\nWait, let me reconsider. The `newLazyGhost` method - in PHP 8.5, this creates a lazy ghost object. A lazy ghost is an object that appears to be an instance of the class but hasn't been fully constructed yet. Properties are not yet initialized (they don't have their default values). When you access a property or method, the initialization callback is invoked, and then the property access proceeds normally.\n\n`isUninitializedLazyObject` checks if the object is a lazy object that hasn't been initialized yet.\n\nAfter `$r->newLazyGhost(...)`, the object is uninitialized, so first check returns \"yes\".\nAfter `$o->v`, the object is initialized (the callback runs), so second check returns \"no\".\n\nOutput: \"yesno\"",
+      "duration_s": 5.83,
+      "eval_count": 474,
+      "prompt_eval_count": 229,
+      "prompt_eval_cached_count": 0,
+      "done_reason": "stop"
     }
   ],
   "deep": {
     "file": "questions-deep-en.json",
     "version": 2,
-    "added_at": "2026-11-08T06:00:11.327329+00:00"
+    "added_at": "2026-11-08T06:25:12.912379+00:00"
   }
 }

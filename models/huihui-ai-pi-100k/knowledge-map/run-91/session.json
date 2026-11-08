@@ -16,9 +16,9 @@
   "answer_suffix": "请回答结果（数字、字符串或 是/否）。",
   "decision_question": null,
   "totals": {
-    "duration_s": 467.9,
-    "prompt_tokens": 47447,
-    "output_tokens": 69337,
+    "duration_s": 468.5,
+    "prompt_tokens": 47487,
+    "output_tokens": 69087,
     "cached_tokens": 0
   },
   "turns": [
@@ -7055,30 +7055,6 @@
       "done_reason": "stop"
     },
     {
-      "id": "VC-L10",
-      "topic": "PHP 8.4–8.5",
-      "level": 10,
-      "type": "answer",
-      "prompt_text": "这段代码在 PHP 8.5 上会输出什么？\n\n```php\nclass Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 42;\n});\necho $o->v;\n```",
-      "explanation": "newLazyGhost 在属性访问时先调用回调将 v 设为 42，再返回该值。",
-      "json_ok": true,
-      "correct_answer": "42",
-      "prompt": "这段代码在 PHP 8.5 上会输出什么？\n\n```php\nclass Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 42;\n});\necho $o->v;\n```\n\n请回答结果（数字、字符串或 是/否）。",
-      "answer_raw": "{\"answer\": 42, \"解释\": \"newLazyGhost 在属性访问时先调用回调将 v 设为 42，再返回该值。\"}",
-      "answer": "42",
-      "parsed": "json",
-      "expected": "42",
-      "is_correct": true,
-      "strict": true,
-      "p": null,
-      "thinking": "Let me analyze this PHP code carefully.\n\nThe code uses `ReflectionClass::newLazyGhost()` which is a feature introduced in PHP 8.4 (or possibly 8.5).\n\nA \"lazy ghost\" object is an object that exists but whose properties have not yet been initialized from the constructor. The callback provided is invoked when the object is \"materialized\" - that is, when a property is accessed (or other operations that require the object to be fully initialized).\n\nWait, let me reconsider. In PHP 8.4's lazy objects:\n- `newLazyGhost` creates an object where the constructor has NOT been called yet. The properties are initialized to their default values (from the property declarations), but the constructor is deferred.\n- `newLazyProxy` creates an object where the constructor has been called.\n\nActually, let me reconsider the semantics:\n- **Lazy Ghost**: The object looks like it exists, but the constructor hasn't been called. Properties have their default values (from property declarations). When a property is accessed, the callback is called first (to initialize/prepare the object), and then the property is read.\n- **Lazy Proxy**: The constructor has already been called. Properties have whatever values the constructor set.\n\nWait, actually I need to be more precise. Let me think about this again.\n\nFor `newLazyGhost`:\n- The object is created without calling the constructor.\n- Properties are set to their default values (from the property declaration).\n- The callback is called when the object is first \"unveiled\" (when a property is accessed, method called, etc.)\n- After the callback runs, the object behaves normally.\n\nSo in this case:\n1. `$o = $r->newLazyGhost(function (Heavy $obj) { $obj->v = 42; });`\n2. At this point, `$o->v` would be `0` (the default value from the property declaration).\n3. When `echo $o->v` is executed, the object needs to be materialized/unveiled.\n4. The callback is called: `$obj->v = 42;`\n5. Then the property is read: `$o->v` returns `42`.\n\nSo the output should be `42`.\n\nWait, but the question says PHP 8.5. Let me make sure `newLazyGhost` exists in PHP 8.4/8.5. Yes, lazy objects were introduced in PHP 8.4 as part of the \"Lazy Objects\" RFC.\n\nThe answer is 42.",
-      "duration_s": 4.04,
-      "eval_count": 587,
-      "prompt_eval_count": 221,
-      "prompt_eval_cached_count": 0,
-      "done_reason": "stop"
-    },
-    {
       "id": "T28-L9",
       "topic": "Symfony：版本",
       "level": 9,
@@ -7125,11 +7101,35 @@
       "prompt_eval_count": 221,
       "prompt_eval_cached_count": 0,
       "done_reason": "stop"
+    },
+    {
+      "id": "VC-L10",
+      "topic": "PHP 8.4–8.5",
+      "level": 10,
+      "type": "answer",
+      "prompt_text": "这段代码在 PHP 8.5 上会输出什么？\n\n```php\nclass Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 21;\n});\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n$o->v;\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n```",
+      "explanation": "访问 $o->v 触发懒初始化，之前 isUninitializedLazyObject 为 true，之后为 false。",
+      "json_ok": true,
+      "correct_answer": "yesno",
+      "prompt": "这段代码在 PHP 8.5 上会输出什么？\n\n```php\nclass Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 21;\n});\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n$o->v;\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n```\n\n请回答结果（数字、字符串或 是/否）。",
+      "answer_raw": "{\"answer\": \"yesno\", \"解释\": \"访问 $o->v 触发懒初始化，之前 isUninitializedLazyObject 为 true，之后为 false。\"}",
+      "answer": "yesno",
+      "parsed": "json",
+      "expected": "yesno",
+      "is_correct": true,
+      "strict": true,
+      "p": null,
+      "thinking": "Let me analyze this PHP 8.5 code step by step.\n\n1. `Heavy` class has a public property `$v` initialized to `0`.\n2. `$r = new ReflectionClass(Heavy::class)` - creates a reflection class for `Heavy`.\n3. `$o = $r->newLazyGhost(function (Heavy $obj) { $obj->v = 21; })` - creates a lazy ghost object. The closure is the initializer that will be called when the object is first \"triggered\" (when a property is accessed, method called, etc.).\n4. `echo $r->isUninitializedLazyObject($o) ? 'yes' : 'no';` - At this point, the lazy ghost has NOT been initialized yet (no property access or method call has been made). So `isUninitializedLazyObject` returns `true`, and we output `'yes'`.\n5. `$o->v;` - This accesses the property `$v`, which triggers the lazy initialization. The closure is called, setting `$obj->v = 21`. The object is now initialized.\n6. `echo $r->isUninitializedLazyObject($o) ? 'yes' : 'no';` - Now the object HAS been initialized, so `isUninitializedLazyObject` returns `false`, and we output `'no'`.\n\nSo the output is: `yesno`",
+      "duration_s": 4.65,
+      "eval_count": 337,
+      "prompt_eval_count": 261,
+      "prompt_eval_cached_count": 0,
+      "done_reason": "stop"
     }
   ],
   "deep": {
     "file": "questions-deep-zh.json",
     "version": 2,
-    "added_at": "2026-11-08T05:58:26.705032+00:00"
+    "added_at": "2026-11-08T06:24:10.364876+00:00"
   }
 }

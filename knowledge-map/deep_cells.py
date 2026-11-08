@@ -397,9 +397,11 @@ VC_L10 = """class Heavy
 }
 $r = new ReflectionClass(Heavy::class);
 $o = $r->newLazyGhost(function (Heavy $obj) {
-    $obj->v = 42;
+    $obj->v = 21;
 });
-echo $o->v;"""
+echo $r->isUninitializedLazyObject($o) ? 'yes' : 'no';
+$o->v;
+echo $r->isUninitializedLazyObject($o) ? 'yes' : 'no';"""
 
 T28_L9 = """echo class_exists(\\Symfony\\Component\\Security\\Guard\\AbstractGuardAuthenticator::class)
     ? 'yes' : 'no';"""
@@ -723,13 +725,13 @@ CELLS = [
          note={"ru": "С 8.4 new в цепочке методов вызывается без обрамляющих скобок.",
                "en": "Since 8.4, new in a method chain works without wrapping parentheses.",
                "zh": "自 8.4 起，方法链中的 new 无需外层括号。"}),
-    dict(id="VC-L10", level=10, code=VC_L10, exp="42",
+    dict(id="VC-L10", level=10, code=VC_L10, exp="yesno",
          prompt={"ru": "Что выведет этот код на PHP 8.5?\n\n```php\n{code}\n```",
                  "en": "What does this code output on PHP 8.5?\n\n```php\n{code}\n```",
                  "zh": "这段代码在 PHP 8.5 上会输出什么？\n\n```php\n{code}\n```"},
-         note={"ru": "newLazyGhost (8.4) откладывает инициализацию до первого доступа: чтение $o->v запускает initializer.",
-               "en": "newLazyGhost (8.4) defers initialization until first access: reading $o->v triggers the initializer.",
-               "zh": "newLazyGhost（8.4）把初始化推迟到首次访问：读取 $o->v 时才触发 initializer。"}),
+         note={"ru": "newLazyGhost (8.4): объект ленив, пока к нему не обратились — чтение свойства инициализирует и снимает флаг.",
+               "en": "newLazyGhost (8.4): the object stays lazy until first access — reading a property initializes it and clears the flag.",
+               "zh": "newLazyGhost（8.4）：对象在首次访问前保持惰性——读取属性会触发初始化并清除标志。"}),
     dict(id="T28-L9", level=9, code=T28_L9, exp="no",
          grader={"accept": ["no"]},
          prompt={"ru": "Проект обновлён с Symfony 6.4 на 8.1. Что выведет этот код на 8.1?\n\n```php\n{code}\n```",

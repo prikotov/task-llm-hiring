@@ -16,9 +16,9 @@
   "answer_suffix": "请回答结果（数字、字符串或 是/否）。",
   "decision_question": null,
   "totals": {
-    "duration_s": 446.4,
-    "prompt_tokens": 47447,
-    "output_tokens": 65701,
+    "duration_s": 447.1,
+    "prompt_tokens": 47487,
+    "output_tokens": 65375,
     "cached_tokens": 0
   },
   "turns": [
@@ -7055,30 +7055,6 @@
       "done_reason": "stop"
     },
     {
-      "id": "VC-L10",
-      "topic": "PHP 8.4–8.5",
-      "level": 10,
-      "type": "answer",
-      "prompt_text": "这段代码在 PHP 8.5 上会输出什么？\n\n```php\nclass Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 42;\n});\necho $o->v;\n```",
-      "explanation": "newLazyGhost 创建的幽灵对象在首次属性访问时触发初始化回调，将 $v 设为 42，因此 echo 输出 42。",
-      "json_ok": true,
-      "correct_answer": "42",
-      "prompt": "这段代码在 PHP 8.5 上会输出什么？\n\n```php\nclass Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 42;\n});\necho $o->v;\n```\n\n请回答结果（数字、字符串或 是/否）。",
-      "answer_raw": "{\"answer\": 42, \"解释\": \"newLazyGhost 创建的幽灵对象在首次属性访问时触发初始化回调，将 $v 设为 42，因此 echo 输出 42。\"}",
-      "answer": "42",
-      "parsed": "json",
-      "expected": "42",
-      "is_correct": true,
-      "strict": true,
-      "p": null,
-      "thinking": "Let me analyze this PHP code carefully.\n\nThe code uses `ReflectionClass::newLazyGhost()`. This is a feature introduced in PHP 8.5 (or possibly proposed for 8.4/8.5).\n\nA \"lazy ghost\" object is an object that hasn't actually been instantiated yet - it's a \"ghost\" that looks like an instance of the class but hasn't run the constructor. When you access a property or method on it, it gets \"materialized\" (the constructor is called, then the accessor fires).\n\nWait, let me think more carefully. In PHP 8.4, `newLazyGhost` was introduced. The callback is the \"initializer\" - it's called when the object is first accessed (property get/set, method call, etc.). The key point is:\n\n1. The object is created as a \"ghost\" - no constructor runs.\n2. When you first access a property or call a method, the object is \"materialized\": the constructor runs first, then the initializer callback is called.\n\nWait, actually let me reconsider. The `newLazyGhost` method creates an uninitialized object (like `ReflectionClass::newInstanceWithoutConstructor()`). The callback passed to `newLazyGhost` is called when the object is \"reinitialized\" - i.e., when it's first accessed.\n\nActually, let me reconsider the semantics:\n\n- `newLazyGhost(callable $initializer)`: Creates a lazy ghost object. The object is not constructed. When the object is first \"touched\" (property access, method call, etc.), the initializer is called.\n\nSo the flow is:\n1. `$o = $r->newLazyGhost(function (Heavy $obj) { $obj->v = 42; })` - creates a ghost, constructor NOT called yet.\n2. `echo $o->v;` - this is the first access. The object gets materialized:\n   - The constructor runs (which is the default constructor since none is defined, so `$v` stays at its default value of 0... wait, no. The property has a default value `public int $v = 0;`).\n   - Then the initializer callback is called: `$obj->v = 42;`\n3. After the callback runs, `$o->v` is 42.\n4. `echo $o->v;` outputs 42.\n\nWait, but I need to be more careful. When we do `echo $o->v`, the property access triggers the reinitialization. After reinitialization, the property value is 42. So the echo should output 42.\n\nActually, let me reconsider. The property has a default value of 0. When the ghost is created, the property has its default value (0). When the first access happens:\n- The object is materialized (constructor called - which is the default no-op constructor)\n- The initializer callback is called, setting `$obj->v = 42`\n- Then the property read returns 42\n\nSo the answer is 42.",
-      "duration_s": 4.52,
-      "eval_count": 702,
-      "prompt_eval_count": 221,
-      "prompt_eval_cached_count": 0,
-      "done_reason": "stop"
-    },
-    {
       "id": "T28-L9",
       "topic": "Symfony：版本",
       "level": 9,
@@ -7125,11 +7101,35 @@
       "prompt_eval_count": 221,
       "prompt_eval_cached_count": 0,
       "done_reason": "stop"
+    },
+    {
+      "id": "VC-L10",
+      "topic": "PHP 8.4–8.5",
+      "level": 10,
+      "type": "answer",
+      "prompt_text": "这段代码在 PHP 8.5 上会输出什么？\n\n```php\nclass Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 21;\n});\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n$o->v;\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n```",
+      "explanation": "newLazyGhost创建的惰性对象在属性访问前isUninitializedLazyObject为true，访问后回调执行完毕变为false。",
+      "json_ok": true,
+      "correct_answer": "yesno",
+      "prompt": "这段代码在 PHP 8.5 上会输出什么？\n\n```php\nclass Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 21;\n});\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n$o->v;\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n```\n\n请回答结果（数字、字符串或 是/否）。",
+      "answer_raw": "{\"answer\": \"yesno\", \"解释\": \"newLazyGhost创建的惰性对象在属性访问前isUninitializedLazyObject为true，访问后回调执行完毕变为false。\"}",
+      "answer": "yesno",
+      "parsed": "json",
+      "expected": "yesno",
+      "is_correct": true,
+      "strict": true,
+      "p": null,
+      "thinking": "Let me analyze this PHP 8.5 code step by step.\n\n1. We define a class `Heavy` with a public property `$v` initialized to 0.\n\n2. We create a `ReflectionClass` for `Heavy`.\n\n3. We call `$r->newLazyGhost()` with a callback. In PHP 8.5, `newLazyGhost()` creates a lazy ghost object. A lazy ghost is an object that hasn't been fully initialized yet - it's a \"ghost\" that only becomes real when a property is accessed (at which point the initialization callback is invoked).\n\n4. `echo $r->isUninitializedLazyObject($o) ? 'yes' : 'no';`\n   - At this point, `$o` is a lazy ghost that has NOT yet been initialized (no property has been accessed).\n   - So `isUninitializedLazyObject($o)` returns `true`.\n   - Output: `yes`\n\n5. `$o->v;` - Accessing the property `$v` triggers the initialization callback. The callback sets `$obj->v = 21`. After this, the object is no longer an uninitialized lazy object - it's now a fully initialized regular object.\n\n6. `echo $r->isUninitializedLazyObject($o) ? 'yes' : 'no';`\n   - Now the object has been initialized (the property access triggered the callback).\n   - So `isUninitializedLazyObject($o)` returns `false`.\n   - Output: `no`\n\nSo the final output is: `yesno`",
+      "duration_s": 5.28,
+      "eval_count": 376,
+      "prompt_eval_count": 261,
+      "prompt_eval_cached_count": 0,
+      "done_reason": "stop"
     }
   ],
   "deep": {
     "file": "questions-deep-zh.json",
     "version": 2,
-    "added_at": "2026-11-08T05:57:59.909751+00:00"
+    "added_at": "2026-11-08T06:23:52.336172+00:00"
   }
 }

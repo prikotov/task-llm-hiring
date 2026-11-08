@@ -348,10 +348,28 @@ def supplement_deep(model_dir: Path, timeout: int,
         questions = ddata["questions"]
         check_questionnaire(questions)
         # резюме и новая версия deep-файла: уже отвеченные клетки не
-        # перезапрашиваются — добавляются только недостающие (частичный
-        # крах и расширение набора обрабатываются одинаково); штамп
-        # обновляется до текущей версии файла
-        have = {t["id"] for t in session["turns"] if t.get("level", 0) >= 9}
+        # перезапрашиваются — добавляются только недостающие; клетка,
+        # чей эталон изменился с прошлого дополнения (correct_answer
+        # расходится с текущим), переспрашивается — ответ был на другую
+        # постановку вопроса; штамп обновляется до текущей версии файла
+        have = {t["id"]: t for t in session["turns"]
+                if t.get("level", 0) >= 9}
+        expected_cache: dict = {}
+
+        def _expected(q: dict) -> str:
+            e = expected_value(q["grader"], expected_cache)
+            return normalize(e) if e else e
+
+        stale = [q["id"] for q in questions if q["id"] in have and
+                 have[q["id"]].get("correct_answer") != _expected(q)]
+        if stale:
+            print(f"  {out_dir.name}: эталоны изменились у {len(stale)} "
+                  f"клеток ({', '.join(stale)}) — переспрашиваю")
+            gone = set(stale)
+            session["turns"] = [t for t in session["turns"]
+                                if t["id"] not in gone]
+            have = {t["id"]: t for t in session["turns"]
+                    if t.get("level", 0) >= 9}
         missing = [q for q in questions if q["id"] not in have]
         if not missing:
             if (session.get("deep") or {}).get("version") == ddata.get("version"):
@@ -377,7 +395,6 @@ def supplement_deep(model_dir: Path, timeout: int,
         think = session.get("think") or "off"
         sysp, _q_suf, a_suf = prompt_parts(lang)
         turns = session["turns"]
-        expected_cache: dict = {}
         print(f"[{out_dir.name}] {model} · deep v{ddata.get('version')} · "
               f"язык {lang} · think {think} · клеток {len(missing)}")
         unload_model(base_url, model, timeout)

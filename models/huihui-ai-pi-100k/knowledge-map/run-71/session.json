@@ -16,9 +16,9 @@
   "answer_suffix": "Ответь результатом (число, строка или да/нет).",
   "decision_question": null,
   "totals": {
-    "duration_s": 453.7,
-    "prompt_tokens": 49435,
-    "output_tokens": 65374,
+    "duration_s": 454.7,
+    "prompt_tokens": 49475,
+    "output_tokens": 65131,
     "cached_tokens": 0
   },
   "turns": [
@@ -7055,30 +7055,6 @@
       "done_reason": "stop"
     },
     {
-      "id": "VC-L10",
-      "topic": "PHP 8.4–8.5",
-      "level": 10,
-      "type": "answer",
-      "prompt_text": "Что выведет этот код на PHP 8.5?\n\n```php\nclass Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 42;\n});\necho $o->v;\n```",
-      "explanation": "При первом обращении к свойству lazy ghost инициализируется: сначала вызывается конструктор (v=0), затем инициализатор задаёт v=42, и только потом происходит чтение свойства.",
-      "json_ok": true,
-      "correct_answer": "42",
-      "prompt": "Что выведет этот код на PHP 8.5?\n\n```php\nclass Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 42;\n});\necho $o->v;\n```\n\nОтветь результатом (число, строка или да/нет).",
-      "answer_raw": "{\"answer\": 42, \"пояснение\": \"При первом обращении к свойству lazy ghost инициализируется: сначала вызывается конструктор (v=0), затем инициализатор задаёт v=42, и только потом происходит чтение свойства.\"}",
-      "answer": "42",
-      "parsed": "json",
-      "expected": "42",
-      "is_correct": true,
-      "strict": true,
-      "p": null,
-      "thinking": "Let me analyze this PHP code.\n\nIn PHP 8.5 (which is actually PHP 8.4 with some features, but let's consider what's available), `newLazyGhost` was introduced in PHP 8.4.\n\nA lazy ghost object is a proxy object that doesn't initialize the underlying object until a method or property is accessed. When you access a property on a lazy ghost, it triggers initialization (if not already initialized), which means:\n1. The constructor is called (if the class has one)\n2. The initializer callback (passed to `newLazyGhost`) is called\n\nWait, let me reconsider. In PHP 8.4, `newLazyGhost` creates a lazy object. When the object is \"initialized\" (first property access or method call), the following happens:\n1. The constructor runs\n2. Then the initializer callback runs\n\nActually, let me be more precise. The `newLazyGhost` method signature is:\n\n```php\npublic function newLazyGhost(Closure $initializer): static\n```\n\nWhen the ghost is initialized (upon first property access or method call):\n- The constructor is called (if defined)\n- Then the initializer closure is called with the object as argument\n\nSo in this case:\n- `$o = $r->newLazyGhost(function (Heavy $obj) { $obj->v = 42; });` creates the lazy ghost\n- `echo $o->v;` triggers initialization\n- During initialization, the constructor runs (but there's no explicit constructor, so the default property values apply - `$v = 0`)\n- Then the initializer runs: `$obj->v = 42`\n- Then the property `$o->v` is accessed, returning `42`\n\nSo the output should be `42`.\n\nWait, but there's a subtlety. When you access `$o->v`, does the initializer run before the property is read? Yes, the lazy ghost initializes (constructor + initializer) before the property read happens. So the property value will be 42.\n\nThe answer is 42.",
-      "duration_s": 3.64,
-      "eval_count": 506,
-      "prompt_eval_count": 223,
-      "prompt_eval_cached_count": 0,
-      "done_reason": "stop"
-    },
-    {
       "id": "T28-L9",
       "topic": "Symfony: версии",
       "level": 9,
@@ -7125,11 +7101,35 @@
       "prompt_eval_count": 227,
       "prompt_eval_cached_count": 0,
       "done_reason": "stop"
+    },
+    {
+      "id": "VC-L10",
+      "topic": "PHP 8.4–8.5",
+      "level": 10,
+      "type": "answer",
+      "prompt_text": "Что выведет этот код на PHP 8.5?\n\n```php\nclass Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 21;\n});\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n$o->v;\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n```",
+      "explanation": "До обращения к свойству объект является неинициализированной ленивой тенью (yes), а после доступа к $v инициализатор выполняется и объект становится инициализированным (no).",
+      "json_ok": true,
+      "correct_answer": "yesno",
+      "prompt": "Что выведет этот код на PHP 8.5?\n\n```php\nclass Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 21;\n});\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n$o->v;\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n```\n\nОтветь результатом (число, строка или да/нет).",
+      "answer_raw": "```json\n{\"answer\": \"yesno\", \"пояснение\": \"До обращения к свойству объект является неинициализированной ленивой тенью (yes), а после доступа к $v инициализатор выполняется и объект становится инициализированным (no).\"}\n```",
+      "answer": "yesno",
+      "parsed": "json",
+      "expected": "yesno",
+      "is_correct": true,
+      "strict": true,
+      "p": null,
+      "thinking": "Let me analyze this PHP code step by step.\n\n1. We create a class `Heavy` with a property `$v = 0`.\n2. We get a `ReflectionClass` for `Heavy`.\n3. We use `$r->newLazyGhost()` to create a lazy ghost object. The initializer callback sets `$obj->v = 21`.\n4. `isUninitializedLazyObject($o)` — checks if the object is still uninitialized. Since we just created it with `newLazyGhost` and haven't accessed any property yet, it is uninitialized. So this prints \"yes\".\n5. `$o->v;` — accessing the property triggers initialization. The initializer runs, setting `$v = 21`.\n6. `isUninitializedLazyObject($o)` — now the object is initialized, so it returns false. This prints \"no\".\n\nSo the output is: \"yesno\"",
+      "duration_s": 4.65,
+      "eval_count": 263,
+      "prompt_eval_count": 263,
+      "prompt_eval_cached_count": 0,
+      "done_reason": "stop"
     }
   ],
   "deep": {
     "file": "questions-deep.json",
     "version": 2,
-    "added_at": "2026-11-08T05:52:53.690265+00:00"
+    "added_at": "2026-11-08T06:21:43.171990+00:00"
   }
 }
