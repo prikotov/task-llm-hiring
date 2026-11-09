@@ -239,3 +239,65 @@ T18-L5,Testing: PHPUnit,5,yesno,нет,,json,нет,1,1,"It's the opposite: a mo
 T18-L6,Testing: PHPUnit,6,yesno,да,,json,да,1,1,PHPUnit 10 deprecated docblock annotations like @dataProvider in favor of the native PHP attribute #[DataProvider].,0.79,152,124,0
 T18-L7,Testing: PHPUnit,7,yesno,нет,,json,нет,1,1,"PHPUnit allows test dependencies via the @depends annotation or the depends() method, which skips a test if the one it depends on fails.",0.85,137,130,0
 T18-L8,Testing: PHPUnit,8,answer,--random-order,--order-by=random,json,--order-by=random,0,0,The --random-order PHPUnit option shuffles the test execution order.,0.65,146,103,0
+T01-L9,Syntax and operators,9,answer,3-3,3-3,json,3-3,1,1,"intdiv(7,2) returns 3 and intdiv(-7,2) returns -3 (truncation toward zero), concatenated as a string gives '3-3'.",3.99,164,211,0
+T01-L10,Syntax and operators,10,answer,-9,-9,json,-9,1,1,"In PHP, the ** operator has higher precedence than unary minus, so -3 ** 2 is parsed as -(3 ** 2) = -9.",0.89,153,133,0
+T02-L9,Types and comparisons,9,answer,false,true,json,true,0,0,"In PHP 8+, two strings are compared as strings (lexicographically), so '1e1' != '10'.",3.2,165,522,0
+T02-L10,Types and comparisons,10,answer,zero,other,json,other,0,0,"In PHP 7, switch uses loose comparison (==), and a non-numeric string like 'a' cast to int equals 0, so 'a' == 0 is true.",2.65,173,410,0
+T03-L9,Strings,9,answer,2c,2c,json,2c,1,1,"strtr with an array replaces the longest matching key first, so 'ab' matches before 'a', yielding '2' + 'c' = '2c'.",1.96,166,325,0
+T03-L10,Strings,10,answer,php,[hello],late,[hello],0,0,"```php
+echo '[' . substr('hello', -10) . ']';
+```
+
+```json
+{""answer"": ""[]"", ""explanation"": ""substr('hello', -10) returns an empty string because abs(-10) > strlen('hello') (5), so the output is '[' + '' + ']'.\""}
+```",4.75,160,732,0
+T04-L9,Arrays,9,answer,"k,n,m","k,n,m",json,"k,n,m",1,1,"The + operator does a union keeping keys from the left array first; $a has keys 'k','n' and $b contributes 'm' (since 'k' is already in $a), so array_keys returns ['k','n','m'].",1.64,191,282,0
+T04-L10,Arrays,10,answer,yxz,yxz,json,yxz,1,1,"usort sorts sub-arrays by their third element (values 2,1,2 → 1,2,2), so the order becomes [2,'y',1], [1,'x',2], [3,'z',2], then array_column extracts index 1 giving 'y','x','z', and implode concatenates to 'yxz'.",1.88,212,343,0
+T05-L10,Functions and closures,10,answer,4,4,json,4,1,1,"The spread operator with a string-keyed array maps keys to named parameters, so a=5 and b=1, giving 5-1=4.",1.35,188,222,0
+T05-L9,Functions and closures,9,answer,3,3,json,3,1,1,"The first-class callable $f captures the object instance, so even after $p is set to null, the closure still holds a reference to the object and can call g() which returns 3.",1.85,202,280,0
+T06-L9,OOP: classes and inheritance,9,answer,b,b,json,b,1,1,"static::class uses late static binding, so it returns the name of the class actually instantiated (B), not the class where the method is defined (A).",1.08,180,158,0
+T06-L10,OOP: classes and inheritance,10,answer,error,10,json,10,0,0,"Assigning to $this->x inside its own set hook triggers the set hook again, causing infinite recursion and a fatal error.",5.56,208,799,0
+T07-L9,"Interfaces, traits, enum",9,answer,ba,ba,json,ba,1,1,"TB::f insteadof TA makes f() return 'B', and TA::f as g aliases it so g() returns 'A', giving 'BA'.",1.29,228,213,0
+T07-L10,"Interfaces, traits, enum",10,answer,0,0,json,0,1,1,"Each class that uses a trait gets its own independent copy of the static property, so modifying CX::$n does not affect CY::$n.",1.49,193,234,0
+T08-L10,Exceptions and errors,10,answer,2,2,json,2,1,1,"In PHP, a return statement in a finally block overrides the return from the try block, so f() returns 2.",1.05,174,165,0
+T08-L9,Exceptions and errors,9,answer,second,second,json,second,1,1,"When a new exception is thrown in a finally block, it replaces the original exception, so the LogicException('second') is caught by the outer catch.",1.44,197,250,0
+T09-L9,Namespaces and autoloading,9,answer,app\foo|baz,app\foo|baz,json,app\foo|baz,1,1,"Baz::class resolves to App\Foo via the use alias, while \Baz::class refers to the global namespace class Baz.",1.51,171,259,0
+T09-L10,Namespaces and autoloading,10,answer,noyes,noyes,json,noyes,1,1,class_exists('Foo') checks the global namespace (no Foo there) → 'no'; class_exists('Ns\Foo') finds the namespaced class → 'yes'.,1.66,199,277,0
+T10-L9,References and scope,9,answer,"1,2,99","1,2,99",json,"1,2,99",1,1,"After the by-reference foreach loop, $v still references the last element of $a, so assigning 99 to $v changes the third element.",1.33,180,208,0
+T10-L10,References and scope,10,answer,3,3,json,3,1,1,"Static variables in inherited methods are shared between parent and child classes, so all three calls increment the same $n to 1, 2, 3.",2.44,215,379,0
+T11-L9,"Generators, iterators, SPL",9,answer,,11,json,11,0,0,"The first send() call starts the generator which suspends at 'yield 1' (the sent value is ignored on the first call), so the generator has not returned and getReturn() yields null, which echoes as an empty string.",5.67,195,839,0
+T11-L10,"Generators, iterators, SPL",10,answer,"1,2,ok","ok,2",json,"ok,2",0,0,"yield from delegates yields from inner() (1, 2), then the return value 'ok' is assigned to $r and yielded by outer().",1.66,206,261,0
+T12-L9,Configuration and security,9,answer,noyes,noyes,json,noyes,1,1,"The hash was created with cost 4, so password_needs_rehash with cost 4 returns false ('no'), but with cost 5 it returns true ('yes') because the cost changed.",1.7,223,308,0
+T12-L10,Configuration and security,10,answer,strict-out,strict-out,json,strict-out,1,1,"In PHP 8.5, E_STRICT (bit 2048) has been removed, so E_ALL no longer includes that bit, making the bitwise AND equal to 0.",3.72,176,673,0
+T13-L9,Symfony,9,answer,mapped,mapped,json,mapped,1,1,"Symfony's HeaderBag normalizes 'HTTP_X_TOKEN' from the server array to 'x-token', and get('X-Token') also normalizes to 'x-token', so the values match.",2.49,200,382,0
+T13-L10,Symfony,10,answer,bca,bca,json,bca,1,1,"Listeners are called in descending priority order: B (priority 10), C (priority 5), A (priority 0).",1.34,261,218,0
+T14-L10,Doctrine,10,answer,same,same,json,same,1,1,"EntityManager::find() checks the identity map first; since the entity is already managed after persist+flush, both calls return the same object instance.",2.07,255,328,0
+T14-L9,Doctrine,9,answer,0,0,json,0,1,1,"Persisting a new entity and then removing it before flush cancels the pending INSERT (or results in an INSERT followed by a DELETE), leaving the table empty.",10.28,225,1539,0
+T15-L10,PostgreSQL,10,answer,1,1,json,1,1,1,"COUNT(x) counts only non-NULL values in column x, so it returns 1 (the row with value 1), ignoring the NULL row.",0.93,180,138,0
+T15-L9,PostgreSQL,9,answer,"10,30,60","10,30,60",json,"10,30,60",1,1,"The window function computes a running sum (10, 30, 60), and string_agg concatenates them in order of id.",1.23,227,213,0
+T16-L9,Symfony: Messenger,9,answer,m1m2,m1m2,json,m1m2,1,1,"Symfony Messenger middleware executes in order (first to last), so M1 echoes first, then calls next which is M2, which echoes and delegates to the handler.",11.38,285,337,0
+T16-L10,Symfony: Messenger,10,answer,11,11,json,11,1,1,"Both handlers registered for Ping::class in the HandlersLocator are called, so $n is incremented by 1 and by 10, resulting in 11.",11.55,327,389,0
+T17-L9,PostgreSQL: transactions and indexes,9,answer,1,1,json,1,1,1,"The first insert succeeds, the second is skipped due to the unique index conflict with ON CONFLICT DO NOTHING, so count(*) returns 1.",1.36,205,238,0
+T17-L10,PostgreSQL: transactions and indexes,10,answer,2,2,json,2,1,1,"The UNIQUE constraint is DEFERRABLE INITIALLY DEFERRED, so the duplicate check is postponed until the end of the transaction, allowing both inserts to succeed and count(*) returns 2.",1.51,198,264,0
+T18-L9,Testing: PHPUnit,9,answer,6,6,json,6,1,1,"The --filter test_sum regex matches both test_sum and test_sum_abs (each with 3 data provider entries), giving 3 + 3 = 6 tests.",1.86,316,310,0
+T18-L10,Testing: PHPUnit,10,answer,"2, 1","2,1",json,"2,1",1,0,"The data provider yields two data sets ([1] and [-1]), so test_x runs twice; the first passes (1 > 0 is true) and the second fails (-1 > 0 is false).",1.59,270,261,0
+T19-L9,HTTP and REST API,9,answer,post,post,json,post,1,1,The -d flag in curl automatically sets the HTTP method to POST when sending data.,0.68,163,104,0
+T19-L10,HTTP and REST API,10,answer,get,get,json,get,1,1,"The -G flag forces curl to use the GET method, appending the -d data as a query string to the URL.",1.15,165,198,0
+T20-L9,Security and OAuth,9,answer,invalid_client,invalid_client,json,invalid_client,1,1,"Per RFC 6749 Section 5.2, when the client identity cannot be verified (e.g., a non-existent client_id), the token endpoint returns the 'invalid_client' error code.",2.43,166,358,0
+T20-L10,Security and OAuth,10,answer,fragment,fragment,json,fragment,1,1,"In the OAuth 2.0 implicit flow (response_type=token), the access token is passed in the fragment identifier (the part after '#') of the redirect_uri.",0.87,167,114,0
+T21-L9,Twig,9,answer,0,6,json,6,0,0,"The `default` filter only replaces null or undefined values, not `false`, so `false|default(2)` yields `false`, and `false * 3` evaluates to `0` in PHP's arithmetic context.",1.55,158,241,0
+T21-L10,Twig,10,answer,2,runtimeerror,json,runtimeerror,0,0,"In Twig, the ~ (concatenation) operator has higher precedence than +, so 'a' ~ 1 + 2 is parsed as ('a' ~ 1) + 2, which gives 'a1' + 2, and PHP casts the non-numeric string to 0, resulting in 2.",7.32,162,1214,0
+T22-L9,Symfony: Security and forms,9,answer,0,0,json,0,1,1,"The array [''] is not empty (it has one element), so Assert\NotBlank passes without any violation.",5.15,186,802,0
+T22-L10,Symfony: Security and forms,10,answer,logicexception,symfony\component\form\exception\logicexception,json,symfony\component\form\exception\logicexception,1,0,"Calling isValid() on a form that has not been submitted throws a LogicException, which is caught and its class name is printed.",2.13,229,334,0
+T23-L9,Symfony: configuration and services,9,answer,same,same,json,same,1,1,"Symfony DI services are shared (singleton) by default, so both calls to get('a') return the same object instance.",1.67,211,248,0
+T23-L10,Symfony: configuration and services,10,answer,hi bob!,hi bob!,json,hi bob!,1,1,"Symfony's parameter resolution recursively resolves nested parameter references, so %greeting% expands to 'hi %name%' which further expands to 'hi Bob', giving 'hi Bob!'.",2.86,210,468,0
+T24-L9,Bootstrap,9,answer,960,960,json,960,1,1,"At the 992px viewport, the lg breakpoint applies, giving .container a max-width of 960px in Bootstrap 5.3.",1.2,157,210,0
+T24-L10,Bootstrap,10,answer,text-danger,text-danger,json,text-danger,1,1,"Both classes have equal specificity, so the one defined later in Bootstrap's CSS wins; in the default $theme-colors map, 'danger' comes after 'primary', making .text-danger the last rule applied.",5.5,168,948,0
+T25-L9,Clean architecture,9,answer,2,2,json,2,1,1,"The class is in the Domain layer but depends on both Application (PlaceOrder) and Infrastructure (Db), violating the rule that Domain may only depend on Domain.",1.34,234,233,0
+T25-L10,Clean architecture,10,answer,3,3,json,3,1,1,"The Domain class depends on Application (PlaceOrder) and Infrastructure (Db, Logger) — all three are violations since Domain can only depend on Domain.",1.56,246,274,0
+T26-L10,DDD,10,answer,"10,15","10,15",json,"10,15",1,1,"$a->amount is 10, and $c is a new Money with 10+5=15, so the echo concatenates '10,15'.",1.32,233,198,0
+T26-L9,DDD,9,answer,1,1,json,1,1,1,"The remove() method throws a DomainException before unsetting the item, so the items array still contains one element when count() is called.",1.34,307,219,0
+VC-L9,PHP 8.4–8.5,9,answer,hi,hi,json,hi,1,1,"The code instantiates class C, calls its hi() method which returns the string 'hi', and echoes it.",0.67,178,89,0
+VC-L10,PHP 8.4–8.5,10,answer,yesno,yesno,json,yesno,1,1,"The lazy ghost is uninitialized before property access (yes), and after $o->v triggers the initializer, it is no longer uninitialized (no).",1.54,255,241,0
+T28-L9,Symfony: versions,9,answer,no,no,json,no,1,1,"The Security Guard component (AbstractGuardAuthenticator) was removed in Symfony 6.0, so it does not exist in 8.1.",1.7,193,252,0
+T28-L10,Symfony: versions,10,answer,noyes,noyes,json,noyes,1,1,"AnnotationClassLoader was removed in Symfony 7.0 (deprecated in 6.x), so it does not exist in 8.1, while AttributeClassLoader exists as its replacement.",1.84,217,296,0

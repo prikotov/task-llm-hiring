@@ -239,3 +239,59 @@ T18-L5,测试：PHPUnit,5,yesno,нет,,json,нет,1,1,说反了：stub 只是�
 T18-L6,测试：PHPUnit,6,yesno,да,,json,да,1,1,PHPUnit 10+ 推荐使用 #[DataProvider] 属性替代 @dataProvider 注解，后者已弃用。,1.15,158,167,0
 T18-L7,测试：PHPUnit,7,yesno,нет,,json,нет,1,1,PHPUnit 支持通过 @depends 注解或 depends() 方法声明测试依赖关系。,1.0,140,142,0
 T18-L8,测试：PHPUnit,8,answer,--random-order,--order-by=random,json,--order-by=random,0,0,PHPUnit 使用 --random-order 选项使测试以随机顺序执行。,0.57,151,79,0
+T01-L9,语法与运算符,9,answer,3-3,3-3,json,3-3,1,1,intdiv向零截断，7/2=3，-7/2=-3，拼接为3-3。,3.68,168,133,0
+T01-L10,语法与运算符,10,answer,-9,-9,json,-9,1,1,** 运算符优先级高于一元负号，等价于 -(3**2) = -9,1.17,157,169,0
+T02-L9,类型与比较,9,answer,true,true,json,true,1,1,两个操作数都是数字字符串，PHP 按数值比较，1e1 即 10，等于 10，故为 true。,1.22,169,197,0
+T02-L10,类型与比较,10,answer,other,other,json,other,1,1,'a' 是非数字字符串，与 0 松散比较时 0 被转为 '0'，'a' != '0'，所以走 default 分支。,2.2,177,342,0
+T03-L9,字符串,9,answer,2c,2c,json,2c,1,1,strtr 按键的长度从长到短依次匹配，'ab' 先于 'a' 被替换。,1.57,170,215,0
+T03-L10,字符串,10,answer,[],[hello],json,[hello],0,0,"substr('hello', -10) 的起始位置 -10 超出字符串长度（5），返回空字符串。",2.6,164,440,0
+T04-L9,数组,9,answer,"k,n,m","k,n,m",json,"k,n,m",1,1,"数组合并运算符 + 保留左侧键值，仅追加右侧不存在的键，故结果为 k,n,m。",1.49,195,259,0
+T04-L10,数组,10,answer,yxz,yxz,json,yxz,1,1,按第三个元素升序排序后，第二列为 y、x、z，拼接得到 yxz。,2.43,216,421,0
+T05-L10,函数与闭包,10,answer,4,4,json,4,1,1,"展开带字符串键的数组等效于命名参数，即 f(a: 5, b: 1)，返回 5-1=4。",1.37,192,227,0
+T05-L9,函数与闭包,9,answer,3,3,json,3,1,1,闭包 $f 绑定了对象 $p，即使 $p 被置为 null，闭包仍持有对象引用，调用时返回 $v 的值 3。,1.63,206,247,0
+T06-L9,OOP：类与继承,9,answer,b,b,json,b,1,1,static::class 使用晚静态绑定，返回实际调用的类名 B。,1.26,184,176,0
+T06-L10,OOP：类与继承,10,answer,10,10,json,10,1,1,set 钩子中 $this->x 直接写入底层值（不再触发钩子），故 5*2=10。,8.04,214,1249,0
+T07-L9,接口、trait 与 enum,9,answer,ba,ba,json,ba,1,1,TB::f insteadof TA 使 f() 返回 'B'，TA::f as g 使 g() 返回 'A'，拼接为 'BA'。,1.23,232,215,0
+T07-L10,接口、trait 与 enum,10,answer,0,0,json,0,1,1,PHP 中 trait 的静态属性在每个使用该 trait 的类中是独立副本，修改 CX::$n 不影响 CY::$n。,1.48,197,226,0
+T08-L10,异常与错误,10,answer,2,2,json,2,1,1,finally 块中的 return 会覆盖 try 块中的 return。,1.01,178,161,0
+T08-L9,异常与错误,9,answer,second,second,json,second,1,1,finally 中抛出的新异常会替代原始异常，外层 catch 捕获到 LogicException('second')。,1.35,201,226,0
+T09-L9,命名空间与自动加载,9,answer,app\foo|baz,app\foo|baz,json,app\foo|baz,1,1,Baz::class 解析为 use 别名对应的 App\Foo，\Baz::class 是全局命名空间下的 Baz。,1.24,175,210,0
+T09-L10,命名空间与自动加载,10,answer,noyes,noyes,json,noyes,1,1,class_exists('Foo') 查找的是全局 \Foo，不存在；class_exists('Ns\Foo') 存在，所以输出 noyes。,1.57,203,253,0
+T10-L9,引用与作用域,9,answer,"1,2,99","1,2,99",json,"1,2,99",1,1,foreach by reference 结束后 $v 仍引用 $a[2]，赋值 99 修改了数组最后一个元素。,1.25,184,211,0
+T10-L10,引用与作用域,10,answer,3,3,json,3,1,1,静态变量在类中共享，三次调用使$n从0递增到3，最终输出3。,1.47,219,260,0
+T11-L9,生成器、迭代器与 SPL,9,answer,,11,json,11,0,0,send(10) 后生成器暂停在 yield 1 处，尚未执行 return，getReturn() 返回 null，echo null 输出空字符串。,4.2,199,644,0
+T11-L10,生成器、迭代器与 SPL,10,answer,"1,2,ok","ok,2",json,"ok,2",0,0,"yield from 将 inner 的 yield 值(1,2)透传，inner 的 return 值'ok'赋给$r，再被 yield 出来。",1.59,210,255,0
+T12-L9,配置与安全,9,answer,noyes,noyes,json,noyes,1,1,哈希以cost 4生成，与cost 4匹配所以不需要rehash输出no；与cost 5不匹配所以需要rehash输出yes。,1.72,227,283,0
+T12-L10,配置与安全,10,answer,strict-in,strict-out,json,strict-out,0,0,E_ALL 包含 E_STRICT(2048)，按位与结果非零，故输出 strict-in。,5.0,182,913,0
+T13-L9,Symfony,9,answer,missing,mapped,json,mapped,0,0,ServerBag::normalize() 将 HTTP_X_TOKEN 转为全大写 X-TOKEN，而 get('X-Token') 是大小写敏感的数组键查找，匹配不到。,16.47,204,2767,0
+T13-L10,Symfony,10,answer,bca,bca,json,bca,1,1,Symfony EventDispatcher 按优先级从高到低调用监听器，优先级相同则按添加顺序，所以顺序为 B(10)→C(5)→A(0)。,1.38,265,207,0
+T14-L10,Doctrine,10,answer,same,same,json,same,1,1,EntityManager::find() 优先从身份映射（identity map）中查找，已管理的实体直接返回同一对象实例。,2.04,256,301,0
+T14-L9,Doctrine,9,answer,0,0,json,0,1,1,persist后立即remove且未flush，Doctrine在flush时不会插入再删除，净效果为无操作，表仍为空。,2.89,226,421,0
+T15-L10,PostgreSQL,10,answer,1,1,json,1,1,1,COUNT(x) 只统计非 NULL 值，两行中只有一行 x 非 NULL。,0.82,185,126,0
+T15-L9,PostgreSQL,9,answer,"10,30,60","10,30,60",json,"10,30,60",1,1,窗口函数 sum(x) OVER (ORDER BY id) 产生累积和 10、30、60，string_agg 按 id 排序拼接为逗号分隔字符串。,1.59,232,263,0
+T16-L9,Symfony：Messenger,9,answer,m1m2,m1m2,json,m1m2,1,1,两个中间件依次执行，各自echo自己的tag，输出为M1M2。,1.46,289,203,0
+T16-L10,Symfony：Messenger,10,answer,11,11,json,11,1,1,HandleMessageMiddleware 会依次调用 HandlersLocator 中所有匹配的 handler，$n 先加 1 再加 10，结果为 11。,1.94,331,333,0
+T17-L9,PostgreSQL：事务与索引,9,answer,1,1,json,1,1,1,唯一索引导致第二次插入冲突被跳过，表中只有一行。,1.01,210,152,0
+T17-L10,PostgreSQL：事务与索引,10,answer,2,2,json,2,1,1,UNIQUE 约束设为 DEFERRABLE INITIALLY DEFERRED，约束检查延迟到事务提交时，因此两次插入在同一事务内均成功。,1.5,202,250,0
+T18-L9,测试：PHPUnit,9,answer,6,6,json,6,1,1,--filter test_sum 用正则匹配，test_sum 和 test_sum_abs 都匹配，各3组数据共6个测试。,1.56,319,249,0
+T18-L10,测试：PHPUnit,10,answer,"2, 1","2,1",json,"2,1",1,0,DataProvider 提供两组数据，x=1 通过，x=-1 断言失败。,1.2,275,195,0
+T19-L9,HTTP 与 REST API,9,answer,post,post,json,post,1,1,curl 使用 -d 参数时默认发送 POST 请求。,0.61,167,89,0
+T19-L10,HTTP 与 REST API,10,answer,get,get,json,get,1,1,-G 选项将 -d 的数据作为查询参数附加到 URL，使请求变为 GET 方法。,0.72,169,114,0
+T20-L9,安全与 OAuth,9,answer,invalid_client,invalid_client,json,invalid_client,1,1,RFC 6749 规定客户端认证失败（如 client_id 无效）时，端点应返回 error 为 invalid_client（通常配合 HTTP 401）。,10.11,166,1595,0
+T20-L10,安全与 OAuth,10,answer,fragment,fragment,json,fragment,1,1,隐式流程中 access_token 放在 redirect_uri 的 fragment（# 后的片段）部分。,1.0,168,151,0
+T21-L9,Twig,9,answer,0,6,json,6,0,0,Twig 的 default 过滤器仅在值为 null 或未定义时生效，false 不是 null，所以仍为 false，false * 3 在算术运算中为 0 * 3 = 0。,1.59,163,248,0
+T21-L10,Twig,10,answer,a3,runtimeerror,json,runtimeerror,0,0,Twig 中 + 优先级高于 ~，所以先算 1+2=3，再拼接为 'a3'。,4.21,168,715,0
+T22-L9,Symfony：安全与表单,9,answer,0,0,json,0,1,1,[''] 是一个包含一个元素的数组，NotBlank 对数组只判断是否为空（count==0），此数组 count 为 1，故不产生违规。,2.77,190,398,0
+T22-L10,Symfony：安全与表单,10,answer,valid,symfony\component\form\exception\logicexception,json,symfony\component\form\exception\logicexception,0,0,未注册 Validator 扩展时，isValid() 无约束可校验，无错误即返回 true。,12.94,233,1973,0
+T23-L9,Symfony：配置与服务,9,answer,same,same,json,same,1,1,Symfony DI 容器默认服务为单例，get() 多次调用返回同一实例。,2.41,215,342,0
+T23-L10,Symfony：配置与服务,10,answer,hi bob!,hi bob!,json,hi bob!,1,1,Symfony 参数解析是递归的，先替换 %greeting% 为 'hi %name%'，再递归替换 %name% 为 'Bob'，最终得到 'hi Bob!'。,2.75,214,453,0
+T24-L9,Bootstrap,9,answer,896px,960,json,960,0,0,Bootstrap 5.3 中视口 ≥992px 时 .container 的 max-width 为 896px。,1.32,166,232,0
+T24-L10,Bootstrap,10,answer,text-danger,text-danger,json,text-danger,1,1,同等特异性下，CSS 文件中后定义的规则胜出，text-danger 在 Bootstrap 中排在 text-primary 之后。,2.83,176,408,0
+T25-L9,整洁架构,9,answer,2,2,json,2,1,1,Domain 层只能依赖 Domain，但该类引用了 Application 和 Infrastructure 各一个，共 2 个违规。,1.21,244,197,0
+T25-L10,整洁架构,10,answer,3,3,json,3,1,1,Domain 层引用了 Application 的 PlaceOrder 和 Infrastructure 的 Db、Logger，共 3 处违规。,1.33,256,214,0
+T26-L10,DDD,10,answer,"10,15","10,15",json,"10,15",1,1,"$a 的 amount 为 10，add 方法返回新的 Money(15)，两者拼接输出 10,15。",1.26,237,202,0
+T26-L9,DDD,9,answer,1,1,json,1,1,1,remove() 在 count===1 时抛出异常，unset 未执行，items 中仍有 1 个元素。,1.46,311,230,0
+VC-L9,PHP 8.4–8.5,9,answer,hi,hi,json,hi,1,1,new C()->hi() 返回字符串 'hi'，echo 直接输出它。,0.5,184,66,0
+VC-L10,PHP 8.4–8.5,10,answer,yesno,yesno,json,yesno,1,1,首次检查时懒加载幽灵对象尚未初始化返回true输出yes，访问$o->v触发初始化后第二次检查返回false输出no。,2.36,261,375,0
+T28-L9,Symfony：版本,9,answer,no,no,json,no,1,1,Guard 认证组件在 Symfony 7.0 中被移除，8.1 中该类不存在。,1.74,197,256,0
+T28-L10,Symfony：版本,10,answer,noyes,noyes,json,noyes,1,1,AnnotationClassLoader 在 7.0 已移除，AttributeClassLoader 是其替代且仍存在。,2.44,221,396,0
