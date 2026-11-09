@@ -1484,7 +1484,7 @@ def build_series_report(models_root: Path, questions_path: Path,
     cost_heads = [("Время", "Время"),
                   ("Ток вх", "Ток вх"), ("Ток вых", "Ток вых"),
                   ("Цена", "Цена"), ("Стаб.", "Стаб."), ("JSON", "JSON")]
-    head = ('<tr><th>Модель</th><th>think</th><th>Язык</th>'
+    head = ('<tr><th>Модель</th><th>think</th><th>Язык</th><th>Прогонов</th>'
             + "".join(f'<th title="{fam_titles[k]}">{h}</th>'
                       if k in fam_titles else f"<th>{h}</th>"
                       for k, h in fam_heads)
