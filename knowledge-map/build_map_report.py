@@ -1032,8 +1032,8 @@ def build_compare(model_dir: Path, questions_path: Path,
       <div class="chip">Флипующих клеток: <b>{flips_total} / {len(base_questions)}</b></div>
       <div class="chip">Разобрано JSON: <b>{pct(sum(1 for _n, _s, b in sessions for t in b.values() if t.get("json_ok")), sum(len(b) for _n, _s, b in sessions))}%</b>
            (не-JSON: {sum(1 for _n, _s, b in sessions for t in b.values() if not t.get("json_ok"))} из {sum(len(b) for _n, _s, b in sessions)})</div>
-      <div class="chip">Нестабильность = знание под вопросом: соседние прогоны
-           дают разные ответы на то же утверждение</div>
+      <div class="chip">Стабильность = доля клеток, где все прогоны ответили
+           одинаково; флип (ответы расходятся) — знание под вопросом</div>
     </div>"""
     body = f"""
 <h2>Тепловая карта</h2>
@@ -1275,7 +1275,8 @@ def build_series_report(models_root: Path, questions_path: Path,
                     f'<div class="uhead" style="grid-column: '
                     f'span {max_level + 1}">'
                     f'think: {esc(think)}<span class="umeta">'
-                    f'нестаб. {pct(fl, len(questions))}%</span></div>')
+                    f'стаб. {pct(len(questions) - fl, len(questions))}%'
+                    f'</span></div>')
                 cells.append('<div class="uhead"></div>')
             for topic in topics:
                 cells.append(f'<div class="rh">{esc(topic)}</div>')
@@ -1356,7 +1357,7 @@ def build_series_report(models_root: Path, questions_path: Path,
                          "на одной версии вопросника")
 
     # таблица метрик серий: строки = модель × think × язык,
-    # колонки = семейства, затраты, нестабильность
+    # колонки = семейства, затраты, стабильность
     fam_heads = [("PHP", "PHP"), ("PHP+версии", "PHP+"),
                  ("Symfony", "Symfony"), ("Symfony+версии", "Symfony+"),
                  ("БД и ORM", "БД и ORM"),
@@ -1385,11 +1386,11 @@ def build_series_report(models_root: Path, questions_path: Path,
         cells.append(f'<td class="num">{dur:.0f}с</td>')
         cells.append(f'<td class="num">{tin / 1000:.1f}k</td>')
         cells.append(f'<td class="num">{tout / 1000:.1f}k</td>')
-        cells.append(f'<td class="num" style="background:{heat_color(1 - fl / max(1, nq))}">{pct(fl, nq)}%</td>')
+        cells.append(f'<td class="num" style="background:{heat_color(1 - fl / max(1, nq))}">{pct(nq - fl, nq)}%</td>')
         cells.append(f'<td class="num" style="background:{heat_color(jp / 100)}">{jp}%</td>')
         mrows.append("<tr>" + "".join(cells) + "</tr>")
     cost_heads = [("Время", "Время"), ("Ток вх", "Ток вх"),
-                  ("Ток вых", "Ток вых"), ("Нестаб.", "Нестаб."),
+                  ("Ток вых", "Ток вых"), ("Стаб.", "Стаб."),
                   ("JSON", "JSON")]
     head = ('<tr><th>Модель</th><th>think</th><th>Язык</th>'
             + "".join(f'<th title="{fam_titles[k]}">{h}</th>'
@@ -1402,7 +1403,7 @@ def build_series_report(models_root: Path, questions_path: Path,
     title = "Карты знаний PHP — единая карта серий прогонов"
     proto = ("сверху — таблица метрик серий: по строке на (модель × think × "
              "язык), колонки — семейства (тепловая заливка), суммарные время "
-             "и токены серии, нестабильность; ниже — карты: строка = модель × "
+             "и токены серии, стабильность; ниже — карты: строка = модель × "
              "версия вопросника × язык, строки тем, группы колонок — уровни "
              "мышления; клетка = доля верных ответов по серии (число — %), "
              "пунктир — флип; карта всегда одной строкой (горизонтальная "
