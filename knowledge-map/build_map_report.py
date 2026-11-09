@@ -1495,6 +1495,7 @@ def build_series_report(models_root: Path, questions_path: Path,
     for model, think, lang, fams_list, cost, fl, nq, jp, n_runs, link \
             in metrics:
         pm = dict(fams_list)
+        row_cls = ' class="single"' if n_runs == 1 else ''
         model_cell = (f'<a href="{link}">{esc(model)}</a>'
                       if link else esc(model))
         cells = [f'<td>{model_cell}</td>', f'<td>{esc(think)}</td>',
@@ -1511,7 +1512,7 @@ def build_series_report(models_root: Path, questions_path: Path,
         cells.append(f'<td class="num" style="background:{heat_color(1 - fl / max(1, nq))}">{pct(nq - fl, nq)}%</td>')
         cells.append(f'<td class="num" style="background:{heat_color(jp / 100)}">{jp}%</td>'
                      if jp is not None else '<td class="num">—</td>')
-        mrows.append("<tr>" + "".join(cells) + "</tr>")
+        mrows.append(f"<tr{row_cls}>" + "".join(cells) + "</tr>")
     cost_heads = [("Время", "Время"),
                   ("Ток вх", "Ток вх"), ("Ток вых", "Ток вых"),
                   ("Цена", "Цена"), ("Стаб.", "Стаб."), ("JSON", "JSON")]
@@ -1537,7 +1538,10 @@ def build_series_report(models_root: Path, questions_path: Path,
     extra = ("main { max-width: 100%; padding: 28px 22px 60px; }"
              "table.metrics td.num { text-align: right; font-variant-numeric: tabular-nums; }"
              "table.metrics th { white-space: nowrap; }"
-             "table.metrics td:first-child { white-space: nowrap; }")
+             "table.metrics td:first-child { white-space: nowrap; }"
+             "table.metrics tr.single td { color: #8b909b; }"
+             "table.metrics tr.single td a { color: #8b909b; }"
+             "table.metrics tr.single td.num[style] { color: #1c2130; }")
     html = page(title, proto, "", "\n".join(sections),
                 "построено knowledge-map/build_map_report.py · "
                 f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
