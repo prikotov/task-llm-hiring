@@ -168,7 +168,10 @@ def expected_of(q: dict) -> str:
 
 
 def correct_text(q: dict, turn: dict | None, lang: str = "ru") -> str:
-    """Эталон клетки: для recall — значение из грейдера, для да/нет — да/нет."""
+    """Эталон клетки: для recall — значение из грейдера, для да/нет — да/нет;
+    MCQ-клетки decision-моделей несут эталон в поле expected."""
+    if "expected" in q:
+        return norm_display(q["expected"])
     if q.get("type") == "answer":
         return norm_display(expected_of(q))
     return yes_no(q["answer"], lang)
@@ -470,6 +473,8 @@ def map_grid_single(by_id: dict, questions: list,
                  < max_level for t in topics)
     by_topic_level = defaultdict(dict)
     for q in questions:
+        if q["id"].endswith("-mc") and q.get("level", 0) <= 8:
+            continue  # base-mcq дублирует слот verify-клетки — плейсхолдер
         by_topic_level[q["topic"]][q["level"]] = q
     if sparse:
         max_cells = max(len(by_topic_level[t]) for t in topics)
@@ -543,6 +548,8 @@ def map_grid_compare(questions: list, runs: list[tuple[str, dict]],
     max_level = max(q["level"] for q in questions)
     by_topic_level = defaultdict(dict)
     for q in questions:
+        if q["id"].endswith("-mc") and q.get("level", 0) <= 8:
+            continue  # base-mcq дублирует слот verify-клетки — плейсхолдер
         by_topic_level[q["topic"]][q["level"]] = q
     cells = []
     if show_labels:
@@ -750,6 +757,36 @@ def deep_for_run(questions_path: Path, session: dict) -> list:
     return data.get("questions", [])
 
 
+def mcq_for_run(questions_path: Path, session: dict) -> list:
+    """MCQ-клетки decision-прогона (штамп deep_mc): questions-mcq{-lang}.json
+    со сверкой версии; [] — если штампа нет."""
+    stamp = session.get("deep_mc")
+    if not stamp:
+        return []
+    lang = session.get("lang", "ru")
+    stem = stamp.get("file") or \
+        f"questions-mcq{'' if lang == 'ru' else '-' + lang}.json"
+    cand = questions_path.parent / stem
+    if not cand.exists():
+        return []
+    try:
+        data = json.loads(cand.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    if stamp.get("version") is not None and \
+            data.get("version") != stamp.get("version"):
+        return []
+    return data.get("cells", [])
+
+
+def skip_base_mcq(questions: list) -> list:
+    """MCQ-клетки уровней 1–8 дублируют (тема, уровень) verify-клеток —
+    в сетке карты их рисуем как плейсхолдеры; в таблицах и семействах
+    они участвуют. Глубина (L9/L10) — остаётся: у verify там клеток нет."""
+    return [q for q in questions
+            if not (q["id"].endswith("-mc") and q.get("level", 0) <= 8)]
+
+
 def build_single(run_dir: Path, questions_path: Path) -> None:
     try:
         session_probe = json.loads(
@@ -760,7 +797,8 @@ def build_single(run_dir: Path, questions_path: Path) -> None:
     q_version, questions = load_questions(questions_path)
     session, by_id = load_run(run_dir)
     by_id = applicable_by_id(session, by_id)
-    questions = questions + deep_for_run(questions_path, session)
+    questions = questions + deep_for_run(questions_path, session) \
+        + mcq_for_run(questions_path, session)
     title, protocol, chips, body, footer = _render_single_body(
         session, by_id, questions, q_version, run_dir, questions_path)
     (run_dir / "report.html").write_text(
@@ -977,12 +1015,14 @@ def build_compare(model_dir: Path, questions_path: Path,
     sessions = [(n, s, applicable_by_id(s, b)) for n, s, b in sessions]
     q_version, questions = load_questions(
         questions_for_run(questions_path, sessions[0][1]))
-    # зона «Глубина»: если прогоны серии дополнены (штамп deep) — клетки
-    # L9/L10 добавляются к карте; точность прогонов считается по базе L1–L8
+    # зоны «Глубина» (штамп deep) и MCQ decision-моделей (штамп deep_mc)
     deep_qs = next((deep_for_run(questions_path, s)
                     for _n, s, _b in sessions if s.get("deep")), [])
-    questions = questions + deep_qs
-    base_questions = [q for q in questions if q.get("level", 0) <= 8]
+    mcq_qs = next((mcq_for_run(questions_path, s)
+                   for _n, s, _b in sessions if s.get("deep_mc")), [])
+    questions = questions + deep_qs + mcq_qs
+    base_questions = skip_base_mcq(
+        [q for q in questions if q.get("level", 0) <= 8])
 
     # Прогоны разных уровней рассуждений нельзя смешивать: «флипы» тогда
     # меряют смену режима, а не устойчивость знания. Карта — только внутри
@@ -1241,12 +1281,16 @@ def build_series_report(models_root: Path, questions_path: Path,
             q_version, questions = load_questions(qpath)
             # зона «Глубина»: если прогоны ряда дополнены (штамп deep) —
             # клетки L9/L10 добавляются к карте ряда
+            all_items = (x for items in think_map.values() for x in items)
             deep_qs = next((deep_for_run(questions_path, s)
-                            for _rd, s, _b in
-                            (x for items in think_map.values() for x in items)
-                            if s.get("deep")), [])
+                            for _rd, s, _b in all_items if s.get("deep")), [])
             if deep_qs:
                 questions = questions + deep_qs
+            all_items = (x for items in think_map.values() for x in items)
+            mcq_qs = next((mcq_for_run(questions_path, s)
+                           for _rd, s, _b in all_items if s.get("deep_mc")), [])
+            if mcq_qs:
+                questions = questions + mcq_qs
             topics = []
             for q in questions:
                 if q["topic"] not in topics:
@@ -1254,6 +1298,8 @@ def build_series_report(models_root: Path, questions_path: Path,
             max_level = max(q["level"] for q in questions)
             by_topic_level = defaultdict(dict)
             for q in questions:
+                if q["id"].endswith("-mc") and q.get("level", 0) <= 8:
+                    continue
                 by_topic_level[q["topic"]][q["level"]] = q
 
             base_ids = [q["id"] for q in questions

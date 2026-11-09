@@ -483,6 +483,99 @@ def resolve_questions_file(km_dir: Path, session: dict) -> Path | None:
     return None
 
 
+def mcq_state(cell: dict, opt_idx: int, lang: str) -> str:
+    opts = "\n".join(f"{i + 1}) {o}" for i, o in enumerate(cell["options"]))
+    frame = {"ru": ("Вопрос с вариантами ответа.\n\n{q}\n\nВарианты:\n{opts}\n\n"
+                    "УТВЕРЖДЕНИЕ:\nПравильный ответ — вариант {n} ({val})."),
+             "en": ("Multiple-choice question.\n\n{q}\n\nOptions:\n{opts}\n\n"
+                    "STATEMENT:\nThe correct answer is option {n} ({val})."),
+             "zh": ("选择题。\n\n{q}\n\n选项：\n{opts}\n\n"
+                    "断言：\n正确答案是选项 {n}（{val}）。")}[lang]
+    return frame.format(q=cell["prompt"], opts=opts,
+                        n=opt_idx + 1, val=cell["options"][opt_idx])
+
+
+def supplement_decision_mcq(session: dict, s_path: Path, out_dir: Path,
+                            timeout: int, limit: int | None) -> None:
+    """Decision-модели: recall-клетки через выбор из вариантов.
+
+    Для каждой recall/глубины клетки — 4–5 кандидатов; noul-запрос на
+    каждый («правильный ответ — вариант N»); выбор модели = argmax;
+    зачёт — выбор совпал с машинным эталоном. Один turn на клетку
+    (id с суффиксом -mc), штамп deep_mc в session.json.
+    """
+    lang = session.get("lang", "ru")
+    stem = f"questions-mcq{'' if lang == 'ru' else '-' + lang}.json"
+    mpath = SCRIPT_DIR / stem
+    mdata = json.loads(mpath.read_text(encoding="utf-8"))
+    cells = mdata["cells"]
+    base_url = session.get("base_url") or DEFAULT_BASE_URL
+    model = session.get("model")
+    turns = session["turns"]
+    have = {t["id"] for t in turns if t["id"].endswith("-mc")}
+    missing = [c for c in cells if c["id"] not in have]
+    if not missing:
+        if (session.get("deep_mc") or {}).get("version") == mdata.get("version"):
+            print(f"  {out_dir.name}: mcq уже дополнен — пропускаю")
+            return
+        session["deep_mc"] = {"file": stem, "version": mdata.get("version"),
+                              "added_at": datetime.now(timezone.utc).isoformat()}
+        s_path.write_text(json.dumps(session, ensure_ascii=False, indent=2),
+                          encoding="utf-8")
+        print(f"  {out_dir.name}: mcq-клетки на месте — штамп обновлён")
+        return
+    session["deep_mc"] = {"file": stem, "version": mdata.get("version"),
+                          "added_at": datetime.now(timezone.utc).isoformat()}
+    print(f"[{out_dir.name}] {model} · mcq v{mdata.get('version')} · "
+          f"язык {lang} · клеток {len(missing)}")
+    for cell in (missing[:limit] if limit else missing):
+        t0 = time.monotonic()
+        probs = []
+        for idx in range(len(cell["options"])):
+            r = decision_safe(base_url, model, mcq_state(cell, idx, lang),
+                              timeout)
+            p = None
+            if r is not None:
+                p = (r.get("answers") or {}).get("verdict", {}).get("noul")
+            probs.append(float(p) if p is not None else 0.0)
+        duration = time.monotonic() - t0
+        argmax = max(range(len(probs)), key=lambda i: probs[i])
+        chosen = cell["options"][argmax]
+        is_correct = argmax == cell["correct_index"]
+        turns.append({
+            "id": cell["id"], "topic": cell["topic"], "level": cell["level"],
+            "type": "answer", "prompt_text": cell["prompt"],
+            "explanation": None, "json_ok": False,
+            "correct_answer": cell["expected"],
+            "prompt": mcq_state(cell, argmax, lang),
+            "answer_raw": "noul=[" + ",".join(f"{p:.3f}" for p in probs) + "]",
+            "answer": chosen, "parsed": "mc", "expected": cell["expected"],
+            "is_correct": is_correct, "strict": is_correct,
+            "p": round(max(probs), 3), "thinking": None,
+            "duration_s": round(duration, 2),
+            "eval_count": None, "prompt_eval_count": None,
+            "prompt_eval_cached_count": None,
+            "done_reason": "stop" if all(probs) else "error",
+        })
+        session["question_count"] = len(turns)
+        session["totals"] = {
+            "duration_s": round(sum(t["duration_s"] for t in turns), 1),
+            "prompt_tokens": sum(t.get("prompt_eval_count") or 0
+                                 for t in turns),
+            "output_tokens": sum(t.get("eval_count") or 0 for t in turns),
+            "cached_tokens": sum(t.get("prompt_eval_cached_count") or 0
+                                 for t in turns),
+        }
+        session["cost_usd"] = round(local_cost_usd(session), 6)
+        s_path.write_text(json.dumps(session, ensure_ascii=False, indent=2),
+                          encoding="utf-8")
+        mark = "✅" if is_correct else "❌"
+        print(f"    [{cell['id']}] {cell['topic']}: {duration:.1f}s → {mark} "
+              f"вариант {argmax + 1} '{chosen}' (эталон: '{cell['expected']}')")
+    write_answers_csv(out_dir, turns)
+    print(f"  {out_dir.name}: mcq готово ({len(turns)} клеток)")
+
+
 def supplement_deep(model_dir: Path, timeout: int,
                     limit: int | None = None) -> None:
     """Дополнение СУЩЕСТВУЮЩИХ прогонов клетками зоны «Глубина» (L9/L10).
@@ -498,6 +591,14 @@ def supplement_deep(model_dir: Path, timeout: int,
     for s_path in sorted(model_dir.glob("run-*/session.json")):
         out_dir = s_path.parent
         session = json.loads(s_path.read_text(encoding="utf-8"))
+        if session.get("protocol") == "decision":
+            if session.get("questionnaire") != 8:
+                print(f"  {out_dir.name}: вопросник "
+                      f"v{session.get('questionnaire')} — mcq собран для v8, "
+                      f"пропускаю")
+                continue
+            supplement_decision_mcq(session, s_path, out_dir, timeout, limit)
+            continue
         if session.get("protocol", "chat") != "chat":
             print(f"  {out_dir.name}: протокол {session.get('protocol')} — "
                   f"пропускаю")
@@ -889,7 +990,7 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
         elif provider == "openrouter":
             resp = openrouter_safe(model, prompt, think, api_key, cloud_proxy,
                                    timeout, sysp)
-        else:
+        elif protocol != "decision":
             resp = chat_safe(base_url, model, prompt, keep_alive, think,
                              timeout, sysp)
         duration = time.monotonic() - t0
@@ -905,6 +1006,9 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
             eval_count = prompt_eval_count = cached_count = None
             done_reason = "error"
         elif protocol == "decision":
+            # noul — вероятность верности: JSON-контракта и пояснений нет
+            json_ok = False
+            explanation = None
             a = (resp.get("answers") or {}).get("verdict") or {}
             p = a.get("noul")
             if p is None:
