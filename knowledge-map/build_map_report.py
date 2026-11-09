@@ -1308,8 +1308,10 @@ def build_series_report(models_root: Path, questions_path: Path,
             for think in sorted(think_map,
                                 key=lambda t: (think_order.get(t, 99), t)):
                 items = think_map[think]
-                if len(items) < 2:
-                    continue
+                # одиночные серии не выбрасываем: пометка «1 прогон» —
+                # у них Стаб. всегда 100% (флипов не бывает)
+                n_runs = len(items)
+                think_disp = think + (" · 1 прогон" if n_runs == 1 else "")
                 runs_list = [(rd.name, by_id) for rd, _s, by_id in items]
                 flip_by_id = {}
                 for q in questions:
@@ -1343,7 +1345,7 @@ def build_series_report(models_root: Path, questions_path: Path,
                 groups.append((think, runs_list, flip_by_id, fams_list,
                                cost, stable_ok, flips, json_pct_))
                 metrics.append((model, think, lang, fams_list, cost, flips,
-                                n_app, json_pct_))
+                                n_app, json_pct_, n_runs))
             if not groups:
                 continue
 
@@ -1359,7 +1361,7 @@ def build_series_report(models_root: Path, questions_path: Path,
                 cells.append(
                     f'<div class="uhead" style="grid-column: '
                     f'span {max_level + 1}">'
-                    f'think: {esc(think)}<span class="umeta">'
+                    f'think: {esc(think_disp)}<span class="umeta">'
                     f'стаб. {pct(n_app - flips, n_app)}%'
                     + (f' · прим. {n_app}/{len(questions)}'
                        if n_app != len(questions) else '')
@@ -1461,9 +1463,11 @@ def build_series_report(models_root: Path, questions_path: Path,
                              "26 тем × 2 (машинно проверяемые эталоны)"}
     metrics.sort(key=lambda m: (m[0], think_order.get(m[1], 99), m[2]))
     mrows = []
-    for model, think, lang, fams_list, cost, fl, nq, jp in metrics:
+    for model, think, lang, fams_list, cost, fl, nq, jp, n_runs in metrics:
         pm = dict(fams_list)
-        cells = [f'<td>{esc(model)}</td>', f'<td>{esc(think)}</td>',
+        think_cell = esc(think) + (' <small>1 прогон</small>'
+                                   if n_runs == 1 else '')
+        cells = [f'<td>{esc(model)}</td>', f'<td>{think_cell}</td>',
                  f'<td>{esc(lang)}</td>']
         for key, _h in fam_heads:
             p_ = pm.get(key)
@@ -1495,7 +1499,7 @@ def build_series_report(models_root: Path, questions_path: Path,
              "и токены серии, цена (облачные — фактический API-биллинг; "
              "локальные — электричество и амортизация по методике §8 "
              "interview/build_report.py, ₽35.85/ч чистой генерации), "
-             "стабильность; ниже — карты: строка = модель × "
+             "стабильность; серии из одного прогона помечены «1 прогон» — их Стаб. всегда 100% и не сравнима с сериями; ниже — карты: строка = модель × "
              "версия вопросника × язык, строки тем, группы колонок — уровни "
              "мышления; клетка = доля верных ответов по серии (число — %), "
              "пунктир — флип; карта всегда одной строкой (горизонтальная "
