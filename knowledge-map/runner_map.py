@@ -269,13 +269,22 @@ def cloud_safe(api_key: str, model: str, prompt: str, effort: str,
 
 def openrouter_chat(model: str, prompt: str, effort: str | None, key: str,
                     proxy: str, timeout: int,
-                    system_prompt: str | None = None) -> dict:
+                    system_prompt: str | None = None,
+                    cache: bool = False) -> dict:
     """Один запрос через OpenRouter (curl через прокси — WAF режет прямой
     доступ), usage.include=true даёт cost для журнала трат; ответ
-    нормализуется под ollama-структуру."""
+    нормализуется под ollama-структуру. cache=True ставит cache_control
+    на system-префикс (Anthropic кэширует только по явным меткам)."""
     from runner_openrouter import call_openrouter  # curl/прокси/заголовки
-    messages = ([{"role": "system", "content": system_prompt}]
-                if system_prompt else []) + [{"role": "user", "content": prompt}]
+    if system_prompt and cache:
+        system_msg = {"role": "system", "content": [
+            {"type": "text", "text": system_prompt,
+             "cache_control": {"type": "ephemeral"}}]}
+    else:
+        system_msg = ({"role": "system", "content": system_prompt}
+                      if system_prompt else None)
+    messages = ([system_msg] if system_msg else []) + \
+        [{"role": "user", "content": prompt}]
     payload = {"model": model, "messages": messages, "max_tokens": 16000,
                "usage": {"include": True}}
     if effort:
@@ -312,11 +321,12 @@ def openrouter_chat(model: str, prompt: str, effort: str | None, key: str,
 
 def openrouter_safe(model: str, prompt: str, effort: str | None, key: str,
                     proxy: str, timeout: int,
-                    system_prompt: str | None = None) -> dict | None:
+                    system_prompt: str | None = None,
+                    cache: bool = False) -> dict | None:
     """openrouter_chat, но сбой возвращает None (клетка станет серой)."""
     try:
         return openrouter_chat(model, prompt, effort, key, proxy, timeout,
-                               system_prompt)
+                               system_prompt, cache=cache)
     except Exception as e:
         print(f"      ⚠️ сбой генерации ({e}); пропускаю", file=sys.stderr)
         return None
@@ -576,6 +586,17 @@ def supplement_decision_mcq(session: dict, s_path: Path, out_dir: Path,
     print(f"  {out_dir.name}: mcq готово ({len(turns)} клеток)")
 
 
+def set_session_cost(session: dict, provider: str) -> None:
+    """Финальная цена сессии по провайдеру; записывающий должен сохранить
+    session.json сам (в supplement прогрессивная запись шла до цикла)."""
+    if provider == "openrouter":
+        pass  # cost_usd уже накоплен из usage по запросам
+    elif provider == "deepseek":
+        session["cost_usd"] = round(deepseek_cost_usd(session), 6)
+    else:
+        session["cost_usd"] = round(local_cost_usd(session), 6)
+
+
 def supplement_deep(model_dir: Path, timeout: int,
                     limit: int | None = None) -> None:
     """Дополнение СУЩЕСТВУЮЩИХ прогонов клетками зоны «Глубина» (L9/L10).
@@ -639,11 +660,16 @@ def supplement_deep(model_dir: Path, timeout: int,
         missing = [q for q in questions if q["id"] not in have]
         if not missing:
             if (session.get("deep") or {}).get("version") == ddata.get("version"):
+                set_session_cost(session, session.get("provider", "ollama"))
+                s_path.write_text(
+                    json.dumps(session, ensure_ascii=False, indent=2),
+                    encoding="utf-8")
                 print(f"  {out_dir.name}: deep уже дополнен — пропускаю")
                 continue
             session["deep"] = {"file": stem,
                                "version": ddata.get("version"),
                                "added_at": datetime.now(timezone.utc).isoformat()}
+            set_session_cost(session, session.get("provider", "ollama"))
             s_path.write_text(
                 json.dumps(session, ensure_ascii=False, indent=2),
                 encoding="utf-8")
@@ -682,7 +708,8 @@ def supplement_deep(model_dir: Path, timeout: int,
                 resp = cloud_safe(api_key, model, prompt, effort, timeout, sysp)
             elif provider == "openrouter":
                 resp = openrouter_safe(model, prompt, effort, api_key,
-                                       cloud_proxy, timeout, sysp)
+                                       cloud_proxy, timeout, sysp,
+                                       cache="claude" in model.lower())
             else:
                 resp = chat_safe(base_url, model, prompt, keep_alive, think,
                                  timeout, sysp)
@@ -772,6 +799,8 @@ def supplement_deep(model_dir: Path, timeout: int,
             session["cost_usd"] = round(deepseek_cost_usd(session), 6)
         else:
             session["cost_usd"] = round(local_cost_usd(session), 6)
+        s_path.write_text(json.dumps(session, ensure_ascii=False, indent=2),
+                          encoding="utf-8")
         write_answers_csv(out_dir, turns)
         if provider == "openrouter" and supp_costs:
             from runner_openrouter import append_ledger
@@ -989,7 +1018,8 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
             resp = cloud_safe(api_key, model, prompt, think, timeout, sysp)
         elif provider == "openrouter":
             resp = openrouter_safe(model, prompt, think, api_key, cloud_proxy,
-                                   timeout, sysp)
+                                   timeout, sysp,
+                                   cache="claude" in model.lower())
         elif protocol != "decision":
             resp = chat_safe(base_url, model, prompt, keep_alive, think,
                              timeout, sysp)
@@ -1190,7 +1220,7 @@ def main() -> int:
                    help="номер первого прогона; по умолчанию — первый свободный")
     p.add_argument("--limit", type=int, default=None,
                    help="только первые N клеток (для smoke-теста)")
-    p.add_argument("--think", choices=["auto", "on", "off", "low", "medium", "xhigh"],
+    p.add_argument("--think", choices=["auto", "on", "off", "low", "medium", "high", "xhigh"],
                    default="off",
                    help="режим thinking (default off — стандарт локальных собесов; "
                         "в decision-протоколе не применяется)")
