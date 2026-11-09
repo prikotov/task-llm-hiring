@@ -124,17 +124,22 @@ def family_scores(questions: list, run_by_ids: list[dict]) -> list[tuple[str, fl
         qs = [q for q in base if q["id"].split("-L")[0] in ids]
         if not qs:
             continue
+        # знаменатель — по фактически применимым (run, клетка) парам:
+        # в decision-протоколе recall-клетки не применимы (unsupported)
         c = sum(1 for b in run_by_ids for q in qs
                 if q["id"] in b and is_correct(b[q["id"]]))
-        res.append((name, pct(c, len(qs) * len(run_by_ids))))
+        d = sum(1 for b in run_by_ids for q in qs if q["id"] in b)
+        res.append((name, pct(c, d)))
     if deep_qs:
         c = sum(1 for b in run_by_ids for q in deep_qs
                 if q["id"] in b and is_correct(b[q["id"]]))
-        res.append(("Глубина", pct(c, len(deep_qs) * len(run_by_ids))))
+        d = sum(1 for b in run_by_ids for q in deep_qs if q["id"] in b)
+        res.append(("Глубина", pct(c, d)))
     if base:
         c = sum(1 for b in run_by_ids for q in base
                 if q["id"] in b and is_correct(b[q["id"]]))
-        res.append(("Всего", pct(c, len(base) * len(run_by_ids))))
+        d = sum(1 for b in run_by_ids for q in base if q["id"] in b)
+        res.append(("Всего", pct(c, d)))
     return res
 
 
@@ -350,7 +355,17 @@ def page_css() -> str:
                .replace("@NA@", COLOR_NA))
 
 
+def applicable_by_id(session: dict, by_id: dict) -> dict:
+    """Decision-протокол: recall-клетки не применимы (unsupported) —
+    они не участвуют в подсчётах (ни как верные, ни как неверные)."""
+    if session.get("protocol") != "decision":
+        return by_id
+    return {qid: t for qid, t in by_id.items()
+            if t.get("done_reason") != "unsupported"}
+
+
 def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
+    by_id = applicable_by_id(session, by_id)
     qs = {q["id"]: q for q in questions}
     turns = [by_id[q["id"]] for q in questions if q["id"] in by_id]
     # «Точность» и зоны — по стабильным клеткам (L1–L8); зона «Глубина»
@@ -387,13 +402,20 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
     deep_stamp = session.get("deep") or {}
     if deep_stamp.get("version"):
         ver_s += f" + deep v{deep_stamp['version']} (L9/L10)"
+    applicable_s = ""
+    if session.get("protocol") == "decision":
+        applicable_s = (f"<br><small>decision-протокол: применимо {len(turns)} "
+                        f"из {len(questions)} клеток — recall «что вернёт код / "
+                        f"какая версия» не применим (noul — вероятность "
+                        f"утверждения)</small>")
     # оценка по семействам: PHP, PHP+версии, Symfony, …, Всего
     fam_line = " · ".join(f"{name} <b>{p}%</b>" for name, p in
                           family_scores(questions, [by_id]))
     score_chip = f'<div class="chip">Оценка: {fam_line}</div>'
-    json_n = sum(1 for t in turns if t.get("json_ok"))
-    score_chip += (f'<div class="chip">Разобрано JSON: <b>{pct(json_n, len(turns))}%</b>'
-                   f' ({json_n} из {len(turns)})</div>')
+    if session.get("protocol") != "decision":
+        json_n = sum(1 for t in turns if t.get("json_ok"))
+        score_chip += (f'<div class="chip">Разобрано JSON: <b>{pct(json_n, len(turns))}%</b>'
+                       f' ({json_n} из {len(turns)})</div>')
     fam_line_s = " · ".join(f"{name} {p}%" for name, p in
                             family_scores(questions, [by_id]))
     zone_stats = []
@@ -423,7 +445,7 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
     <div class="chips">
       {score_chip}
       <div class="chip">По зонам: <b>{esc(" · ".join(zone_stats))}</b></div>
-      <div class="chip">Точность: <b>{acc_s}</b></div>
+      <div class="chip">Точность: <b>{acc_s}</b>{applicable_s}</div>
       <div class="chip">Разобрано ответов: <b>{len(parsed)} / {n}</b>{parse_extra_s}</div>
       {bias_chip}
       <div class="chip">Время: <b>{time_s}</b>
@@ -737,6 +759,7 @@ def build_single(run_dir: Path, questions_path: Path) -> None:
     questions_path = questions_for_run(questions_path, session_probe)
     q_version, questions = load_questions(questions_path)
     session, by_id = load_run(run_dir)
+    by_id = applicable_by_id(session, by_id)
     questions = questions + deep_for_run(questions_path, session)
     title, protocol, chips, body, footer = _render_single_body(
         session, by_id, questions, q_version, run_dir, questions_path)
@@ -931,6 +954,10 @@ def build_compare(model_dir: Path, questions_path: Path,
             sessions.append((rd.name, *load_run(rd)))
         except FileNotFoundError:
             print(f"  пропускаю {rd.name}: нет session.json", file=sys.stderr)
+    # decision-прогоны (noul-вероятность, без think) — метка 'decision'
+    sessions = [(n, {**s, "think": "decision"}
+                 if s.get("protocol") == "decision" else s, b)
+                for n, s, b in sessions]
     # фильтр по версии вопросника (серии разных версий не смешиваются)
     if qver_filter:
         sessions = [(n, s, b) for n, s, b in sessions
@@ -947,6 +974,7 @@ def build_compare(model_dir: Path, questions_path: Path,
             "в папке прогоны разных языков: "
             f"{sorted(langs)}. Смешивать нельзя — укажите --lang <ru|en>")
     lang = sessions[0][1].get("lang", "ru")
+    sessions = [(n, s, applicable_by_id(s, b)) for n, s, b in sessions]
     q_version, questions = load_questions(
         questions_for_run(questions_path, sessions[0][1]))
     # зона «Глубина»: если прогоны серии дополнены (штамп deep) — клетки
@@ -1184,8 +1212,11 @@ def build_series_report(models_root: Path, questions_path: Path,
                 session, by_id = load_run(rd)
             except FileNotFoundError:
                 continue
-            if session.get("protocol", "chat") != "chat":
+            if session.get("protocol", "chat") not in ("chat", "decision"):
                 continue
+            if session.get("protocol") == "decision":
+                session = {**session, "think": "decision"}
+                by_id = applicable_by_id(session, by_id)
             runs.append((rd, session, by_id))
         if not runs:
             continue
@@ -1241,6 +1272,8 @@ def build_series_report(models_root: Path, questions_path: Path,
                     answers.discard(None)
                     flip_by_id[q["id"]] = len(answers) > 1
                 fams_list = family_scores(questions, [b for _n, b in runs_list])
+                n_app = len({q["id"] for q in questions
+                             if any(q["id"] in b for _n, b in runs_list)})
                 turns_all = [t for _n, b in runs_list for t in b.values()]
                 dur_total = sum(t.get("duration_s") or 0 for t in turns_all)
                 tin_total = sum(t.get("prompt_eval_count") or 0
@@ -1260,7 +1293,7 @@ def build_series_report(models_root: Path, questions_path: Path,
                 groups.append((think, runs_list, flip_by_id, fams_list,
                                cost, stable_ok, flips, json_pct_))
                 metrics.append((model, think, lang, fams_list, cost, flips,
-                                len(questions), json_pct_))
+                                n_app, json_pct_))
             if not groups:
                 continue
 
@@ -1277,8 +1310,10 @@ def build_series_report(models_root: Path, questions_path: Path,
                     f'<div class="uhead" style="grid-column: '
                     f'span {max_level + 1}">'
                     f'think: {esc(think)}<span class="umeta">'
-                    f'стаб. {pct(len(questions) - fl, len(questions))}%'
-                    f'</span></div>')
+                    f'стаб. {pct(n_app - flips, n_app)}%'
+                    + (f' · прим. {n_app}/{len(questions)}'
+                       if n_app != len(questions) else '')
+                    + '</span></div>')
                 cells.append('<div class="uhead"></div>')
             for topic in topics:
                 cells.append(f'<div class="rh">{esc(topic)}</div>')
