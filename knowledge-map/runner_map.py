@@ -187,6 +187,33 @@ def http_json(url: str, payload: dict, timeout: int, retries: int = 3,
 # читается из env-файла облаков (MODELS_RU_ENV), как в interview/runner_ru_cloud.py
 DEEPSEEK_CHAT = "https://api.deepseek.com/chat/completions"
 DEEPSEEK_EFFORTS = ("low", "high", "max")  # off/medium API не поддерживает
+# тариф пик $/1M: вх, кэш-хит (на flash кэша нет), вых; оф-пик ×0.5
+DEEPSEEK_TARIFF = (0.30, 0.006, 1.20)
+
+
+def deepseek_cost_usd(session: dict) -> float:
+    """Цена сессии по тарифу из токенов turns (биллинг all-miss)."""
+    tin = sum(t.get("prompt_eval_count") or 0 for t in session.get("turns", []))
+    tcache = sum(t.get("prompt_eval_cached_count") or 0
+                 for t in session.get("turns", []))
+    tout = sum(t.get("eval_count") or 0 for t in session.get("turns", []))
+    pin, pcache, pout = DEEPSEEK_TARIFF
+    return ((tin - tcache) / 1e6 * pin + tcache / 1e6 * pcache
+            + tout / 1e6 * pout)
+
+
+# цена локального инференса — методика §8 interview/build_report.py:
+# 550 Вт (CPU+GPU) в момент генерации × ₽7.07/кВт·ч + амортизация
+# ₽600k × 70% / 13140 ч, курс ₽85.15/$ → ₽35.85/ч ≈ $0.421/ч чистой
+# генерации (сумма duration_s клеток — без загрузки модели и простоев)
+LOCAL_RUB_H = 35.85
+RUB_USD = 85.15
+LOCAL_USD_H = LOCAL_RUB_H / RUB_USD
+
+
+def local_cost_usd(session: dict) -> float:
+    return (sum(t.get("duration_s") or 0 for t in session.get("turns", []))
+            / 3600 * LOCAL_USD_H)
 
 
 def cloud_env_value(name: str) -> str:
@@ -637,6 +664,13 @@ def supplement_deep(model_dir: Path, timeout: int,
                     if done_reason not in (None, "stop") else "")
             print(f"    [{q['id']}] {q['topic']}: {duration:.0f}s → {mark} "
                   f"'{answer or '—'}' (эталон: '{expected}'){warn}")
+        if provider == "openrouter":
+            session["cost_usd"] = round(
+                (session.get("cost_usd") or 0) + sum(supp_costs), 6)
+        elif provider == "deepseek":
+            session["cost_usd"] = round(deepseek_cost_usd(session), 6)
+        else:
+            session["cost_usd"] = round(local_cost_usd(session), 6)
         write_answers_csv(out_dir, turns)
         if provider == "openrouter" and supp_costs:
             from runner_openrouter import append_ledger
@@ -990,6 +1024,8 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
         session["cost_usd"] = round(sum(run_costs), 6)
     elif provider == "deepseek":
         session["cost_usd"] = round(deepseek_cost_usd(session), 6)
+    else:
+        session["cost_usd"] = round(local_cost_usd(session), 6)
     flush()
     write_answers_csv(out_dir, turns)
     total = sum(t["duration_s"] for t in turns)
