@@ -1474,6 +1474,7 @@ def build_series_report(models_root: Path, questions_path: Path,
             cells.append(f'<td class="num" style="background:{heat_color(p_ / 100)}">{p_}</td>'
                          if p_ is not None else '<td class="num">—</td>')
         dur, tin, tout, ccost = cost
+        cells.append(f'<td class="num">{n_runs}</td>')
         cells.append(f'<td class="num">{dur:.0f}с</td>')
         cells.append(f'<td class="num">{tin / 1000:.1f}k</td>')
         cells.append(f'<td class="num">{tout / 1000:.1f}k</td>')
@@ -1482,9 +1483,9 @@ def build_series_report(models_root: Path, questions_path: Path,
         cells.append(f'<td class="num" style="background:{heat_color(jp / 100)}">{jp}%</td>'
                      if jp is not None else '<td class="num">—</td>')
         mrows.append("<tr>" + "".join(cells) + "</tr>")
-    cost_heads = [("Время", "Время"), ("Ток вх", "Ток вх"),
-                  ("Ток вых", "Ток вых"), ("Цена", "Цена"),
-                  ("Стаб.", "Стаб."), ("JSON", "JSON")]
+    cost_heads = [("Прогонов", "Прогонов"), ("Время", "Время"),
+                  ("Ток вх", "Ток вх"), ("Ток вых", "Ток вых"),
+                  ("Цена", "Цена"), ("Стаб.", "Стаб."), ("JSON", "JSON")]
     head = ('<tr><th>Модель</th><th>think</th><th>Язык</th>'
             + "".join(f'<th title="{fam_titles[k]}">{h}</th>'
                       if k in fam_titles else f"<th>{h}</th>"
