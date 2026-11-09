@@ -1342,8 +1342,9 @@ def build_series_report(models_root: Path, questions_path: Path,
                            and is_correct(by_id[q["id"]])
                            for _rd, _s, by_id in items))
                 flips = sum(1 for q in questions if flip_by_id[q["id"]])
-                groups.append((think, runs_list, flip_by_id, fams_list,
-                               cost, stable_ok, flips, json_pct_))
+                groups.append((think, think_disp, runs_list, flip_by_id,
+                               fams_list, cost, stable_ok, flips, json_pct_,
+                               n_app))
                 metrics.append((model, think, lang, fams_list, cost, flips,
                                 n_app, json_pct_, n_runs))
             if not groups:
@@ -1356,13 +1357,13 @@ def build_series_report(models_root: Path, questions_path: Path,
                 f"repeat({max_level}, {cell_px}px) {agg_px}px "
                 f"{sp_px}px"] * len(groups)
             cells = ['<div class="uhead"></div>']
-            for think, runs_list, flip_by_id, fams_list, cost, sok, fl, _jp \
-                    in groups:
+            for think, think_disp, runs_list, flip_by_id, fams_list, cost, \
+                    sok, fl, _jp, n_app in groups:
                 cells.append(
                     f'<div class="uhead" style="grid-column: '
                     f'span {max_level + 1}">'
                     f'think: {esc(think_disp)}<span class="umeta">'
-                    f'стаб. {pct(n_app - flips, n_app)}%'
+                    f'стаб. {pct(n_app - fl, n_app)}%'
                     + (f' · прим. {n_app}/{len(questions)}'
                        if n_app != len(questions) else '')
                     + '</span></div>')
@@ -1371,8 +1372,8 @@ def build_series_report(models_root: Path, questions_path: Path,
                 cells.append(f'<div class="rh">{esc(topic)}</div>')
                 tq = sorted((q for q in questions if q["topic"] == topic),
                             key=lambda q: q["level"])
-                for gi, (t, runs_list, flip_by_id, _fams, _cost, _sok, _fl,
-                         _jp) in enumerate(groups):
+                for gi, (t, _td, runs_list, flip_by_id, _fams, _cost, _sok,
+                         _fl, _jp, _na) in enumerate(groups):
                     cmp_name = f"compare-{t}-{lang}-v{qver}.html"
                     cmp_href = ""
                     if (models_root / md.name / "knowledge-map"
@@ -1421,7 +1422,7 @@ def build_series_report(models_root: Path, questions_path: Path,
 
             levels_s = ", ".join(t for t, *_ in groups)
             # ссылка на полный отчёт — в сетке, под картой каждого уровня
-            for gi, (t, _rl, _f, _fams, _cost, _sok, _fl, _jp) \
+            for gi, (t, _td, _rl, _f, _fams, _cost, _sok, _fl, _jp, _na) \
                     in enumerate(groups):
                 cmp_name = f"compare-{t}-{lang}-v{qver}.html"
                 if not (models_root / md.name / "knowledge-map" / cmp_name).exists():
