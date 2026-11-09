@@ -1539,7 +1539,9 @@ def build_series_report(models_root: Path, questions_path: Path,
              "table.metrics td.num { text-align: right; font-variant-numeric: tabular-nums; }"
              "table.metrics th { white-space: nowrap; }"
              "table.metrics td:first-child { white-space: nowrap; }"
-             "table.metrics tr.single { opacity: .55; }")
+             "table.metrics tr.single td { color: #8b909b; }"
+             "table.metrics tr.single td a { color: #8b909b; }"
+             "table.metrics tr.single td.num[style] { color: #1c2130; }")
     html = page(title, proto, "", "\n".join(sections),
                 "построено knowledge-map/build_map_report.py · "
                 f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
