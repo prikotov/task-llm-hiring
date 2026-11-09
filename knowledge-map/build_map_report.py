@@ -1466,16 +1466,13 @@ def build_series_report(models_root: Path, questions_path: Path,
     mrows = []
     for model, think, lang, fams_list, cost, fl, nq, jp, n_runs in metrics:
         pm = dict(fams_list)
-        think_cell = esc(think) + (' <small>1 прогон</small>'
-                                   if n_runs == 1 else '')
-        cells = [f'<td>{esc(model)}</td>', f'<td>{think_cell}</td>',
-                 f'<td>{esc(lang)}</td>']
+        cells = [f'<td>{esc(model)}</td>', f'<td>{esc(think)}</td>',
+                 f'<td>{esc(lang)}</td>', f'<td class="num">{n_runs}</td>']
         for key, _h in fam_heads:
             p_ = pm.get(key)
             cells.append(f'<td class="num" style="background:{heat_color(p_ / 100)}">{p_}</td>'
                          if p_ is not None else '<td class="num">—</td>')
         dur, tin, tout, ccost = cost
-        cells.append(f'<td class="num">{n_runs}</td>')
         cells.append(f'<td class="num">{dur:.0f}с</td>')
         cells.append(f'<td class="num">{tin / 1000:.1f}k</td>')
         cells.append(f'<td class="num">{tout / 1000:.1f}k</td>')
@@ -1484,7 +1481,7 @@ def build_series_report(models_root: Path, questions_path: Path,
         cells.append(f'<td class="num" style="background:{heat_color(jp / 100)}">{jp}%</td>'
                      if jp is not None else '<td class="num">—</td>')
         mrows.append("<tr>" + "".join(cells) + "</tr>")
-    cost_heads = [("Прогонов", "Прогонов"), ("Время", "Время"),
+    cost_heads = [("Время", "Время"),
                   ("Ток вх", "Ток вх"), ("Ток вых", "Ток вых"),
                   ("Цена", "Цена"), ("Стаб.", "Стаб."), ("JSON", "JSON")]
     head = ('<tr><th>Модель</th><th>think</th><th>Язык</th>'
