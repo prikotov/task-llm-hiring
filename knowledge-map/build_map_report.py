@@ -428,6 +428,7 @@ def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
       {bias_chip}
       <div class="chip">Время: <b>{time_s}</b>
            ({statistics.median(t.get('duration_s') or 0 for t in turns):.2f} c на клетку — медиана)</div>
+      {f'<div class="chip">Цена: <b>${session.get("cost_usd"):.3f}</b></div>' if session.get("cost_usd") else ''}
       <div class="chip">Токены: <b>{totals.get('prompt_tokens', 0)} вх /
            {totals.get('output_tokens', 0)} вых</b> (кэш: {totals.get('cached_tokens', 0)})</div>
       <div class="chip">{esc(ver_s)}</div>
@@ -1246,7 +1247,8 @@ def build_series_report(models_root: Path, questions_path: Path,
                                 for t in turns_all)
                 tout_total = sum(t.get("eval_count") or 0
                                  for t in turns_all)
-                cost = (dur_total, tin_total, tout_total)
+                cloud_cost = sum(s.get("cost_usd") or 0 for _, s, _ in items)
+                cost = (dur_total, tin_total, tout_total, cloud_cost)
                 json_pct_ = pct(sum(1 for t in turns_all if t.get("json_ok")),
                                 max(1, len(turns_all)))
                 stable_ok = sum(
@@ -1382,16 +1384,17 @@ def build_series_report(models_root: Path, questions_path: Path,
             p_ = pm.get(key)
             cells.append(f'<td class="num" style="background:{heat_color(p_ / 100)}">{p_}</td>'
                          if p_ is not None else '<td class="num">—</td>')
-        dur, tin, tout = cost
+        dur, tin, tout, ccost = cost
         cells.append(f'<td class="num">{dur:.0f}с</td>')
         cells.append(f'<td class="num">{tin / 1000:.1f}k</td>')
         cells.append(f'<td class="num">{tout / 1000:.1f}k</td>')
+        cells.append(f'<td class="num">${ccost:.2f}</td>' if ccost else '<td class="num">—</td>')
         cells.append(f'<td class="num" style="background:{heat_color(1 - fl / max(1, nq))}">{pct(nq - fl, nq)}%</td>')
         cells.append(f'<td class="num" style="background:{heat_color(jp / 100)}">{jp}%</td>')
         mrows.append("<tr>" + "".join(cells) + "</tr>")
     cost_heads = [("Время", "Время"), ("Ток вх", "Ток вх"),
-                  ("Ток вых", "Ток вых"), ("Стаб.", "Стаб."),
-                  ("JSON", "JSON")]
+                  ("Ток вых", "Ток вых"), ("Цена", "Цена"),
+                  ("Стаб.", "Стаб."), ("JSON", "JSON")]
     head = ('<tr><th>Модель</th><th>think</th><th>Язык</th>'
             + "".join(f'<th title="{fam_titles[k]}">{h}</th>'
                       if k in fam_titles else f"<th>{h}</th>"
@@ -1403,7 +1406,8 @@ def build_series_report(models_root: Path, questions_path: Path,
     title = "Карты знаний PHP — единая карта серий прогонов"
     proto = ("сверху — таблица метрик серий: по строке на (модель × think × "
              "язык), колонки — семейства (тепловая заливка), суммарные время "
-             "и токены серии, стабильность; ниже — карты: строка = модель × "
+             "и токены серии, цена (облачные; локальные на своём железе — "
+             "без listing-цены), стабильность; ниже — карты: строка = модель × "
              "версия вопросника × язык, строки тем, группы колонок — уровни "
              "мышления; клетка = доля верных ответов по серии (число — %), "
              "пунктир — флип; карта всегда одной строкой (горизонтальная "

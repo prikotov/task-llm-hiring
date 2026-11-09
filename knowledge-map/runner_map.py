@@ -986,6 +986,10 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
                   f" (верно: {'да' if q['answer'] else 'нет'}){warn}")
         flush()
 
+    if provider == "openrouter":
+        session["cost_usd"] = round(sum(run_costs), 6)
+    elif provider == "deepseek":
+        session["cost_usd"] = round(deepseek_cost_usd(session), 6)
     flush()
     write_answers_csv(out_dir, turns)
     total = sum(t["duration_s"] for t in turns)
