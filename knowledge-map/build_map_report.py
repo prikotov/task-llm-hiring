@@ -1328,8 +1328,12 @@ def build_series_report(models_root: Path, questions_path: Path,
                                  for t in turns_all)
                 cloud_cost = sum(s.get("cost_usd") or 0 for _, s, _ in items)
                 cost = (dur_total, tin_total, tout_total, cloud_cost)
-                json_pct_ = pct(sum(1 for t in turns_all if t.get("json_ok")),
-                                max(1, len(turns_all)))
+                # decision-модели работают без JSON-контракта — прочерк
+                is_decision = all(
+                    s.get("protocol") == "decision" for _rd, s, _b in items)
+                json_pct_ = None if is_decision else \
+                    pct(sum(1 for t in turns_all if t.get("json_ok")),
+                        max(1, len(turns_all)))
                 stable_ok = sum(
                     1 for q in questions
                     if all(by_id.get(q["id"], {}).get("answer") is not None
@@ -1471,7 +1475,8 @@ def build_series_report(models_root: Path, questions_path: Path,
         cells.append(f'<td class="num">{tout / 1000:.1f}k</td>')
         cells.append(f'<td class="num">${ccost:.2f}</td>' if ccost else '<td class="num">—</td>')
         cells.append(f'<td class="num" style="background:{heat_color(1 - fl / max(1, nq))}">{pct(nq - fl, nq)}%</td>')
-        cells.append(f'<td class="num" style="background:{heat_color(jp / 100)}">{jp}%</td>')
+        cells.append(f'<td class="num" style="background:{heat_color(jp / 100)}">{jp}%</td>'
+                     if jp is not None else '<td class="num">—</td>')
         mrows.append("<tr>" + "".join(cells) + "</tr>")
     cost_heads = [("Время", "Время"), ("Ток вх", "Ток вх"),
                   ("Ток вых", "Ток вых"), ("Цена", "Цена"),
