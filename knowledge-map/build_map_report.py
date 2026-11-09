@@ -1345,8 +1345,19 @@ def build_series_report(models_root: Path, questions_path: Path,
                 groups.append((think, think_disp, runs_list, flip_by_id,
                                fams_list, cost, stable_ok, flips, json_pct_,
                                n_app))
+                run_href = (f"../models/{esc(md.name)}/knowledge-map/"
+                            f"{runs_list[0][0]}/report.html"
+                            if n_runs == 1 and
+                            (models_root / md.name / "knowledge-map"
+                             / runs_list[0][0] / "report.html").exists()
+                            else "")
+                cmp_name_m = f"compare-{think}-{lang}-v{qver}.html"
+                link = (f"../models/{esc(md.name)}/knowledge-map/"
+                        f"{cmp_name_m}"
+                        if (models_root / md.name / "knowledge-map"
+                            / cmp_name_m).exists() else run_href)
                 metrics.append((model, think, lang, fams_list, cost, flips,
-                                n_app, json_pct_, n_runs))
+                                n_app, json_pct_, n_runs, link))
             if not groups:
                 continue
 
@@ -1376,8 +1387,16 @@ def build_series_report(models_root: Path, questions_path: Path,
                          _fl, _jp, _na) in enumerate(groups):
                     cmp_name = f"compare-{t}-{lang}-v{qver}.html"
                     cmp_href = ""
-                    if (models_root / md.name / "knowledge-map"
-                            / cmp_name).exists():
+                    if n_runs == 1:
+                        # одиночная серия — полный отчёт и есть отчёт прогона
+                        rp = (models_root / md.name / "knowledge-map"
+                              / runs_list[0][0] / "report.html")
+                        if rp.exists():
+                            cmp_href = (f"../models/{esc(md.name)}/"
+                                        f"knowledge-map/{runs_list[0][0]}/"
+                                        f"report.html")
+                    elif (models_root / md.name / "knowledge-map"
+                          / cmp_name).exists():
                         cmp_href = (f"../models/{esc(md.name)}/knowledge-map/"
                                     f"{cmp_name}")
                     run_base = {}
@@ -1422,18 +1441,27 @@ def build_series_report(models_root: Path, questions_path: Path,
 
             levels_s = ", ".join(t for t, *_ in groups)
             # ссылка на полный отчёт — в сетке, под картой каждого уровня
-            for gi, (t, _td, _rl, _f, _fams, _cost, _sok, _fl, _jp, _na) \
-                    in enumerate(groups):
+            for gi, (t, _td, runs_list_g, _f, _fams, _cost, _sok, _fl, _jp,
+                     _na) in enumerate(groups):
                 cmp_name = f"compare-{t}-{lang}-v{qver}.html"
-                if not (models_root / md.name / "knowledge-map" / cmp_name).exists():
+                single = len(runs_list_g) == 1
+                if not single and not (
+                        models_root / md.name / "knowledge-map"
+                        / cmp_name).exists():
                     continue
-                col0 = 2 + gi * (max_level + 2)  # метка + (клетки + итог +
-                # граница) на группу
+                if single:
+                    href_g = (f"../models/{esc(md.name)}/knowledge-map/"
+                              f"{runs_list_g[0][0]}/report.html")
+                    label_g = "Отчёт прогона (1 прогон)"
+                else:
+                    href_g = (f"../models/{esc(md.name)}/knowledge-map/"
+                              f"{cmp_name}")
+                    label_g = "Полный отчёт серии"
+                col0 = 2 + gi * (max_level + 2)
                 cells.append(
                     f'<div class="ulink" style="grid-column: {col0} / '
                     f'span {max_level + 1}">'
-                    f'<a href="../models/{esc(md.name)}/knowledge-map/{cmp_name}">'
-                    f'Полный отчёт серии</a></div>')
+                    f'<a href="{href_g}">{label_g}</a></div>')
                 cells.append('<div class="gsp"></div>')
             sections.append(
                 f'<h2>{model} · вопросник v{q_version} · язык: {esc(lang)}</h2>\n'
@@ -1464,9 +1492,12 @@ def build_series_report(models_root: Path, questions_path: Path,
                              "26 тем × 2 (машинно проверяемые эталоны)"}
     metrics.sort(key=lambda m: (m[0], think_order.get(m[1], 99), m[2]))
     mrows = []
-    for model, think, lang, fams_list, cost, fl, nq, jp, n_runs in metrics:
+    for model, think, lang, fams_list, cost, fl, nq, jp, n_runs, link \
+            in metrics:
         pm = dict(fams_list)
-        cells = [f'<td>{esc(model)}</td>', f'<td>{esc(think)}</td>',
+        model_cell = (f'<a href="{link}">{esc(model)}</a>'
+                      if link else esc(model))
+        cells = [f'<td>{model_cell}</td>', f'<td>{esc(think)}</td>',
                  f'<td>{esc(lang)}</td>', f'<td class="num">{n_runs}</td>']
         for key, _h in fam_heads:
             p_ = pm.get(key)
