@@ -646,7 +646,8 @@ CELLS = [
                "en": "Unknown client → invalid_client (RFC 6749 §5.2).",
                "zh": "未知客户端 → invalid_client（RFC 6749 §5.2）。"}),
     dict(id="T20-L10", level=10, exp="fragment",
-         grader={"accept": ["fragment", "фрагмент", "片段"]},
+         grader={"accept": ["fragment", "фрагмент", "фрагменте",
+                            "во фрагменте", "片段"]},
          prompt={"ru": "OAuth 2.0: клиент начал поток с response_type=token. "
                        "В какой части redirect_uri авторизационный сервер передаёт access_token?",
                  "en": "OAuth 2.0: the client started the flow with response_type=token. "

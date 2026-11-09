@@ -75,3 +75,4 @@ reports/knowledge-map-series.html.
 compare-*-v8.html с L9/L10 строками, колонка «Глубина» в
 reports/knowledge-map-series.html.
 
+**Regrade 2026-11-09**: эталон T24-L5 инвертирован (sol 6.1 поймала ошибку: число в .mt-3 — ключ карты $spacers, не множитель $spacer; машинно: .mt-3 = 1rem), accept T20-L10 расширен словоформой «фрагменте» (sol ответила верно по сути). Цифры выше — до regrade; актуальные — в отчётах (сдвиг ±0.5 п.п.).
