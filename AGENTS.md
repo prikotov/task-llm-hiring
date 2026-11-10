@@ -159,6 +159,21 @@ solo-репо не может требовать аппрув второго ч�
   как инструмент: `interview/embed_compare.py` (близость к SOTA-эталону,
   выводы — `reports/EMBEDDINGS-experiment.md`; рабочий эмбеддер — bge-m3).
 
+## ⚠️ Незавершённая задача: pi-адаптация ornith (обязательно)
+
+У ornith-1.5 MTP-слой в весах есть (`qwen35moe.nextn_predict_layers: 1`),
+но ни один из трёх серверных тегов его не задействует: нет
+`draft_num_predict`, нет `RENDERER qwen3.8` / `PARSER qwen3.5` (образец
+pi-адаптации — huihui-ai:pi-100k: `draft_num_predict 4`). Матрица карты
+знаний ornith (run-01…45) измерена на базовом теге с дефолтным
+сэмплингом (temp 0.8, без top_k) БЕЗ MTP — это не pi-развёртывание.
+
+**Сделать**: создать тег `ornith-1.5:35b-pi` (num_ctx 102400, temp 0.6,
+top_k 20, top_p 0.95, `draft_num_predict 4`, RENDERER/PARSER), перегнать
+полную матрицу карты знаний на нём (ru/en/zh × off/low/medium × 5 +
+deep-дополнение), сравнить с без-MTP базой (модель
+`models/ornith-1.5-35b/model.md`, раздел TODO). Детали — в карточке.
+
 ## Правила тестирования (важно)
 
 1. Запрос к модели — единый сырой промпт через API сервера моделей, без system-сообщения
