@@ -120,3 +120,17 @@ temperature 0.6, top_p 0.95, top_k 20; num_ctx тот же). Прогон run-04
 - Цена: копейки по §8 ($0.009–0.03/прогон).
 Детали: knowledge-map/run-01…45, compare-{off,low,medium}-{ru,en,zh}-v8.html,
 reports/knowledge-map-series.html.
+
+## TODO (обязательно): pi-адаптация ornith отсутствует
+
+MTP-слой в весах есть (`qwen35moe.nextn_predict_layers: 1`), но ни один
+из трёх тегов его не задействует: нет `draft_num_predict`, нет
+`RENDERER qwen3.8` / `PARSER qwen3.5` (сравни pi-адаптацию
+huihui-ai:pi-100k: draft_num_predict 4). Матрица выше (run-01…45)
+измерена на базовом теге с дефолтным сэмплингом (temp 0.8, без top_k)
+и без MTP = «interview-конфигурация», не pi-развёртывание.
+
+Нужен тег `ornith-1.5:35b-pi`: num_ctx 102400 + temp 0.6 + top_k 20 +
+top_p 0.95 + **draft_num_predict 4** + RENDERER/PARSER, затем полный
+перегон матрицы на нём и сравнение с без-MTP базой (заодно измерит
+эффект MTP на скорость).
