@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Карта знаний PHP — huihui-ai:pi-100k, run-06 · think: auto</title>
+<style>
+    :root { --fg:#1c2130; --mut:#6b7280; --line:#e3e6ea; }
+    * { box-sizing: border-box; }
+    body { font: 15px/1.5 system-ui, sans-serif; color: var(--fg);
+           background: #f6f7f9; margin: 0; padding: 28px 18px 60px; }
+    main { max-width: 1120px; margin: 0 auto; }
+    h1 { font-size: 24px; margin: 0 0 4px; }
+    h2 { font-size: 18px; margin: 34px 0 10px; }
+    .proto { color: var(--mut); margin: 0 0 18px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 6px; }
+    .chip { background: #fff; border: 1px solid var(--line); border-radius: 9px;
+            padding: 7px 12px; font-size: 14px; }
+    .chip b { font-size: 16px; }
+    .legend { display: flex; gap: 16px; align-items: center; margin: 10px 0 4px;
+              font-size: 13.5px; flex-wrap: wrap; }
+    .legend .hint { color: var(--mut); font-size: 12.5px; }
+    .sw { display: inline-block; width: 14px; height: 14px; border-radius: 4px;
+          margin-right: 6px; vertical-align: -2px; }
+    .mapwrap { overflow: visible; background: #fff; border: 1px solid var(--line);
+               border-radius: 12px; padding: 16px; width: fit-content;
+               max-width: 100%; }
+    .map { display: grid; gap: 3px;
+           grid-template-columns: minmax(190px, 250px) repeat(8, 46px) 84px; }
+    .hd { text-align: center; align-self: end; font-weight: 600; font-size: 13px;
+          color: var(--mut); padding-bottom: 4px; }
+    .rh { align-self: center; font-size: 13.5px; padding: 4px 8px 4px 0; }
+    .cell { height: 46px; border-radius: 7px; position: relative; }
+    a.cell { display: block; color: inherit; text-decoration: none; }
+    tr:target { outline: 2px solid #1c2130; background: #fffbe8; }
+    .cell.ok { background: #3aa25c; }
+    .cell.bad { background: #d75f5f; }
+    .cell.na { background: #a9b0ba; }
+    .cell:hover { outline: 2px solid #1c2130; }
+    .cell .tip { display: none; position: absolute; bottom: 108%; left: 50%;
+                 transform: translateX(-50%); width: 320px; z-index: 20;
+                 background: #202634; color: #eef1f6; padding: 10px 12px;
+                 border-radius: 9px; font-size: 12px; line-height: 1.45;
+                 text-align: left; white-space: normal;
+                 box-shadow: 0 6px 18px rgba(0,0,0,.35); }
+    .cell:hover .tip { display: block; }
+    .tip .nb { white-space: nowrap; }
+    .tip a { color: #9ecbff; }
+    /* клетка-контейнер с невидимой ссылкой-подложкой: клик по клетке
+       ведёт к таблице, а ссылки внутри тултипа не вкладываются в <a> */
+    .cell .fill { position: absolute; inset: 0; border-radius: inherit;
+                  color: inherit; text-decoration: none; }
+    .cell .num { pointer-events: none; }
+    .cell .num { position: absolute; inset: 0; display: flex; align-items: center;
+                 justify-content: center; font-weight: 700; font-size: 13px;
+                 color: rgba(20,24,32,.75); }
+    .flip { outline: 2px dashed #8a2d2d; outline-offset: -2px; }
+    .agg { align-self: center; text-align: center; font-weight: 700;
+           font-size: 13px; color: var(--mut); }
+    table.data { border-collapse: collapse; background: #fff; width: 100%;
+                 border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+    table.data th, table.data td { border-bottom: 1px solid var(--line);
+                 padding: 8px 12px; text-align: left; vertical-align: top; }
+    table.data th { background: #f0f2f5; font-size: 13px; color: var(--mut); }
+    .bar { background: #ececef; height: 12px; border-radius: 6px; width: 100%;
+           max-width: 260px; }
+    .bar > div { height: 100%; border-radius: 6px; background: var(--fg); }
+    .ok-t { color: #22834a; font-weight: 600; }
+    .bad-t { color: #b03a3a; font-weight: 600; }
+    td.bad-t small { color: var(--fg); font-weight: 400; }
+    .na-t { color: var(--mut); }
+    td.assert { font-size: 13.5px; }
+    code.id { font-size: 12.5px; background: #eef1f4; border-radius: 5px;
+              padding: 1px 6px; white-space: nowrap; }
+    footer { color: var(--mut); font-size: 12.5px; margin-top: 40px; }
+    .raw-details summary { cursor: pointer; color: var(--mut);
+                           font-size: 11.5px; user-select: none; }
+    .raw-details[open] summary { margin-bottom: 4px; }
+    .raw-sample { background: #f4f6f8; border: 1px solid var(--line);
+                  border-radius: 6px; padding: 6px 8px; margin: 4px 0 0;
+                  font: 11.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+                  white-space: pre-wrap; word-break: break-word; }
+    .compact-w { padding: 10px; }
+    .compact-w .map { gap: 2px; }
+    .map.compact .cell { height: 20px; border-radius: 3px; }
+    .map.compact .rh { font-size: 11px; white-space: nowrap; }
+    .map.compact .hd, .map.compact .agg { white-space: nowrap; }
+    .map.compact .hd { font-size: 10.5px; padding-bottom: 2px; }
+    .map.compact .agg { font-size: 10.5px; }
+    .map.compact .zonehdr { font-size: 11px; padding: 3px 8px; margin-top: 4px; }
+    .map.compact .cell .num { font-size: 9.5px; }
+    .unimap-wrap { overflow: visible; background: #fff;
+                   border: 1px solid var(--line); border-radius: 12px;
+                   padding: 12px; margin: 8px 0 30px; }
+    .unimap { display: grid; gap: 2px; width: max-content; }
+    .uhead { align-self: end; font-weight: 600; font-size: 12px;
+             padding: 4px 6px 6px; }
+    .umeta { display: block; font-weight: 400; color: var(--mut);
+             font-size: 11px; }
+    .unimap .rh { font-size: 11px; white-space: nowrap; align-self: center; }
+    .unimap .cell { height: 22px; border-radius: 5px; position: relative; }
+    .unimap .cell .num { font-size: 10.5px; }
+    .unimap .cell .tip { font-size: 12px; }
+    .unimap .agg { font-size: 11px; align-self: center;
+                   white-space: nowrap; }
+    .unimap .gsp { width: 16px; }
+    .ulink { font-size: 11px; padding: 5px 6px; text-align: center; }
+    .unimap .ph { width: 26px; }
+    .unimap .rh { font-size: 11.5px; }
+    .zonehdr { grid-column: 1 / -1; font-weight: 600; font-size: 13px;
+               color: var(--fg); background: #eef1f4; border-radius: 6px;
+               padding: 5px 10px; margin-top: 6px; }
+    .reqhead { color: var(--fg); font-size: 15px; margin: 14px 0 8px; }
+    .msg { margin: 0 0 10px; }
+    .msg:last-child { margin-bottom: 0; }
+    .role { display: inline-block; font-size: 11px; font-weight: 600;
+            letter-spacing: .04em; padding: 2px 8px; border-radius: 5px;
+            margin-bottom: 4px; background: #eef1f4; color: var(--mut); }
+    .prompt-sample { background: #f4f6f8; border: 1px solid var(--line);
+                     border-radius: 8px; padding: 10px 12px;
+                     font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+                     white-space: pre-wrap; margin: 0 0 6px; }
+    </style>
+<main>
+<h1>Карта знаний PHP — huihui-ai:pi-100k, run-06 · think: auto</h1>
+<p class="proto"></p>
+
+    <div class="chips">
+      <div class="chip">Оценка: Всего <b>50.0%</b></div><div class="chip">Разобрано JSON: <b>0.0%</b> (0 из 12)</div>
+      <div class="chip">По зонам: <b>База 50.0%</b></div>
+      <div class="chip">Точность: <b>4 / 8</b></div>
+      <div class="chip">Разобрано ответов: <b>12 / 8</b> (без вердикта: -4)</div>
+      <div class="chip">Ответов «да»: <b>66.7%</b>
+           (баланс вопросника 50/50, базлайн константного ответа — 50%)</div>
+      <div class="chip">Время: <b>3.6 мин</b>
+           (15.64 c на клетку — медиана)</div>
+      
+      <div class="chip">Токены: <b>577 вх /
+           5258 вых</b> (кэш: 0)</div>
+      <div class="chip">вопросник v1</div>
+    </div>
+<div class="reqhead">Пример запроса (первая клетка). System одинаковый во всех запросах прогона, user — свой вопрос для каждой клетки:</div><div class="msg"><span class="role">user</span><pre class="prompt-sample">Оператор ?? появился в PHP 7.0.
+
+Верно или неверно? Ответь одним словом: «да» или «нет».</pre></div>
+<h2>Карта</h2>
+<div class="legend">
+  <span><span class="sw" style="background:#3aa25c"></span>верно</span>
+  <span><span class="sw" style="background:#d75f5f"></span>неверно</span>
+  
+</div>
+<div class="legend"><span class="hint">наведите — вопрос и ответ модели · клик — строка с деталями в «Все утверждения»</span></div>
+<div class="mapwrap"><div class="map" style="grid-template-columns: minmax(190px, 250px) repeat(12, 46px) 84px;"><div class="hd"></div><div class="hd">L1</div><div class="hd">L2</div><div class="hd">L3</div><div class="hd">L4</div><div class="hd">L5</div><div class="hd">L6</div><div class="hd">L7</div><div class="hd">L8</div><div class="hd">L9</div><div class="hd">L10</div><div class="hd">L11</div><div class="hd">L12</div><div class="hd">итог</div><div class="rh">Версии PHP</div><a class="cell ok" href="#row-V-L01"><div class="tip"><b>V-L01 · Версии PHP</b><br>Оператор ?? появился в PHP 7.0.<br>Модель: «да»<br>Верный ответ: <b>да</b></div></a><a class="cell bad" href="#row-V-L02"><div class="tip"><b>V-L02 · Версии PHP</b><br>Скалярные type-hints для параметров (int, string) появились уже в PHP 5.6.<br>Модель: «да»<br>Верный ответ: <b>нет</b></div></a><a class="cell ok" href="#row-V-L03"><div class="tip"><b>V-L03 · Версии PHP</b><br>Типизированные свойства классов (public int $x) появились в PHP 7.4.<br>Модель: «да»<br>Верный ответ: <b>да</b></div></a><a class="cell ok" href="#row-V-L04"><div class="tip"><b>V-L04 · Версии PHP</b><br>В какой версии PHP появились функции str_contains(), str_starts_with() и str_ends_with()?<br>Модель: «8.0»<br>Верный ответ: <b>8.0</b></div></a><a class="cell ok" href="#row-V-L05"><div class="tip"><b>V-L05 · Версии PHP</b><br>Property hooks (get/set прямо в объявлении свойства) вошли в PHP 8.4.<br>Модель: «да»<br>Верный ответ: <b>да</b></div></a><a class="cell bad" href="#row-V-L06"><div class="tip"><b>V-L06 · Версии PHP</b><br>В какой версии PHP появилась функция array_find()?<br>Модель: «нет»<br>Верный ответ: <b>8.4</b></div></a><a class="cell bad" href="#row-V-L07"><div class="tip"><b>V-L07 · Версии PHP</b><br>Оператор конвейера |&gt; (pipe) появился в PHP 8.5.<br>Модель: «нет»<br>Верный ответ: <b>да</b></div></a><a class="cell bad" href="#row-V-L08"><div class="tip"><b>V-L08 · Версии PHP</b><br>В какой версии PHP появились функции array_first() и array_last()?<br>Модель: «8.4»<br>Верный ответ: <b>8.5</b></div></a><a class="cell bad" href="#row-V-L09"><div class="tip"><b>V-L09 · Версии PHP</b><br>RFC Partial Function Application v2 отклонён и в PHP не попал.<br>Модель: «да»<br>Верный ответ: <b>нет</b></div></a><a class="cell bad" href="#row-V-L10"><div class="tip"><b>V-L10 · Версии PHP</b><br>Функция clamp() была отклонена и не вошла в PHP 8.6.<br>Модель: «да»<br>Верный ответ: <b>нет</b></div></a><a class="cell bad" href="#row-V-L11"><div class="tip"><b>V-L11 · Версии PHP</b><br>RFC Bound-Erased Generic Types (generics) был отклонён в 2026 году.<br>Модель: «нет»<br>Верный ответ: <b>да</b></div></a><a class="cell ok" href="#row-V-L12"><div class="tip"><b>V-L12 · Версии PHP</b><br>RFC Context Managers v2 уже принят в PHP (на 06.11.2026).<br>Модель: «нет»<br>Верный ответ: <b>нет</b></div></a><div class="agg">5/12</div></div></div>
+<h2>Все утверждения</h2>
+<table class="data">
+<tr><th>Клетка</th><th>Тема</th><th>Утверждение</th><th>Ответ</th>
+    <th>Результат</th><th>Обоснование</th></tr>
+<tr id="row-V-L01"><td><code class="id">V-L01</code><br><small>11.46 c</small></td><td>Версии PHP</td><td class="assert">Оператор ?? появился в PHP 7.0.</td><td>«да»<br><details class="raw-details"><summary>Raw</summary><pre class="raw-sample">да</pre></details></td><td class="ok-t">верно<br><small>парсинг: текст</small></td><td class="assert"><small><i>?? (null coalescing) вошёл в PHP 7.0 (2015).</i></small></td></tr>
+<tr id="row-V-L02"><td><code class="id">V-L02</code><br><small>13.45 c</small></td><td>Версии PHP</td><td class="assert">Скалярные type-hints для параметров (int, string) появились уже в PHP 5.6.</td><td>«да»<br><details class="raw-details"><summary>Raw</summary><pre class="raw-sample">да</pre></details></td><td class="bad-t">неверно<br><small>верный: «нет»</small><br><small>парсинг: текст</small></td><td class="assert"><small><i>Скалярные type-hints — PHP 7.0; в 5.6 были только class-hints.</i></small></td></tr>
+<tr id="row-V-L03"><td><code class="id">V-L03</code><br><small>12.71 c</small></td><td>Версии PHP</td><td class="assert">Типизированные свойства классов (public int $x) появились в PHP 7.4.</td><td>«да»<br><details class="raw-details"><summary>Raw</summary><pre class="raw-sample">да</pre></details></td><td class="ok-t">верно<br><small>парсинг: текст</small></td><td class="assert"><small><i>Typed properties 2.0 — PHP 7.4.</i></small></td></tr>
+<tr id="row-V-L04"><td><code class="id">V-L04</code><br><small>12.08 c</small></td><td>Версии PHP</td><td class="assert">В какой версии PHP появились функции str_contains(), str_starts_with() и str_ends_with()?</td><td>«8.0»<br><details class="raw-details"><summary>Raw</summary><pre class="raw-sample">8.0</pre></details></td><td class="ok-t">верно<br><small>парсинг: текст</small></td><td class="assert"><small><i>PHP 8.0 (2020).</i></small></td></tr>
+<tr id="row-V-L05"><td><code class="id">V-L05</code><br><small>12.52 c</small></td><td>Версии PHP</td><td class="assert">Property hooks (get/set прямо в объявлении свойства) вошли в PHP 8.4.</td><td>«да»<br><details class="raw-details"><summary>Raw</summary><pre class="raw-sample">да</pre></details></td><td class="ok-t">верно<br><small>парсинг: текст</small></td><td class="assert"><small><i>Property hooks — PHP 8.4 (ноябрь 2024).</i></small></td></tr>
+<tr id="row-V-L06"><td><code class="id">V-L06</code><br><small>16.29 c</small></td><td>Версии PHP</td><td class="assert">В какой версии PHP появилась функция array_find()?</td><td>«нет»<br><details class="raw-details"><summary>Raw</summary><pre class="raw-sample">нет</pre></details></td><td class="bad-t">неверно<br><small>верный: «8.4»</small><br><small>парсинг: текст</small></td><td class="assert"><small><i>PHP 8.4 (RFC array_find).</i></small></td></tr>
+<tr id="row-V-L07"><td><code class="id">V-L07</code><br><small>22.98 c</small></td><td>Версии PHP</td><td class="assert">Оператор конвейера |&gt; (pipe) появился в PHP 8.5.</td><td>«нет»<br><details class="raw-details"><summary>Raw</summary><pre class="raw-sample">нет</pre></details></td><td class="bad-t">неверно<br><small>верный: «да»</small><br><small>парсинг: текст</small></td><td class="assert"><small><i>Pipe operator — PHP 8.5 (2025).</i></small></td></tr>
+<tr id="row-V-L08"><td><code class="id">V-L08</code><br><small>26.9 c</small></td><td>Версии PHP</td><td class="assert">В какой версии PHP появились функции array_first() и array_last()?</td><td>«8.4»<br><details class="raw-details"><summary>Raw</summary><pre class="raw-sample">8.4</pre></details></td><td class="bad-t">неверно<br><small>верный: «8.5»</small><br><small>парсинг: текст</small></td><td class="assert"><small><i>PHP 8.5.</i></small></td></tr>
+<tr id="row-V-L09"><td><code class="id">V-L09</code><br><small>25.03 c</small></td><td>Версии PHP</td><td class="assert">RFC Partial Function Application v2 отклонён и в PHP не попал.</td><td>«да»<br><details class="raw-details"><summary>Raw</summary><pre class="raw-sample">да</pre></details></td><td class="bad-t">неверно<br><small>верный: «нет»</small><br><small>парсинг: текст</small></td><td class="assert"><small><i>На 06.11.2026 PFA v2 принят и реализован в PHP 8.6.</i></small></td></tr>
+<tr id="row-V-L10"><td><code class="id">V-L10</code><br><small>23.52 c</small></td><td>Версии PHP</td><td class="assert">Функция clamp() была отклонена и не вошла в PHP 8.6.</td><td>«да»<br><details class="raw-details"><summary>Raw</summary><pre class="raw-sample">Да</pre></details></td><td class="bad-t">неверно<br><small>верный: «нет»</small><br><small>парсинг: текст</small></td><td class="assert"><small><i>На 06.11.2026 clamp (clamp_v2) принят и реализован в 8.6.</i></small></td></tr>
+<tr id="row-V-L11"><td><code class="id">V-L11</code><br><small>25.97 c</small></td><td>Версии PHP</td><td class="assert">RFC Bound-Erased Generic Types (generics) был отклонён в 2026 году.</td><td>«нет»<br><details class="raw-details"><summary>Raw</summary><pre class="raw-sample">Нет</pre></details></td><td class="bad-t">неверно<br><small>верный: «да»</small><br><small>парсинг: текст</small></td><td class="assert"><small><i>Голосование завершилось 2026-06-28: отклонён.</i></small></td></tr>
+<tr id="row-V-L12"><td><code class="id">V-L12</code><br><small>15.0 c</small></td><td>Версии PHP</td><td class="assert">RFC Context Managers v2 уже принят в PHP (на 06.11.2026).</td><td>«нет»<br><details class="raw-details"><summary>Raw</summary><pre class="raw-sample">Нет</pre></details></td><td class="ok-t">верно<br><small>парсинг: текст</small></td><td class="assert"><small><i>На 06.11.2026 — в обсуждении (создан 2026-10-23); не принят.</i></small></td></tr>
+</table>
+<footer>построено knowledge-map/build_map_report.py · 2026-11-09 14:11 UTC · данные прогона: session.json, answers.csv</footer>
+</main>
+</html>

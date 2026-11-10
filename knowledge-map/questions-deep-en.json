@@ -1,0 +1,801 @@
+{
+  "version": 4,
+  "deep_for": 8,
+  "questions": [
+    {
+      "id": "T01-L9",
+      "topic": "Syntax and operators",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "intdiv truncates toward zero: intdiv(-7, 2) = -3, not -4.",
+      "prompt": "What does this code output?\n\n```php\necho intdiv(7, 2) . intdiv(-7, 2);\n```",
+      "grader": {
+        "php": "echo intdiv(7, 2) . intdiv(-7, 2);"
+      }
+    },
+    {
+      "id": "T01-L10",
+      "topic": "Syntax and operators",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "** is right-associative and binds tighter than unary minus: -(3²).",
+      "prompt": "What does this code output?\n\n```php\necho -3 ** 2;\n```",
+      "grader": {
+        "regex": "^-9$",
+        "accept": [
+          "-9"
+        ]
+      }
+    },
+    {
+      "id": "T02-L9",
+      "topic": "Types and comparisons",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "Both strings are numeric — compared as numbers: 10 == 10.",
+      "prompt": "What does this code output?\n\n```php\necho '1e1' == '10' ? 'true' : 'false';\n```",
+      "grader": {
+        "php": "echo '1e1' == '10' ? 'true' : 'false';"
+      }
+    },
+    {
+      "id": "T02-L10",
+      "topic": "Types and comparisons",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "PHP 8: 'a' == 0 → false (used to be true) — default fires.",
+      "prompt": "What does this code output?\n\n```php\nswitch ('a') {\n    case 0: echo 'zero'; break;\n    default: echo 'other';\n}\n```",
+      "grader": {
+        "php": "switch ('a') {\n    case 0: echo 'zero'; break;\n    default: echo 'other';\n}"
+      }
+    },
+    {
+      "id": "T03-L9",
+      "topic": "Strings",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "strtr with an array prefers the longest matching key.",
+      "prompt": "What does this code output?\n\n```php\necho strtr('abc', ['a' => '1', 'ab' => '2']);\n```",
+      "grader": {
+        "php": "echo strtr('abc', ['a' => '1', 'ab' => '2']);"
+      }
+    },
+    {
+      "id": "T03-L10",
+      "topic": "Strings",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "A negative start beyond the string is clamped to the beginning.",
+      "prompt": "What does this code output?\n\n```php\necho '[' . substr('hello', -10) . ']';\n```",
+      "grader": {
+        "php": "echo '[' . substr('hello', -10) . ']';"
+      }
+    },
+    {
+      "id": "T04-L9",
+      "topic": "Arrays",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "The + operator: on duplicate string keys the left array wins.",
+      "prompt": "What does this code output?\n\n```php\n$a = ['k' => 1, 'n' => 2];\n$b = ['k' => 9, 'm' => 3];\necho implode(',', array_keys($a + $b));\n```",
+      "grader": {
+        "php": "$a = ['k' => 1, 'n' => 2];\n$b = ['k' => 9, 'm' => 3];\necho implode(',', array_keys($a + $b));"
+      }
+    },
+    {
+      "id": "T04-L10",
+      "topic": "Arrays",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "Sorts are stable since 8.0: x and z keep their order on a tie.",
+      "prompt": "What does this code output?\n\n```php\n$a = [[1, 'x', 2], [2, 'y', 1], [3, 'z', 2]];\nusort($a, fn($p, $q) => $p[2] <=> $q[2]);\necho implode('', array_column($a, 1));\n```",
+      "grader": {
+        "php": "$a = [[1, 'x', 2], [2, 'y', 1], [3, 'z', 2]];\nusort($a, fn($p, $q) => $p[2] <=> $q[2]);\necho implode('', array_column($a, 1));"
+      }
+    },
+    {
+      "id": "T05-L10",
+      "topic": "Functions and closures",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "String keys of a spread array become named arguments.",
+      "prompt": "What does this code output?\n\n```php\nfunction f(int $a, int $b): int\n{\n    return $a - $b;\n}\necho f(...['b' => 1, 'a' => 5]);\n```",
+      "grader": {
+        "php": "function f(int $a, int $b): int\n{\n    return $a - $b;\n}\necho f(...['b' => 1, 'a' => 5]);"
+      }
+    },
+    {
+      "id": "T05-L9",
+      "topic": "Functions and closures",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "First-class callable syntax binds $this at creation time.",
+      "prompt": "What does this code output?\n\n```php\nclass P\n{\n    private int $v = 3;\n    public function g(): int { return $this->v; }\n}\n$p = new P;\n$f = $p->g(...);\n$p = null;\necho $f();\n```",
+      "grader": {
+        "php": "class P\n{\n    private int $v = 3;\n    public function g(): int { return $this->v; }\n}\n$p = new P;\n$f = $p->g(...);\n$p = null;\necho $f();"
+      }
+    },
+    {
+      "id": "T06-L9",
+      "topic": "OOP: classes and inheritance",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "Late static binding: static::class is the receiver's class.",
+      "prompt": "What does this code output?\n\n```php\nclass A\n{\n    public function who(): string { return static::class; }\n}\nclass B extends A {}\necho (new B)->who();\n```",
+      "grader": {
+        "php": "class A\n{\n    public function who(): string { return static::class; }\n}\nclass B extends A {}\necho (new B)->who();"
+      }
+    },
+    {
+      "id": "T06-L10",
+      "topic": "OOP: classes and inheritance",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "Inside the set hook, $this->x writes the backing store (no recursion): 5*2.",
+      "prompt": "What does this code output on PHP 8.5?\n\n```php\nclass C\n{\n    public int $x = 0 {\n        set { $this->x = $value * 2; }\n    }\n}\n$c = new C;\n$c->x = 5;\necho $c->x;\n```",
+      "grader": {
+        "php": "class C\n{\n    public int $x = 0 {\n        set { $this->x = $value * 2; }\n    }\n}\n$c = new C;\n$c->x = 5;\necho $c->x;"
+      }
+    },
+    {
+      "id": "T07-L9",
+      "topic": "Interfaces, traits, enum",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "insteadof picks the implementation; as keeps the other under an alias.",
+      "prompt": "What does this code output?\n\n```php\ntrait TA\n{\n    public function f(): string { return 'A'; }\n}\ntrait TB\n{\n    public function f(): string { return 'B'; }\n}\nclass TC\n{\n    use TA, TB { TB::f insteadof TA; TA::f as g; }\n}\necho (new TC)->f() . (new TC)->g();\n```",
+      "grader": {
+        "php": "trait TA\n{\n    public function f(): string { return 'A'; }\n}\ntrait TB\n{\n    public function f(): string { return 'B'; }\n}\nclass TC\n{\n    use TA, TB { TB::f insteadof TA; TA::f as g; }\n}\necho (new TC)->f() . (new TC)->g();"
+      }
+    },
+    {
+      "id": "T07-L10",
+      "topic": "Interfaces, traits, enum",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "A trait's static property is copied into each consuming class.",
+      "prompt": "What does this code output?\n\n```php\ntrait Counter\n{\n    public static int $n = 0;\n}\nclass CX { use Counter; }\nclass CY { use Counter; }\nCX::$n = 1;\necho CY::$n;\n```",
+      "grader": {
+        "php": "trait Counter\n{\n    public static int $n = 0;\n}\nclass CX { use Counter; }\nclass CY { use Counter; }\nCX::$n = 1;\necho CY::$n;"
+      }
+    },
+    {
+      "id": "T08-L10",
+      "topic": "Exceptions and errors",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "A return in finally overrides the return from try.",
+      "prompt": "What does this code output?\n\n```php\nfunction f(): int\n{\n    try { return 1; } finally { return 2; }\n}\necho f();\n```",
+      "grader": {
+        "php": "function f(): int\n{\n    try { return 1; } finally { return 2; }\n}\necho f();"
+      }
+    },
+    {
+      "id": "T08-L9",
+      "topic": "Exceptions and errors",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "An exception from finally replaces the in-flight one — the last thrown is caught.",
+      "prompt": "What does this code output?\n\n```php\ntry {\n    try {\n        throw new RuntimeException('first');\n    } finally {\n        throw new LogicException('second');\n    }\n} catch (LogicException $e) {\n    echo $e->getMessage();\n}\n```",
+      "grader": {
+        "php": "try {\n    try {\n        throw new RuntimeException('first');\n    } finally {\n        throw new LogicException('second');\n    }\n} catch (LogicException $e) {\n    echo $e->getMessage();\n}"
+      }
+    },
+    {
+      "id": "T09-L9",
+      "topic": "Namespaces and autoloading",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "The use alias applies to unqualified names; a leading \\ escapes to the global scope.",
+      "prompt": "What does this code output?\n\n```php\nnamespace N;\nuse App\\Foo as Baz;\necho Baz::class . '|' . \\Baz::class;\n```",
+      "grader": {
+        "php": "namespace N;\nuse App\\Foo as Baz;\necho Baz::class . '|' . \\Baz::class;"
+      }
+    },
+    {
+      "id": "T09-L10",
+      "topic": "Namespaces and autoloading",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "Dynamic names are not resolved against the namespace — 'Foo' is the global class.",
+      "prompt": "What does this code output?\n\n```php\nnamespace Ns;\nclass Foo {}\n$c = 'Foo';\necho (class_exists($c) ? 'yes' : 'no')\n   . (class_exists(__NAMESPACE__ . '\\\\' . $c) ? 'yes' : 'no');\n```",
+      "grader": {
+        "php": "namespace Ns;\nclass Foo {}\n$c = 'Foo';\necho (class_exists($c) ? 'yes' : 'no')\n   . (class_exists(__NAMESPACE__ . '\\\\' . $c) ? 'yes' : 'no');"
+      }
+    },
+    {
+      "id": "T10-L9",
+      "topic": "References and scope",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "After a by-ref foreach, $v remains a reference to the last element.",
+      "prompt": "What does this code output?\n\n```php\n$a = [1, 2, 3];\nforeach ($a as &$v) {}\n$v = 99;\necho implode(',', $a);\n```",
+      "grader": {
+        "php": "$a = [1, 2, 3];\nforeach ($a as &$v) {}\n$v = 99;\necho implode(',', $a);"
+      }
+    },
+    {
+      "id": "T10-L10",
+      "topic": "References and scope",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "A method's static variable belongs to the parent's method — subclasses share it.",
+      "prompt": "What does this code output?\n\n```php\nclass A\n{\n    public function inc(): int\n    {\n        static $n = 0;\n        return ++$n;\n    }\n}\nclass B extends A {}\n$a = new A;\n$b = new B;\n$a->inc();\n$b->inc();\necho $a->inc();\n```",
+      "grader": {
+        "php": "class A\n{\n    public function inc(): int\n    {\n        static $n = 0;\n        return ++$n;\n    }\n}\nclass B extends A {}\n$a = new A;\n$b = new B;\n$a->inc();\n$b->inc();\necho $a->inc();"
+      }
+    },
+    {
+      "id": "T11-L9",
+      "topic": "Generators, iterators, SPL",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "send() resumes the generator: $x = 10, return 10+1.",
+      "prompt": "What does this code output?\n\n```php\nfunction g(): Generator\n{\n    $x = yield 1;\n    return $x + 1;\n}\n$g = g();\n$g->send(10);\necho $g->getReturn();\n```",
+      "grader": {
+        "php": "function g(): Generator\n{\n    $x = yield 1;\n    return $x + 1;\n}\n$g = g();\n$g->send(10);\necho $g->getReturn();"
+      }
+    },
+    {
+      "id": "T11-L10",
+      "topic": "Generators, iterators, SPL",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "yield from does not advance the outer auto-key: yield $r gets key 0 and overwrites the 1 — 'ok' comes out first.",
+      "prompt": "What does this code output?\n\n```php\nfunction inner(): Generator\n{\n    yield 1;\n    yield 2;\n    return 'ok';\n}\nfunction outer(): Generator\n{\n    $r = yield from inner();\n    yield $r;\n}\necho implode(',', iterator_to_array(outer()));\n```",
+      "grader": {
+        "php": "function inner(): Generator\n{\n    yield 1;\n    yield 2;\n    return 'ok';\n}\nfunction outer(): Generator\n{\n    $r = yield from inner();\n    yield $r;\n}\necho implode(',', iterator_to_array(outer()));"
+      }
+    },
+    {
+      "id": "T12-L9",
+      "topic": "Configuration and security",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "password_needs_rehash compares the hash's options with the target: cost 4 = 4 → 'no', cost 5 ≠ 4 → 'yes'.",
+      "prompt": "What does this code output?\n\n```php\n$hash = password_hash('x', PASSWORD_BCRYPT, ['cost' => 4]);\necho password_needs_rehash($hash, PASSWORD_BCRYPT, ['cost' => 4]) ? 'yes' : 'no';\necho password_needs_rehash($hash, PASSWORD_BCRYPT, ['cost' => 5]) ? 'yes' : 'no';\n```",
+      "grader": {
+        "php": "$hash = password_hash('x', PASSWORD_BCRYPT, ['cost' => 4]);\necho password_needs_rehash($hash, PASSWORD_BCRYPT, ['cost' => 4]) ? 'yes' : 'no';\necho password_needs_rehash($hash, PASSWORD_BCRYPT, ['cost' => 5]) ? 'yes' : 'no';"
+      }
+    },
+    {
+      "id": "T12-L10",
+      "topic": "Configuration and security",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "Since PHP 8.4, E_STRICT is out of E_ALL: the 2048 bit is unset → 'strict-out' (2048 is the historical E_STRICT bit).",
+      "prompt": "What does this code output on PHP 8.5?\n\n```php\necho (E_ALL & 2048) === 0 ? 'strict-out' : 'strict-in';\n```",
+      "grader": {
+        "php": "echo (E_ALL & 2048) === 0 ? 'strict-out' : 'strict-in';"
+      }
+    },
+    {
+      "id": "T13-L9",
+      "topic": "Symfony",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "The literal comparison requires knowing the mapping: HttpFoundation turns HTTP_X_TOKEN into the X-Token header (case-insensitive); without it the answer is 'missing'.",
+      "prompt": "What does this code output?\n\n```php\nuse Symfony\\Component\\HttpFoundation\\Request;\n$r = Request::create('/demo', 'GET', [], [], [], ['HTTP_X_TOKEN' => 'abc']);\necho $r->headers->get('X-Token') === 'abc' ? 'mapped' : 'missing';\n```",
+      "grader": {
+        "accept": [
+          "mapped"
+        ]
+      }
+    },
+    {
+      "id": "T13-L10",
+      "topic": "Symfony",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "Listeners run by descending priority: 10 (B), 5 (C), 0 (A).",
+      "prompt": "What does this code output?\n\n```php\nuse Symfony\\Component\\EventDispatcher\\EventDispatcher;\nuse Symfony\\Contracts\\EventDispatcher\\Event;\n$d = new EventDispatcher();\n$out = '';\n$d->addListener('e', function () use (&$out) { $out .= 'B'; }, 10);\n$d->addListener('e', function () use (&$out) { $out .= 'A'; });\n$d->addListener('e', function () use (&$out) { $out .= 'C'; }, 5);\n$d->dispatch(new Event(), 'e');\necho $out;\n```",
+      "grader": {
+        "accept": [
+          "BCA"
+        ]
+      }
+    },
+    {
+      "id": "T14-L10",
+      "topic": "Doctrine",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "Identity map: a second find for the same id returns the same instance.",
+      "prompt": "Given: Doctrine ORM 3, an EntityManager on in-memory SQLite, entity User with an auto-increment primary key. The users table is empty. What does this code output?\n\n```php\n$u = new User(name: 'A');\n$em->persist($u);\n$em->flush();\n$a = $em->find(User::class, $u->getId());\n$b = $em->find(User::class, $u->getId());\necho spl_object_id($a) === spl_object_id($b) ? 'same' : 'diff';\n```",
+      "grader": {
+        "accept": [
+          "same"
+        ]
+      }
+    },
+    {
+      "id": "T14-L9",
+      "topic": "Doctrine",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "The unit of work schedules INSERT at flush: remove after persist cancels it.",
+      "prompt": "Given: Doctrine ORM 3, an EntityManager on in-memory SQLite, entity User with an auto-increment primary key. The users table is empty. What does this code output?\n\n```php\n$u = new User(name: 'B');\n$em->persist($u);\n$em->remove($u);\n$em->flush();\necho count($em->getConnection()->fetchAllAssociative('SELECT * FROM users'));\n```",
+      "grader": {
+        "accept": [
+          "0"
+        ]
+      }
+    },
+    {
+      "id": "T15-L10",
+      "topic": "PostgreSQL",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "count(column) skips NULLs; count(*) would return 2.",
+      "prompt": "What does this SQL query return (PostgreSQL 17)?\n\n```sql\nCREATE TEMP TABLE t (x int);\nINSERT INTO t VALUES (1), (NULL);\nSELECT count(x) FROM t;\n```",
+      "grader": {
+        "accept": [
+          "1"
+        ]
+      }
+    },
+    {
+      "id": "T15-L9",
+      "topic": "PostgreSQL",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "With ORDER BY the default window frame is running (start to current row).",
+      "prompt": "What does this SQL query return (PostgreSQL 17)?\n\n```sql\nCREATE TEMP TABLE t (id int, x int);\nINSERT INTO t VALUES (1, 10), (2, 20), (3, 30);\nSELECT string_agg(s::text, ',' ORDER BY id) FROM (\n    SELECT id, sum(x) OVER (ORDER BY id) AS s FROM t\n) q;\n```",
+      "grader": {
+        "accept": [
+          "10,30,60",
+          "10 30 60"
+        ]
+      }
+    },
+    {
+      "id": "T16-L9",
+      "topic": "Symfony: Messenger",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "The first-added middleware runs first (outermost).",
+      "prompt": "What does this code output?\n\n```php\nuse Symfony\\Component\\Messenger\\MessageBus;\nuse Symfony\\Component\\Messenger\\Middleware\\MiddlewareInterface;\nuse Symfony\\Component\\Messenger\\Middleware\\StackInterface;\nuse Symfony\\Component\\Messenger\\Envelope;\n\nfinal class Trace implements MiddlewareInterface\n{\n    public function __construct(private string $tag) {}\n    public function handle(Envelope $e, StackInterface $stack): Envelope\n    {\n        echo $this->tag;\n        return $stack->next()->handle($e, $stack);\n    }\n}\n$bus = new MessageBus([new Trace('M1'), new Trace('M2')]);\n$bus->dispatch(new Envelope(new stdClass()));\n```",
+      "grader": {
+        "accept": [
+          "M1M2"
+        ]
+      }
+    },
+    {
+      "id": "T16-L10",
+      "topic": "Symfony: Messenger",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "All registered handlers of the message run: 1 + 10 = 11.",
+      "prompt": "What does this code output?\n\n```php\nuse Symfony\\Component\\Messenger\\MessageBus;\nuse Symfony\\Component\\Messenger\\Middleware\\HandleMessageMiddleware;\nuse Symfony\\Component\\Messenger\\Handler\\HandlersLocator;\nuse Symfony\\Component\\Messenger\\Handler\\HandlerDescriptor;\nuse Symfony\\Component\\Messenger\\Envelope;\n\nclass Ping {}\n$n = 0;\n$d1 = new HandlerDescriptor(function (Ping $m) use (&$n) { $n += 1; }, ['alias' => 'h1']);\n$d2 = new HandlerDescriptor(function (Ping $m) use (&$n) { $n += 10; }, ['alias' => 'h2']);\n$bus = new MessageBus([\n    new HandleMessageMiddleware(new HandlersLocator([Ping::class => [$d1, $d2]])),\n]);\n$bus->dispatch(new Envelope(new Ping()));\necho $n;\n```",
+      "grader": {
+        "accept": [
+          "11"
+        ]
+      }
+    },
+    {
+      "id": "T17-L9",
+      "topic": "PostgreSQL: transactions and indexes",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "ON CONFLICT DO NOTHING skips the duplicate: one insert.",
+      "prompt": "What does this SQL query return (PostgreSQL 17)?\n\n```sql\nCREATE TEMP TABLE t (a int);\nCREATE UNIQUE INDEX ON t (a);\nINSERT INTO t VALUES (1) ON CONFLICT DO NOTHING;\nINSERT INTO t VALUES (1) ON CONFLICT DO NOTHING;\nSELECT count(*) FROM t;\n```",
+      "grader": {
+        "accept": [
+          "1"
+        ]
+      }
+    },
+    {
+      "id": "T17-L10",
+      "topic": "PostgreSQL: transactions and indexes",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "DEFERRED postpones the uniqueness check to COMMIT — count sees 2 rows.",
+      "prompt": "What does this sequence of psql commands output?\n\n```sql\nBEGIN;\nCREATE TEMP TABLE t (a int, UNIQUE (a) DEFERRABLE INITIALLY DEFERRED);\nINSERT INTO t VALUES (1);\nINSERT INTO t VALUES (1);\nSELECT count(*) FROM t;\n```",
+      "grader": {
+        "accept": [
+          "2"
+        ]
+      }
+    },
+    {
+      "id": "T18-L9",
+      "topic": "Testing: PHPUnit",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "--filter is a substring match: test_sum also matches test_sum_abs (3+3 datasets).",
+      "prompt": "How many tests will this command run?\n\n```php\nuse PHPUnit\\Framework\\TestCase;\nuse PHPUnit\\Framework\\Attributes\\DataProvider;\n\nfinal class CalcTest extends TestCase\n{\n    public static function prov(): array\n    {\n        return [[1], [2], [3]];\n    }\n\n    #[DataProvider('prov')]\n    public function test_sum(int $x): void\n    {\n        $this->assertTrue($x > 0);\n    }\n\n    #[DataProvider('prov')]\n    public function test_sum_abs(int $x): void\n    {\n        $this->assertTrue($x > 0);\n    }\n\n    public function test_other(): void\n    {\n        $this->assertTrue(true);\n    }\n}\n```\n\nCommand: `phpunit CalcTest.php --filter test_sum` (PHPUnit 10.5)",
+      "grader": {
+        "accept": [
+          "6"
+        ]
+      }
+    },
+    {
+      "id": "T18-L10",
+      "topic": "Testing: PHPUnit",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "A non-static provider is just a deprecation in PHPUnit 10: both datasets run and the [-1] dataset fails the assert — 2 ran, 1 failure.",
+      "prompt": "How many tests will this command run, and how many of them will fail? Answer with two comma-separated numbers (ran, failed).\n\n```php\nuse PHPUnit\\Framework\\TestCase;\nuse PHPUnit\\Framework\\Attributes\\DataProvider;\n\nfinal class Calc2Test extends TestCase\n{\n    public function prov(): array\n    {\n        return [[1], [-1]];\n    }\n\n    #[DataProvider('prov')]\n    public function test_x(int $x): void\n    {\n        $this->assertTrue($x > 0);\n    }\n}\n```\n\nCommand: `phpunit Calc2Test.php` (PHPUnit 10.5)",
+      "grader": {
+        "accept": [
+          "2,1"
+        ]
+      }
+    },
+    {
+      "id": "T19-L9",
+      "topic": "HTTP and REST API",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "-d/-F switches curl to POST by default.",
+      "prompt": "Which HTTP method does this command send?\n\n```bash\ncurl -s -d 'a=1' http://demo.local/api\n```",
+      "grader": {
+        "accept": [
+          "POST"
+        ]
+      }
+    },
+    {
+      "id": "T19-L10",
+      "topic": "HTTP and REST API",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "-G turns -d data into the query string; the method stays GET.",
+      "prompt": "Which HTTP method does this command send?\n\n```bash\ncurl -s -G -d 'a=1' http://demo.local/api\n```",
+      "grader": {
+        "accept": [
+          "GET"
+        ]
+      }
+    },
+    {
+      "id": "T20-L9",
+      "topic": "Security and OAuth",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "Unknown client → invalid_client (RFC 6749 §5.2).",
+      "prompt": "A client hits the token endpoint (RFC 6749) with a non-existent client_id. What value of the error field does the endpoint return?",
+      "grader": {
+        "accept": [
+          "invalid_client"
+        ]
+      }
+    },
+    {
+      "id": "T20-L10",
+      "topic": "Security and OAuth",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "The implicit flow passes the token in the URL fragment (#) — it never reaches the server.",
+      "prompt": "OAuth 2.0: the client started the flow with response_type=token. In which part of the redirect_uri does the authorization server pass the access_token?",
+      "grader": {
+        "accept": [
+          "fragment",
+          "фрагмент",
+          "фрагменте",
+          "во фрагменте",
+          "片段"
+        ]
+      }
+    },
+    {
+      "id": "T21-L9",
+      "topic": "Twig",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "default replaces exactly false/null/''/[] — false becomes 2, 2*3 = 6; the naive 'default is for undefined only' yields 0.",
+      "prompt": "What does this Twig template output?\n\n```twig\n{{ false|default(2) * 3 }}\n```",
+      "grader": {
+        "accept": [
+          "6"
+        ]
+      }
+    },
+    {
+      "id": "T21-L10",
+      "topic": "Twig",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "In Twig ~ binds tighter than +: ('a' ~ 1) + 2 → string + int → a render error (RuntimeError).",
+      "prompt": "What exception class does render() of this template throw?\n\n```twig\n{{ 'a' ~ 1 + 2 }}\n```",
+      "grader": {
+        "accept": [
+          "RuntimeError",
+          "Twig\\Error\\RuntimeError"
+        ]
+      }
+    },
+    {
+      "id": "T22-L9",
+      "topic": "Symfony: Security and forms",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "NotBlank treats null, '', [] as blank — the array [''] is not blank.",
+      "prompt": "What does this code output?\n\n```php\nuse Symfony\\Component\\Validator\\Validation;\nuse Symfony\\Component\\Validator\\Constraints as Assert;\n$v = Validation::createValidator();\necho count($v->validate([''], [new Assert\\NotBlank()]));\n```",
+      "grader": {
+        "accept": [
+          "0"
+        ]
+      }
+    },
+    {
+      "id": "T22-L10",
+      "topic": "Symfony: Security and forms",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "isValid() on a non-submitted form throws LogicException, it does not return false.",
+      "prompt": "What does this code output?\n\n```php\nuse Symfony\\Component\\Form\\Forms;\nuse Symfony\\Component\\Form\\Extension\\Core\\Type\\TextType;\n$factory = Forms::createFormFactoryBuilder()->getFormFactory();\n$form = $factory->create(TextType::class);\ntry {\n    echo $form->isValid() ? 'valid' : 'invalid';\n} catch (Throwable $e) {\n    echo get_class($e);\n}\n```",
+      "grader": {
+        "accept": [
+          "Symfony\\Component\\Form\\Exception\\LogicException",
+          "LogicException"
+        ]
+      }
+    },
+    {
+      "id": "T23-L9",
+      "topic": "Symfony: configuration and services",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "Container services are shared: two get() calls yield one instance.",
+      "prompt": "What does this code output?\n\n```php\nuse Symfony\\Component\\DependencyInjection\\ContainerBuilder;\n$c = new ContainerBuilder();\n$c->register('a', stdClass::class)->setPublic(true);\n$c->compile();\necho spl_object_id($c->get('a')) === spl_object_id($c->get('a')) ? 'same' : 'diff';\n```",
+      "grader": {
+        "accept": [
+          "same"
+        ]
+      }
+    },
+    {
+      "id": "T23-L10",
+      "topic": "Symfony: configuration and services",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "compile() resolves %-references transitively: %greeting% → 'hi %name%' → 'hi Bob!', the answer assembles over two hops.",
+      "prompt": "What does this code output?\n\n```php\nuse Symfony\\Component\\DependencyInjection\\ContainerBuilder;\n$c = new ContainerBuilder();\n$c->setParameter('name', 'Bob');\n$c->setParameter('greeting', 'hi %name%');\n$c->setParameter('message', '%greeting%!');\n$c->compile();\necho $c->getParameter('message');\n```",
+      "grader": {
+        "accept": [
+          "hi Bob!"
+        ]
+      }
+    },
+    {
+      "id": "T24-L9",
+      "topic": "Bootstrap",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "5.x container widths: 540/720/960/1140/1320 (sm–xxl); 992 → 960px.",
+      "prompt": "What is the max-width of .container in Bootstrap 5.3 at a 992px viewport?",
+      "grader": {
+        "accept": [
+          "960",
+          "960px"
+        ]
+      }
+    },
+    {
+      "id": "T24-L10",
+      "topic": "Bootstrap",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "Specificity ties — the later rule wins: text-danger is declared after text-primary.",
+      "prompt": "Which utility sets the text color in Bootstrap 5.3 for `<p class=\"text-danger text-primary\">…</p>`? Answer with the winning class name.",
+      "grader": {
+        "accept": [
+          "text-danger"
+        ]
+      }
+    },
+    {
+      "id": "T25-L9",
+      "topic": "Clean architecture",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "Domain may depend only on Domain: PlaceOrder (Application) + Db (Infrastructure) = 2.",
+      "prompt": "Layers: Domain, Application, Infrastructure. Deptrac rules: Application → Domain; Infrastructure → Domain, Application; Domain → Domain only.\n\nHow many violations will deptrac report for this class?\n\n```php\nnamespace App\\Domain;\nuse App\\Application\\PlaceOrder;\nuse App\\Infrastructure\\Db;\n\nclass OrderService\n{\n    public function __construct(\n        private PlaceOrder $handler,\n        private Db $db,\n    ) {}\n}\n```",
+      "grader": {
+        "accept": [
+          "2"
+        ]
+      }
+    },
+    {
+      "id": "T25-L10",
+      "topic": "Clean architecture",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "The inline FQCN \\App\\Infrastructure\\Logger counts too: Application + Db + Logger = 3.",
+      "prompt": "Layers: Domain, Application, Infrastructure. Deptrac rules: Application → Domain; Infrastructure → Domain, Application; Domain → Domain only.\n\nHow many violations will deptrac report for this class?\n\n```php\nnamespace App\\Domain;\nuse App\\Application\\PlaceOrder;\nuse App\\Infrastructure\\Db;\n\nclass BillingService\n{\n    public function __construct(\n        private PlaceOrder $handler,\n        private Db $db,\n        private \\App\\Infrastructure\\Logger $logger,\n    ) {}\n}\n```",
+      "grader": {
+        "accept": [
+          "3"
+        ]
+      }
+    },
+    {
+      "id": "T26-L10",
+      "topic": "DDD",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "The VO is immutable: add() returns a new instance; the original is unchanged.",
+      "prompt": "What does this code output?\n\n```php\nfinal class Money\n{\n    public function __construct(public readonly int $amount) {}\n    public function add(Money $o): Money\n    {\n        return new self($this->amount + $o->amount);\n    }\n}\n$a = new Money(10);\n$c = $a->add(new Money(5));\necho $a->amount . ',' . $c->amount;\n```",
+      "grader": {
+        "php": "final class Money\n{\n    public function __construct(public readonly int $amount) {}\n    public function add(Money $o): Money\n    {\n        return new self($this->amount + $o->amount);\n    }\n}\n$a = new Money(10);\n$c = $a->add(new Money(5));\necho $a->amount . ',' . $c->amount;"
+      }
+    },
+    {
+      "id": "T26-L9",
+      "topic": "DDD",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "The failed remove leaves aggregate state unchanged: the invariant threw before unset — count stays 1.",
+      "prompt": "What does this code output?\n\n```php\nfinal class Order\n{\n    private array $items = [];\n\n    public function add(string $sku): void\n    {\n        $this->items[$sku] = true;\n    }\n\n    public function count(): int\n    {\n        return count($this->items);\n    }\n\n    public function remove(string $sku): void\n    {\n        if (count($this->items) === 1) {\n            throw new DomainException('last item');\n        }\n        unset($this->items[$sku]);\n    }\n}\n$o = new Order;\n$o->add('a');\ntry {\n    $o->remove('a');\n} catch (DomainException) {\n}\necho $o->count();\n```",
+      "grader": {
+        "php": "final class Order\n{\n    private array $items = [];\n\n    public function add(string $sku): void\n    {\n        $this->items[$sku] = true;\n    }\n\n    public function count(): int\n    {\n        return count($this->items);\n    }\n\n    public function remove(string $sku): void\n    {\n        if (count($this->items) === 1) {\n            throw new DomainException('last item');\n        }\n        unset($this->items[$sku]);\n    }\n}\n$o = new Order;\n$o->add('a');\ntry {\n    $o->remove('a');\n} catch (DomainException) {\n}\necho $o->count();"
+      }
+    },
+    {
+      "id": "VC-L9",
+      "topic": "PHP 8.4–8.5",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "Since 8.4, new in a method chain works without wrapping parentheses.",
+      "prompt": "What does this code output on PHP 8.5?\n\n```php\nclass C\n{\n    public function hi(): string { return 'hi'; }\n}\necho new C()->hi();\n```",
+      "grader": {
+        "php": "class C\n{\n    public function hi(): string { return 'hi'; }\n}\necho new C()->hi();"
+      }
+    },
+    {
+      "id": "VC-L10",
+      "topic": "PHP 8.4–8.5",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "newLazyGhost (8.4): the object stays lazy until first access — reading a property initializes it and clears the flag.",
+      "prompt": "What does this code output on PHP 8.5?\n\n```php\nclass Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 21;\n});\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n$o->v;\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n```",
+      "grader": {
+        "php": "class Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 21;\n});\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n$o->v;\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';"
+      }
+    },
+    {
+      "id": "T28-L9",
+      "topic": "Symfony: versions",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "Guard authentication was removed in Symfony 7.0 — the class is gone in 8.1.",
+      "prompt": "The project was upgraded from Symfony 6.4 to 8.1. What does this code output on 8.1?\n\n```php\necho class_exists(\\Symfony\\Component\\Security\\Guard\\AbstractGuardAuthenticator::class)\n    ? 'yes' : 'no';\n```",
+      "grader": {
+        "accept": [
+          "no"
+        ]
+      }
+    },
+    {
+      "id": "T28-L10",
+      "topic": "Symfony: versions",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "Annotation loaders were removed in 7.0; only attribute loaders remain (Annotation→Attribute).",
+      "prompt": "The project was upgraded from Symfony 6.4 to 8.1. What does this code output on 8.1?\n\n```php\necho class_exists(\\Symfony\\Component\\Routing\\Loader\\AnnotationClassLoader::class)\n    ? 'yes' : 'no';\necho class_exists(\\Symfony\\Component\\Routing\\Loader\\AttributeClassLoader::class)\n    ? 'yes' : 'no';\n```",
+      "grader": {
+        "accept": [
+          "noyes"
+        ]
+      }
+    }
+  ]
+}

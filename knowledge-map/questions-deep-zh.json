@@ -1,0 +1,801 @@
+{
+  "version": 4,
+  "deep_for": 8,
+  "questions": [
+    {
+      "id": "T01-L9",
+      "topic": "语法与运算符",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "intdiv 向零截断：intdiv(-7, 2) = -3，不是 -4。",
+      "prompt": "这段代码会输出什么？\n\n```php\necho intdiv(7, 2) . intdiv(-7, 2);\n```",
+      "grader": {
+        "php": "echo intdiv(7, 2) . intdiv(-7, 2);"
+      }
+    },
+    {
+      "id": "T01-L10",
+      "topic": "语法与运算符",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "** 右结合且优先级高于一元负号：-(3²)。",
+      "prompt": "这段代码会输出什么？\n\n```php\necho -3 ** 2;\n```",
+      "grader": {
+        "regex": "^-9$",
+        "accept": [
+          "-9"
+        ]
+      }
+    },
+    {
+      "id": "T02-L9",
+      "topic": "类型与比较",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "两个字符串都是数值型——按数字比较：10 == 10。",
+      "prompt": "这段代码会输出什么？\n\n```php\necho '1e1' == '10' ? 'true' : 'false';\n```",
+      "grader": {
+        "php": "echo '1e1' == '10' ? 'true' : 'false';"
+      }
+    },
+    {
+      "id": "T02-L10",
+      "topic": "类型与比较",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "PHP 8：'a' == 0 → false（以前是 true）——触发 default。",
+      "prompt": "这段代码会输出什么？\n\n```php\nswitch ('a') {\n    case 0: echo 'zero'; break;\n    default: echo 'other';\n}\n```",
+      "grader": {
+        "php": "switch ('a') {\n    case 0: echo 'zero'; break;\n    default: echo 'other';\n}"
+      }
+    },
+    {
+      "id": "T03-L9",
+      "topic": "字符串",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "带数组的 strtr 优先匹配最长的键。",
+      "prompt": "这段代码会输出什么？\n\n```php\necho strtr('abc', ['a' => '1', 'ab' => '2']);\n```",
+      "grader": {
+        "php": "echo strtr('abc', ['a' => '1', 'ab' => '2']);"
+      }
+    },
+    {
+      "id": "T03-L10",
+      "topic": "字符串",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "超出字符串范围的负起始位置会被钳制到开头。",
+      "prompt": "这段代码会输出什么？\n\n```php\necho '[' . substr('hello', -10) . ']';\n```",
+      "grader": {
+        "php": "echo '[' . substr('hello', -10) . ']';"
+      }
+    },
+    {
+      "id": "T04-L9",
+      "topic": "数组",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "运算符 +：字符串键重复时左数组优先。",
+      "prompt": "这段代码会输出什么？\n\n```php\n$a = ['k' => 1, 'n' => 2];\n$b = ['k' => 9, 'm' => 3];\necho implode(',', array_keys($a + $b));\n```",
+      "grader": {
+        "php": "$a = ['k' => 1, 'n' => 2];\n$b = ['k' => 9, 'm' => 3];\necho implode(',', array_keys($a + $b));"
+      }
+    },
+    {
+      "id": "T04-L10",
+      "topic": "数组",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "自 8.0 起排序稳定：键相同时 x 和 z 保持原顺序。",
+      "prompt": "这段代码会输出什么？\n\n```php\n$a = [[1, 'x', 2], [2, 'y', 1], [3, 'z', 2]];\nusort($a, fn($p, $q) => $p[2] <=> $q[2]);\necho implode('', array_column($a, 1));\n```",
+      "grader": {
+        "php": "$a = [[1, 'x', 2], [2, 'y', 1], [3, 'z', 2]];\nusort($a, fn($p, $q) => $p[2] <=> $q[2]);\necho implode('', array_column($a, 1));"
+      }
+    },
+    {
+      "id": "T05-L10",
+      "topic": "函数与闭包",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "展开数组的字符串键会成为命名参数。",
+      "prompt": "这段代码会输出什么？\n\n```php\nfunction f(int $a, int $b): int\n{\n    return $a - $b;\n}\necho f(...['b' => 1, 'a' => 5]);\n```",
+      "grader": {
+        "php": "function f(int $a, int $b): int\n{\n    return $a - $b;\n}\necho f(...['b' => 1, 'a' => 5]);"
+      }
+    },
+    {
+      "id": "T05-L9",
+      "topic": "函数与闭包",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "一等可调用语法在创建时就绑定了 $this。",
+      "prompt": "这段代码会输出什么？\n\n```php\nclass P\n{\n    private int $v = 3;\n    public function g(): int { return $this->v; }\n}\n$p = new P;\n$f = $p->g(...);\n$p = null;\necho $f();\n```",
+      "grader": {
+        "php": "class P\n{\n    private int $v = 3;\n    public function g(): int { return $this->v; }\n}\n$p = new P;\n$f = $p->g(...);\n$p = null;\necho $f();"
+      }
+    },
+    {
+      "id": "T06-L9",
+      "topic": "OOP：类与继承",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "后期静态绑定：static::class 是接收者的类。",
+      "prompt": "这段代码会输出什么？\n\n```php\nclass A\n{\n    public function who(): string { return static::class; }\n}\nclass B extends A {}\necho (new B)->who();\n```",
+      "grader": {
+        "php": "class A\n{\n    public function who(): string { return static::class; }\n}\nclass B extends A {}\necho (new B)->who();"
+      }
+    },
+    {
+      "id": "T06-L10",
+      "topic": "OOP：类与继承",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "在 set 钩子内 $this->x 写入后备存储（无递归）：5*2。",
+      "prompt": "这段代码在 PHP 8.5 上会输出什么？\n\n```php\nclass C\n{\n    public int $x = 0 {\n        set { $this->x = $value * 2; }\n    }\n}\n$c = new C;\n$c->x = 5;\necho $c->x;\n```",
+      "grader": {
+        "php": "class C\n{\n    public int $x = 0 {\n        set { $this->x = $value * 2; }\n    }\n}\n$c = new C;\n$c->x = 5;\necho $c->x;"
+      }
+    },
+    {
+      "id": "T07-L9",
+      "topic": "接口、trait 与 enum",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "insteadof 选择实现，as 以别名保留另一个。",
+      "prompt": "这段代码会输出什么？\n\n```php\ntrait TA\n{\n    public function f(): string { return 'A'; }\n}\ntrait TB\n{\n    public function f(): string { return 'B'; }\n}\nclass TC\n{\n    use TA, TB { TB::f insteadof TA; TA::f as g; }\n}\necho (new TC)->f() . (new TC)->g();\n```",
+      "grader": {
+        "php": "trait TA\n{\n    public function f(): string { return 'A'; }\n}\ntrait TB\n{\n    public function f(): string { return 'B'; }\n}\nclass TC\n{\n    use TA, TB { TB::f insteadof TA; TA::f as g; }\n}\necho (new TC)->f() . (new TC)->g();"
+      }
+    },
+    {
+      "id": "T07-L10",
+      "topic": "接口、trait 与 enum",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "trait 的静态属性会复制到每个使用它的类中。",
+      "prompt": "这段代码会输出什么？\n\n```php\ntrait Counter\n{\n    public static int $n = 0;\n}\nclass CX { use Counter; }\nclass CY { use Counter; }\nCX::$n = 1;\necho CY::$n;\n```",
+      "grader": {
+        "php": "trait Counter\n{\n    public static int $n = 0;\n}\nclass CX { use Counter; }\nclass CY { use Counter; }\nCX::$n = 1;\necho CY::$n;"
+      }
+    },
+    {
+      "id": "T08-L10",
+      "topic": "异常与错误",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "finally 中的 return 会覆盖 try 中的 return。",
+      "prompt": "这段代码会输出什么？\n\n```php\nfunction f(): int\n{\n    try { return 1; } finally { return 2; }\n}\necho f();\n```",
+      "grader": {
+        "php": "function f(): int\n{\n    try { return 1; } finally { return 2; }\n}\necho f();"
+      }
+    },
+    {
+      "id": "T08-L9",
+      "topic": "异常与错误",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "finally 抛出的异常会替换正在传播的异常——捕获最后抛出的那个。",
+      "prompt": "这段代码会输出什么？\n\n```php\ntry {\n    try {\n        throw new RuntimeException('first');\n    } finally {\n        throw new LogicException('second');\n    }\n} catch (LogicException $e) {\n    echo $e->getMessage();\n}\n```",
+      "grader": {
+        "php": "try {\n    try {\n        throw new RuntimeException('first');\n    } finally {\n        throw new LogicException('second');\n    }\n} catch (LogicException $e) {\n    echo $e->getMessage();\n}"
+      }
+    },
+    {
+      "id": "T09-L9",
+      "topic": "命名空间与自动加载",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "use 别名只作用于非限定名；前导 \\ 转向全局作用域。",
+      "prompt": "这段代码会输出什么？\n\n```php\nnamespace N;\nuse App\\Foo as Baz;\necho Baz::class . '|' . \\Baz::class;\n```",
+      "grader": {
+        "php": "namespace N;\nuse App\\Foo as Baz;\necho Baz::class . '|' . \\Baz::class;"
+      }
+    },
+    {
+      "id": "T09-L10",
+      "topic": "命名空间与自动加载",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "动态名称不会相对于命名空间解析——'Foo' 指全局类。",
+      "prompt": "这段代码会输出什么？\n\n```php\nnamespace Ns;\nclass Foo {}\n$c = 'Foo';\necho (class_exists($c) ? 'yes' : 'no')\n   . (class_exists(__NAMESPACE__ . '\\\\' . $c) ? 'yes' : 'no');\n```",
+      "grader": {
+        "php": "namespace Ns;\nclass Foo {}\n$c = 'Foo';\necho (class_exists($c) ? 'yes' : 'no')\n   . (class_exists(__NAMESPACE__ . '\\\\' . $c) ? 'yes' : 'no');"
+      }
+    },
+    {
+      "id": "T10-L9",
+      "topic": "引用与作用域",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "按引用的 foreach 结束后，$v 仍是对最后一个元素的引用。",
+      "prompt": "这段代码会输出什么？\n\n```php\n$a = [1, 2, 3];\nforeach ($a as &$v) {}\n$v = 99;\necho implode(',', $a);\n```",
+      "grader": {
+        "php": "$a = [1, 2, 3];\nforeach ($a as &$v) {}\n$v = 99;\necho implode(',', $a);"
+      }
+    },
+    {
+      "id": "T10-L10",
+      "topic": "引用与作用域",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "方法的静态变量属于父类方法——子类共享同一个。",
+      "prompt": "这段代码会输出什么？\n\n```php\nclass A\n{\n    public function inc(): int\n    {\n        static $n = 0;\n        return ++$n;\n    }\n}\nclass B extends A {}\n$a = new A;\n$b = new B;\n$a->inc();\n$b->inc();\necho $a->inc();\n```",
+      "grader": {
+        "php": "class A\n{\n    public function inc(): int\n    {\n        static $n = 0;\n        return ++$n;\n    }\n}\nclass B extends A {}\n$a = new A;\n$b = new B;\n$a->inc();\n$b->inc();\necho $a->inc();"
+      }
+    },
+    {
+      "id": "T11-L9",
+      "topic": "生成器、迭代器与 SPL",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "send() 恢复生成器：$x = 10，return 10+1。",
+      "prompt": "这段代码会输出什么？\n\n```php\nfunction g(): Generator\n{\n    $x = yield 1;\n    return $x + 1;\n}\n$g = g();\n$g->send(10);\necho $g->getReturn();\n```",
+      "grader": {
+        "php": "function g(): Generator\n{\n    $x = yield 1;\n    return $x + 1;\n}\n$g = g();\n$g->send(10);\necho $g->getReturn();"
+      }
+    },
+    {
+      "id": "T11-L10",
+      "topic": "生成器、迭代器与 SPL",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "yield from 不推进外层自动键：yield $r 得到键 0 并覆盖 1——'ok' 排在最前面。",
+      "prompt": "这段代码会输出什么？\n\n```php\nfunction inner(): Generator\n{\n    yield 1;\n    yield 2;\n    return 'ok';\n}\nfunction outer(): Generator\n{\n    $r = yield from inner();\n    yield $r;\n}\necho implode(',', iterator_to_array(outer()));\n```",
+      "grader": {
+        "php": "function inner(): Generator\n{\n    yield 1;\n    yield 2;\n    return 'ok';\n}\nfunction outer(): Generator\n{\n    $r = yield from inner();\n    yield $r;\n}\necho implode(',', iterator_to_array(outer()));"
+      }
+    },
+    {
+      "id": "T12-L9",
+      "topic": "配置与安全",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "password_needs_rehash 比较哈希参数与目标：cost 4 = 4 → 'no'，cost 5 ≠ 4 → 'yes'。",
+      "prompt": "这段代码会输出什么？\n\n```php\n$hash = password_hash('x', PASSWORD_BCRYPT, ['cost' => 4]);\necho password_needs_rehash($hash, PASSWORD_BCRYPT, ['cost' => 4]) ? 'yes' : 'no';\necho password_needs_rehash($hash, PASSWORD_BCRYPT, ['cost' => 5]) ? 'yes' : 'no';\n```",
+      "grader": {
+        "php": "$hash = password_hash('x', PASSWORD_BCRYPT, ['cost' => 4]);\necho password_needs_rehash($hash, PASSWORD_BCRYPT, ['cost' => 4]) ? 'yes' : 'no';\necho password_needs_rehash($hash, PASSWORD_BCRYPT, ['cost' => 5]) ? 'yes' : 'no';"
+      }
+    },
+    {
+      "id": "T12-L10",
+      "topic": "配置与安全",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "PHP 8.4+ 将 E_STRICT 移出了 E_ALL：2048 位未设置 → 'strict-out'（2048 是历史上的 E_STRICT 位）。",
+      "prompt": "这段代码在 PHP 8.5 上会输出什么？\n\n```php\necho (E_ALL & 2048) === 0 ? 'strict-out' : 'strict-in';\n```",
+      "grader": {
+        "php": "echo (E_ALL & 2048) === 0 ? 'strict-out' : 'strict-in';"
+      }
+    },
+    {
+      "id": "T13-L9",
+      "topic": "Symfony",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "与字面量的比较需要知道映射规则：HttpFoundation 把 HTTP_X_TOKEN 转换为 X-Token 头（大小写不敏感）；不知道映射会答 'missing'。",
+      "prompt": "这段代码会输出什么？\n\n```php\nuse Symfony\\Component\\HttpFoundation\\Request;\n$r = Request::create('/demo', 'GET', [], [], [], ['HTTP_X_TOKEN' => 'abc']);\necho $r->headers->get('X-Token') === 'abc' ? 'mapped' : 'missing';\n```",
+      "grader": {
+        "accept": [
+          "mapped"
+        ]
+      }
+    },
+    {
+      "id": "T13-L10",
+      "topic": "Symfony",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "监听器按优先级降序执行：10 (B)、5 (C)、0 (A)。",
+      "prompt": "这段代码会输出什么？\n\n```php\nuse Symfony\\Component\\EventDispatcher\\EventDispatcher;\nuse Symfony\\Contracts\\EventDispatcher\\Event;\n$d = new EventDispatcher();\n$out = '';\n$d->addListener('e', function () use (&$out) { $out .= 'B'; }, 10);\n$d->addListener('e', function () use (&$out) { $out .= 'A'; });\n$d->addListener('e', function () use (&$out) { $out .= 'C'; }, 5);\n$d->dispatch(new Event(), 'e');\necho $out;\n```",
+      "grader": {
+        "accept": [
+          "BCA"
+        ]
+      }
+    },
+    {
+      "id": "T14-L10",
+      "topic": "Doctrine",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "identity map：对同一 id 的再次 find 返回同一个实例。",
+      "prompt": "给定：Doctrine ORM 3，EntityManager 使用内存 SQLite，实体 User 带自增主键。users 表为空。这段代码会输出什么？\n\n```php\n$u = new User(name: 'A');\n$em->persist($u);\n$em->flush();\n$a = $em->find(User::class, $u->getId());\n$b = $em->find(User::class, $u->getId());\necho spl_object_id($a) === spl_object_id($b) ? 'same' : 'diff';\n```",
+      "grader": {
+        "accept": [
+          "same"
+        ]
+      }
+    },
+    {
+      "id": "T14-L9",
+      "topic": "Doctrine",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "工作单元在 flush 时才安排 INSERT：persist 后 remove 会取消插入。",
+      "prompt": "给定：Doctrine ORM 3，EntityManager 使用内存 SQLite，实体 User 带自增主键。users 表为空。这段代码会输出什么？\n\n```php\n$u = new User(name: 'B');\n$em->persist($u);\n$em->remove($u);\n$em->flush();\necho count($em->getConnection()->fetchAllAssociative('SELECT * FROM users'));\n```",
+      "grader": {
+        "accept": [
+          "0"
+        ]
+      }
+    },
+    {
+      "id": "T15-L10",
+      "topic": "PostgreSQL",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "count(列) 不计 NULL；count(*) 会返回 2。",
+      "prompt": "这个 SQL 查询返回什么（PostgreSQL 17）？\n\n```sql\nCREATE TEMP TABLE t (x int);\nINSERT INTO t VALUES (1), (NULL);\nSELECT count(x) FROM t;\n```",
+      "grader": {
+        "accept": [
+          "1"
+        ]
+      }
+    },
+    {
+      "id": "T15-L9",
+      "topic": "PostgreSQL",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "有 ORDER BY 时窗口默认帧是 running（从起点到当前行）。",
+      "prompt": "这个 SQL 查询返回什么（PostgreSQL 17）？\n\n```sql\nCREATE TEMP TABLE t (id int, x int);\nINSERT INTO t VALUES (1, 10), (2, 20), (3, 30);\nSELECT string_agg(s::text, ',' ORDER BY id) FROM (\n    SELECT id, sum(x) OVER (ORDER BY id) AS s FROM t\n) q;\n```",
+      "grader": {
+        "accept": [
+          "10,30,60",
+          "10 30 60"
+        ]
+      }
+    },
+    {
+      "id": "T16-L9",
+      "topic": "Symfony：Messenger",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "先添加的中间件先执行（最外层）。",
+      "prompt": "这段代码会输出什么？\n\n```php\nuse Symfony\\Component\\Messenger\\MessageBus;\nuse Symfony\\Component\\Messenger\\Middleware\\MiddlewareInterface;\nuse Symfony\\Component\\Messenger\\Middleware\\StackInterface;\nuse Symfony\\Component\\Messenger\\Envelope;\n\nfinal class Trace implements MiddlewareInterface\n{\n    public function __construct(private string $tag) {}\n    public function handle(Envelope $e, StackInterface $stack): Envelope\n    {\n        echo $this->tag;\n        return $stack->next()->handle($e, $stack);\n    }\n}\n$bus = new MessageBus([new Trace('M1'), new Trace('M2')]);\n$bus->dispatch(new Envelope(new stdClass()));\n```",
+      "grader": {
+        "accept": [
+          "M1M2"
+        ]
+      }
+    },
+    {
+      "id": "T16-L10",
+      "topic": "Symfony：Messenger",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "消息的所有已注册处理器都会执行：1 + 10 = 11。",
+      "prompt": "这段代码会输出什么？\n\n```php\nuse Symfony\\Component\\Messenger\\MessageBus;\nuse Symfony\\Component\\Messenger\\Middleware\\HandleMessageMiddleware;\nuse Symfony\\Component\\Messenger\\Handler\\HandlersLocator;\nuse Symfony\\Component\\Messenger\\Handler\\HandlerDescriptor;\nuse Symfony\\Component\\Messenger\\Envelope;\n\nclass Ping {}\n$n = 0;\n$d1 = new HandlerDescriptor(function (Ping $m) use (&$n) { $n += 1; }, ['alias' => 'h1']);\n$d2 = new HandlerDescriptor(function (Ping $m) use (&$n) { $n += 10; }, ['alias' => 'h2']);\n$bus = new MessageBus([\n    new HandleMessageMiddleware(new HandlersLocator([Ping::class => [$d1, $d2]])),\n]);\n$bus->dispatch(new Envelope(new Ping()));\necho $n;\n```",
+      "grader": {
+        "accept": [
+          "11"
+        ]
+      }
+    },
+    {
+      "id": "T17-L9",
+      "topic": "PostgreSQL：事务与索引",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "ON CONFLICT DO NOTHING 跳过重复：只插入一行。",
+      "prompt": "这个 SQL 查询返回什么（PostgreSQL 17）？\n\n```sql\nCREATE TEMP TABLE t (a int);\nCREATE UNIQUE INDEX ON t (a);\nINSERT INTO t VALUES (1) ON CONFLICT DO NOTHING;\nINSERT INTO t VALUES (1) ON CONFLICT DO NOTHING;\nSELECT count(*) FROM t;\n```",
+      "grader": {
+        "accept": [
+          "1"
+        ]
+      }
+    },
+    {
+      "id": "T17-L10",
+      "topic": "PostgreSQL：事务与索引",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "DEFERRED 把唯一性检查推迟到 COMMIT——count 看到 2 行。",
+      "prompt": "这组 psql 命令会输出什么？\n\n```sql\nBEGIN;\nCREATE TEMP TABLE t (a int, UNIQUE (a) DEFERRABLE INITIALLY DEFERRED);\nINSERT INTO t VALUES (1);\nINSERT INTO t VALUES (1);\nSELECT count(*) FROM t;\n```",
+      "grader": {
+        "accept": [
+          "2"
+        ]
+      }
+    },
+    {
+      "id": "T18-L9",
+      "topic": "测试：PHPUnit",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "--filter 是子串匹配：test_sum 也会匹配 test_sum_abs（3+3 个数据集）。",
+      "prompt": "这条命令会执行多少个测试？\n\n```php\nuse PHPUnit\\Framework\\TestCase;\nuse PHPUnit\\Framework\\Attributes\\DataProvider;\n\nfinal class CalcTest extends TestCase\n{\n    public static function prov(): array\n    {\n        return [[1], [2], [3]];\n    }\n\n    #[DataProvider('prov')]\n    public function test_sum(int $x): void\n    {\n        $this->assertTrue($x > 0);\n    }\n\n    #[DataProvider('prov')]\n    public function test_sum_abs(int $x): void\n    {\n        $this->assertTrue($x > 0);\n    }\n\n    public function test_other(): void\n    {\n        $this->assertTrue(true);\n    }\n}\n```\n\n命令：`phpunit CalcTest.php --filter test_sum`（PHPUnit 10.5）",
+      "grader": {
+        "accept": [
+          "6"
+        ]
+      }
+    },
+    {
+      "id": "T18-L10",
+      "topic": "测试：PHPUnit",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "在 PHPUnit 10 中非静态 provider 只是 deprecation：两个数据集都会执行，[-1] 数据集断言失败——执行 2 个，失败 1 个。",
+      "prompt": "这条命令会执行多少个测试，其中多少个失败（failure）？用逗号分隔的两个数字回答（执行数, 失败数）。\n\n```php\nuse PHPUnit\\Framework\\TestCase;\nuse PHPUnit\\Framework\\Attributes\\DataProvider;\n\nfinal class Calc2Test extends TestCase\n{\n    public function prov(): array\n    {\n        return [[1], [-1]];\n    }\n\n    #[DataProvider('prov')]\n    public function test_x(int $x): void\n    {\n        $this->assertTrue($x > 0);\n    }\n}\n```\n\n命令：`phpunit Calc2Test.php`（PHPUnit 10.5）",
+      "grader": {
+        "accept": [
+          "2,1"
+        ]
+      }
+    },
+    {
+      "id": "T19-L9",
+      "topic": "HTTP 与 REST API",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "-d/-F 会让 curl 默认使用 POST。",
+      "prompt": "这条命令发送哪个 HTTP 方法？\n\n```bash\ncurl -s -d 'a=1' http://demo.local/api\n```",
+      "grader": {
+        "accept": [
+          "POST"
+        ]
+      }
+    },
+    {
+      "id": "T19-L10",
+      "topic": "HTTP 与 REST API",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "-G 把 -d 的数据变成查询串，方法仍是 GET。",
+      "prompt": "这条命令发送哪个 HTTP 方法？\n\n```bash\ncurl -s -G -d 'a=1' http://demo.local/api\n```",
+      "grader": {
+        "accept": [
+          "GET"
+        ]
+      }
+    },
+    {
+      "id": "T20-L9",
+      "topic": "安全与 OAuth",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "未知客户端 → invalid_client（RFC 6749 §5.2）。",
+      "prompt": "客户端用不存在的 client_id 请求令牌端点（RFC 6749）。端点的 error 字段返回什么值？",
+      "grader": {
+        "accept": [
+          "invalid_client"
+        ]
+      }
+    },
+    {
+      "id": "T20-L10",
+      "topic": "安全与 OAuth",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "隐式流通过 URL 片段（#）传递令牌——它不会到达服务器。",
+      "prompt": "OAuth 2.0：客户端以 response_type=token 开始流程。授权服务器把 access_token 放在 redirect_uri 的哪个部分？",
+      "grader": {
+        "accept": [
+          "fragment",
+          "фрагмент",
+          "фрагменте",
+          "во фрагменте",
+          "片段"
+        ]
+      }
+    },
+    {
+      "id": "T21-L9",
+      "topic": "Twig",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "default 只替换 exactly false/null/''/[]——false 会变成 2，2*3 = 6；天真的「default 只用于 undefined」会得到 0。",
+      "prompt": "这个 Twig 模板会输出什么？\n\n```twig\n{{ false|default(2) * 3 }}\n```",
+      "grader": {
+        "accept": [
+          "6"
+        ]
+      }
+    },
+    {
+      "id": "T21-L10",
+      "topic": "Twig",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "在 Twig 中 ~ 的优先级高于 +：('a' ~ 1) + 2 → string + int → 渲染错误（RuntimeError）。",
+      "prompt": "渲染这个模板时 render() 会抛出哪个异常类？\n\n```twig\n{{ 'a' ~ 1 + 2 }}\n```",
+      "grader": {
+        "accept": [
+          "RuntimeError",
+          "Twig\\Error\\RuntimeError"
+        ]
+      }
+    },
+    {
+      "id": "T22-L9",
+      "topic": "Symfony：安全与表单",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "NotBlank 把 null、''、[] 视为空——数组 [''] 不算空。",
+      "prompt": "这段代码会输出什么？\n\n```php\nuse Symfony\\Component\\Validator\\Validation;\nuse Symfony\\Component\\Validator\\Constraints as Assert;\n$v = Validation::createValidator();\necho count($v->validate([''], [new Assert\\NotBlank()]));\n```",
+      "grader": {
+        "accept": [
+          "0"
+        ]
+      }
+    },
+    {
+      "id": "T22-L10",
+      "topic": "Symfony：安全与表单",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "对未提交的表单调用 isValid() 抛出 LogicException，而不是返回 false。",
+      "prompt": "这段代码会输出什么？\n\n```php\nuse Symfony\\Component\\Form\\Forms;\nuse Symfony\\Component\\Form\\Extension\\Core\\Type\\TextType;\n$factory = Forms::createFormFactoryBuilder()->getFormFactory();\n$form = $factory->create(TextType::class);\ntry {\n    echo $form->isValid() ? 'valid' : 'invalid';\n} catch (Throwable $e) {\n    echo get_class($e);\n}\n```",
+      "grader": {
+        "accept": [
+          "Symfony\\Component\\Form\\Exception\\LogicException",
+          "LogicException"
+        ]
+      }
+    },
+    {
+      "id": "T23-L9",
+      "topic": "Symfony：配置与服务",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "容器中的服务是共享的：两次 get() 得到同一实例。",
+      "prompt": "这段代码会输出什么？\n\n```php\nuse Symfony\\Component\\DependencyInjection\\ContainerBuilder;\n$c = new ContainerBuilder();\n$c->register('a', stdClass::class)->setPublic(true);\n$c->compile();\necho spl_object_id($c->get('a')) === spl_object_id($c->get('a')) ? 'same' : 'diff';\n```",
+      "grader": {
+        "accept": [
+          "same"
+        ]
+      }
+    },
+    {
+      "id": "T23-L10",
+      "topic": "Symfony：配置与服务",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "compile() 传递性地解析 % 引用：%greeting% → 'hi %name%' → 'hi Bob!'，答案需要两步拼接。",
+      "prompt": "这段代码会输出什么？\n\n```php\nuse Symfony\\Component\\DependencyInjection\\ContainerBuilder;\n$c = new ContainerBuilder();\n$c->setParameter('name', 'Bob');\n$c->setParameter('greeting', 'hi %name%');\n$c->setParameter('message', '%greeting%!');\n$c->compile();\necho $c->getParameter('message');\n```",
+      "grader": {
+        "accept": [
+          "hi Bob!"
+        ]
+      }
+    },
+    {
+      "id": "T24-L9",
+      "topic": "Bootstrap",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "5.x 的 container 宽度：540/720/960/1140/1320（sm–xxl）；992 → 960px。",
+      "prompt": "在 Bootstrap 5.3 中，视口宽度 992px 时 .container 的 max-width 是多少？",
+      "grader": {
+        "accept": [
+          "960",
+          "960px"
+        ]
+      }
+    },
+    {
+      "id": "T24-L10",
+      "topic": "Bootstrap",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "特异性相同——后声明的规则获胜：text-danger 在 text-primary 之后声明。",
+      "prompt": "在 Bootstrap 5.3 中，`<p class=\"text-danger text-primary\">…</p>` 的文字颜色由哪个工具类决定？回答胜出的类名。",
+      "grader": {
+        "accept": [
+          "text-danger"
+        ]
+      }
+    },
+    {
+      "id": "T25-L9",
+      "topic": "整洁架构",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "Domain 只能依赖 Domain：PlaceOrder（Application）+ Db（Infrastructure）= 2。",
+      "prompt": "层：Domain、Application、Infrastructure。deptrac 规则：Application → Domain；Infrastructure → Domain、Application；Domain → 仅 Domain。\n\n对于这个类，deptrac 会报告多少个违规（Violations）？\n\n```php\nnamespace App\\Domain;\nuse App\\Application\\PlaceOrder;\nuse App\\Infrastructure\\Db;\n\nclass OrderService\n{\n    public function __construct(\n        private PlaceOrder $handler,\n        private Db $db,\n    ) {}\n}\n```",
+      "grader": {
+        "accept": [
+          "2"
+        ]
+      }
+    },
+    {
+      "id": "T25-L10",
+      "topic": "整洁架构",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "内联 FQCN \\App\\Infrastructure\\Logger 也计入：Application + Db + Logger = 3。",
+      "prompt": "层：Domain、Application、Infrastructure。deptrac 规则：Application → Domain；Infrastructure → Domain、Application；Domain → 仅 Domain。\n\n对于这个类，deptrac 会报告多少个违规（Violations）？\n\n```php\nnamespace App\\Domain;\nuse App\\Application\\PlaceOrder;\nuse App\\Infrastructure\\Db;\n\nclass BillingService\n{\n    public function __construct(\n        private PlaceOrder $handler,\n        private Db $db,\n        private \\App\\Infrastructure\\Logger $logger,\n    ) {}\n}\n```",
+      "grader": {
+        "accept": [
+          "3"
+        ]
+      }
+    },
+    {
+      "id": "T26-L10",
+      "topic": "DDD",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "值对象不可变：add() 返回新实例，原对象不变。",
+      "prompt": "这段代码会输出什么？\n\n```php\nfinal class Money\n{\n    public function __construct(public readonly int $amount) {}\n    public function add(Money $o): Money\n    {\n        return new self($this->amount + $o->amount);\n    }\n}\n$a = new Money(10);\n$c = $a->add(new Money(5));\necho $a->amount . ',' . $c->amount;\n```",
+      "grader": {
+        "php": "final class Money\n{\n    public function __construct(public readonly int $amount) {}\n    public function add(Money $o): Money\n    {\n        return new self($this->amount + $o->amount);\n    }\n}\n$a = new Money(10);\n$c = $a->add(new Money(5));\necho $a->amount . ',' . $c->amount;"
+      }
+    },
+    {
+      "id": "T26-L9",
+      "topic": "DDD",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "失败的 remove 不改变聚合状态：不变量在 unset 之前抛出——count 仍为 1。",
+      "prompt": "这段代码会输出什么？\n\n```php\nfinal class Order\n{\n    private array $items = [];\n\n    public function add(string $sku): void\n    {\n        $this->items[$sku] = true;\n    }\n\n    public function count(): int\n    {\n        return count($this->items);\n    }\n\n    public function remove(string $sku): void\n    {\n        if (count($this->items) === 1) {\n            throw new DomainException('last item');\n        }\n        unset($this->items[$sku]);\n    }\n}\n$o = new Order;\n$o->add('a');\ntry {\n    $o->remove('a');\n} catch (DomainException) {\n}\necho $o->count();\n```",
+      "grader": {
+        "php": "final class Order\n{\n    private array $items = [];\n\n    public function add(string $sku): void\n    {\n        $this->items[$sku] = true;\n    }\n\n    public function count(): int\n    {\n        return count($this->items);\n    }\n\n    public function remove(string $sku): void\n    {\n        if (count($this->items) === 1) {\n            throw new DomainException('last item');\n        }\n        unset($this->items[$sku]);\n    }\n}\n$o = new Order;\n$o->add('a');\ntry {\n    $o->remove('a');\n} catch (DomainException) {\n}\necho $o->count();"
+      }
+    },
+    {
+      "id": "VC-L9",
+      "topic": "PHP 8.4–8.5",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "自 8.4 起，方法链中的 new 无需外层括号。",
+      "prompt": "这段代码在 PHP 8.5 上会输出什么？\n\n```php\nclass C\n{\n    public function hi(): string { return 'hi'; }\n}\necho new C()->hi();\n```",
+      "grader": {
+        "php": "class C\n{\n    public function hi(): string { return 'hi'; }\n}\necho new C()->hi();"
+      }
+    },
+    {
+      "id": "VC-L10",
+      "topic": "PHP 8.4–8.5",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "newLazyGhost（8.4）：对象在首次访问前保持惰性——读取属性会触发初始化并清除标志。",
+      "prompt": "这段代码在 PHP 8.5 上会输出什么？\n\n```php\nclass Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 21;\n});\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n$o->v;\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n```",
+      "grader": {
+        "php": "class Heavy\n{\n    public int $v = 0;\n}\n$r = new ReflectionClass(Heavy::class);\n$o = $r->newLazyGhost(function (Heavy $obj) {\n    $obj->v = 21;\n});\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';\n$o->v;\necho $r->isUninitializedLazyObject($o) ? 'yes' : 'no';"
+      }
+    },
+    {
+      "id": "T28-L9",
+      "topic": "Symfony：版本",
+      "level": 9,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "Guard 认证在 Symfony 7.0 中被移除——8.1 中已无此类。",
+      "prompt": "项目从 Symfony 6.4 升级到 8.1。这段代码在 8.1 上会输出什么？\n\n```php\necho class_exists(\\Symfony\\Component\\Security\\Guard\\AbstractGuardAuthenticator::class)\n    ? 'yes' : 'no';\n```",
+      "grader": {
+        "accept": [
+          "no"
+        ]
+      }
+    },
+    {
+      "id": "T28-L10",
+      "topic": "Symfony：版本",
+      "level": 10,
+      "kind": "deep",
+      "zone": "base",
+      "type": "answer",
+      "note": "注解加载器在 7.0 中被移除，只保留了属性加载器（Annotation→Attribute）。",
+      "prompt": "项目从 Symfony 6.4 升级到 8.1。这段代码在 8.1 上会输出什么？\n\n```php\necho class_exists(\\Symfony\\Component\\Routing\\Loader\\AnnotationClassLoader::class)\n    ? 'yes' : 'no';\necho class_exists(\\Symfony\\Component\\Routing\\Loader\\AttributeClassLoader::class)\n    ? 'yes' : 'no';\n```",
+      "grader": {
+        "accept": [
+          "noyes"
+        ]
+      }
+    }
+  ]
+}

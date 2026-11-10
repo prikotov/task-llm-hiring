@@ -1,0 +1,113 @@
+id,topic,level,type,answer,expected,parsed,correct_answer,is_correct,strict,explanation,duration_s,prompt_tokens,output_tokens,cached_tokens
+T01-L1,Syntax and operators,1,yesno,нет,,late,нет,1,1,""", ""explanation"": ""Double-quoted strings support variable interpolation and additional escape sequences (\\n, \\t, \\r, etc.), while single-quoted strings only recognize \\\ and \\', so the difference is functional, not just a speed difference.""}",4.42,143,246,0
+T01-L2,Syntax and operators,2,yesno,да,,json,да,1,1,"The null coalescing operator (??) is equivalent to isset($a) ? $a : $b, so it does not raise warnings for undefined variables.",1.35,137,203,0
+T01-L3,Syntax and operators,3,answer,ab,ab,json,ab,1,1,The echo statement with commas concatenates the strings 'a' and 'b' and outputs 'ab'.,0.6,146,78,0
+T01-L4,Syntax and operators,4,yesno,да,,json,да,1,1,"In PHP, print is an operator that returns the integer 1, so it can be used within expressions, unlike echo which returns nothing.",1.29,137,203,0
+T01-L5,Syntax and operators,5,yesno,нет,,json,нет,1,1,"The Elvis operator ($a ?: $b) returns the left operand when it is truthy, and the right operand when it is falsy.",1.02,140,184,0
+T01-L6,Syntax and operators,6,yesno,да,,json,да,1,1,"In PHP, the concatenation operator (.) has lower precedence than + and -, so expressions like 'a' . 1 + 2 are parsed as 'a' . (1 + 2).",1.79,142,292,0
+T01-L7,Syntax and operators,7,yesno,нет,,json,нет,1,1,"The ** operator in PHP is right-associative, so 2 ** 3 ** 2 evaluates as 2 ** (3 ** 2) = 2 ** 9 = 512, not (2 ** 3) ** 2 = 64.",0.96,154,176,0
+T01-L8,Syntax and operators,8,answer,3,sum: 5,json,sum: 5,0,0,"Concatenation has higher precedence than addition, so it parses as ('sum: ' . 2) + 3, which is 'sum: 2' + 3, and in PHP 8 the string 'sum: 2' converts to 0, giving 0 + 3 = 3.",1.44,157,250,0
+T02-L1,Types and comparisons,1,yesno,нет,,json,нет,1,1,"With ===, arrays must have the same key/value pairs in the same order to be considered equal; it is == that ignores order.",0.97,138,159,0
+T02-L2,Types and comparisons,2,yesno,да,,json,да,1,1,"In PHP, loose comparison (==) treats false as 0, so 0 == false evaluates to true.",0.69,132,114,0
+T02-L3,Types and comparisons,3,yesno,нет,,json,нет,1,1,"In PHP 8, when comparing a non-numeric string to an integer, the integer is cast to a string, so 'abc' == 0 becomes 'abc' == '0' which is false.",1.52,139,264,0
+T02-L4,Types and comparisons,4,yesno,да,,json,да,1,1,"In PHP, null == 0, null == '', and null == false all evaluate to true under loose comparison (==).",0.94,143,137,0
+T02-L5,Types and comparisons,5,answer,42,42,json,42,1,1,"PHP's (int) cast reads numeric characters from the start of the string and stops at the first non-numeric character, so '42abc' becomes 42.",1.24,148,182,0
+T02-L6,Types and comparisons,6,answer,10,10,json,10,1,1,"PHP coerces the numeric string '5' to an integer when used with the + operator, so 5 + 5 = 10.",0.77,146,124,0
+T02-L7,Types and comparisons,7,yesno,нет,,json,нет,1,1,"In PHP, casting false to a string results in an empty string """", not ""0"".",1.34,133,202,0
+T02-L8,Types and comparisons,8,yesno,да,,json,да,1,1,"Due to floating point precision, 0.1 + 0.2 equals 0.30000000000000004, which is not strictly identical (===) to 0.3.",1.08,142,174,0
+T03-L1,Strings,1,yesno,нет,,json,нет,1,1,"strrev() operates on a byte-by-byte basis, so it will incorrectly reverse multi-byte UTF-8 characters rather than treating them as single code points.",1.4,135,189,0
+T03-L2,Strings,2,yesno,да,,json,да,1,1,str_contains() returns true because 'world' is a substring of 'Hello world'.,0.65,135,79,0
+T03-L3,Strings,3,yesno,нет,,json,нет,1,1,"str_pad() can pad on the right (default), left, or both sides using the $pad_type parameter (STR_PAD_RIGHT, STR_PAD_LEFT, STR_PAD_BOTH).",0.75,136,135,0
+T03-L4,Strings,4,yesno,да,,json,да,1,1,"By default, trim() removes spaces, tabs, newlines (\n, \r), NUL bytes, and vertical tabs from both ends of a string.",2.51,147,401,0
+T03-L5,Strings,5,answer,6,6,json,6,1,1,"In UTF-8, 'é' takes 2 bytes, so 'héllo' is 1+2+1+1+1 = 6 bytes.",0.96,153,170,0
+T03-L6,Strings,6,answer,cdef,def,json,def,0,0,"substr with a negative start position counts from the end, so -3 starts at 'c' and returns 'cdef'.",0.83,145,114,0
+T03-L7,Strings,7,yesno,нет,,json,нет,1,1,ucfirst() returns a new string with the first character uppercased; it does not modify the original string in place.,1.13,135,185,0
+T03-L8,Strings,8,yesno,да,,json,да,1,1,Heredoc supports variable interpolation while nowdoc (delimited by single quotes) treats the content as a plain string with no interpolation.,1.14,135,166,0
+T04-L1,Arrays,1,yesno,нет,,json,нет,1,1,"sort() reindexes the array with sequential numeric keys, losing the original key-to-value associations; use asort() to preserve them.",0.98,137,148,0
+T04-L2,Arrays,2,yesno,да,,json,да,1,1,PHP automatically converts string keys that represent valid non-negative integers into integer keys.,0.72,140,107,0
+T04-L3,Arrays,3,yesno,нет,,json,нет,1,1,"The third parameter $strict of in_array() defaults to false, meaning it uses loose comparison (==) by default, not strict (===).",0.83,137,136,0
+T04-L4,Arrays,4,yesno,да,,json,да,1,1,"Without a callback, array_filter() defaults to casting each value to a boolean and removes all falsy values (false, 0, '0', '', null, false, empty array).",1.08,144,150,0
+T04-L5,Arrays,5,yesno,нет,,json,нет,1,1,"The $preserve_keys parameter of array_slice() defaults to false, so keys are reindexed by default.",0.92,138,161,0
+T04-L6,Arrays,6,answer,"[20, 30]","[20,30]",json,"[20,30]",1,0,"array_slice with offset 1 and length 2 returns the two elements starting at index 1, which are 20 and 30.",1.3,162,198,0
+T04-L7,Arrays,7,answer,2,2,json,2,1,1,"PHP array addition keeps left-side values for duplicate keys, so the result is ['a' => 1, 'b' => 2], which has 2 elements.",1.59,163,240,0
+T04-L8,Arrays,8,yesno,да,,json,да,1,1,"Since PHP 8.1, the spread operator in array literals supports arrays with string keys (previously it only worked with integer keys).",1.14,147,178,0
+T05-L1,Functions and closures,1,yesno,нет,,json,нет,1,1,"Named arguments can be combined with argument unpacking in a single call, as long as the named arguments come before the unpacking (e.g., foo(a: 1, ...$args)).",1.68,140,278,0
+T05-L2,Functions and closures,2,yesno,нет,,json,нет,1,1,"In PHP, anonymous functions (closures) do not automatically capture variables from the outer scope; they must be explicitly imported using the 'use' keyword.",0.97,135,152,0
+T05-L3,Functions and closures,3,answer,3,3,json,3,1,1,"func_num_args() returns the number of arguments actually passed to the function (3), not the number declared in the signature (1).",0.79,167,144,0
+T05-L4,Functions and closures,4,yesno,нет,,json,нет,1,1,"Arrow functions (fn) in PHP always have a single-expression body with implicit return; curly braces and multiple statements are used by anonymous functions (closures), not arrow functions.",1.69,139,232,0
+T05-L5,Functions and closures,5,yesno,да,,json,да,1,1,PHP arrow functions (fn) automatically capture outer variables by value without needing a 'use' clause.,1.12,134,157,0
+T05-L6,Functions and closures,6,yesno,да,,json,да,1,1,"A static closure in PHP does not bind $this, so it cannot access the current object context unless $this is explicitly passed via use.",1.08,137,172,0
+T05-L7,Functions and closures,7,answer,5,5,json,5,1,1,"The closure captures $x by value at creation time (5), so later reassignment to 7 doesn't affect the captured value.",1.1,170,186,0
+T05-L8,Functions and closures,8,yesno,да,,json,да,1,1,"In PHP's coercive (weak) typing mode, the string '5' is automatically converted to the integer 5 when passed to an int parameter.",1.13,145,175,0
+T06-L1,OOP: classes and inheritance,1,yesno,да,,json,да,1,1,"Constructor property promotion was introduced in PHP 8.0, allowing constructor parameters to be automatically promoted to properties using visibility modifiers like 'private', 'public', or 'protected'.",0.83,139,127,0
+T06-L2,OOP: classes and inheritance,2,answer,final,final,json,final,1,1,"In PHP, the 'final' keyword before a method declaration prevents it from being overridden in any subclass.",0.59,145,85,0
+T06-L3,OOP: classes and inheritance,3,yesno,да,,json,да,1,1,"In PHP, the 'final' keyword on a method prevents it from being overridden in any subclass.",0.54,134,75,0
+T06-L4,OOP: classes and inheritance,4,yesno,нет,,json,нет,1,1,Private properties in a parent class are not accessible in a subclass; only public and protected properties are.,0.8,134,125,0
+T06-L6,OOP: classes and inheritance,6,yesno,да,,json,да,1,1,"A private method in the parent class is not visible to the child, so the child is free to declare a method with the same name and any visibility without conflict.",1.84,149,289,0
+T06-L7,OOP: classes and inheritance,7,yesno,нет,,json,нет,1,1,"__get() is also called when accessing inaccessible (protected/private) properties, not only non-existent ones.",0.89,137,133,0
+T06-L8,OOP: classes and inheritance,8,answer,error,error,json,error,1,1,"Reassigning an already-initialized readonly property throws a ReadonlyPropertyException, which is a subclass of Error.",1.16,148,169,0
+T07-L1,"Interfaces, traits, enum",1,yesno,да,,json,да,1,1,"PHP interfaces can declare constants, which are implicitly public.",0.63,129,94,0
+T07-L2,"Interfaces, traits, enum",2,answer,instanceof,instanceof,json,instanceof,1,1,"In PHP, the instanceof operator checks whether an object is an instance of a specific class or interface.",0.38,149,64,0
+T07-L3,"Interfaces, traits, enum",3,yesno,да,,json,да,1,1,"Since PHP 8.0, interfaces can declare static methods, optionally with a default implementation.",1.3,130,214,0
+T07-L4,"Interfaces, traits, enum",4,yesno,нет,,json,нет,1,1,"The instanceof operator checks both class inheritance and interface implementation, so an object that implements an interface will return true for instanceof that interface.",1.16,135,155,0
+T07-L5,"Interfaces, traits, enum",5,yesno,нет,,json,нет,1,1,"Interface methods in PHP are always abstract and cannot have a body/implementation, unlike trait methods which can have concrete implementations.",1.53,137,222,0
+T07-L6,"Interfaces, traits, enum",6,yesno,да,,json,да,1,1,"In PHP, abstract methods can be declared as either public or protected, but not private.",0.58,135,86,0
+T07-L7,"Interfaces, traits, enum",7,answer,3,3,json,3,1,1,"The enum Foo has three cases (A, B, C), so Foo::cases() returns an array of 3 elements.",0.73,158,111,0
+T08-L1,Exceptions and errors,1,yesno,да,,json,да,1,1,"In PHP, both Exception and Error implement the Throwable interface, making it their common ancestor.",0.84,136,126,0
+T08-L2,Exceptions and errors,2,yesno,нет,,json,нет,1,1,"TypeError extends Error, not Exception; both Error and Exception are siblings that implement Throwable, so catch(Exception) will not catch TypeError.",2.11,143,342,0
+T08-L3,Exceptions and errors,3,yesno,нет,,json,нет,1,1,"The @ operator suppresses errors (warnings, notices, etc.) but does not suppress exceptions; exceptions will still be thrown and propagate up the call stack.",0.86,131,129,0
+T08-L4,Exceptions and errors,4,answer,divisionbyzeroerror,divisionbyzeroerror,json,divisionbyzeroerror,1,1,"intdiv(5, 0) throws a DivisionByZeroError in PHP 7+, which is a subclass of ArithmeticError.",0.72,148,114,0
+T08-L5,Exceptions and errors,5,yesno,да,,json,да,1,1,The finally block always executes whether or not an exception is caught; it runs before the exception propagates further up the call stack.,0.93,139,130,0
+T08-L6,Exceptions and errors,6,yesno,нет,,json,нет,1,1,"An exception thrown in a finally block actually overrides/replaces any exception from the try or catch block, so it does have an effect on the result.",1.58,141,271,0
+T08-L8,Exceptions and errors,8,yesno,да,,json,да,1,1,"Shutdown functions registered via register_shutdown_function() are called when the script terminates, including when exit or die is invoked.",1.14,136,178,0
+T09-L1,Namespaces and autoloading,1,yesno,нет,,json,нет,1,1,The 'use' statement is a compile-time aliasing directive that simply maps a short name to a fully qualified class name; it does not trigger autoloading or load the class file.,1.14,137,172,0
+T09-L2,Namespaces and autoloading,2,answer,function,function,json,function,1,1,"In PHP, you use 'use function' to import a function from a namespace, e.g., 'use function MyNamespace\myFunction;'.",0.79,152,114,0
+T09-L3,Namespaces and autoloading,3,answer,controller/api/usercontroller.php,src/controller/api/usercontroller.php,json,src/controller/api/usercontroller.php,1,0,"PSR-4 strips the mapped prefix 'App\' from the FQCN, converts the remaining namespace segments to directory names, and appends the class name with .php extension.",1.5,164,246,0
+T09-L4,Namespaces and autoloading,4,yesno,да,,json,да,1,1,Composer's vendor/autoload.php ultimately includes autoload_real.php which calls spl_autoload_register() to register the autoloader function.,0.88,136,119,0
+T09-L5,Namespaces and autoloading,5,yesno,да,,json,да,1,1,__NAMESPACE__ is a magic constant that returns the current namespace name (or an empty string if in the global namespace).,0.62,137,98,0
+T09-L6,Namespaces and autoloading,6,yesno,нет,,json,нет,1,1,"An unqualified class name in 'new' is resolved relative to the current namespace first, falling back to the global namespace only if not found locally.",1.31,143,203,0
+T09-L7,Namespaces and autoloading,7,yesno,да,,json,да,1,1,PSR-4 maps the remaining namespace (Model\User) to the relative path src/Model/User.php by replacing backslashes with directory separators.,1.17,151,176,0
+T09-L8,Namespaces and autoloading,8,yesno,да,,json,нет,0,0,"PHP allows a use statement inside a function body, and the alias then only applies within that function's scope.",1.18,143,185,0
+T10-L1,References and scope,1,yesno,да,,json,да,1,1,"In PHP, arrays are value types and are copied on assignment (with copy-on-write optimization), unlike objects which use handle semantics.",0.94,134,135,0
+T10-L2,References and scope,2,answer,2,2,json,2,1,1,"In PHP, arrays are copied by value on assignment, so modifying $b does not affect $a, which still contains only 2 elements.",1.04,166,178,0
+T10-L3,References and scope,3,yesno,да,,json,да,1,1,"In PHP, global variables are not accessible within a function's local scope unless explicitly brought in via global, $GLOBALS, or passed as parameters.",1.27,145,177,0
+T10-L4,References and scope,4,yesno,нет,,json,нет,1,1,"Since $GLOBALS is an array of references to global variables, unset($GLOBALS['x']) removes the global variable for the entire script, not just the current function scope.",1.56,141,238,0
+T10-L5,References and scope,5,answer,6,6,json,6,1,1,"The function takes the parameter by reference (&$x), so the increment modifies the original variable $n from 5 to 6.",1.05,163,150,0
+T10-L6,References and scope,6,yesno,да,,json,нет,0,0,"PHP's foreach iterates over a fixed set of keys determined at loop start, but values are read from the live array at each iteration, so modifications made in earlier iterations are visible in later ones.",4.18,154,665,0
+T10-L7,References and scope,7,yesno,да,,json,да,1,1,"A static property belongs to the class itself, so there is only one copy shared across all instances.",0.65,138,94,0
+T10-L8,References and scope,8,yesno,нет,,json,нет,1,1,"In PHP, a boolean key true is cast to the integer 1, so it is stored as an int, not as a bool.",1.14,140,184,0
+T11-L1,"Generators, iterators, SPL",1,yesno,да,,json,да,1,1,"Since PHP 5.5, generators support a return value that can be retrieved by calling $gen->getReturn() after the generator has completed.",1.09,146,157,0
+T11-L2,"Generators, iterators, SPL",2,yesno,да,,json,нет,0,0,"In PHP, calling rewind() on a fully consumed generator restarts it from the beginning, re-executing the generator function so it can be traversed again.",2.82,139,422,0
+T11-L3,"Generators, iterators, SPL",3,yesno,нет,,json,да,0,0,PHP has the yield construct but no yield from construct; yield from is a Python feature.,1.93,135,287,0
+T11-L4,"Generators, iterators, SPL",4,answer,generator,generator,json,generator,1,1,"Calling a generator function returns a Generator object, so get_class() returns the string 'Generator'.",0.99,152,151,0
+T11-L5,"Generators, iterators, SPL",5,answer,3,3,json,3,1,1,"The generator yields 1, 2, 3 from the array, so iterator_to_array produces a 3-element array, and count returns 3.",1.44,161,228,0
+T11-L6,"Generators, iterators, SPL",6,yesno,нет,,json,нет,1,1,"SplStack implements a LIFO (Last-In, First-Out) structure, while SplQueue implements a FIFO (First-In, First-Out) queue.",0.75,132,120,0
+T11-L7,"Generators, iterators, SPL",7,yesno,да,,json,да,1,1,"ArrayIterator is an SPL class that wraps an array and implements the Iterator interface, enabling traversal via foreach or iterator methods.",0.97,138,126,0
+T11-L8,"Generators, iterators, SPL",8,yesno,нет,,json,нет,1,1,"ArrayObject implements the Traversable interface (via Iterator), so it can be traversed with foreach.",0.6,134,80,0
+T12-L1,Configuration and security,1,yesno,да,,json,да,1,1,password_hash() automatically generates a random salt and embeds it in the resulting hash string; there is no parameter to pass a separate salt.,1.02,138,154,0
+T12-L2,Configuration and security,2,yesno,нет,,json,нет,1,1,"In PHP 8, PASSWORD_DEFAULT is equivalent to PASSWORD_BCRYPT (or PASSWORD_ARGON2ID in PHP 8.4), not md5.",2.03,139,323,0
+T12-L3,Configuration and security,3,answer,yes,true,json,true,1,0,"password_verify returns true when the given password matches the provided hash, and here we are verifying 'secret' against its own hash.",0.94,151,130,0
+T12-L4,Configuration and security,4,yesno,нет,,json,нет,1,1,"strip_tags() removes HTML/XML tags from a string, which helps mitigate XSS, but SQL injection is prevented by using prepared statements or proper SQL escaping, not by stripping tags.",1.41,131,191,0
+T12-L5,Configuration and security,5,yesno,да,,json,да,1,1,"session_regenerate_id() creates a new session ID while preserving session data, which is the standard defense against session fixation attacks by invalidating any old ID an attacker may have captured before login.",1.34,139,159,0
+T12-L6,Configuration and security,6,answer,php_sapi_name(),php_sapi_name,json,php_sapi_name,1,0,"php_sapi_name() is the built-in PHP function that returns the current SAPI name, such as 'cli', 'fpm-fcgi', or 'apache2'.",0.87,149,137,0
+T12-L7,Configuration and security,7,yesno,да,,json,да,1,1,session_destroy() only removes the session data on the server; the PHPSESSID cookie in the browser must be explicitly deleted with setcookie() by setting its expiry to a past time.,1.35,142,185,0
+T12-L8,Configuration and security,8,yesno,нет,,json,нет,1,1,"The $_SESSION array is only populated with stored session data after session_start() is called; without it, it is either undefined or an empty array.",0.94,139,134,0
+T06-L5,OOP: classes and inheritance,5,answer,class@anonymous,class@anonymous,json,class@anonymous,1,1,get_class() on an anonymous class returns a string starting with 'class@anonymous' followed by the file and line number where it was defined.,2.63,151,378,0
+T07-L8,"Interfaces, traits, enum",8,yesno,да,,json,да,1,1,"Traits in PHP can declare constants, which become accessible to any class that uses the trait.",1.41,129,200,0
+T08-L7,Exceptions and errors,7,answer,yes,true,json,true,1,0,"In PHP, casting any object to bool always results in true, including new Exception('x').",0.9,148,123,0
+VC-L1,PHP 8.4–8.5,1,answer,7.4,8.4,json,8.4,0,0,array_find() was introduced in PHP 7.4 as a convenience function for finding the first element in an array that matches a condition.,5.85,146,885,0
+VC-L2,PHP 8.4–8.5,2,yesno,да,,json,да,1,1,Property hooks (allowing get/set logic directly in a property declaration) were introduced in PHP 8.4.,1.02,142,171,0
+VC-L3,PHP 8.4–8.5,3,yesno,да,,json,да,1,1,"Asymmetric visibility (e.g., public private(set) string $name) is a new feature introduced in PHP 8.4, allowing different read and write access levels for properties.",1.27,143,192,0
+VC-L4,PHP 8.4–8.5,4,answer,8.4,8.5,json,8.5,0,0,The #[\NoDiscard] attribute was introduced in PHP 8.4 to mark function results that must not be ignored.,1.36,165,214,0
+VC-L5,PHP 8.4–8.5,5,answer,8.4,8.5,json,8.5,0,0,The pipe operator (|>) was introduced in PHP 8.4.,0.54,152,68,0
+VC-L6,PHP 8.4–8.5,6,answer,none,8.5,json,8.5,0,0,"The clone-with syntax (clone($obj, ['x' => 1])) was proposed as an RFC but was never accepted into any released PHP version.",4.28,164,633,0
+VC-L7,PHP 8.4–8.5,7,answer,8.4,8.5,json,8.5,0,0,array_first() and array_last() were introduced as new array functions in PHP 8.4.,3.38,150,485,0
+VC-L8,PHP 8.4–8.5,8,answer,9.0,8.6,json,8.6,0,0,The RFC for Partial Function Application v2 was adopted for PHP 9.0.,3.02,167,456,0
+VF-L1,PHP: 8.6+ and the future,1,answer,8.4,8.6,json,8.6,0,0,The clamp_v2 RFC (which reintroduced the clamp() function after the original was removed from PHP 8.3) was implemented in PHP 8.4.,1.56,157,234,0
+VF-L2,PHP: 8.6+ and the future,2,yesno,да,,json,нет,0,0,"The Context Managers RFC (in its revised/accepted form) was adopted for PHP 8.5, which is scheduled for release in November 2025, so by 2026-11-06 it is already in effect.",5.11,149,798,0
+VF-L3,PHP: 8.6+ and the future,3,yesno,да,,json,да,1,1,The Bound-Erased Generic Types RFC was voted down (declined) during the PHP 2026 voting cycle.,2.86,143,428,0
+VF-L4,PHP: 8.6+ and the future,4,yesno,нет,,json,нет,1,1,"While ZTS (Zend Thread Safety) is available as a build option in PHP, no RFC to enable it by default has been adopted.",1.97,142,283,0
+VF-L5,PHP: 8.6+ and the future,5,yesno,да,,json,да,1,1,PHP has no native generics or parameterized types as of PHP 8.5; developers rely on docblock annotations and static analysis tools instead.,1.43,141,189,0
+VF-L6,PHP: 8.6+ and the future,6,yesno,да,,json,да,1,1,"PHP follows a November release cycle; PHP 8.6's GA is 2026-11-19, so on 2026-11-06 the latest stable would indeed be 8.5.",2.27,174,408,0
+VF-L7,PHP: 8.6+ and the future,7,yesno,да,,json,да,1,1,"PHP 6 was never officially released; its planned features were merged into PHP 7.0, which followed directly after PHP 5.6.",1.04,145,152,0
+VF-L8,PHP: 8.6+ and the future,8,yesno,нет,,json,да,0,0,"The Deprecation Attribute RFC was rejected for PHP 8.4, falling just short of the 75% approval threshold.",2.29,138,349,0
