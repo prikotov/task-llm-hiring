@@ -1026,9 +1026,22 @@ def build_compare(model_dir: Path, questions_path: Path,
 
     # Прогоны разных уровней рассуждений нельзя смешивать: «флипы» тогда
     # меряют смену режима, а не устойчивость знания. Карта — только внутри
-    # одного think (правило в blueprint.md).
+    # одного think (правило в blueprint.md). Исключение — think=on для
+    # бинарно-мыслящих моделей (BINARY_THINKING): low/medium по /api/show
+    # механически неотличимы, это один режим, карта честно строится по
+    # всем его прогонам.
     levels = {s.get("think") for _, s, _ in sessions}
-    if think_filter:
+    if think_filter == MERGED_THINK:
+        model_tag = sessions[0][1].get("model", model_dir.name)
+        wanted = ("low", "medium") if model_tag in BINARY_THINKING else ()
+        sessions = [(n, s, b) for n, s, b in sessions
+                    if s.get("think") in wanted]
+        if not sessions:
+            raise SystemExit(
+                f"think=on допустим только для моделей из BINARY_THINKING "
+                f"с прогонами low/medium ({model_tag}: "
+                f"{sorted(l for l in levels if l)})")
+    elif think_filter:
         sessions = [(n, s, b) for n, s, b in sessions
                     if s.get("think") == think_filter]
         if not sessions:
@@ -1611,7 +1624,8 @@ def main() -> int:
     p.add_argument("--think", default=None,
                    help="уровень рассуждений для тепловой карты; обязателен, "
                         "когда в папке прогоны нескольких think — смешивать "
-                        "уровни нельзя")
+                        "уровни нельзя; on — объединённый режим "
+                        "бинарно-мыслящих моделей (low+medium)")
     p.add_argument("--models-root", default=None,
                    help="сводный отчёт по всем моделям: карты серий "
                         "модель → уровень размышлений (out: reports/)")
