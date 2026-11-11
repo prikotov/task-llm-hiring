@@ -1280,6 +1280,11 @@ def protocol_tag(session: dict) -> str:
 # механика модели описана в её model.md). Модели с настоящими шкалами
 # (qwen3.8, bonsai-2, huihui, muse-glimmer: [false, low, medium,
 # xhigh…]; облачные — reasoning effort API) не объединяются.
+# Короткие имена моделей в отчёте (в аннотациях на сайте — полные теги)
+DISPLAY_NAMES = {
+    "orcarouter/Qwen3.8-27B-Uncensored:ctx100k": "orca",
+}
+
 BINARY_THINKING = {
     "ornith-1.5:35b", "ornith-1.5:35b-ctx100k", "ornith-1.5:35b-ctx100k-tuned",
     "ornith-1.5:9b",
@@ -1343,8 +1348,8 @@ def build_series_report(models_root: Path, questions_path: Path,
             runs.append((rd, session, by_id))
         if not runs:
             continue
-        model = esc(runs[0][1].get("model", md.name))
         model_tag = runs[0][1].get("model", md.name)
+        model = esc(DISPLAY_NAMES.get(model_tag, model_tag))
         latest_qver = max((s.get("questionnaire") or 0 for _, s, _ in runs))
         # ряды: (версия вопросника, язык) → уровень → прогоны;
         # показываем только последнюю версию вопросника модели
