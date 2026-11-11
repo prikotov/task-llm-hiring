@@ -482,43 +482,13 @@ def map_grid_single(by_id: dict, questions: list,
         if q["topic"] not in topics:
             topics.append(q["topic"])
     max_level = max(q["level"] for q in questions)
-    # разреженный набор (recall-пилот): не у каждой темы есть все уровни —
-    # рисуем без колонок уровней, клетки подряд с бейджем «L<n>»
-    sparse = any(len({q2["level"] for q2 in questions if q2["topic"] == t})
-                 < max_level for t in topics)
     by_topic_level = defaultdict(dict)
     for q in questions:
         if q["id"].endswith("-mc") and q.get("level", 0) <= 8:
             continue  # base-mcq дублирует слот verify-клетки — плейсхолдер
         by_topic_level[q["topic"]][q["level"]] = q
-    if sparse:
-        max_cells = max(len(by_topic_level[t]) for t in topics)
-        total_correct = sum(1 for q in questions
-                            if q["id"] in by_id and is_correct(by_id[q["id"]]))
-        # шапка и подвал — ровно по числу колонок (метка + клетки + итог),
-        # иначе грид съедет на полстроки
-        cells = ['<div class="hd"></div>', '<div class="hd">клетки</div>',
-                 '<div class="hd">итог</div>', '<div class="hd"></div>']
-        for topic in topics:
-            cells.append(f'<div class="rh">{esc(topic)}</div>')
-            tq = sorted((q for q in questions if q["topic"] == topic),
-                        key=lambda q: q["level"])
-            for q in tq:
-                t = by_id.get(q["id"])
-                tip = tooltip(t, q, lang=lang)
-                cells.append(f'<div class="cell {cell_class(t)}">'
-                             f'<div class="num">L{q["level"]}</div>'
-                             f'<div class="tip">{tip}</div></div>')
-            correct = sum(1 for q in tq
-                          if q["id"] in by_id and is_correct(by_id[q["id"]]))
-            cells.append(f'<div class="agg">{correct}/{len(tq)}</div>')
-        cells.append('<div class="agg">точность →</div>')
-        cells.append(f'<div class="agg">{pct(total_correct, len(questions))}%</div>')
-        cells.append('<div class="agg"></div>')
-        cells.append('<div class="agg"></div>')
-        return ('<div class="mapwrap"><div class="map" '
-                f'style="grid-template-columns: minmax(190px, 250px) '
-                f'repeat({max_cells}, 52px) 84px;">{"".join(cells)}</div></div>')
+    # плотная сетка всегда: отсутствующие уровни (например L9/L10 у зоны
+    # «будущее») рисуются прозрачными плейсхолдерами — сетка не едет
     cells = ['<div class="hd"></div>']
     cells += [f'<div class="hd">L{i}</div>' for i in range(1, max_level + 1)]
     cells.append('<div class="hd">итог</div>')
