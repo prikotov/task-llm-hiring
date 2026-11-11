@@ -1236,9 +1236,10 @@ def protocol_tag(session: dict) -> str:
 # любой запрошенный low/medium/high в «включено», градиента бюджетов
 # нет — серии low и medium таких моделей неотличимы по механике и
 # объединяются в один режим on (данные честные: 10 независимых
-# прогонов одного режима). Модели с настоящими шкалами (qwen3.8,
-# bonsai-2, huihui, muse-glimmer: [false, low, medium, xhigh…];
-# облачные — reasoning effort API) не объединяются.
+# прогонов одного режима; в отчёте запрос уровней не показывается —
+# механика модели описана в её model.md). Модели с настоящими шкалами
+# (qwen3.8, bonsai-2, huihui, muse-glimmer: [false, low, medium,
+# xhigh…]; облачные — reasoning effort API) не объединяются.
 BINARY_THINKING = {
     "ornith-1.5:35b", "ornith-1.5:35b-ctx100k", "ornith-1.5:35b-ctx100k-tuned",
     "ornith-1.5:9b",
@@ -1248,7 +1249,7 @@ BINARY_THINKING = {
     "orcarouter/Qwen3.8-27B-Uncensored:latest",
     "orcarouter/Qwen3.8-27B-Uncensored:iq4_xs",
 }
-MERGED_THINK = "on (low+medium)"
+MERGED_THINK = "on"
 
 
 def merge_binary_thinking(model: str, think_map: dict) -> dict:
