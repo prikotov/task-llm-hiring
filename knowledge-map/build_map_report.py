@@ -1463,6 +1463,17 @@ def build_series_report(models_root: Path, questions_path: Path,
                        if n_app != len(questions) else '')
                     + '</span></div>')
                 cells.append('<div class="uhead"></div>')
+            if max_level >= 9:
+                # подпись зоны «Глубина» над колонками L9/L10 каждой группы
+                cells.append('<div class="dhead"></div>')
+                for _g in groups:
+                    cells.append(f'<div class="dhead" '
+                                 f'style="grid-column: span {max_level - 2}">'
+                                 f'</div>')
+                    cells.append('<div class="dhead" '
+                                 'style="grid-column: span 2">Глубина</div>')
+                    cells.append('<div class="dhead"></div>')
+                    cells.append('<div class="dhead"></div>')
             for topic in topics:
                 cells.append(f'<div class="rh">{esc(topic)}</div>')
                 tq = sorted((q for q in questions if q["topic"] == topic),
@@ -1506,12 +1517,17 @@ def build_series_report(models_root: Path, questions_path: Path,
                                    / max(1, len(runs_list)))
                         tip = tooltip(None, q, runs=answers, lang=lang)
                         flip_cls = " flip" if flip_by_id.get(q["id"]) else ""
+                        # колонки L9/L10 — зона «Глубина»: рамка и граница
+                        deep_cls = ""
+                        if lvl >= 9:
+                            deep_cls = " deep" + (" deepstart" if lvl == 9
+                                                  else "")
                         fill = (f'<a class="fill" href="{cmp_href}'
                                 f'#row-{esc(q["id"])}" '
                                 f'aria-label="строка клетки в таблице"></a>'
                                 if cmp_href else "")
                         cells.append(
-                            f'<div class="cell{flip_cls}" '
+                            f'<div class="cell{flip_cls}{deep_cls}" '
                             f'style="background:{heat_color(p_share)}">'
                             f'{fill}'
                             f'<div class="num">{round(p_share * 100)}</div>'
@@ -1788,6 +1804,9 @@ def build_series_report(models_root: Path, questions_path: Path,
         "<li>строка карты — модель и язык, группы колонок — уровни "
         "мышления; клетка = доля верных ответов по серии (число — %), "
         "пунктирная рамка — ответы модели расходятся между прогонами;</li>"
+        "<li>две последние колонки каждой группы (L9 и L10) — зона "
+        "«Глубина» из введения: выделены подписью «Глубина» и фиолетовой "
+        "рамкой;</li>"
         "<li>в шапке группы: «итог» — доля верных ответов по всему "
         "вопроснику, «стаб.» — доля клеток без расхождений, «время» — "
         "суммарное время генерации серии;</li>"
@@ -1796,6 +1815,14 @@ def build_series_report(models_root: Path, questions_path: Path,
         "</ul></div>")
     extra = ("html { scroll-behavior: smooth; }"
              "main { max-width: 100%; padding: 28px 22px 60px; }"
+             ".unimap .dhead { font-size: 10px; font-weight: 600; "
+             "color: #6b5ec7; text-align: center; align-self: end; "
+             "padding-bottom: 2px; }"
+             ".unimap .cell.deep { box-shadow: inset 0 0 0 2px "
+             "rgba(107, 94, 199, .3); }"
+             ".unimap .cell.deepstart { border-left: 2px solid "
+             "rgba(107, 94, 199, .55); border-top-left-radius: 0; "
+             "border-bottom-left-radius: 0; }"
              ".plainwords { background: #eef3ea; border-left: 3px solid "
              "#6f9e63; padding: 10px 14px; border-radius: 4px; "
              "margin: 14px 0; }"
