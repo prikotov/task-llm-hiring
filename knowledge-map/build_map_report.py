@@ -254,6 +254,10 @@ def page_css() -> str:
     body { font: 15px/1.5 system-ui, sans-serif; color: var(--fg);
            background: #f6f7f9; margin: 0; padding: 28px 18px 60px; }
     main { max-width: 1120px; margin: 0 auto; }
+    .backlink { color: var(--mut); font-size: 13px; text-decoration: none; }
+    .backlink:hover { color: var(--fg); }
+    .publinks { margin-top: 10px; color: var(--mut); font-size: 12.5px; }
+    .publinks a { color: #5a7ec4; }
     h1 { font-size: 24px; margin: 0 0 4px; }
     h2 { font-size: 18px; margin: 34px 0 10px; }
     .proto { color: var(--mut); margin: 0 0 18px; }
@@ -667,19 +671,55 @@ def appendix_table_single(by_id: dict, questions: list,
 
 def page(title: str, protocol: str, chips: str, body: str, footer: str,
          extra_css: str = "") -> str:
+    # аналитика и шапка/подвал публичной версии — как в отчёте по найму
+    # (prikotov.pro/raw/llm-hiring-20261014): счётчики безвредны и на
+    # локальных копиях (не отдают события, счётчик не инициализируется
+    # без сети)
+    session_url = "sess_544c5df1-8772-4bd1-bcc2-cccdf38f232a"
+    footer2 = (
+        f'{footer}<div class="publinks">'
+        f'<a href="https://prikotov.pro/leaderboards">Все лидерборды моделей</a>'
+        f' · сессия ZCode: {session_url}'
+        f' · <a href="https://prikotov.pro/">prikotov.pro</a></div>')
     return f"""<!doctype html>
 <html lang="ru">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{esc(title)}</title>
 <style>{page_css()}{extra_css}</style>
+<p style="margin:0 0 6px"><a class="backlink" href="https://prikotov.pro/leaderboards">\u2190 Все лидерборды</a></p>
 <main>
 <h1>{esc(title)}</h1>
 <p class="proto">{protocol}</p>
 {chips}
 {body}
-<footer>{footer}</footer>
+<footer>{footer2}</footer>
 </main>
+<script>
+(function(m,e,t,r,i,k,a){{m[i]=m[i]||function(){{(m[i].a=m[i].a||[]).push(arguments)}};
+   m[i].l=1*new Date();
+   for (var j = 0; j < document.scripts.length; j++) {{if (document.scripts[j].src === r) {{ return; }}}}
+   k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)}})
+   (window, document, "script", "https://mc.yandex.ru/metrika/tag.js", "ym");
+
+   ym(100353099, "init", {{
+        clickmap:true,
+        trackLinks:true,
+        accurateTrackBounce:true
+   }});
+
+/* Google tag (gtag.js) */
+   var gaScript = document.createElement('script');
+   gaScript.async = true;
+   gaScript.src = 'https://www.googletagmanager.com/gtag/js?id=G-EFEV53WQWH';
+   document.head.appendChild(gaScript);
+
+   window.dataLayer = window.dataLayer || [];
+   function gtag(){{dataLayer.push(arguments);}}
+   gtag('js', new Date());
+
+   gtag('config', 'G-EFEV53WQWH');
+</script>
 </html>
 """
 
