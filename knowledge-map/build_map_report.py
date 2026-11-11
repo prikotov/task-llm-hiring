@@ -1560,9 +1560,9 @@ def build_series_report(models_root: Path, questions_path: Path,
     fam_heads = [("PHP", "PHP"), ("PHP+версии", "PHP+"),
                  ("Symfony", "Symfony"), ("Symfony+версии", "Symfony+"),
                  ("БД и ORM", "БД и ORM"),
-                 ("Архитектура", "Архитектура"),
-                 ("Фронтенд", "Фронтенд"),
-                 ("HTTP", "HTTP"), ("Безопасность", "Безопасность"),
+                 ("Архитектура", "Арх."),
+                 ("Фронтенд", "Фронт."),
+                 ("HTTP", "HTTP"), ("Безопасность", "Безоп."),
                  ("Тесты", "Тесты"), ("Глубина", "Глубина"),
                  ("Всего", "Всего")]
     fam_titles = {"БД и ORM": "Doctrine, PostgreSQL, транзакции и индексы",
@@ -1605,16 +1605,17 @@ def build_series_report(models_root: Path, questions_path: Path,
         cells.append(f'<td class="num" style="background:{heat_color(jp / 100)}">{jp}%</td>'
                      if jp is not None else '<td class="num">—</td>')
         mrows.append(f'<tr data-src="{src}">' + "".join(cells) + "</tr>")
-    cost_heads = [("Время", "Время/прогон"),
-                  ("Ток вх", "Ток вх/прогон"), ("Ток вых", "Ток вых/прогон"),
-                  ("Цена", "Цена/прогон"), ("Стаб.", "Стаб."), ("JSON", "JSON")]
-    head = ('<tr><th>Модель</th><th>think</th><th>Язык</th><th>Прогонов</th>'
+    cost_heads = [("Время", "Время"), ("Ток вх", "Ток вх"),
+                  ("Ток вых", "Ток вых"), ("Цена", "Цена"),
+                  ("Стаб.", "Стаб."), ("JSON", "JSON")]
+    head = ('<tr><th>Модель</th><th>think</th><th>Язык</th><th>Прог.</th>'
             + "".join(f'<th class="sortable" title="{fam_titles[k]}">{h}</th>'
                       if k in fam_titles else f'<th class="sortable">{h}</th>'
                       for k, h in fam_heads)
             + "".join(f'<th class="sortable" '
-                      f'title="среднее на один прогон">{h}</th>'
-                      if "/прогон" in h else '<th class="sortable">{}</th>'.format(h)
+                      f'title="{h} · среднее на 1 прогон">{h}</th>'
+                      if h in ("Время", "Ток вх", "Ток вых", "Цена")
+                      else '<th class="sortable">{}</th>'.format(h)
                       for _k, h in cost_heads) + "</tr>")
     # сортировка таблицы: клик по шапке (числовые колонки), повторный —
     # смена направления, кнопка — сброс к порядку сборки; прочерки всегда
