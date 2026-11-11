@@ -220,13 +220,13 @@ def tooltip(turn: dict | None, q: dict, runs: list[tuple] | None = None,
              esc(cell_text(q))]
     right = correct_text(q, turn, lang)
     if runs is not None:  # тепловая карта: вопрос, эталон, прогоны
+        # прогоны — без ссылок: тултип прозрачен для мыши
+        # (pointer-events: none), до ссылок не дотянуться
         parts.append(f"Верный ответ: <b>{esc(right)}</b>")
         lines = []
-        for run_name, ans, ok, href in runs:
+        for run_name, ans, ok, _href in runs:
             mark = "⬜" if ans is None else ("✓" if ok else "✗")
-            name = (f'<a href="{href}">{esc(run_name)}</a>' if href
-                    else esc(run_name))
-            lines.append(f'<span class="nb">{name}:\u00a0{mark}</span>')
+            lines.append(f'<span class="nb">{esc(run_name)}:\u00a0{mark}</span>')
         parts.append(" · ".join(lines))
     elif turn is not None:
         given = given_text(turn, lang)
