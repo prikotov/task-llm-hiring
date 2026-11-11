@@ -1425,8 +1425,14 @@ def build_series_report(models_root: Path, questions_path: Path,
                         f"{cmp_name_m}"
                         if (models_root / md.name / "knowledge-map"
                             / cmp_name_m).exists() else run_href)
+                # локальные (ollama) против облачных (openrouter/deepseek):
+                # по provider сессий группы
+                src = ("cloud" if any(s.get("provider") in ("openrouter",
+                                                           "deepseek")
+                                      for _rd, s, _b in items)
+                       else "local")
                 metrics.append((model, think, lang, fams_list, cost, flips,
-                                n_app, json_pct_, n_runs, link))
+                                n_app, json_pct_, n_runs, link, src))
             if not groups:
                 continue
 
@@ -1572,7 +1578,7 @@ def build_series_report(models_root: Path, questions_path: Path,
     max_cost = max((m[4][3] / m[8] for m in metrics if m[4][3]),
                    default=1) or 1
     mrows = []
-    for model, think, lang, fams_list, cost, fl, nq, jp, n_runs, link \
+    for model, think, lang, fams_list, cost, fl, nq, jp, n_runs, link, src \
             in metrics:
         pm = dict(fams_list)
         model_cell = (f'<a href="{link}">{esc(model)}</a>'
@@ -1598,7 +1604,7 @@ def build_series_report(models_root: Path, questions_path: Path,
         cells.append(f'<td class="num" style="background:{heat_color(1 - fl / max(1, nq))}">{pct(nq - fl, nq)}%</td>')
         cells.append(f'<td class="num" style="background:{heat_color(jp / 100)}">{jp}%</td>'
                      if jp is not None else '<td class="num">—</td>')
-        mrows.append("<tr>" + "".join(cells) + "</tr>")
+        mrows.append(f'<tr data-src="{src}">' + "".join(cells) + "</tr>")
     cost_heads = [("Время", "Время/прогон"),
                   ("Ток вх", "Ток вх/прогон"), ("Ток вых", "Ток вых/прогон"),
                   ("Цена", "Цена/прогон"), ("Стаб.", "Стаб."), ("JSON", "JSON")]
@@ -1616,7 +1622,8 @@ def build_series_report(models_root: Path, questions_path: Path,
     # (дешевле/быстрее = лучше) — по возрастанию. Маркеры направления —
     # через CSS-классы (::after): у несортируемых щелчков виден серый «↕»,
     # у активной колонки — «▲/▼»; кнопка сброса активна только когда
-    # сортировка применена
+    # сортировка применена. Фильтр моделей (все/локальные/облачные по
+    # data-src строки) скрывает строки; сортировка применяется к видимым
     sort_js = """
 <script>
 (function () {
@@ -1626,26 +1633,36 @@ def build_series_report(models_root: Path, questions_path: Path,
   var orig = Array.prototype.slice.call(tbody.rows);
   var heads = Array.prototype.slice.call(tbl.tHead.rows[0].cells);
   var reset = document.getElementById("sort-reset");
-  var cur = -1, dir = 1;
+  var cur = -1, dir = 1, filter = "all";
   function val(cell) {
     var t = cell.textContent.trim();
     if (!t || t === "\\u2014") return null;
     var f = parseFloat(t.replace("$", ""));
     return isNaN(f) ? null : f;
   }
+  function match(r) {
+    return filter === "all" || r.getAttribute("data-src") === filter;
+  }
   function clearMarks() {
     heads.forEach(function (th) {
       th.classList.remove("sorted-asc", "sorted-desc");
     });
   }
-  function apply(idx, d) {
-    var rows = orig.slice().sort(function (a, b) {
-      var va = val(a.cells[idx]), vb = val(b.cells[idx]);
-      if (va === null && vb === null) return 0;
-      if (va === null) return 1;
-      if (vb === null) return -1;
-      return d * (va - vb);
+  function render() {
+    var vis = orig.filter(match);
+    orig.forEach(function (r) {
+      r.style.display = match(r) ? "" : "none";
     });
+    var rows = vis.slice();
+    if (cur >= 0) {
+      rows.sort(function (a, b) {
+        var va = val(a.cells[cur]), vb = val(b.cells[cur]);
+        if (va === null && vb === null) return 0;
+        if (va === null) return 1;
+        if (vb === null) return -1;
+        return dir * (va - vb);
+      });
+    }
     rows.forEach(function (r) { tbody.appendChild(r); });
   }
   heads.forEach(function (th, idx) {
@@ -1658,14 +1675,25 @@ def build_series_report(models_root: Path, questions_path: Path,
       clearMarks();
       th.classList.add(dir === 1 ? "sorted-asc" : "sorted-desc");
       reset.disabled = false;
-      apply(idx, dir);
+      render();
     });
   });
   reset.addEventListener("click", function () {
     cur = -1; dir = 1;
     clearMarks();
     reset.disabled = true;
-    orig.forEach(function (r) { tbody.appendChild(r); });
+    render();
+  });
+  Array.prototype.forEach.call(
+      document.querySelectorAll("button.srcseg"), function (b) {
+    b.addEventListener("click", function () {
+      filter = b.getAttribute("data-src");
+      Array.prototype.forEach.call(
+          document.querySelectorAll("button.srcseg"), function (x) {
+        x.classList.toggle("active", x === b);
+      });
+      render();
+    });
   });
 })();
 </script>
@@ -1679,7 +1707,15 @@ def build_series_report(models_root: Path, questions_path: Path,
                      '<span style="font-size:12px;font-weight:normal;'
                      'color:#8b909b;margin-left:10px">сортировка: клик по '
                      'заголовку колонки, повторный клик — смена '
-                     'направления</span></h2>\n'
+                     'направления</span>'
+                     '<span style="font-size:12px;font-weight:normal;'
+                     'color:#8b909b;margin-left:16px">модели:</span>'
+                     '<button class="srcseg active" data-src="all" '
+                     'type="button">все</button>'
+                     '<button class="srcseg" data-src="local" '
+                     'type="button">локальные</button>'
+                     '<button class="srcseg" data-src="cloud" '
+                     'type="button">облачные</button></h2>\n'
                      '<table class="data metrics"><thead>'
                      + head + '</thead><tbody>' + "".join(mrows)
                      + "</tbody></table>\n" + sort_js)
@@ -1710,7 +1746,13 @@ def build_series_report(models_root: Path, questions_path: Path,
              "table.metrics th.sortable.sorted-asc::after { content: "
              "'\\25b2'; color: #3d4351; }"
              "table.metrics th.sortable.sorted-desc::after { content: "
-             "'\\25bc'; color: #3d4351; }")
+             "'\\25bc'; color: #3d4351; }"
+             "button.srcseg { font-size:12px; padding:2px 10px; "
+             "cursor:pointer; border:1px solid #c9ced8; background:#fff; "
+             "color:#5a6270; border-radius:6px; margin-left:4px; "
+             "vertical-align:middle; }"
+             "button.srcseg.active { background:#e8ebf1; color:#3d4351; "
+             "font-weight:600; }")
     html = page(title, proto, "", "\n".join(sections),
                 "построено knowledge-map/build_map_report.py · "
                 f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
