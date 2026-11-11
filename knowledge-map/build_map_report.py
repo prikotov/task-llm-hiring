@@ -1373,9 +1373,7 @@ def build_series_report(models_root: Path, questions_path: Path,
                 total_s = next((p for name, p in fams_list
                                 if name == "Всего"), None)
                 dur_s = cost[0]
-                tdisp = (f"{dur_s:.0f} с" if dur_s < 90
-                         else f"{dur_s / 60:.1f} мин" if dur_s < 5400
-                         else f"{dur_s / 3600:.1f} ч")
+                tdisp = f"{dur_s / 60:.1f} мин"
                 cells.append(
                     f'<div class="uhead" style="grid-column: '
                     f'span {max_level + 1}">'
