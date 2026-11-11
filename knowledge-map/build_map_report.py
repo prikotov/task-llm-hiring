@@ -1733,7 +1733,7 @@ def build_series_report(models_root: Path, questions_path: Path,
     proto = (f"сборка {built} · {n_models} моделей · {n_maps} карт · "
              f"296 клеток · языки ru / en / zh")
     intro = (
-        "<p>Каждая клетка карты — один независимый запрос к модели: без "
+        "<p>Каждая клетка карты — один вопрос к модели: без "
         "system-промпта, инструментов и диалога, ответ строго в JSON. "
         "Вопросник v8 — 240 клеток (26 тем × 8 уровней): язык PHP и стек "
         "проекта — Symfony, Doctrine, PostgreSQL, Twig, HTTP и OAuth, "
