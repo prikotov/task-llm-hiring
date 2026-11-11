@@ -1613,7 +1613,10 @@ def build_series_report(models_root: Path, questions_path: Path,
     # сортировка таблицы: клик по шапке (числовые колонки), повторный —
     # смена направления, кнопка — сброс к порядку сборки; прочерки всегда
     # внизу; для семейств/Стаб./JSON первый клик — по убыванию, для затрат
-    # (дешевле/быстрее = лучше) — по возрастанию
+    # (дешевле/быстрее = лучше) — по возрастанию. Маркеры направления —
+    # через CSS-классы (::after): у несортируемых щелчков виден серый «↕»,
+    # у активной колонки — «▲/▼»; кнопка сброса активна только когда
+    # сортировка применена
     sort_js = """
 <script>
 (function () {
@@ -1621,7 +1624,8 @@ def build_series_report(models_root: Path, questions_path: Path,
   if (!tbl) return;
   var tbody = tbl.tBodies[0];
   var orig = Array.prototype.slice.call(tbody.rows);
-  var heads = Array.prototype.slice.call(tbl.rows[0].cells);
+  var heads = Array.prototype.slice.call(tbl.tHead.rows[0].cells);
+  var reset = document.getElementById("sort-reset");
   var cur = -1, dir = 1;
   function val(cell) {
     var t = cell.textContent.trim();
@@ -1631,7 +1635,7 @@ def build_series_report(models_root: Path, questions_path: Path,
   }
   function clearMarks() {
     heads.forEach(function (th) {
-      th.textContent = th.textContent.replace(/ [\\u25b2\\u25bc]$/, "");
+      th.classList.remove("sorted-asc", "sorted-desc");
     });
   }
   function apply(idx, d) {
@@ -1652,24 +1656,30 @@ def build_series_report(models_root: Path, questions_path: Path,
       if (cur === idx) { dir = -dir; }
       else { cur = idx; dir = (idx >= 16 && idx <= 19) ? 1 : -1; }
       clearMarks();
-      th.textContent += dir === 1 ? " \\u25b2" : " \\u25bc";
+      th.classList.add(dir === 1 ? "sorted-asc" : "sorted-desc");
+      reset.disabled = false;
       apply(idx, dir);
     });
   });
-  document.getElementById("sort-reset").addEventListener("click", function () {
+  reset.addEventListener("click", function () {
     cur = -1; dir = 1;
     clearMarks();
+    reset.disabled = true;
     orig.forEach(function (r) { tbody.appendChild(r); });
   });
 })();
 </script>
 """
     sections.insert(0, '<h2>Метрики серий '
-                     '<button id="sort-reset" type="button" '
+                     '<button id="sort-reset" type="button" disabled '
                      'style="font-size:12px;padding:2px 10px;cursor:pointer;'
                      'border:1px solid #c9ced8;border-radius:6px;'
                      'background:#fff;color:#5a6270;'
-                     'vertical-align:middle">сброс сортировки</button></h2>\n'
+                     'vertical-align:middle">сброс сортировки</button>'
+                     '<span style="font-size:12px;font-weight:normal;'
+                     'color:#8b909b;margin-left:10px">сортировка: клик по '
+                     'заголовку колонки, повторный клик — смена '
+                     'направления</span></h2>\n'
                      '<table class="data metrics"><thead>'
                      + head + '</thead><tbody>' + "".join(mrows)
                      + "</tbody></table>\n" + sort_js)
@@ -1694,7 +1704,13 @@ def build_series_report(models_root: Path, questions_path: Path,
              "table.metrics th { white-space: nowrap; }"
              "table.metrics td:first-child { white-space: nowrap; }"
              "table.metrics th.sortable { cursor: pointer; user-select: none; }"
-             "table.metrics th.sortable:hover { background: #eef1f6; }")
+             "table.metrics th.sortable:hover { background: #eef1f6; }"
+             "table.metrics th.sortable::after { content: '\\2195'; "
+             "color: #b6bcc8; margin-left: 4px; font-size: 11px; }"
+             "table.metrics th.sortable.sorted-asc::after { content: "
+             "'\\25b2'; color: #3d4351; }"
+             "table.metrics th.sortable.sorted-desc::after { content: "
+             "'\\25bc'; color: #3d4351; }")
     html = page(title, proto, "", "\n".join(sections),
                 "построено knowledge-map/build_map_report.py · "
                 f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
