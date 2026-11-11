@@ -254,8 +254,10 @@ def page_css() -> str:
     body { font: 15px/1.5 system-ui, sans-serif; color: var(--fg);
            background: #f6f7f9; margin: 0; padding: 28px 18px 60px; }
     main { max-width: 1120px; margin: 0 auto; }
-    .backlink { color: var(--mut); font-size: 13px; text-decoration: none; }
-    .backlink:hover { color: var(--fg); }
+    .backlink { display: inline-block; background: #edf1f7; color: #315f9e;
+                font-size: 13.5px; font-weight: 600; padding: 6px 14px;
+                border-radius: 8px; text-decoration: none; margin: 0 4px 14px; }
+    .backlink:hover { background: #dfe7f3; }
     .publinks { margin-top: 10px; color: var(--mut); font-size: 12.5px; }
     .publinks a { color: #5a7ec4; }
     h1 { font-size: 24px; margin: 0 0 4px; }
