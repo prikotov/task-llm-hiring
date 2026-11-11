@@ -1731,7 +1731,7 @@ def build_series_report(models_root: Path, questions_path: Path,
     # строка фактов под заголовком (как в статье benchgecko: «Latest run …
     # · N models · 1800 points each») — сразу объём теста
     proto = (f"сборка {built} · {n_models} моделей · {n_maps} карт · "
-             f"вопросник v8 (240 клеток) + Глубина v4 (56 клеток L9/L10) · "
+             f"296 клеток (вопросник v8 + Глубина L9/L10) · "
              f"языки ru / en / zh")
     intro = (
         "<p>Каждая клетка карты — один сырой запрос к модели: без "
