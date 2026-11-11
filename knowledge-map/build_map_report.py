@@ -1585,7 +1585,8 @@ def build_series_report(models_root: Path, questions_path: Path,
     for model, think, lang, fams_list, cost, fl, nq, jp, n_runs, link, src \
             in metrics:
         pm = dict(fams_list)
-        model_cell = (f'<a href="{link}">{esc(model)}</a>'
+        model_cell = (f'<a class="anchor" href="{link}" '
+                      f'title="к карте модели ниже">{esc(model)}</a>'
                       if link else esc(model))
         cells = [f'<td>{model_cell}</td>', f'<td>{esc(think)}</td>',
                  f'<td>{esc(lang)}</td>', f'<td class="num">{n_runs}</td>']
@@ -1734,7 +1735,9 @@ def build_series_report(models_root: Path, questions_path: Path,
              "генерации; у времени и цены монохромная подложка — "
              "насыщенность растёт с величиной, к самому дорогому прогону "
              "таблицы), стабильность; клик по модели — переход к карте "
-             "этой модели и языка ниже; серии из одного прогона помечены "
+             "этой модели и языка ниже; условие ссылок: синие открывают "
+             "отчёты, серые с \u2193 — навигация по странице; серии из "
+             "одного прогона помечены "
              "«1 прогон» — их Стаб. всегда 100% и не сравнима с сериями; "
              "ниже — карты: строка = модель × "
              "версия вопросника × язык, строки тем, группы колонок — уровни "
@@ -1743,6 +1746,10 @@ def build_series_report(models_root: Path, questions_path: Path,
              "прокрутка при узком экране)")
     extra = ("html { scroll-behavior: smooth; }"
              "main { max-width: 100%; padding: 28px 22px 60px; }"
+             "table.metrics a.anchor { color: #8b909b; }"
+             "table.metrics a.anchor::after { content: '\\2193'; "
+             "font-size: 11px; margin-left: 2px; }"
+             "table.metrics a.anchor:hover { color: #5a6270; }"
              "table.metrics td.num { text-align: right; font-variant-numeric: tabular-nums; }"
              "table.metrics th { white-space: nowrap; }"
              "table.metrics td:first-child { white-space: nowrap; }"
