@@ -1372,12 +1372,17 @@ def build_series_report(models_root: Path, questions_path: Path,
                     sok, fl, _jp, n_app in groups:
                 total_s = next((p for name, p in fams_list
                                 if name == "Всего"), None)
+                dur_s = cost[0]
+                tdisp = (f"{dur_s:.0f} с" if dur_s < 90
+                         else f"{dur_s / 60:.1f} мин" if dur_s < 5400
+                         else f"{dur_s / 3600:.1f} ч")
                 cells.append(
                     f'<div class="uhead" style="grid-column: '
                     f'span {max_level + 1}">'
                     f'think: {esc(think_disp)}<span class="umeta">'
                     f'итог {total_s}% · '
                     f'стаб. {pct(n_app - fl, n_app)}%'
+                    + f' · время {tdisp}'
                     + (f' · прим. {n_app}/{len(questions)}'
                        if n_app != len(questions) else '')
                     + '</span></div>')
