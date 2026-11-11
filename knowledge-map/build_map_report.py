@@ -1616,7 +1616,11 @@ def build_series_report(models_root: Path, questions_path: Path,
                      f'style="background:{cost_color(ccost / n_runs / max_cost)}">'
                      f'${ccost / n_runs:.2f}</td>'
                      if ccost else '<td class="num">—</td>')
-        cells.append(f'<td class="num" style="background:{heat_color(1 - fl / max(1, nq))}">{pct(nq - fl, nq)}%</td>')
+        # стабильность для серий из одного прогона не измеряется — прочерк
+        if n_runs == 1:
+            cells.append('<td class="num">—</td>')
+        else:
+            cells.append(f'<td class="num" style="background:{heat_color(1 - fl / max(1, nq))}">{pct(nq - fl, nq)}%</td>')
         cells.append(f'<td class="num" style="background:{heat_color(jp / 100)}">{jp}%</td>'
                      if jp is not None else '<td class="num">—</td>')
         mrows.append(f'<tr data-src="{src}">' + "".join(cells) + "</tr>")
@@ -1790,10 +1794,9 @@ def build_series_report(models_root: Path, questions_path: Path,
         "<li>Время, Ток вх, Ток вых и Цена — средние затраты на один "
         "прогон; насыщенность янтарной подложки растёт с величиной;</li>"
         "<li>остальные числовые колонки — проценты верных ответов;</li>"
-        "<li>клик по названию модели (серая ссылка с ↓) прокручивает к "
-        "её карте;</li>"
-        "<li>у серий из одного прогона Стаб. всегда 100% и не сравнима с "
-        "остальными (число прогонов — колонка «Прог.»).</li>"
+        "<li>клик по названию модели (серая ссылка с \u2193) прокручивает к "
+        "её карте; у серий из одного прогона Стаб. не измеряется — "
+        "прочерк.</li>"
         "</ul>"
         "<p style='margin:10px 0 2px'><b>Карты знаний:</b></p>"
         "<ul>"
