@@ -1229,6 +1229,43 @@ def protocol_tag(session: dict) -> str:
     return "текст"
 
 
+# Модели с бинарным мышлением — по /api/show сервера (поле thinking
+# верхнего уровня, проверено 2026-11-11): шкала уровней [false, true]
+# или вовсе null (ornith — capability есть, значений не декларировано,
+# Go-шаблон умеет только enable_thinking true/false). ollama переводит
+# любой запрошенный low/medium/high в «включено», градиента бюджетов
+# нет — серии low и medium таких моделей неотличимы по механике и
+# объединяются в один режим on (данные честные: 10 независимых
+# прогонов одного режима). Модели с настоящими шкалами (qwen3.8,
+# bonsai-2, huihui, muse-glimmer: [false, low, medium, xhigh…];
+# облачные — reasoning effort API) не объединяются.
+BINARY_THINKING = {
+    "ornith-1.5:35b", "ornith-1.5:35b-ctx100k", "ornith-1.5:35b-ctx100k-tuned",
+    "ornith-1.5:9b",
+    "gemma4:26b", "gemma4:26b-pi-100k",
+    "gemma4:31b-it-qat", "gemma4:31b-it-qat-pi-100k",
+    "gemma4:e2b",
+    "orcarouter/Qwen3.8-27B-Uncensored:latest",
+    "orcarouter/Qwen3.8-27B-Uncensored:iq4_xs",
+}
+MERGED_THINK = "on (low+medium)"
+
+
+def merge_binary_thinking(model: str, think_map: dict) -> dict:
+    """Свести low+medium в on для моделей с бинарным мышлением."""
+    if model not in BINARY_THINKING:
+        return think_map
+    if "low" not in think_map or "medium" not in think_map:
+        return think_map
+    merged = {k: v for k, v in think_map.items()
+              if k not in ("low", "medium")}
+    merged[MERGED_THINK] = think_map["low"] + think_map["medium"]
+    print(f"  {model}: low+medium объединены в on "
+          f"({len(think_map['low']) + len(think_map['medium'])} прогонов) "
+          f"— мышление бинарное по /api/show")
+    return merged
+
+
 def build_series_report(models_root: Path, questions_path: Path,
                         out_file: Path) -> None:
     """Сводный отчёт по всем моделям: единая карта серий — строки тем,
@@ -1236,7 +1273,8 @@ def build_series_report(models_root: Path, questions_path: Path,
     границами. Клетка = доля верных ответов по серии, пунктир = флип.
     Вся карта всегда одной строкой (горизонтальная прокрутка при узком
     экране), метки тем — общий блок слева."""
-    think_order = {"off": 0, "low": 1, "medium": 2, "high": 3, "xhigh": 4}
+    think_order = {"off": 0, MERGED_THINK: 1.5, "low": 1, "medium": 2,
+                   "high": 3, "xhigh": 4}
     sections = []
     metrics = []
     model_dirs = sorted(d for d in models_root.iterdir()
@@ -1261,6 +1299,7 @@ def build_series_report(models_root: Path, questions_path: Path,
         if not runs:
             continue
         model = esc(runs[0][1].get("model", md.name))
+        model_tag = runs[0][1].get("model", md.name)
         latest_qver = max((s.get("questionnaire") or 0 for _, s, _ in runs))
         # ряды: (версия вопросника, язык) → уровень → прогоны;
         # показываем только последнюю версию вопросника модели
@@ -1271,6 +1310,10 @@ def build_series_report(models_root: Path, questions_path: Path,
                 continue
             rows_map[(qver, session.get("lang", "ru"))][
                 session.get("think")].append((rd, session, by_id))
+        if model_tag in BINARY_THINKING:
+            # механика модели: уровней нет — low/medium один режим on
+            rows_map = {k: merge_binary_thinking(model_tag, v)
+                        for k, v in rows_map.items()}
 
         for (qver, lang), think_map in sorted(
                 rows_map.items(),
