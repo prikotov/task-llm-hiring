@@ -1222,27 +1222,25 @@ def flips_table(questions: list, runs: list[tuple[str, dict]],
                 flip_by_id: dict[str, bool],
                 report_href: dict[str, str] | None = None,
                 lang: str = "ru") -> str:
-    """Таблица нестабильных клеток: утверждение и ответы каждого прогона."""
+    """Таблица нестабильных клеток: утверждение и ответы каждого прогона
+    в отдельных колонках (заголовок колонки — ссылка на отчёт прогона)."""
     flipped = [q for q in questions if flip_by_id.get(q["id"])]
     if not flipped:
         return ("<p>Ни одна клетка не флипует: все 96 ответов одинаковы во "
                 "всех прогонах.</p>")
     names = [run_link(n, (report_href or {}).get(n) or "") for n, _ in runs]
+    head = ('<tr><th>Клетка</th><th>Утверждение</th>'
+            + "".join(f"<th>{n}</th>" for n in names) + "</tr>")
     rows = []
     for q in flipped:
-        cells = []
-        for name, by_id in runs:
+        cells = [f'<td><code class="id">{esc(q["id"])}</code></td>',
+                 f'<td class="assert">{esc(cell_text(q))}</td>']
+        for _name, by_id in runs:
             a = by_id.get(q["id"], {}).get("answer")
-            cells.append("—" if a is None else yes_no(a, lang))
-        rows.append(
-            f'<tr><td><code class="id">{esc(q["id"])}</code></td>'
-            f'<td class="assert">{esc(cell_text(q))}</td>'
-            f'<td>{" · ".join(esc(c) for c in cells)}</td></tr>')
-    return f"""<table class="data">
-<tr><th>Клетка</th><th>Утверждение</th>
-<th>Ответы по прогонам ({" → ".join(names)})</th></tr>
-{"\n".join(rows)}
-</table>"""
+            v = "—" if a is None else yes_no(a, lang)
+            cells.append(f"<td>{esc(v)}</td>")
+        rows.append("<tr>" + "".join(cells) + "</tr>")
+    return ('<table class="data">' + head + "\n".join(rows) + "</table>")
 
 
 def protocol_tag(session: dict) -> str:
