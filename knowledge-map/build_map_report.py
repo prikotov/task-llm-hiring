@@ -281,15 +281,20 @@ def page_css() -> str:
     .cell.bad { background: @BAD@; }
     .cell.na { background: @NA@; }
     .cell:hover { outline: 2px solid #1c2130; }
-    .cell .tip { display: none; position: absolute; bottom: 108%; left: 50%;
-                 transform: translateX(-50%); width: 320px; z-index: 20;
-                 background: #202634; color: #eef1f6; padding: 10px 12px;
-                 border-radius: 9px; font-size: 12px; line-height: 1.45;
-                 text-align: left; white-space: normal;
-                 box-shadow: 0 6px 18px rgba(0,0,0,.35); }
-    .cell:hover .tip { display: block; }
-    .tip .nb { white-space: nowrap; }
-    .tip a { color: #9ecbff; }
+    /* тултип-сноска: содержимое .cell .tip показывается в фиксированной
+       панели внизу экрана — не перекрывает клетки; панель прозрачна
+       для мыши (pointer-events: none), курсор работает сквозь неё */
+    .cell .tip { display: none !important; }
+    #hoverbar { display: none; position: fixed; left: 14px; right: 14px;
+                bottom: 10px; background: #fff; border: 1px solid var(--line);
+                border-radius: 10px; padding: 8px 14px; font-size: 12.5px;
+                line-height: 1.45; text-align: left; white-space: normal;
+                z-index: 60; max-height: 210px; overflow: auto;
+                pointer-events: none;
+                box-shadow: 0 6px 18px rgba(28,33,48,.14); }
+    #hoverbar.on { display: block; }
+    #hoverbar .nb { white-space: nowrap; }
+    #hoverbar a { color: #2d5fb4; }
     /* клетка-контейнер с невидимой ссылкой-подложкой: клик по клетке
        ведёт к таблице, а ссылки внутри тултипа не вкладываются в <a> */
     .cell .fill { position: absolute; inset: 0; border-radius: inherit;
@@ -707,6 +712,26 @@ def page(title: str, protocol: str, chips: str, body: str, footer: str,
 {body}
 <footer>{footer}</footer>
 </main>
+<div id="hoverbar"></div>
+<script>
+(function () {{
+  var bar = document.getElementById("hoverbar");
+  document.addEventListener("mouseover", function (e) {{
+    var cell = e.target.closest ? e.target.closest(".cell") : null;
+    if (!cell) return;
+    var tip = cell.querySelector(".tip");
+    if (!tip) return;
+    bar.innerHTML = tip.innerHTML;
+    bar.classList.add("on");
+  }});
+  document.addEventListener("mouseout", function (e) {{
+    var cell = e.target.closest ? e.target.closest(".cell") : null;
+    if (cell && !(e.relatedTarget && cell.contains(e.relatedTarget))) {{
+      bar.classList.remove("on");
+    }}
+  }});
+}})();
+</script>
 </html>
 """
 
