@@ -1370,10 +1370,13 @@ def build_series_report(models_root: Path, questions_path: Path,
             cells = ['<div class="uhead"></div>']
             for think, think_disp, runs_list, flip_by_id, fams_list, cost, \
                     sok, fl, _jp, n_app in groups:
+                total_s = next((p for name, p in fams_list
+                                if name == "Всего"), None)
                 cells.append(
                     f'<div class="uhead" style="grid-column: '
                     f'span {max_level + 1}">'
                     f'think: {esc(think_disp)}<span class="umeta">'
+                    f'итог {total_s}% · '
                     f'стаб. {pct(n_app - fl, n_app)}%'
                     + (f' · прим. {n_app}/{len(questions)}'
                        if n_app != len(questions) else '')
