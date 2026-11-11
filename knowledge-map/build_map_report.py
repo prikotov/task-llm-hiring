@@ -201,6 +201,18 @@ def heat_color(p: float) -> str:
     return "#" + "".join(f"{v:02x}" for v in rgb)
 
 
+COST_AMBER = (217, 119, 6)  # тёплый янтарный для монохрома затрат
+
+
+def cost_color(frac: float, cap: float = 0.55) -> str:
+    """Монохромная подложка затрат: насыщенность = величина (frac 0–1
+    относительно максимума колонки). Одна краска — не путается с
+    красно-зелёной шкалой точности; потолок cap не давит текст."""
+    t = min(max(frac, 0.0), 1.0) ** 0.7 * cap
+    rgb = [round(255 + (c - 255) * t) for c in COST_AMBER]
+    return "#" + "".join(f"{v:02x}" for v in rgb)
+
+
 def tooltip(turn: dict | None, q: dict, runs: list[tuple] | None = None,
             lang: str = "ru") -> str:
     """Всплывающая подсказка клетки: утверждение, ответы, обоснование."""
@@ -1554,6 +1566,11 @@ def build_series_report(models_root: Path, questions_path: Path,
                   "Глубина": "Зона глубины: уровни L9–L10, "
                              "26 тем × 2 (машинно проверяемые эталоны)"}
     metrics.sort(key=lambda m: (m[0], think_order.get(m[1], 99), m[2]))
+    # максимум для монохрома затрат: насыщенность = доля от самого
+    # дорогого/долгого прогона в таблице
+    max_dur = max((m[4][0] / m[8] for m in metrics), default=1) or 1
+    max_cost = max((m[4][3] / m[8] for m in metrics if m[4][3]),
+                   default=1) or 1
     mrows = []
     for model, think, lang, fams_list, cost, fl, nq, jp, n_runs, link \
             in metrics:
@@ -1567,11 +1584,16 @@ def build_series_report(models_root: Path, questions_path: Path,
             cells.append(f'<td class="num" style="background:{heat_color(p_ / 100)}">{p_}</td>'
                          if p_ is not None else '<td class="num">—</td>')
         dur, tin, tout, ccost = cost
-        # затраты — среднее на прогон: серии по 5/10 прогонов сравнимы
-        cells.append(f'<td class="num">{dur / n_runs:.0f}с</td>')
+        # затраты — среднее на прогон: серии по 5/10 прогонов сравнимы;
+        # Время и Цена — монохромная подложка (насыщенность = величина)
+        cells.append(f'<td class="num" '
+                     f'style="background:{cost_color(dur / n_runs / max_dur)}">'
+                     f'{dur / n_runs:.0f}с</td>')
         cells.append(f'<td class="num">{tin / n_runs / 1000:.1f}k</td>')
         cells.append(f'<td class="num">{tout / n_runs / 1000:.1f}k</td>')
-        cells.append(f'<td class="num">${ccost / n_runs:.2f}</td>'
+        cells.append(f'<td class="num" '
+                     f'style="background:{cost_color(ccost / n_runs / max_cost)}">'
+                     f'${ccost / n_runs:.2f}</td>'
                      if ccost else '<td class="num">—</td>')
         cells.append(f'<td class="num" style="background:{heat_color(1 - fl / max(1, nq))}">{pct(nq - fl, nq)}%</td>')
         cells.append(f'<td class="num" style="background:{heat_color(jp / 100)}">{jp}%</td>'
@@ -1596,7 +1618,9 @@ def build_series_report(models_root: Path, questions_path: Path,
              "один прогон время, токены и цена (облачные — фактический "
              "API-биллинг; локальные — электричество и амортизация по "
              "методике §8 interview/build_report.py, ₽35.85/ч чистой "
-             "генерации), стабильность; серии из одного прогона помечены "
+             "генерации; у времени и цены монохромная подложка — "
+             "насыщенность растёт с величиной, к самому дорогому прогону "
+             "таблицы), стабильность; серии из одного прогона помечены "
              "«1 прогон» — их Стаб. всегда 100% и не сравнима с сериями; "
              "ниже — карты: строка = модель × "
              "версия вопросника × язык, строки тем, группы колонок — уровни "
