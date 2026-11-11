@@ -1306,7 +1306,10 @@ def merge_binary_thinking(model: str, think_map: dict) -> dict:
 
 
 def build_series_report(models_root: Path, questions_path: Path,
-                        out_file: Path) -> None:
+                        out_file: Path, public: bool = False) -> None:
+    # публичная сборка: отчёт лежит рядом с models/, а не уровнем выше —
+    # ссылки на карты серий без "../"
+    models_prefix = "models/" if public else "../models/"
     """Сводный отчёт по всем моделям: единая карта серий — строки тем,
     колонки сгруппированы по (язык × уровень рассуждений); группы разделены
     границами. Клетка = доля верных ответов по серии, пунктир = флип.
@@ -1427,7 +1430,7 @@ def build_series_report(models_root: Path, questions_path: Path,
                 groups.append((think, think_disp, runs_list, flip_by_id,
                                fams_list, cost, stable_ok, flips, json_pct_,
                                n_app))
-                run_href = (f"../models/{esc(md.name)}/knowledge-map/"
+                run_href = (f"{models_prefix}{esc(md.name)}/knowledge-map/"
                             f"{runs_list[0][0]}/report.html"
                             if n_runs == 1 and
                             (models_root / md.name / "knowledge-map"
@@ -1500,18 +1503,18 @@ def build_series_report(models_root: Path, questions_path: Path,
                         rp = (models_root / md.name / "knowledge-map"
                               / runs_list[0][0] / "report.html")
                         if rp.exists():
-                            cmp_href = (f"../models/{esc(md.name)}/"
+                            cmp_href = (f"{models_prefix}{esc(md.name)}/"
                                         f"knowledge-map/{runs_list[0][0]}/"
                                         f"report.html")
                     elif (models_root / md.name / "knowledge-map"
                           / cmp_name).exists():
-                        cmp_href = (f"../models/{esc(md.name)}/knowledge-map/"
+                        cmp_href = (f"{models_prefix}{esc(md.name)}/knowledge-map/"
                                     f"{cmp_name}")
                     run_base = {}
                     for name, _b in runs_list:
                         if (models_root / md.name / "knowledge-map" / name
                                 / "report.html").exists():
-                            run_base[name] = (f"../models/{esc(md.name)}/"
+                            run_base[name] = (f"{models_prefix}{esc(md.name)}/"
                                               f"knowledge-map/{name}/"
                                               f"report.html")
                     for lvl in range(1, max_level + 1):
@@ -1558,11 +1561,11 @@ def build_series_report(models_root: Path, questions_path: Path,
                         / cmp_name).exists():
                     continue
                 if single:
-                    href_g = (f"../models/{esc(md.name)}/knowledge-map/"
+                    href_g = (f"{models_prefix}{esc(md.name)}/knowledge-map/"
                               f"{runs_list_g[0][0]}/report.html")
                     label_g = "Отчёт прогона (1 прогон)"
                 else:
-                    href_g = (f"../models/{esc(md.name)}/knowledge-map/"
+                    href_g = (f"{models_prefix}{esc(md.name)}/knowledge-map/"
                               f"{cmp_name}")
                     label_g = "Полный отчёт серии"
                 col0 = 2 + gi * (max_level + 2)
@@ -1879,6 +1882,8 @@ def main() -> int:
     p.add_argument("--models-root", default=None,
                    help="сводный отчёт по всем моделям: карты серий "
                         "модель → уровень размышлений (out: reports/)")
+    p.add_argument("--public", action="store_true",
+                   help="публичная сборка: ссылки models/… без „../“ — report.html лежит рядом с models/ (layout публикации)")
     p.add_argument("--version", type=int, default=None,
                    help="версия вопросника для тепловой карты (серии разных "
                         "версий не смешиваются)")
@@ -1891,7 +1896,8 @@ def main() -> int:
     questions_path = Path(args.questions)
     if args.models_root:
         out = Path(args.models_root).parent / "reports" / "knowledge-map-series.html"
-        build_series_report(Path(args.models_root), questions_path, out)
+        build_series_report(Path(args.models_root), questions_path, out,
+                            public=args.public)
         return 0
     if args.run_dir:
         build_single(Path(args.run_dir), questions_path)
