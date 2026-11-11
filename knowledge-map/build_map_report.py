@@ -1455,12 +1455,15 @@ def build_series_report(models_root: Path, questions_path: Path,
                                 if name == "Всего"), None)
                 dur_s = cost[0]
                 tdisp = f"{dur_s / 60:.1f} мин"
+                # у серии из одного прогона стабильность не измеряется
+                stab_s = ("—" if len(runs_list) == 1
+                          else f"{pct(n_app - fl, n_app)}%")
                 cells.append(
                     f'<div class="uhead" style="grid-column: '
                     f'span {max_level + 1}">'
                     f'think: {esc(think_disp)}<span class="umeta">'
                     f'итог {total_s}% · '
-                    f'стаб. {pct(n_app - fl, n_app)}%'
+                    f'стаб. {stab_s}'
                     + f' · время {tdisp}'
                     + (f' · прим. {n_app}/{len(questions)}'
                        if n_app != len(questions) else '')
