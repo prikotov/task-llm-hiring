@@ -1288,6 +1288,7 @@ BINARY_THINKING = {
     "gemma4:e2b",
     "orcarouter/Qwen3.8-27B-Uncensored:latest",
     "orcarouter/Qwen3.8-27B-Uncensored:iq4_xs",
+    "orcarouter/Qwen3.8-27B-Uncensored:ctx100k",  # проверка 2026-11-11: [false, true]
 }
 MERGED_THINK = "on"
 
