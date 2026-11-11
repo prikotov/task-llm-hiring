@@ -1711,7 +1711,7 @@ def build_series_report(models_root: Path, questions_path: Path,
                      + head + '</thead><tbody>' + "".join(mrows)
                      + "</tbody></table>\n" + sort_js)
 
-    title = "Карты знаний PHP по LLM"
+    title = "Карты знаний LLM по PHP"
     n_models = len({m[0] for m in metrics})
     built = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     # строка фактов под заголовком (как в статье benchgecko: «Latest run …
