@@ -1548,8 +1548,7 @@ def build_series_report(models_root: Path, questions_path: Path,
                     f'<a href="{href_g}">{label_g}</a></div>')
                 cells.append('<div class="gsp"></div>')
             sections.append(
-                f'<h2 id="{anchor}">{model} · вопросник v{q_version} · '
-                f'язык: {esc(lang)}</h2>\n'
+                f'<h2 id="{anchor}">{model} · язык: {esc(lang)}</h2>\n'
                 f'<div class="unimap-wrap"><div class="unimap" '
                 f'style="grid-template-columns: {" ".join(cols)};">'
                 f'{"".join(cells)}</div></div>')
@@ -1739,8 +1738,8 @@ def build_series_report(models_root: Path, questions_path: Path,
              "отчёты, серые с \u2193 — навигация по странице; у серий из "
              "одного прогона Стаб. всегда 100% и не сравнима с сериями "
              "(число прогонов — в колонке «Прог.»); "
-             "ниже — карты: строка = модель × "
-             "версия вопросника × язык, строки тем, группы колонок — уровни "
+             "ниже — карты: строка = модель × язык, строки тем, группы "
+             "колонок — уровни "
              "мышления; клетка = доля верных ответов по серии (число — %), "
              "пунктир — флип; карта всегда одной строкой (горизонтальная "
              "прокрутка при узком экране)")
