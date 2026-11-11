@@ -1603,14 +1603,76 @@ def build_series_report(models_root: Path, questions_path: Path,
                   ("Ток вх", "Ток вх/прогон"), ("Ток вых", "Ток вых/прогон"),
                   ("Цена", "Цена/прогон"), ("Стаб.", "Стаб."), ("JSON", "JSON")]
     head = ('<tr><th>Модель</th><th>think</th><th>Язык</th><th>Прогонов</th>'
-            + "".join(f'<th title="{fam_titles[k]}">{h}</th>'
-                      if k in fam_titles else f"<th>{h}</th>"
+            + "".join(f'<th class="sortable" title="{fam_titles[k]}">{h}</th>'
+                      if k in fam_titles else f'<th class="sortable">{h}</th>'
                       for k, h in fam_heads)
-            + "".join(f'<th title="среднее на один прогон">{h}</th>'
-                      if "/прогон" in h else f"<th>{h}</th>"
+            + "".join(f'<th class="sortable" '
+                      f'title="среднее на один прогон">{h}</th>'
+                      if "/прогон" in h else '<th class="sortable">{}</th>'.format(h)
                       for _k, h in cost_heads) + "</tr>")
-    sections.insert(0, '<h2>Метрики серий</h2>\n<table class="data metrics">'
-                     + head + "".join(mrows) + "</table>")
+    # сортировка таблицы: клик по шапке (числовые колонки), повторный —
+    # смена направления, кнопка — сброс к порядку сборки; прочерки всегда
+    # внизу; для семейств/Стаб./JSON первый клик — по убыванию, для затрат
+    # (дешевле/быстрее = лучше) — по возрастанию
+    sort_js = """
+<script>
+(function () {
+  var tbl = document.querySelector("table.data.metrics");
+  if (!tbl) return;
+  var tbody = tbl.tBodies[0];
+  var orig = Array.prototype.slice.call(tbody.rows);
+  var heads = Array.prototype.slice.call(tbl.rows[0].cells);
+  var cur = -1, dir = 1;
+  function val(cell) {
+    var t = cell.textContent.trim();
+    if (!t || t === "\\u2014") return null;
+    var f = parseFloat(t.replace("$", ""));
+    return isNaN(f) ? null : f;
+  }
+  function clearMarks() {
+    heads.forEach(function (th) {
+      th.textContent = th.textContent.replace(/ [\\u25b2\\u25bc]$/, "");
+    });
+  }
+  function apply(idx, d) {
+    var rows = orig.slice().sort(function (a, b) {
+      var va = val(a.cells[idx]), vb = val(b.cells[idx]);
+      if (va === null && vb === null) return 0;
+      if (va === null) return 1;
+      if (vb === null) return -1;
+      return d * (va - vb);
+    });
+    rows.forEach(function (r) { tbody.appendChild(r); });
+  }
+  heads.forEach(function (th, idx) {
+    if (!th.classList.contains("sortable")) return;
+    th.title = (th.title ? th.title + " · " : "") +
+        "клик — сортировка, повторный — смена направления";
+    th.addEventListener("click", function () {
+      if (cur === idx) { dir = -dir; }
+      else { cur = idx; dir = (idx >= 16 && idx <= 19) ? 1 : -1; }
+      clearMarks();
+      th.textContent += dir === 1 ? " \\u25b2" : " \\u25bc";
+      apply(idx, dir);
+    });
+  });
+  document.getElementById("sort-reset").addEventListener("click", function () {
+    cur = -1; dir = 1;
+    clearMarks();
+    orig.forEach(function (r) { tbody.appendChild(r); });
+  });
+})();
+</script>
+"""
+    sections.insert(0, '<h2>Метрики серий '
+                     '<button id="sort-reset" type="button" '
+                     'style="font-size:12px;padding:2px 10px;cursor:pointer;'
+                     'border:1px solid #c9ced8;border-radius:6px;'
+                     'background:#fff;color:#5a6270;'
+                     'vertical-align:middle">сброс сортировки</button></h2>\n'
+                     '<table class="data metrics"><thead>'
+                     + head + '</thead><tbody>' + "".join(mrows)
+                     + "</tbody></table>\n" + sort_js)
 
     title = "Карты знаний PHP — единая карта серий прогонов"
     proto = ("сверху — таблица метрик серий: по строке на (модель × think × "
@@ -1630,7 +1692,9 @@ def build_series_report(models_root: Path, questions_path: Path,
     extra = ("main { max-width: 100%; padding: 28px 22px 60px; }"
              "table.metrics td.num { text-align: right; font-variant-numeric: tabular-nums; }"
              "table.metrics th { white-space: nowrap; }"
-             "table.metrics td:first-child { white-space: nowrap; }")
+             "table.metrics td:first-child { white-space: nowrap; }"
+             "table.metrics th.sortable { cursor: pointer; user-select: none; }"
+             "table.metrics th.sortable:hover { background: #eef1f6; }")
     html = page(title, proto, "", "\n".join(sections),
                 "построено knowledge-map/build_map_report.py · "
                 f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
