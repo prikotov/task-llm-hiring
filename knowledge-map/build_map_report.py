@@ -1558,7 +1558,6 @@ def build_series_report(models_root: Path, questions_path: Path,
     for model, think, lang, fams_list, cost, fl, nq, jp, n_runs, link \
             in metrics:
         pm = dict(fams_list)
-        row_cls = ' class="single"' if n_runs == 1 else ''
         model_cell = (f'<a href="{link}">{esc(model)}</a>'
                       if link else esc(model))
         cells = [f'<td>{model_cell}</td>', f'<td>{esc(think)}</td>',
@@ -1568,32 +1567,38 @@ def build_series_report(models_root: Path, questions_path: Path,
             cells.append(f'<td class="num" style="background:{heat_color(p_ / 100)}">{p_}</td>'
                          if p_ is not None else '<td class="num">—</td>')
         dur, tin, tout, ccost = cost
-        cells.append(f'<td class="num">{dur:.0f}с</td>')
-        cells.append(f'<td class="num">{tin / 1000:.1f}k</td>')
-        cells.append(f'<td class="num">{tout / 1000:.1f}k</td>')
-        cells.append(f'<td class="num">${ccost:.2f}</td>' if ccost else '<td class="num">—</td>')
+        # затраты — среднее на прогон: серии по 5/10 прогонов сравнимы
+        cells.append(f'<td class="num">{dur / n_runs:.0f}с</td>')
+        cells.append(f'<td class="num">{tin / n_runs / 1000:.1f}k</td>')
+        cells.append(f'<td class="num">{tout / n_runs / 1000:.1f}k</td>')
+        cells.append(f'<td class="num">${ccost / n_runs:.2f}</td>'
+                     if ccost else '<td class="num">—</td>')
         cells.append(f'<td class="num" style="background:{heat_color(1 - fl / max(1, nq))}">{pct(nq - fl, nq)}%</td>')
         cells.append(f'<td class="num" style="background:{heat_color(jp / 100)}">{jp}%</td>'
                      if jp is not None else '<td class="num">—</td>')
-        mrows.append(f"<tr{row_cls}>" + "".join(cells) + "</tr>")
-    cost_heads = [("Время", "Время"),
-                  ("Ток вх", "Ток вх"), ("Ток вых", "Ток вых"),
-                  ("Цена", "Цена"), ("Стаб.", "Стаб."), ("JSON", "JSON")]
+        mrows.append("<tr>" + "".join(cells) + "</tr>")
+    cost_heads = [("Время", "Время/прогон"),
+                  ("Ток вх", "Ток вх/прогон"), ("Ток вых", "Ток вых/прогон"),
+                  ("Цена", "Цена/прогон"), ("Стаб.", "Стаб."), ("JSON", "JSON")]
     head = ('<tr><th>Модель</th><th>think</th><th>Язык</th><th>Прогонов</th>'
             + "".join(f'<th title="{fam_titles[k]}">{h}</th>'
                       if k in fam_titles else f"<th>{h}</th>"
                       for k, h in fam_heads)
-            + "".join(f"<th>{h}</th>" for _k, h in cost_heads) + "</tr>")
+            + "".join(f'<th title="среднее на один прогон">{h}</th>'
+                      if "/прогон" in h else f"<th>{h}</th>"
+                      for _k, h in cost_heads) + "</tr>")
     sections.insert(0, '<h2>Метрики серий</h2>\n<table class="data metrics">'
                      + head + "".join(mrows) + "</table>")
 
     title = "Карты знаний PHP — единая карта серий прогонов"
     proto = ("сверху — таблица метрик серий: по строке на (модель × think × "
-             "язык), колонки — семейства (тепловая заливка), суммарные время "
-             "и токены серии, цена (облачные — фактический API-биллинг; "
-             "локальные — электричество и амортизация по методике §8 "
-             "interview/build_report.py, ₽35.85/ч чистой генерации), "
-             "стабильность; серии из одного прогона помечены «1 прогон» — их Стаб. всегда 100% и не сравнима с сериями; ниже — карты: строка = модель × "
+             "язык), колонки — семейства (тепловая заливка), средние на "
+             "один прогон время, токены и цена (облачные — фактический "
+             "API-биллинг; локальные — электричество и амортизация по "
+             "методике §8 interview/build_report.py, ₽35.85/ч чистой "
+             "генерации), стабильность; серии из одного прогона помечены "
+             "«1 прогон» — их Стаб. всегда 100% и не сравнима с сериями; "
+             "ниже — карты: строка = модель × "
              "версия вопросника × язык, строки тем, группы колонок — уровни "
              "мышления; клетка = доля верных ответов по серии (число — %), "
              "пунктир — флип; карта всегда одной строкой (горизонтальная "
@@ -1601,11 +1606,7 @@ def build_series_report(models_root: Path, questions_path: Path,
     extra = ("main { max-width: 100%; padding: 28px 22px 60px; }"
              "table.metrics td.num { text-align: right; font-variant-numeric: tabular-nums; }"
              "table.metrics th { white-space: nowrap; }"
-             "table.metrics td:first-child { white-space: nowrap; }"
-             "table.metrics tr.single td { color: #8b909b; }"
-             "table.metrics tr.single td a { color: #8b909b; }"
-             "table.metrics tr.single td.num[style] { "
-             "color: rgba(28,33,48,.6); }")
+             "table.metrics td:first-child { white-space: nowrap; }")
     html = page(title, proto, "", "\n".join(sections),
                 "построено knowledge-map/build_map_report.py · "
                 f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
