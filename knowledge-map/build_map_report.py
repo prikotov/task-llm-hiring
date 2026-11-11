@@ -1421,10 +1421,13 @@ def build_series_report(models_root: Path, questions_path: Path,
                              / runs_list[0][0] / "report.html").exists()
                             else "")
                 cmp_name_m = f"compare-{think}-{lang}-v{qver}.html"
-                link = (f"../models/{esc(md.name)}/knowledge-map/"
-                        f"{cmp_name_m}"
-                        if (models_root / md.name / "knowledge-map"
-                            / cmp_name_m).exists() else run_href)
+                # клик по модели из таблицы метрик — к карте этой модели
+                # и языка на этой же странице (полный отчёт серии по-прежнему
+                # доступен из карты: ulink и клики по клеткам)
+                anchor = ("map-"
+                          + re.sub(r"[^A-Za-z0-9]+", "-", model_tag).strip("-")
+                          + f"-{lang}")
+                link = f"#{anchor}"
                 # локальные (ollama) против облачных (openrouter/deepseek):
                 # по provider сессий группы
                 src = ("cloud" if any(s.get("provider") in ("openrouter",
@@ -1545,7 +1548,8 @@ def build_series_report(models_root: Path, questions_path: Path,
                     f'<a href="{href_g}">{label_g}</a></div>')
                 cells.append('<div class="gsp"></div>')
             sections.append(
-                f'<h2>{model} · вопросник v{q_version} · язык: {esc(lang)}</h2>\n'
+                f'<h2 id="{anchor}">{model} · вопросник v{q_version} · '
+                f'язык: {esc(lang)}</h2>\n'
                 f'<div class="unimap-wrap"><div class="unimap" '
                 f'style="grid-template-columns: {" ".join(cols)};">'
                 f'{"".join(cells)}</div></div>')
@@ -1729,14 +1733,16 @@ def build_series_report(models_root: Path, questions_path: Path,
              "методике §8 interview/build_report.py, ₽35.85/ч чистой "
              "генерации; у времени и цены монохромная подложка — "
              "насыщенность растёт с величиной, к самому дорогому прогону "
-             "таблицы), стабильность; серии из одного прогона помечены "
+             "таблицы), стабильность; клик по модели — переход к карте "
+             "этой модели и языка ниже; серии из одного прогона помечены "
              "«1 прогон» — их Стаб. всегда 100% и не сравнима с сериями; "
              "ниже — карты: строка = модель × "
              "версия вопросника × язык, строки тем, группы колонок — уровни "
              "мышления; клетка = доля верных ответов по серии (число — %), "
              "пунктир — флип; карта всегда одной строкой (горизонтальная "
              "прокрутка при узком экране)")
-    extra = ("main { max-width: 100%; padding: 28px 22px 60px; }"
+    extra = ("html { scroll-behavior: smooth; }"
+             "main { max-width: 100%; padding: 28px 22px 60px; }"
              "table.metrics td.num { text-align: right; font-variant-numeric: tabular-nums; }"
              "table.metrics th { white-space: nowrap; }"
              "table.metrics td:first-child { white-space: nowrap; }"
