@@ -1294,17 +1294,20 @@ MERGED_THINK = "on"
 
 
 def merge_binary_thinking(model: str, think_map: dict) -> dict:
-    """Свести low+medium в on для моделей с бинарным мышлением."""
+    """Свести запрошенные уровни low/medium/high в on для моделей с
+    бинарным мышлением — независимо от того, был ли запрошен один
+    уровень или несколько: «low» у бинарной модели — то же «включено»."""
     if model not in BINARY_THINKING:
         return think_map
-    if "low" not in think_map or "medium" not in think_map:
+    on_keys = [k for k in ("low", "medium", "high") if k in think_map]
+    if not on_keys:
         return think_map
-    merged = {k: v for k, v in think_map.items()
-              if k not in ("low", "medium")}
-    merged[MERGED_THINK] = think_map["low"] + think_map["medium"]
-    print(f"  {model}: low+medium объединены в on "
-          f"({len(think_map['low']) + len(think_map['medium'])} прогонов) "
-          f"— мышление бинарное по /api/show")
+    merged = {k: v for k, v in think_map.items() if k not in on_keys}
+    on_items = [x for k in on_keys for x in think_map[k]]
+    merged[MERGED_THINK] = on_items
+    levels = "+".join(on_keys)
+    print(f"  {model}: {levels} объединены в on "
+          f"({len(on_items)} прогонов) — мышление бинарное по /api/show")
     return merged
 
 
