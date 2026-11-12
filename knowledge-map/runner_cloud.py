@@ -256,7 +256,7 @@ def main() -> int:
         stem = f"questions-deep{'' if lang == 'ru' else '-' + lang}.json"
         deep_path = SCRIPT_DIR / stem
         deep = json.loads(deep_path.read_text(encoding="utf-8"))["questions"]
-        for out_dir in sorted(km.glob("run-*")):
+        for out_dir in sorted(km_root.glob("run-*")):
             s_path = out_dir / "session.json"
             if not s_path.exists():
                 continue
