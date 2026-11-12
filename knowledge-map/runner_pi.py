@@ -32,9 +32,11 @@ from build_map_report import build_single  # noqa: E402
 
 
 def pi_once(provider: str, model: str, sysp: str, prompt: str,
-            thinking: str, timeout: int) -> str | None:
+            thinking: str, timeout: int) -> tuple[str | None, dict | None]:
+    """Ответ модели (текстовые части) + usage из --mode json."""
     cmd = ["pi", "-p", "--no-session", "--no-tools", "--no-extensions",
            "--no-context-files", "--no-skills", "--no-mcp",
+           "--mode", "json",
            "--provider", provider, "--model", model,
            "--thinking", thinking,
            "--system-prompt", sysp, prompt]
@@ -42,11 +44,39 @@ def pi_once(provider: str, model: str, sysp: str, prompt: str,
         r = subprocess.run(cmd, capture_output=True, text=True,
                            timeout=timeout)
     except subprocess.TimeoutExpired:
-        return None
-    if r.returncode != 0:
+        return None, None
+    if r.returncode != 0 and not r.stdout.strip():
         print(f"      pi rc={r.returncode}: {r.stderr.strip()[:120]}")
-        return None if not r.stdout.strip() else r.stdout.strip()
-    return r.stdout.strip()
+        return None, None
+    text, usage, thinking_text = "", None, ""
+    for line in r.stdout.splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            e = json.loads(line)
+        except Exception:
+            continue
+        if e.get("type") != "message_end":
+            continue
+        m = e.get("message") or {}
+        if m.get("role") != "assistant":
+            continue
+        parts = m.get("content") or []
+        text = "".join(c.get("text", "") for c in parts
+                       if isinstance(c, dict) and c.get("type") == "text")
+        thinking_text = "\n".join(
+            c.get("thinking", "") for c in parts
+            if isinstance(c, dict) and c.get("type") == "thinking")
+        u = m.get("usage") or {}
+        usage = {"in": u.get("input"), "out": u.get("output"),
+                 "cached": u.get("cacheRead"),
+                 "reasoning": u.get("reasoning")}
+    if not text and r.returncode == 0 and r.stdout.strip():
+        text = r.stdout.strip()
+    usage = usage or {}
+    usage["thinking_text"] = thinking_text or None
+    return (text.strip() or None), usage
 
 
 PROVIDER_LABELS = {
@@ -110,9 +140,10 @@ def main() -> int:
                 t0 = time.monotonic()
                 prompt = (q["prompt"] + a_suf) if qtype == "answer" \
                     else (q["text"] + q_suf)
-                answer_raw = pi_once(args.provider, args.model, sysp,
-                                     prompt, args.thinking,
-                                     args.timeout) or ""
+                answer_raw, pi_usage = pi_once(args.provider, args.model,
+                                               sysp, prompt, args.thinking,
+                                               args.timeout)
+                answer_raw = answer_raw or ""
                 duration = time.monotonic() - t0
                 obj = extract_json_answer(answer_raw)
                 json_ok = obj is not None and isinstance(
@@ -148,8 +179,10 @@ def main() -> int:
                     "expected": expected, "is_correct": is_correct,
                     "strict": is_correct, "p": None, "thinking": None,
                     "duration_s": round(duration, 2),
-                    "eval_count": None, "prompt_eval_count": None,
-                    "prompt_eval_cached_count": None,
+                    "eval_count": pi_usage and pi_usage.get("out"),
+                    "prompt_eval_count": pi_usage and pi_usage.get("in"),
+                    "prompt_eval_cached_count": pi_usage and
+                    pi_usage.get("cached"),
                     "done_reason": "stop",
                 })
                 mark = "✅" if is_correct else "❌"
@@ -209,8 +242,10 @@ def main() -> int:
             t0 = time.monotonic()
             prompt = (q["prompt"] + a_suf) if qtype == "answer" \
                 else (q["text"] + q_suf)
-            answer_raw = pi_once(args.provider, args.model, sysp, prompt,
-                                 args.thinking, args.timeout) or ""
+            answer_raw, pi_usage = pi_once(args.provider, args.model,
+                                           sysp, prompt, args.thinking,
+                                           args.timeout)
+            answer_raw = answer_raw or ""
             duration = time.monotonic() - t0
             expected = None
             msg = answer_raw
@@ -248,7 +283,10 @@ def main() -> int:
                 done_reason = "stop"
             if explanation is None:
                 explanation = extract_explanation(msg, qtype, expected)
-            eval_count = prompt_eval_count = cached_count = None
+            eval_count = pi_usage and pi_usage.get("out")
+            prompt_eval_count = pi_usage and pi_usage.get("in")
+            cached_count = pi_usage and pi_usage.get("cached")
+            thinking = pi_usage and pi_usage.get("thinking_text")
 
             if qtype == "answer":
                 if "regex" in q["grader"]:
