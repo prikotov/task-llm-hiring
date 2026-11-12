@@ -49,6 +49,12 @@ def pi_once(provider: str, model: str, sysp: str, prompt: str,
     return r.stdout.strip()
 
 
+PROVIDER_LABELS = {
+    # компактные имена провайдеров для session.json / сводного отчёта
+    "qwen-token-plan-individual": "alibabacloud",
+}
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -163,10 +169,10 @@ def main() -> int:
         out_dir = km_root / f"run-{run_no:02d}"
         turns: list = []
         session = {
-            "model": f"{args.provider}/{args.model}",
+            "model": f"{PROVIDER_LABELS.get(args.provider, args.provider)}/{args.model}",
             "run": run_no,
             "started_at": datetime.now(timezone.utc).isoformat(),
-            "base_url": f"pi ({args.provider})",
+            "base_url": f"pi ({PROVIDER_LABELS.get(args.provider, args.provider)})",
             "protocol": "chat",
             "provider": "pi",
             "keep_alive": None,
