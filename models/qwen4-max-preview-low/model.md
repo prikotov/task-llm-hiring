@@ -1,29 +1,32 @@
-# qwen4-max-preview-low (alibabacloud qwen-token-plan, via pi)
+# qwen4-max-preview (alibabacloud qwen-token-plan)
 
 ## Характеристики
 
 - Модель: `qwen4-max-preview` — флагманская Qwen следующего поколения
-  на подписке alibabacloud (Model Studio token plan); custom id через
-  `--provider qwen-token-plan-individual`
-- Транспорт: `knowledge-map/runner_pi.py` (pi -p --no-session per клетка,
-  тот же протокол и грейдинг, что в runner_map; `--mode json` отдаёт
-  usage: input/output/cacheRead/reasoning)
-- Шкала мышления модели: off → xhigh (проверено, high маппится в xhigh);
-  этот прогон — low
+  на подписке alibabacloud (Model Studio token plan); в pi-каталоге
+  числится, custom id через `--provider qwen-token-plan-individual`
+- Транспорт: `knowledge-map/runner_pi.py` (pi -p --no-session per
+  клетка, `--mode json` отдаёт usage: input/output/cacheRead/reasoning)
+- **Нюанс off (исправлено 2026-11-12)**: pi не передаёт alibabacloud
+  `enable_thinking:false` — запрошенный off эскалируется в low;
+  «off»-прогон от 2026-11-12 фактически был low и перенесён в run-02
+  этой серии. Нативная шкала провайдера: off (enable_thinking:false) /
+  low / medium / high (xhigh) — будущие прогоны off/medium пойдут
+  через прямой транспорт runner_cloud.py
 
-## Карта знаний PHP (2026-11-12, 1 прогон low)
+## Карта знаний PHP (2026-11-12, 2 прогона low)
 
-- База (L1–L8): **237/240 = 98.8%**
-- Глубина (L9/L10): **54/56 = 96.4%**
-- Всего: **291/296 = 98.3%**
-- Токены: 54k входных + 33k выходных (reasoning-токены алibaba считает
-  отдельно и в output не включает — реальный расход чуть выше)
-- Скорость: ~5 с/клетку, 25.7 мин на 296 клеток
+- run-01 (low): база **237/240 = 98.8%**, Глубина **54/56 = 96.4%**,
+  всего **291/296 = 98.3%**; 54k вх + 33k вых; 25.7 мин
+- run-02 (low, изначально запущен как «off»): база **233/240 = 97.1%**,
+  Глубина **54/56 = 96.4%**, всего **287/296 = 97.0%**; 60k вх + 35k вых;
+  27.7 мин
+- Оба прогона low: верх доски карты (рядом sol 98.2 — solo-прогон);
+  «97.0% на off» из первого объявления было вторым прогоном low
+- Ошибки run-02 (6): T07-L8 (PHPUnit-детали), VC-L8 и VF-L1 (версии
+  «текущая минорная» — ответил 8.5 вместо 8.6), VF-L3, T12-L10
+  (бит E_STRICT), T21-L10 (Twig-исключение)
+- Токены: alibabacloud считает reasoning отдельно и в output не включает
 
-Сравнение с off-прогоном (qwen4-max-preview-off): база +1.7 п.п.
-(98.8 против 97.1), Глубина равная (96.4), токены даже чуть меньше —
-на этом тесте low лучше off по качеству без роста расхода. Ошибки:
-3 клетки базы (PHPUnit-детали, Twig-исключение, типы) и 2 Глубины.
-
-Верх лидерборда карты: 98.3% всего — выше solo-прогонов sol (98.2) и
-всех локальных/облачных серий.
+Результаты: knowledge-map/run-01, run-02 (report.html, session.json,
+answers.csv).
