@@ -1282,7 +1282,7 @@ def protocol_tag(session: dict) -> str:
 # xhigh…]; облачные — reasoning effort API) не объединяются.
 # Короткие имена моделей в отчёте (полный тег — в аннотации на сайте)
 DISPLAY_NAMES = {
-    "orcarouter/Qwen3.8-27B-Uncensored:ctx100k": "orca:ctx100k",
+    "orcarouter/Qwen3.8-27B-Uncensored:ctx100k": "orca",
 }
 
 BINARY_THINKING = {
