@@ -1457,8 +1457,9 @@ def build_series_report(models_root: Path, questions_path: Path,
                 link = f"#{anchor}"
                 # локальные (ollama) против облачных (openrouter/deepseek):
                 # по provider сессий группы
-                src = ("cloud" if any(s.get("provider") in ("openrouter",
-                                                           "deepseek")
+                src = ("cloud" if any(s.get("provider") in
+                                      ("openrouter", "deepseek",
+                                       "zai", "alibabacloud")
                                       for _rd, s, _b in items)
                        else "local")
                 metrics.append((model, think, lang, fams_list, cost, flips,

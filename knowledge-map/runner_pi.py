@@ -84,6 +84,9 @@ PROVIDER_LABELS = {
     "qwen-token-plan-individual": "alibabacloud",
 }
 
+# облачные провайдеры (для фильтра локальные/облачные в отчёте)
+CLOUD_PROVIDERS = {"zai", "alibabacloud"}
+
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__,
@@ -207,7 +210,7 @@ def main() -> int:
             "started_at": datetime.now(timezone.utc).isoformat(),
             "base_url": f"pi ({PROVIDER_LABELS.get(args.provider, args.provider)})",
             "protocol": "chat",
-            "provider": "pi",
+            "provider": PROVIDER_LABELS.get(args.provider, args.provider),
             "keep_alive": None,
             "kv_cache": ("облачный токен-план: клетки независимы, "
                          "префиксы не шарятся"),
