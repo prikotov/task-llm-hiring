@@ -1212,7 +1212,8 @@ def main() -> int:
                         "--regrade)")
     p.add_argument("--runs", type=int, default=1, help="число прогонов (default 1)")
     p.add_argument("--base-url", default=DEFAULT_BASE_URL)
-    p.add_argument("--questions", default=str(SCRIPT_DIR / "questions.json"))
+    p.add_argument("--questions", default=None,
+                   help="файл вопросника; по умолчанию — по --lang: questions{,-en,-zh}.json")
     p.add_argument("--models-root", default=str(SCRIPT_DIR.parent / "models"))
     p.add_argument("--out", default=None,
                    help="папка модели; по умолчанию <models-root>/<slug модели>")
@@ -1275,6 +1276,12 @@ def main() -> int:
             p.error("--think для --api openrouter — low, medium или high "
                     "(стандарт облачных серий — low)")
 
+    # вопросник по умолчанию — по языку серии: questions{,-en,-zh}.json.
+    # Раньше --lang не переключал файл (только рамку и метку) — en/zh-серии
+    # могли молча получить русские вопросы
+    if args.questions is None:
+        suffix = {"ru": "", "en": "-en", "zh": "-zh"}[args.lang]
+        args.questions = str(SCRIPT_DIR / f"questions{suffix}.json")
     _qdata = json.loads(Path(args.questions).read_text(encoding="utf-8"))
     q_version = _qdata.get("version") if isinstance(_qdata, dict) else None
     questions = _qdata["questions"] if isinstance(_qdata, dict) else _qdata
