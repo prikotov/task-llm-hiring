@@ -1459,7 +1459,7 @@ def build_series_report(models_root: Path, questions_path: Path,
                 # по provider сессий группы
                 src = ("cloud" if any(s.get("provider") in
                                       ("openrouter", "deepseek",
-                                       "zai", "alibabacloud")
+                                       "zai", "alibabacloud", "xiaomi")
                                       for _rd, s, _b in items)
                        else "local")
                 metrics.append((model, think, lang, fams_list, cost, flips,

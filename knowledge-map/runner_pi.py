@@ -82,6 +82,7 @@ def pi_once(provider: str, model: str, sysp: str, prompt: str,
 PROVIDER_LABELS = {
     # компактные имена провайдеров для session.json / сводного отчёта
     "qwen-token-plan-individual": "alibabacloud",
+    "xiaomi-token-plan-sgp": "xiaomi",
 }
 
 # облачные провайдеры (для фильтра локальные/облачные в отчёте)
