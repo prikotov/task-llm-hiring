@@ -37,7 +37,8 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).parent
 sys.path.insert(0, str(SCRIPT_DIR))
 from runner_map import (  # noqa: E402
-    YES_WORDS, NO_WORDS, prompt_parts, extract_json_answer,
+    YES_WORDS, NO_WORDS, prompt_parts, check_prompt_lang,
+    extract_json_answer,
     extract_explanation, normalize, expected_value, acc_pattern,
     parse_answer, check_questionnaire, write_answers_csv,
     slugify, resolve_out_root, local_cost_usd,
@@ -288,6 +289,7 @@ def main() -> int:
                 t0 = time.monotonic()
                 prompt = (q["prompt"] + a_suf) if qtype == "answer" \
                     else (q["text"] + q_suf)
+                check_prompt_lang(prompt, lang)
                 answer_raw, usage = cloud_once(args.provider, args.model,
                                                sysp, prompt, args.thinking,
                                                args.timeout)
@@ -361,6 +363,7 @@ def main() -> int:
             t0 = time.monotonic()
             prompt = (q["prompt"] + a_suf) if qtype == "answer" \
                 else (q["text"] + q_suf)
+            check_prompt_lang(prompt, args.lang)
             answer_raw, usage = cloud_once(args.provider, args.model,
                                            sysp, prompt, args.thinking,
                                            args.timeout)

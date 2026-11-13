@@ -66,6 +66,25 @@ def prompt_parts(lang: str) -> tuple[str, str, str]:
     if lang == "zh":
         return SYSTEM_PROMPT_ZH, QUESTION_SUFFIX_ZH, ANSWER_SUFFIX_ZH
     return SYSTEM_PROMPT, QUESTION_SUFFIX, ANSWER_SUFFIX
+
+
+def check_prompt_lang(prompt: str, lang: str) -> None:
+    """Страховка языковых серий: скрипт вопросов обязан соответствовать
+    --lang. Дважды обжигались на «транспорт задаёт не тот файл вопросов»
+    (orca 2026-11-12, облачные en/zh 2026-11-13) — теперь прогон падает
+    на первой клетке, а не после 296 запросов."""
+    cyr = sum("\u0400" <= c <= "\u04FF" for c in prompt)
+    cjk = sum("\u4E00" <= c <= "\u9FFF" for c in prompt)
+    bad = ((lang == "ru" and (cyr < 10 or cjk > 0))
+           or (lang == "en" and (cyr > 5 or cjk > 5))
+           or (lang == "zh" and (cjk < 10 or cyr > 5)))
+    if bad:
+        raise SystemExit(
+            f"СТОП: язык вопроса не соответствует --lang {lang} "
+            f"(кириллицы {cyr}, CJK {cjk}) — транспорт читает не тот "
+            f"файл вопросов; прогон прерван до расходов")
+
+
 THINK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
 # decision-протокол (/v1/systemone, как в interview/score.py): без chat —
 # вероятностный ответ «утверждение верно» (noul), порог да/нет — 0.5
@@ -1014,6 +1033,7 @@ def run_map(base_url: str, model: str, questions: list, q_version, run_no: int,
             resp = decision_safe(base_url, model, q["text"], timeout)
         sysp, q_suf, a_suf = prompt_parts(lang)
         prompt = (q["prompt"] + a_suf) if qtype == "answer" else (q["text"] + q_suf)
+        check_prompt_lang(prompt, lang)
         if provider == "deepseek":
             resp = cloud_safe(api_key, model, prompt, think, timeout, sysp)
         elif provider == "openrouter":
