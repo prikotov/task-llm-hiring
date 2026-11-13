@@ -75,9 +75,12 @@ def check_prompt_lang(prompt: str, lang: str) -> None:
     на первой клетке, а не после 296 запросов."""
     cyr = sum("\u0400" <= c <= "\u04FF" for c in prompt)
     cjk = sum("\u4E00" <= c <= "\u9FFF" for c in prompt)
-    bad = ((lang == "ru" and (cyr < 10 or cjk > 0))
-           or (lang == "en" and (cyr > 5 or cjk > 5))
-           or (lang == "zh" and (cjk < 10 or cyr > 5)))
+    # пороги от замера по замороженным вопросникам: ru — минимум 9
+    # кириллических символов на клетку (медиана 53), zh — минимум 2 CJK
+    # и ноль кириллицы, en — ноль того и другого
+    bad = ((lang == "ru" and (cyr < 5 or cjk > 0))
+           or (lang == "en" and (cyr > 0 or cjk > 0))
+           or (lang == "zh" and (cjk < 2 or cyr > 0)))
     if bad:
         raise SystemExit(
             f"СТОП: язык вопроса не соответствует --lang {lang} "
