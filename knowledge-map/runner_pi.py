@@ -101,9 +101,13 @@ def main() -> int:
     p.add_argument("--supplement", action="store_true",
                    help="дополнить существующие прогоны клетками зоны «Глубина» (questions-deep.json)")
     p.add_argument("--lang", choices=["ru", "en", "zh"], default="ru")
-    p.add_argument("--questions", default=str(SCRIPT_DIR / "questions.json"))
+    p.add_argument("--questions", default=None,
+                   help="по умолчанию questions{,-en,-zh}.json по --lang")
     p.add_argument("--timeout", type=int, default=300)
     args = p.parse_args()
+    if args.questions is None:
+        args.questions = str(
+            SCRIPT_DIR / f"questions{'' if args.lang == 'ru' else '-' + args.lang}.json")
 
     sysp, q_suf, a_suf = prompt_parts(args.lang)
     _qdata = json.loads(Path(args.questions).read_text(encoding="utf-8"))

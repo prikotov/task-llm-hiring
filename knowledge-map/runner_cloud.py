@@ -237,9 +237,14 @@ def main() -> int:
                    help="дополнить прогоны этой серии клетками «Глубины» "
                         "(файл по языку прогона: questions-deep{,-en,-zh})")
     p.add_argument("--lang", choices=["ru", "en", "zh"], default="ru")
-    p.add_argument("--questions", default=str(SCRIPT_DIR / "questions.json"))
+    p.add_argument("--questions", default=None,
+                   help="по умолчанию questions{,-en,-zh}.json по --lang — "
+                        "языки в сериях не смешивать")
     p.add_argument("--timeout", type=int, default=600)
     args = p.parse_args()
+    if args.questions is None:
+        args.questions = str(
+            SCRIPT_DIR / f"questions{'' if args.lang == 'ru' else '-' + args.lang}.json")
 
     sysp, q_suf, a_suf = prompt_parts(args.lang)
     _qdata = json.loads(Path(args.questions).read_text(encoding="utf-8"))
