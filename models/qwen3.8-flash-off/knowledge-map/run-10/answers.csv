@@ -1,0 +1,243 @@
+id,topic,level,type,answer,expected,parsed,correct_answer,is_correct,strict,explanation,duration_s,prompt_tokens,output_tokens,cached_tokens
+T01-L1,Синтаксис и операторы,1,yesno,нет,,json,нет,1,1,双引号解析变量和转义序列，单引号不解析。,1.51,129,27,0
+T01-L2,Синтаксис и операторы,2,yesno,да,,json,да,1,1,运算符 ?? 在检查左侧变量是否设置且不为 null 时，不会触发未定义变量的警告。,1.67,131,33,0
+T01-L3,Синтаксис и операторы,3,answer,ab,ab,json,ab,1,1,echo 接受多个参数，直接输出 'a' 和 'b'。,1.68,126,28,0
+T01-L4,Синтаксис и операторы,4,yesno,нет,,json,да,0,0,print 是语言构造，返回值为 1，但不能像 echo 那样在表达式中作为函数调用使用（虽然它确实返回 1，但通常不被视为可嵌入表达式的运算符，且题目语境下常考察其非函数特性或与其他结构对比，但在 PHP 中 print 确实返回 1。然而，严格来说 print 不是函数，不能动态调用，但其返回值可用于表达式如 `$x = (print 'hi');` 是合法的并赋值 1。若题意指“像函数一样被广泛接受用于复杂表达式逻辑”则存疑，但技术上它是正确的。等等，重新审视：PHP 文档指出 print 是一个语言构造，返回值为 1。它可以用于表达式吗？是的，例如 `if (print 'test'),5.37,118,247,0
+T01-L5,Синтаксис и операторы,5,yesno,нет,,json,нет,1,1,"Элвис оператор возвращает левый операнд, если он истинный.",1.68,126,29,0
+T01-L6,Синтаксис и операторы,6,yesno,нет,,json,да,0,0,在 PHP 8.0+ 中，连接运算符 (.) 的优先级高于加法和减法。,1.82,130,33,0
+T01-L7,Синтаксис и операторы,7,yesno,нет,,json,нет,1,1,运算符 ** 是右结合的，因此计算为 2 ** (3 ** 2) = 512。,1.9,138,36,0
+T01-L8,Синтаксис и операторы,8,answer,5,сумма: 5,json,сумма: 5,0,0,字符串与数字相加时，PHP 8 中 'сумма: ' 转换为 0，故 0 + 2 + 3 = 5。,1.89,141,46,0
+T02-L1,Типы и сравнения,1,yesno,нет,,json,нет,1,1,在 PHP 中，严格比较运算符 === 要求数组不仅元素相同，而且顺序和类型也必须完全一致。,1.85,122,35,0
+T02-L2,Типы и сравнения,2,yesno,нет,,json,нет,1,1,0 == false 返回 true，因为这是宽松比较且 0 被视为假值。,1.45,125,30,0
+T02-L3,Типы и сравнения,3,yesno,нет,,json,нет,1,1,在 PHP 8 中，字符串与数字比较时会将字符串转换为数字，'abc' 转为 0，但严格来说非数值字符串在宽松比较中行为已改变，实际上 'abc' == 0 在 PHP 8 中仍为 true（因为 'abc' 转 int 为 0），等等，让我重新确认：PHP 8 改变了字符串到数字的比较逻辑，非数值字符串不再隐式转换为 0 进行相等比较，而是视为不相等。因此 'abc' == 0 返回 false。,3.25,121,127,0
+T02-L4,Типы и сравнения,4,yesno,да,,json,да,1,1,"在 PHP 中，null 使用 == 运算符与 0、"""" 和 false 比较时均返回 true。",1.9,128,38,0
+T02-L5,Типы и сравнения,5,answer,42,42,json,42,1,1,PHP强制将字符串转换为整数时，只读取开头的数字部分。,1.48,129,26,0
+T02-L6,Типы и сравнения,6,answer,10,10,json,10,1,1,PHP会将字符串'5'隐式转换为整数5，然后与5相加得到10。,1.92,128,32,0
+T02-L7,Типы и сравнения,7,yesno,нет,,json,нет,1,1,"在 PHP 中，布尔值 false 转换为字符串时为空字符串 """"，而不是 ""0""。",1.86,120,33,0
+T02-L8,Типы и сравнения,8,yesno,да,,json,да,1,1,由于浮点数精度问题，0.1 + 0.2 在 PHP（及大多数语言）中不等于 0.3。,1.71,126,40,0
+T03-L1,Строки,1,yesno,нет,,json,нет,1,1,strrev() 按字节反转，会破坏多字节 UTF-8 字符。,1.7,123,29,0
+T03-L2,Строки,2,yesno,да,,json,да,1,1,str_contains 在 PHP 8.0+ 中用于检查子串是否存在，返回布尔值 true。,1.93,118,34,0
+T03-L3,Строки,3,yesno,нет,,json,нет,1,1,str_pad() 支持左、右或双侧填充。,1.44,117,23,0
+T03-L4,Строки,4,yesno,нет,,json,нет,1,1,trim() 默认会去除空白字符，包括空格、制表符（tab）和换行符。,1.73,129,34,0
+T03-L5,Строки,5,answer,12,12,json,12,1,1,UTF-8中每个西里尔字母占3个字节，6个字符共12字节。,1.82,137,34,0
+T03-L6,Строки,6,answer,def,def,json,def,1,1,负数起始位置表示从字符串末尾向前偏移，-3 即取最后三个字符。,1.77,125,31,0
+T03-L7,Строки,7,yesno,нет,,json,нет,1,1,ucfirst() 返回修改后的新字符串，原字符串不变。,1.47,121,25,0
+T03-L8,Строки,8,yesno,да,,json,да,1,1,Heredoc 类似双引号字符串，支持变量插值；Nowdoc 类似单引号字符串，不支持变量插值。,1.4,122,40,0
+T04-L1,Массивы,1,yesno,нет,,json,нет,1,1,sort() 会重新索引数组，不保留原有的键名关联。,1.52,119,26,0
+T04-L2,Массивы,2,yesno,да,,json,да,1,1,PHP 会将纯数字字符串键自动转换为整数键。,1.42,123,23,0
+T04-L3,Массивы,3,yesno,нет,,json,нет,1,1,in_array() 默认使用宽松比较 (==)，需显式设置第三个参数为 true 才启用严格比较。,1.61,122,36,0
+T04-L4,Массивы,4,yesno,да,,json,да,1,1,array_filter() 在没有回调函数时，默认移除所有布尔值为 false 的元素。,1.84,129,29,0
+T04-L5,Массивы,5,yesno,нет,,json,нет,1,1,array_slice() 默认会重新索引数组，除非第四个参数 preserve_keys 设置为 true。,1.68,123,30,0
+T04-L6,Массивы,6,answer,"[20, 30]","[20,30]",json,"[20,30]",1,0,从索引1开始截取2个元素。,1.58,142,25,0
+T04-L7,Массивы,7,answer,2,2,json,2,1,1,PHP中的+运算符保留左侧数组的键，因此'a'取值为1，新增'b'，共2个元素。,2.02,144,37,0
+T04-L8,Массивы,8,yesno,да,,json,да,1,1,PHP 8.1 引入了对字符串键数组的展开支持。,1.79,133,26,0
+T05-L1,Функции и замыкания,1,yesno,нет,,json,нет,1,1,PHP 8.0+ 允许在同一调用中混合使用命名参数和数组解包。,1.65,131,31,0
+T05-L2,Функции и замыкания,2,yesno,нет,,json,нет,1,1,匿名函数默认不继承外部作用域，必须通过 use 关键字显式引入变量。,1.58,120,30,0
+T05-L3,Функции и замыкания,3,answer,3,3,json,3,1,1,func_num_args() возвращает количество переданных аргументов независимо от сигнатуры функции.,1.46,148,32,0
+T05-L4,Функции и замыкания,4,yesno,нет,,json,нет,1,1,箭头函数（arrow functions）在 PHP 中并不存在，这是 JavaScript 的特性；PHP 中的闭包使用 function 关键字定义。,2.13,127,40,0
+T05-L5,Функции и замыкания,5,yesno,нет,,json,нет,1,1,箭头函数按值捕获外部变量，而非按引用。,1.35,129,23,0
+T05-L6,Функции и замыкания,6,yesno,да,,json,да,1,1,静态闭包无法绑定 $this，因此不会捕获当前对象实例。,1.71,125,26,0
+T05-L7,Функции и замыкания,7,answer,5,5,json,5,1,1,use ($x) 按值捕获变量，后续修改不影响闭包内的副本。,1.88,150,29,0
+T05-L8,Функции и замыкания,8,yesno,да,,json,да,1,1,"在弱类型模式下，PHP 会尝试将字符串 ""5"" 隐式转换为整数。",2.14,136,31,0
+T06-L1,ООП: классы и наследование,1,yesno,да,,json,да,1,1,PHP 8.0 引入了构造函数属性提升（Constructor Property Promotion）特性。,1.32,124,28,0
+T06-L2,ООП: классы и наследование,2,answer,final,final,json,final,1,1,Ключевое слово final запрещает переопределение метода в подклассах.,1.46,133,29,0
+T06-L3,ООП: классы и наследование,3,yesno,да,,json,да,1,1,final 关键字禁止子类重写该方法。,1.45,124,19,0
+T06-L4,ООП: классы и наследование,4,yesno,нет,,json,нет,1,1,private 属性仅在定义它的类内部可见，子类无法直接访问。,1.64,119,26,0
+T06-L5,ООП: классы и наследование,5,answer,class@anonymous,class@anonymous,json,class@anonymous,1,1,匿名类生成的名称包含 null 字节，截断后得到该前缀。,1.84,141,30,0
+T06-L6,ООП: классы и наследование,6,yesno,да,,json,да,1,1,私有方法不属于继承契约，子类可重新定义同名方法且可见性不受限制。,1.7,132,29,0
+T06-L7,ООП: классы и наследование,7,yesno,да,,json,нет,0,0,__get() 仅在访问不可访问或不存在的属性时触发。,1.63,123,24,0
+T06-L8,ООП: классы и наследование,8,answer,error,error,json,error,1,1,在 PHP 中，违反 readonly 属性约束抛出的是 TypeError（属于 Error 类），而非 Exception。,1.94,134,33,0
+T07-L1,"Интерфейсы, трейты, enum",1,yesno,да,,json,да,1,1,在 PHP 中，接口可以定义常量。,1.69,117,21,0
+T07-L2,"Интерфейсы, трейты, enum",2,answer,instanceof,instanceof,json,instanceof,1,1,运算符 instanceof 用于检查对象是否属于某个类或实现了某个接口。,1.65,128,27,0
+T07-L3,"Интерфейсы, трейты, enum",3,yesno,да,,json,да,1,1,PHP 8.0+ 支持接口声明静态方法。,1.74,117,24,0
+T07-L4,"Интерфейсы, трейты, enum",4,yesno,нет,,json,нет,1,1,instanceof 同时检查类继承和接口实现。,1.39,123,22,0
+T07-L5,"Интерфейсы, трейты, enum",5,yesno,нет,,json,нет,1,1,PHP 接口方法不能包含实现代码，即使有默认值也不允许，这与 Trait 不同。,1.75,122,32,0
+T07-L6,"Интерфейсы, трейты, enum",6,yesno,да,,json,да,1,1,抽象方法可以使用 public、protected 或 private（PHP 8+）等可见性修饰符，只要子类实现时保持一致或更宽松。,2.25,121,41,0
+T07-L7,"Интерфейсы, трейты, enum",7,answer,3,3,json,3,1,1,Foo::cases() 返回枚举中所有 case 的数组，该枚举有 A、B、C 三个 case。,1.76,140,37,0
+T07-L8,"Интерфейсы, трейты, enum",8,yesno,нет,,json,да,0,0,在 PHP 中，Trait 不能声明常量。,1.36,117,22,0
+T08-L1,Исключения и ошибки,1,yesno,да,,json,да,1,1,Throwable 是 Exception 和 Error 的公共父接口。,1.41,121,24,0
+T08-L2,Исключения и ошибки,2,yesno,нет,,json,нет,1,1,TypeError 继承自 Error，而 Error 与 Exception 是同级关系（均实现 Throwable），因此 catch (Exception $e) 无法捕获 TypeError。,1.74,130,43,0
+T08-L3,Исключения и ошибки,3,yesno,нет,,json,нет,1,1,@ 运算符仅抑制错误报告，不阻止异常抛出。,1.71,115,23,0
+T08-L4,Исключения и ошибки,4,answer,divisionbyzeroerror,divisionbyzeroerror,json,divisionbyzeroerror,1,1,PHP 8.0+中intdiv除数为0时抛出DivisionByZeroError。,1.77,129,33,0
+T08-L5,Исключения и ошибки,5,yesno,нет,,json,нет,1,1,finally 块无论是否发生异常或异常是否被捕获都会执行。,1.84,121,26,0
+T08-L6,Исключения и ошибки,6,yesno,нет,,json,нет,1,1,finally 块中抛出的异常会覆盖之前 try/catch 中的异常或返回值，从而改变程序的执行结果。,1.93,126,36,0
+T08-L7,Исключения и ошибки,7,answer,是,true,json,true,0,0,对象转换为布尔值时始终为 true。,1.81,130,20,0
+T08-L8,Исключения и ошибки,8,yesno,да,,json,да,1,1,PHP 在脚本终止时（包括调用 exit）会执行注册过的关闭函数。,1.8,123,29,0
+T09-L1,Пространства имён и автозагрузка,1,yesno,нет,,json,нет,1,1,use 仅引入命名空间别名，实际加载依赖自动加载器或 require/include。,1.76,125,29,0
+T09-L2,Пространства имён и автозагрузка,2,answer,function,function,json,function,1,1,В PHP для импорта функций используется ключевое слово function после use.,1.74,134,26,0
+T09-L3,Пространства имён и автозагрузка,3,answer,controller/api/usercontroller.php,src/controller/api/usercontroller.php,json,src/controller/api/usercontroller.php,1,0,PSR-4将命名空间前缀App\映射到src/，剩余部分按目录结构转换为文件路径。,1.63,143,41,0
+T09-L4,Пространства имён и автозагрузка,4,yesno,да,,json,да,1,1,Composer 的自动加载器确实通过 spl_autoload_register() 注册。,1.35,120,27,0
+T09-L5,Пространства имён и автозагрузка,5,yesno,да,,json,да,1,1,__NAMESPACE__ 确实返回当前命名空间的名称。,1.48,122,21,0
+T09-L6,Пространства имён и автозагрузка,6,yesno,нет,,json,нет,1,1,相对名称在 new 中解析为当前命名空间，而非全局根。,1.7,129,27,0
+T09-L7,Пространства имён и автозагрузка,7,yesno,да,,json,да,1,1,PSR-4 规范规定命名空间前缀映射到目录，后续子命名空间和类名对应子目录和文件名。,1.88,135,38,0
+T09-L8,Пространства имён и автозагрузка,8,yesno,нет,,json,нет,1,1,PHP 中 use 指令只能在全局命名空间、类或命名空间的声明块中使用，不能写在函数体内部。,2.08,123,37,0
+T10-L1,Ссылки и область видимости,1,yesno,да,,json,да,1,1,在 PHP 中，数组作为值类型处理，赋值时发生浅拷贝（除非使用引用 &）。,1.67,123,33,0
+T10-L2,Ссылки и область видимости,2,answer,2,2,json,2,1,1,数组按值复制，修改 $b 不影响 $a。,1.3,146,24,0
+T10-L3,Ссылки и область видимости,3,yesno,да,,json,да,1,1,PHP 函数作用域独立，访问全局变量需显式声明 global、使用 $GLOBALS 或通过参数传递。,1.88,128,35,0
+T10-L4,Ссылки и область видимости,4,yesno,нет,,json,нет,1,1,unset($GLOBALS['x']) 会删除全局作用域中的变量，影响所有代码。,2.11,126,30,0
+T10-L5,Ссылки и область видимости,5,answer,6,6,json,6,1,1,参数以引用传递，函数内修改影响外部变量。,1.74,143,23,0
+T10-L6,Ссылки и область видимости,6,yesno,нет,,json,нет,1,1,PHP 7+ 中 foreach 按值迭代使用副本，修改原数组不影响当前遍历；PHP 5 中行为可能不同但现代标准视为错误。,1.67,137,46,0
+T10-L7,Ссылки и область видимости,7,yesno,нет,,json,нет,1,1,静态属性属于类本身，所有实例共享同一份数据。,2.26,129,24,0
+T10-L8,Ссылки и область видимости,8,yesno,нет,,json,нет,1,1,PHP 会将布尔值键转换为整数（true 变为 1，false 变为 0）。,1.72,121,32,0
+T11-L1,"Генераторы, итераторы, SPL",1,yesno,да,,json,да,1,1,在 PHP 7.0+ 中，生成器可以使用 return 语句返回值，该值可通过 getReturn() 方法获取。,1.68,128,39,0
+T11-L2,"Генераторы, итераторы, SPL",2,yesno,нет,,json,нет,1,1,PHP 生成器一旦耗尽，无法通过 rewind() 重置，调用会抛出异常。,2.02,127,30,0
+T11-L3,"Генераторы, итераторы, SPL",3,yesno,да,,json,да,1,1,yield from 用于将生成器的控制权委托给另一个可迭代对象或生成器。,1.71,126,29,0
+T11-L4,"Генераторы, итераторы, SPL",4,answer,generator,generator,json,generator,1,1,函数 g 包含 yield，调用它返回一个 Generator 对象。,1.51,133,25,0
+T11-L5,"Генераторы, итераторы, SPL",5,answer,3,3,json,3,1,1,生成器通过 yield from 产出三个元素，iterator_to_array 将其转换为包含这三个元素的数组。,1.78,142,32,0
+T11-L6,"Генераторы, итераторы, SPL",6,yesno,нет,,json,нет,1,1,SplStack 实现的是后进先出（LIFO）栈结构，而非先进先出（FIFO）队列。,1.51,115,36,0
+T11-L7,"Генераторы, итераторы, SPL",7,yesno,да,,json,да,1,1,ArrayIterator 确实是一个内置类，用于将数组包装为 Iterator 接口以便遍历。,2.03,119,30,0
+T11-L8,"Генераторы, итераторы, SPL",8,yesno,нет,,json,нет,1,1,ArrayObject 实现了 IteratorAggregate 接口，因此可以直接使用 foreach 进行遍历。,1.8,116,28,0
+T12-L1,Конфигурация и безопасность,1,yesno,да,,json,да,1,1,password_hash() 函数会自动生成并包含盐值，无需手动提供。,1.69,121,27,0
+T12-L2,Конфигурация и безопасность,2,yesno,нет,,json,нет,1,1,PASSWORD_DEFAULT 在 PHP 8 中通常映射到 bcrypt（或 Argon2，取决于编译选项），绝非 md5。,1.73,126,38,0
+T12-L3,Конфигурация и безопасность,3,answer,是,true,json,true,0,0,password_verify 在密码匹配时返回 true。,1.55,131,21,0
+T12-L4,Конфигурация и безопасность,4,yesno,нет,,json,нет,1,1,strip_tags() 仅用于移除 HTML/XML 标签，不能防止 SQL 注入。,1.49,119,29,0
+T12-L5,Конфигурация и безопасность,5,yesno,да,,json,да,1,1,该函数通过生成新的会话 ID 并删除旧 ID，有效防止会话固定攻击。,1.79,126,30,0
+T12-L6,Конфигурация и безопасность,6,answer,php_sapi_name,php_sapi_name,json,php_sapi_name,1,1,该函数返回当前 PHP 运行环境的 SAPI 名称。,1.87,129,27,0
+T12-L7,Конфигурация и безопасность,7,yesno,да,,json,да,1,1,session_destroy() 仅销毁服务器端会话数据，不删除客户端的 session cookie。,1.73,127,29,0
+T12-L8,Конфигурация и безопасность,8,yesno,нет,,json,нет,1,1,必须调用 session_start() 才能初始化会话并加载 $_SESSION。,1.47,123,25,0
+VC-L1,PHP 8.4–8.5,1,answer,8.4,8.4,json,8.4,1,1,array_find() 函数是在 PHP 8.4 版本中引入的。,1.64,123,30,0
+VC-L2,PHP 8.4–8.5,2,yesno,да,,json,да,1,1,PHP 8.4 正式引入了属性钩子（Property Hooks）特性。,1.55,124,28,0
+VC-L3,PHP 8.4–8.5,3,yesno,да,,json,да,1,1,PHP 8.4 引入了属性可见性修饰符，允许将 setter 设为私有而 getter 保持公共。,2.25,128,36,0
+VC-L4,PHP 8.4–8.5,4,answer,8.4,8.5,json,8.5,0,0,#[\NoDiscard] 属性是在 PHP 8.4 版本中引入的。,1.41,134,33,0
+VC-L5,PHP 8.4–8.5,5,answer,8.5,8.5,json,8.5,1,1,管道运算符在 PHP 8.5 中首次引入。,1.47,134,26,0
+VC-L6,PHP 8.4–8.5,6,answer,8.5,8.5,json,8.5,1,1,该特性在 PHP 8.5 中引入，允许在克隆对象时直接修改属性。,1.84,144,34,0
+VC-L7,PHP 8.4–8.5,7,answer,7.3,8.5,json,8.5,0,0,PHP 7.3 引入了 array_key_first() 和 array_key_last()，但并没有原生的 array_first() 或 array_last() 函数。,1.83,127,46,0
+VC-L8,PHP 8.4–8.5,8,answer,8.1,8.6,json,8.6,0,0,RFC Partial Function Application v2 被接受并集成到 PHP 8.1 中。,2.4,149,33,0
+VF-L1,PHP: 8.6+ и будущее,1,answer,8.3,8.6,json,8.6,0,0,RFC clamp_v2 реализовал функцию clamp() в PHP 8.3.,2.08,151,30,0
+VF-L2,PHP: 8.6+ и будущее,2,yesno,нет,,json,нет,1,1,截至 2026 年，PHP 尚未正式采用名为 'RFC Context Managers v2' 的上下文管理器功能，该特性仍处于讨论或提案阶段。,2.24,129,47,0
+VF-L3,PHP: 8.6+ и будущее,3,yesno,нет,,json,да,0,0,PHP 的泛型（Generics）RFC 最终在 PHP 8.1/8.2 周期后逐步推进，并未被永久拒绝，且不存在名为 'Bound-Erased' 的特定 RFC 在 2026 年被拒的事实。,2.23,128,69,0
+VF-L4,PHP: 8.6+ и будущее,4,yesno,нет,,json,нет,1,1,截至2026年11月，PHP尚未正式将线程安全模式（ZTS）设为默认构建选项。,2.19,137,37,0
+VF-L5,PHP: 8.6+ и будущее,5,yesno,да,,json,да,1,1,PHP 8.5 尚未发布，且截至 PHP 8.4，官方仍未实现泛型支持。,1.82,128,35,0
+VF-L6,PHP: 8.6+ и будущее,6,yesno,нет,,json,да,0,0,PHP 8.6 尚未发布，且 PHP 8.5 的 GA 日期并非该时间点。,2.01,157,35,0
+VF-L7,PHP: 8.6+ и будущее,7,yesno,да,,json,да,1,1,PHP 6 项目确实被取消，未正式发布。,1.59,129,23,0
+VF-L8,PHP: 8.6+ и будущее,8,yesno,да,,json,да,1,1,RFC 关于添加 #[\Deprecated] 属性已在 PHP 8.4 中通过并合并。,1.81,123,33,0
+T25-L1,Чистая архитектура,1,yesno,да,,json,да,1,1,在洋葱和整洁架构中，依赖方向始终指向核心（内部），确保内层不依赖外层。,1.78,134,33,0
+T25-L2,Чистая архитектура,2,yesno,да,,json,да,1,1,遵循六边形架构或整洁架构原则，领域层应独立于基础设施框架。,1.7,132,28,0
+T25-L3,Чистая архитектура,3,yesno,нет,,json,нет,1,1,控制器和 Twig 模板属于表现层（Presentation Layer），而非业务逻辑层。,2.0,132,28,0
+T25-L4,Чистая архитектура,4,answer,php-файл index.php,доменная модель,json,доменная модель,0,0,"В классической архитектуре CMS (как WordPress) корневой файл index.php является точкой входа, расположенной в центре структуры.",2.22,125,44,0
+T25-L5,Чистая архитектура,5,yesno,да,,json,да,1,1,Deptrac 等工具专门用于静态分析代码依赖，能检测并阻止违反预定义分层架构规则的调用。,1.94,144,36,0
+T25-L6,Чистая архитектура,6,yesno,нет,,json,нет,1,1,用例层应保持框架无关，直接依赖 HTTP 请求或 EntityManager 会破坏六边形架构的解耦原则。,1.79,128,35,0
+T25-L7,Чистая архитектура,7,answer,репозиторий,репозиторий,json,репозиторий,1,1,В DDD репозиторий абстрагирует доступ к коллекции агрегатов.,1.66,139,34,0
+T25-L8,Чистая архитектура,8,yesno,да,,json,да,1,1,纯架构通过依赖倒置将基础设施细节隔离在外层，核心逻辑不直接依赖具体数据库。,1.87,133,32,0
+T26-L1,DDD,1,yesno,нет,,json,нет,1,1,聚合是领域模型中的一致性边界，而非数据库表。,1.58,120,23,0
+T26-L2,DDD,2,yesno,да,,json,да,1,1,值对象的核心特征是不可变性以及基于属性值的相等性比较。,2.05,127,25,0
+T26-L3,DDD,3,answer,фасад,aggregate root,json,aggregate root,0,0,В паттерне Фасад это единственная точка входа для взаимодействия с системой.,1.73,131,30,0
+T26-L4,DDD,4,yesno,да,,json,да,1,1,在DDD中，仓储通常针对聚合根设计，以维护聚合的一致性边界。,1.79,131,28,0
+T26-L5,DDD,5,yesno,да,,json,да,1,1,这是领域驱动设计（DDD）中通用语言的标准定义。,1.54,124,24,0
+T26-L6,DDD,6,answer,元模型,bounded context,json,bounded context,0,0,在模型驱动架构（MDA）中，元模型定义了特定抽象层级的语言和规则，跨越该层级则属于不同的元模型。,1.97,137,46,0
+T26-L7,DDD,7,yesno,нет,,json,нет,1,1,DDD 提倡充血模型，将业务逻辑封装在领域对象中，而非仅包含 getter/setter 的贫血模型。,1.71,139,37,0
+T26-L8,DDD,8,yesno,да,,json,да,1,1,有界上下文的核心原则是每个上下文拥有独立的领域模型，即使概念相似也视为不同类。,1.91,133,31,0
+T13-L1,Symfony,1,yesno,да,,json,да,1,1,Symfony DI 容器默认使用懒加载模式，服务仅在首次被请求时才实例化。,1.96,130,30,0
+T13-L2,Symfony,2,answer,php bin/console debug:router,debug:router,json,debug:router,1,0,该命令用于列出所有已注册的路由。,2.06,130,26,0
+T13-L3,Symfony,3,yesno,нет,,json,нет,1,1,Autowiring 自动解析依赖，无需在 services.yaml 中手动配置每个服务。,1.64,124,30,0
+T13-L4,Symfony,4,yesno,да,,json,да,1,1,Twig 模板确实被编译为 PHP 代码并缓存以提高性能。,1.63,127,26,0
+T13-L5,Symfony,5,yesno,да,,json,да,1,1,在开发环境中，Symfony 容器会根据资源追踪（resource tracking）机制，仅在依赖的服务定义文件发生变化时才重新编译。,2.0,137,37,0
+T13-L6,Symfony,6,answer,app_env,app_env,json,app_env,1,1,变量 APP_ENV 用于指定 Symfony 的当前环境。,1.78,132,24,0
+T13-L7,Symfony,7,yesno,нет,,json,нет,1,1,Symfony 要求控制器方法必须是 public，private 或 protected 方法无法被路由调用。,1.78,126,30,0
+T13-L8,Symfony,8,yesno,нет,,json,нет,1,1,优先级由注册时的参数决定，而非接口类型。,1.58,132,22,0
+T22-L1,Symfony: Security и формы,1,yesno,да,,json,да,1,1,在 Symfony 5.3+ 中引入的新认证系统已取代旧的 Guard，并在 Symfony 6.0 中完全移除了旧版 Guard 支持。,2.05,138,46,0
+T22-L2,Symfony: Security и формы,2,answer,isgranted,isgranted,json,isgranted,1,1,Атрибут #[IsGranted] проверяет доступ к методу контроллера и возвращает 403 Forbidden при неудаче.,1.89,140,41,0
+T22-L3,Symfony: Security и формы,3,yesno,да,,json,да,1,1,Symfony Voters 用于针对特定对象实例进行细粒度的权限检查。,1.68,133,26,0
+T22-L4,Symfony: Security и формы,4,yesno,да,,json,да,1,1,Symfony 7+ 完全移除了对 PHPDoc 注解的支持，强制使用原生 PHP 属性进行验证配置。,1.71,143,36,0
+T22-L5,Symfony: Security и формы,5,yesno,да,,json,да,1,1,Symfony 的 Form 组件默认启用 CSRF 保护，自动验证令牌。,1.83,128,27,0
+T22-L6,Symfony: Security и формы,6,yesno,да,,json,да,1,1,Symfony 表单验证始终在服务器端执行，独立于客户端 HTML5 验证。,1.59,128,29,0
+T22-L7,Symfony: Security и формы,7,answer,make:form,make:form,json,make:form,1,1,命令 php bin/console make:form 用于生成表单类。,1.79,128,31,0
+T22-L8,Symfony: Security и формы,8,yesno,нет,,json,нет,1,1,Symfony 默认对密码进行哈希处理，且不会将明文密码存储在会话中。,1.93,120,29,0
+T23-L1,Symfony: конфигурация и сервисы,1,yesno,да,,json,да,1,1,Symfony 4+ 的标准目录结构中，包配置确实位于 config/packages 目录下。,2.21,130,29,0
+T23-L2,Symfony: конфигурация и сервисы,2,yesno,да,,json,да,1,1,这是 Laravel 等框架推荐的安全实践，.env 包含默认值可提交，而 .env.local 存储敏感信息且被忽略。,2.02,143,41,0
+T23-L3,Symfony: конфигурация и сервисы,3,answer,debug:container,debug:container,json,debug:container,1,1,该命令列出所有已注册的服务及其别名。,1.7,131,23,0
+T23-L4,Symfony: конфигурация и сервисы,4,yesno,нет,,json,нет,1,1,Symfony 容器在编译后是只读的，setParameter() 仅在构建阶段可用，运行时调用会抛出异常。,2.04,128,35,0
+T23-L5,Symfony: конфигурация и сервисы,5,yesno,нет,,json,нет,1,1,在 Symfony 4.1+ 中，默认情况下服务是私有的（private），除非显式标记为 public。,2.03,129,37,0
+T23-L6,Symfony: конфигурация и сервисы,6,yesno,нет,,json,нет,1,1,Symfony 包通常提供默认配置，无需显式配置文件即可工作。,2.01,130,26,0
+T23-L7,Symfony: конфигурация и сервисы,7,yesno,да,,json,да,1,1,Symfony 支持在配置中使用 %env(VAR)% 语法引用环境变量。,1.62,129,27,0
+T23-L8,Symfony: конфигурация и сервисы,8,answer,app_debug,app_debug,json,app_debug,1,1,该环境变量控制 Symfony 应用的调试模式。,1.58,140,21,0
+T16-L1,Symfony: Messenger,1,yesno,нет,,json,нет,1,1,一个消息可以有多个处理器，通过路由配置或中间件实现。,1.86,122,25,0
+T16-L2,Symfony: Messenger,2,yesno,нет,,json,нет,1,1,Messenger 的 sync transport 立即同步处理消息，不通过队列和 worker。,1.68,129,28,0
+T16-L3,Symfony: Messenger,3,answer,php bin/console messenger:consume,messenger:consume,json,messenger:consume,1,0,В Symfony консольная команда messenger:consume запускает воркер для обработки сообщений из очередей.,1.95,138,37,0
+T16-L4,Symfony: Messenger,4,yesno,нет,,json,да,0,0,重试策略配置在总线（bus）层面，而非传输层。,1.91,125,25,0
+T16-L5,Symfony: Messenger,5,yesno,да,,json,нет,0,0,Symfony Messenger 默认使用 JSON 作为消息序列化器。,1.63,116,23,0
+T16-L6,Symfony: Messenger,6,yesno,да,,json,да,1,1,Symfony Scheduler 组件旨在按计划生成任务消息并交给 Messenger 处理。,1.88,121,26,0
+T16-L7,Symfony: Messenger,7,answer,doctrine,doctrine,json,doctrine,1,1,Messenger 的 doctrine transport 通过 Doctrine ORM 将消息持久化到数据库表中。,1.93,132,29,0
+T16-L8,Symfony: Messenger,8,yesno,да,,json,да,1,1,Symfony Messenger 允许通过 addMiddleware 方法在内置中间件之前或之后插入自定义中间件。,1.83,129,32,0
+T28-L1,Symfony: версии,1,yesno,да,,json,да,1,1,Symfony 遵循每两年发布主要版本，每六个月（通常在五月和十一月）发布次要版本的发布周期。,1.92,131,34,0
+T28-L2,Symfony: версии,2,answer,8.2,8.4,json,8.4,0,0,"Symfony 7 requires PHP 8.2, and Symfony 8 continues to require at least PHP 8.2.",2.09,126,38,0
+T28-L3,Symfony: версии,3,yesno,нет,,json,нет,1,1,Symfony 7.0 移除了对 PHP 注解（Annotations）的内置支持，推荐使用属性（Attributes）。,1.83,132,35,0
+T28-L4,Symfony: версии,4,yesno,да,,json,да,1,1,Symfony 的 AssetMapper 组件确实允许在不使用 Node.js 或 Webpack 的情况下管理前端资源，并通过 importmap.php 定义依赖关系。,1.81,122,43,0
+T28-L5,Symfony: версии,5,yesno,нет,,json,нет,1,1,Symfony 6.4 是 LTS（长期支持）版本，而非普通版本。,1.94,119,29,0
+T28-L6,Symfony: версии,6,yesno,нет,,json,нет,1,1,Symfony 的语义化版本控制规定，大版本更新（Major Release）会移除之前标记为废弃的功能。,1.98,140,35,0
+T28-L7,Symfony: версии,7,yesno,да,,json,да,1,1,Symfony 遵循语义化版本控制，每个主要版本（major release）都会发布详细的 UPGRADE.md 文件以指导迁移。,2.21,129,40,0
+T28-L8,Symfony: версии,8,answer,symfonyassetmapper,asset-mapper,json,asset-mapper,0,0,Symfony 7.1+ 引入了 Symfony Asset Mapper，允许在不使用 Node.js 或 Webpack 的情况下管理前端资源。,2.29,131,40,0
+T29-L1,Symfony: 8.2 и будущее,1,yesno,нет,,json,нет,1,1,截至2024年，Symfony最新版本为6.4/7.x，8.2版本远未发布。,2.08,127,36,0
+T29-L2,Symfony: 8.2 и будущее,2,yesno,нет,,json,да,0,0,截至2024年，Symfony 8.2尚未发布且未正式排期至2026年11月（通常8.x系列在2025-2026年间演进，但具体日期需视官方路线图而定，且题目设定为未来时间点的不确定性较高，实际上Symfony遵循严格的版本发布计划，8.2预计可能在2025年底或2026年初，而非特指2026年11月这一确切且遥远的未来节点作为既定事实）。,3.14,147,122,0
+T29-L3,Symfony: 8.2 и будущее,3,answer,8.2,8.2,json,8.2,1,1,Symfony 采用每六个月发布一个新版本的策略，因此 8.1 之后的下一个版本是 8.2。,1.83,141,38,0
+T29-L4,Symfony: 8.2 и будущее,4,yesno,нет,,json,нет,1,1,Symfony 8.2 尚未发布，且遵循语义化版本控制，次版本更新（如 8.1 到 8.2）不应破坏向后兼容性。,2.01,130,48,0
+T29-L5,Symfony: 8.2 и будущее,5,yesno,нет,,json,да,0,0,PHP 8.1 到 8.2 属于主版本升级，可能包含破坏性变更，不保证完全向后兼容。,2.04,139,40,0
+T29-L6,Symfony: 8.2 и будущее,6,answer,8.4,8.4,json,8.4,1,1,Symfony 采用 LTS 策略，8.4 是 Symfony 8.x 分支的最后一个版本（也是 LTS），之后直接发布 Symfony 9.0。,2.03,134,47,0
+T29-L7,Symfony: 8.2 и будущее,7,yesno,нет,,json,нет,1,1,Symfony 8.2 尚未发布，且 Symfony 框架通常要求 PHP 版本低于其最新支持的主版本（如 Symfony 7.x 要求 PHP 8.1+），不会强制要求比当前最新稳定版更超前或特定未发布的 PHP 8.5。,2.56,129,70,0
+T29-L8,Symfony: 8.2 и будущее,8,yesno,да,,json,да,1,1,Symfony 遵循 LTS 策略，8.x 版本中引入的弃用警告通常在下一个主要版本（9.0）之前不会被移除。,1.79,129,41,0
+T21-L1,Twig,1,yesno,нет,,json,нет,1,1,Twig 模板引擎出于安全考虑，禁止在 {{ }} 中直接执行任意 PHP 代码。,1.84,121,32,0
+T21-L2,Twig,2,yesno,да,,json,да,1,1,Twig 默认启用自动转义功能以防止 XSS 攻击。,1.66,118,24,0
+T21-L3,Twig,3,yesno,нет,,json,да,0,0,"在 Twig 中，|e 过滤器用于转义 HTML 实体，但默认情况下 Twig 已经自动对变量进行 HTML 转义，且 |e 主要处理特殊字符（如 <, >, &），并非所有“安全输出”场景的唯一或标准描述，更准确的说法是它执行 HTML 实体编码。不过通常语境下该说法被视为正确，但若严格区分，Twig 的 autoescape 机制才是核心，|e 是显式调用。但在常规测试中，此陈述通常被判定为**是**（True），因为 |e 确实执行 HTML 转义。让我重新审视：Twig 文档明确指出 `{{ value|e }}` 等同于 `{{ value|escape('html') }}`，即 ",4.64,128,182,0
+T21-L4,Twig,4,answer,localize,format_number,json,format_number,0,0,在 twig/intl-extra 中，localize 过滤器用于根据指定区域格式化数字、日期等。,1.84,131,34,0
+T21-L5,Twig,5,yesno,да,,json,да,1,1,在 Twig 模板引擎中，|raw 过滤器确实用于输出原始 HTML，从而禁用默认的自动转义机制。,2.01,120,36,0
+T21-L6,Twig,6,yesno,да,,json,да,1,1,Twig 中 {{ }} 用于输出表达式结果，{% %} 用于控制逻辑如循环和条件。,1.7,130,34,0
+T21-L7,Twig,7,yesno,нет,,json,нет,1,1,Twig 支持使用 {% set %} 标签在模板内部声明和赋值变量。,1.75,126,29,0
+T21-L8,Twig,8,answer,dump,dump,json,dump,1,1,Twig 内置的 dump() 函数用于输出变量的调试结构。,1.41,134,25,0
+T24-L1,Bootstrap,1,yesno,да,,json,да,1,1,Bootstrap 是用于构建响应式界面的 CSS/JS 组件库，不包含路由或状态管理等 SPA 核心功能。,1.92,131,36,0
+T24-L2,Bootstrap,2,answer,container,container,json,container,1,1,Класс .container в Bootstrap обеспечивает адаптивную ширину с фиксированными максимумами на брейкпоинтах.,1.98,141,42,0
+T24-L3,Bootstrap,3,yesno,нет,,json,нет,1,1,Bootstrap 的网格系统通常基于 12 列，而非 16 列。,1.6,125,31,0
+T24-L4,Bootstrap,4,yesno,да,,json,да,1,1,"Bootstrap 5定义了sm, md, lg, xl, xxl五个命名断点。",2.25,139,30,0
+T24-L5,Bootstrap,5,yesno,да,,json,нет,0,0,Bootstrap 的间距工具类数值对应 spacing 变量，默认基于 $spacer (1rem) 的倍数。,1.79,133,35,0
+T24-L6,Bootstrap,6,answer,data-bs-toggle,data-bs-toggle,json,data-bs-toggle,1,1,Bootstrap 5 использует data-bs-toggle для активации компонентов.,1.44,138,25,0
+T24-L7,Bootstrap,7,yesno,да,,json,да,1,1,Bootstrap 5 移除了对 jQuery 的依赖，改用原生 JavaScript。,1.69,122,27,0
+T24-L8,Bootstrap,8,yesno,нет,,json,нет,1,1,"在 Bootstrap 5.3+ 中，深色模式通过 `data-bs-theme=""dark""` 属性启用，而不是 `.dark` 类。",1.83,123,43,0
+T14-L1,Doctrine,1,yesno,нет,,json,нет,1,1,Doctrine ORM 默认不自动创建表，需手动执行迁移或命令。,1.91,125,27,0
+T14-L2,Doctrine,2,answer,persist,persist,json,persist,1,1,该方法将实体状态从瞬时变为受管，仅在 flush 时执行 INSERT。,2.13,134,28,0
+T14-L3,Doctrine,3,yesno,нет,,json,нет,1,1,在 Doctrine ORM 3.0 中，EntityManager::merge() 方法已被移除。,2.0,125,30,0
+T14-L4,Doctrine,4,yesno,да,,json,да,1,1,DQL（如 HQL）操作的是映射到数据库的实体对象及其属性，而非底层表结构。,1.95,131,34,0
+T14-L5,Doctrine,5,answer,{,null,late,null,0,0,",
+""解释"": ""Метод find() возвращает null, если запись не найдена.""
+}",1.85,142,29,0
+T14-L6,Doctrine,6,yesno,да,,json,нет,0,0,DoctrineBundle 通过 DoctrineBundle\EventListener\ORMListener 在 kernel.terminate 事件中自动调用 flush()。,1.75,119,33,0
+T14-L7,Doctrine,7,yesno,да,,json,да,1,1,Unit of Work 通过身份映射跟踪托管实体的属性变化，flush() 会自动生成更新语句。,1.91,134,33,0
+T14-L8,Doctrine,8,yesno,нет,,json,нет,1,1,remove() 仅将实体标记为删除，实际 SQL DELETE 语句在 flush() 或事务提交时执行。,2.12,119,36,0
+T15-L1,PostgreSQL,1,yesno,нет,,json,нет,1,1,MVCC 的核心优势正是读写互不阻塞。,1.97,124,22,0
+T15-L2,PostgreSQL,2,answer,explain,explain,json,explain,1,1,EXPLAIN 命令用于显示查询执行计划而不实际执行查询。,1.79,130,26,0
+T15-L3,PostgreSQL,3,yesno,нет,,json,нет,1,1,SERIAL 是 PostgreSQL 中的语法糖，底层使用序列对象；而 GENERATED ... AS IDENTITY 是 SQL 标准定义的机制，两者实现原理和特性不同。,1.62,123,47,0
+T15-L4,PostgreSQL,4,yesno,нет,,json,нет,1,1,PostgreSQL 的 UNIQUE 约束默认允许多行包含 NULL，因为 NULL 不等于任何值。,1.93,127,32,0
+T15-L5,PostgreSQL,5,answer,string_agg,string_agg,json,string_agg,1,1,string_agg 是 PostgreSQL 中用于将字符串按指定分隔符连接起来的聚合函数。,1.74,133,31,0
+T15-L6,PostgreSQL,6,yesno,нет,,json,нет,1,1,VACUUM 是 PostgreSQL 的命令，与 PHP 无关。,1.73,134,26,0
+T15-L7,PostgreSQL,7,answer,partition by,partition by,json,partition by,1,1,Ключевое слово PARTITION BY разбивает набор строк на группы (партиции) для вычисления оконной функции.,2.03,140,41,0
+T15-L8,PostgreSQL,8,yesno,нет,,json,нет,1,1,READ COMMITTED 允许不可重复读，只有 REPEATABLE READ 及以上级别才能防止该现象。,1.82,125,33,0
+T17-L1,PostgreSQL: транзакции и индексы,1,yesno,да,,json,да,1,1,PostgreSQL 默认启用自动提交模式，每个 SQL 语句都在独立的隐式事务中执行。,1.94,130,32,0
+T17-L2,PostgreSQL: транзакции и индексы,2,answer,commit,commit,json,commit,1,1,命令 COMMIT 用于永久保存事务中的所有更改。,1.65,133,22,0
+T17-L3,PostgreSQL: транзакции и индексы,3,yesno,да,,json,да,1,1,索引能加速查找行，从而提升 UPDATE 和 DELETE 的执行效率。,1.94,134,27,0
+T17-L4,PostgreSQL: транзакции и индексы,4,yesno,да,,json,да,1,1,PostgreSQL 使用 SAVEPOINT 机制来支持部分回滚（ROLLBACK TO SAVEPOINT）。,1.76,121,31,0
+T17-L5,PostgreSQL: транзакции и индексы,5,yesno,нет,,json,нет,1,1,EXPLAIN ANALYZE 执行查询并显示实际执行计划及统计信息。,1.66,121,28,0
+T17-L6,PostgreSQL: транзакции и индексы,6,answer,pgvector,vector,json,vector,1,0,pgvector 是 PostgreSQL 的扩展，支持向量数据类型和近似最近邻搜索。,1.75,137,30,0
+T17-L7,PostgreSQL: транзакции и индексы,7,yesno,да,,json,да,1,1,部分索引仅包含满足 WHERE 条件的行。,1.53,129,21,0
+T17-L8,PostgreSQL: транзакции и индексы,8,yesno,нет,,json,нет,1,1,PostgreSQL 的 SERIALIZABLE 隔离级别使用 SSI（可序列化快照隔离）技术，通过检测读写冲突而非锁定读取的行来实现。,1.94,128,42,0
+T19-L1,HTTP и REST API,1,yesno,да,,json,да,1,1,HTTP 状态码 201 Created 表示请求已成功且服务器创建了一个新资源。,1.92,125,31,0
+T19-L2,HTTP и REST API,2,answer,204,204,json,204,1,1,状态码 204 No Content 表示请求成功但无返回内容。,1.67,137,30,0
+T19-L3,HTTP и REST API,3,yesno,да,,json,да,1,1,HTTP 规范定义 DELETE 方法为幂等，多次执行对服务器状态的影响等同于一次执行。,2.02,132,32,0
+T19-L4,HTTP и REST API,4,yesno,нет,,json,нет,1,1,Access-Control-Allow-Origin 是服务器发送给客户端的响应头，用于告知浏览器该资源是否允许被跨域访问。,1.86,127,36,0
+T19-L5,HTTP и REST API,5,yesno,да,,json,да,1,1,HTTP 429 状态码确实表示请求过多，即触发了速率限制。,1.77,128,30,0
+T19-L6,HTTP и REST API,6,yesno,нет,,json,нет,1,1,4xx 是客户端错误，5xx 是服务器端错误。,1.8,127,26,0
+T19-L7,HTTP и REST API,7,answer,content-type,content-type,json,content-type,1,1,该头部字段用于指示消息主体的媒体类型（MIME type）。,1.79,131,26,0
+T19-L8,HTTP и REST API,8,yesno,да,,json,да,1,1,RFC 5789 明确指出 PATCH 不保证幂等性，而 PUT 必须是幂等的。,1.88,127,34,0
+T20-L1,Безопасность и OAuth,1,yesno,нет,,json,нет,1,1,应使用 password_verify() 函数，因为哈希算法可能包含盐值且非确定性，普通 == 比较不安全且逻辑错误。,1.66,127,39,0
+T20-L2,Безопасность и OAuth,2,yesno,да,,json,да,1,1,"CSRF-токен генерируется сервером, хранится в сессии и проверяется при обработке небезопасных запросов (POST/PUT/DELETE).",1.97,144,46,0
+T20-L3,Безопасность и OAuth,3,answer,content-security-policy,content-security-policy,json,content-security-policy,1,1,CSP 通过该 HTTP 响应头启用。,1.78,130,26,0
+T20-L4,Безопасность и OAuth,4,yesno,нет,,json,нет,1,1,OAuth 2.0 是授权协议，Access Token 用于访问资源，而非直接标识用户身份（通常需配合 OpenID Connect）。,1.8,130,41,0
+T20-L5,Безопасность и OAuth,5,yesno,нет,,json,нет,1,1,防止 XSS 的关键是在输出时进行转义，仅靠输入验证不足以应对所有场景。,2.26,125,31,0
+T20-L6,Безопасность и OAuth,6,answer,code,code,json,code,1,1,在OAuth 2.0授权码模式中，重定向URI接收的参数是code，该参数用于交换access token。,2.0,140,36,0
+T20-L7,Безопасность и OAuth,7,yesno,да,,json,да,1,1,刷新令牌设计用于长期有效，以便在访问令牌过期后获取新的访问令牌。,1.87,130,29,0
+T20-L8,Безопасность и OAuth,8,yesno,нет,,json,нет,1,1,盐值通常与哈希一起存储，验证时需要读取盐值重新计算哈希进行比对，无需保密。,1.97,123,33,0
+T18-L1,Тестирование: PHPUnit,1,yesno,нет,,json,нет,1,1,PHPUnit 仅执行继承自 PHPUnit\Framework\TestCase 的类中的测试方法。,1.93,120,29,0
+T18-L2,Тестирование: PHPUnit,2,yesno,нет,,json,нет,1,1,setUp() 在每个测试方法执行前都会调用，而非仅一次。,1.67,122,26,0
+T18-L3,Тестирование: PHPUnit,3,yesno,нет,,json,нет,1,1,数据提供者（Data Provider）的主要目的是允许同一个测试方法使用多组不同的参数进行多次运行，而不仅仅是一组。,1.99,129,37,0
+T18-L4,Тестирование: PHPUnit,4,answer,expectexception,expectexception,json,expectexception,1,1,该方法用于声明测试预期抛出的异常类型。,1.6,127,21,0
+T18-L5,Тестирование: PHPUnit,5,yesno,нет,,json,нет,1,1,在 PHPUnit 中，Mock（模拟对象）用于验证方法是否被调用以及参数是否正确，而 Stub（存根对象）主要用于预设返回值以控制测试流程。,2.03,133,46,0
+T18-L6,Тестирование: PHPUnit,6,yesno,да,,json,да,1,1,PHPUnit 10+ 推荐使用 #[DataProvider] 属性，因为注解方式已被标记为过时。,1.94,135,32,0
+T18-L7,Тестирование: PHPUnit,7,yesno,нет,,json,нет,1,1,PHPUnit 支持通过 @depends 注解声明测试之间的依赖关系。,1.71,118,25,0
+T18-L8,Тестирование: PHPUnit,8,answer,--random-order,--order-by=random,json,--order-by=random,0,0,Флаг --random-order включает случайный порядок выполнения тестов.,2.66,131,25,0

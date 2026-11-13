@@ -1,34 +1,28 @@
-# qwen3.8-flash (alibabacloud qwen-token-plan)
+# qwen3.8-flash-low (alibabacloud qwen-token-plan)
 
 ## Характеристики
 
-- Модель: `qwen3.8-flash` — быстрая Qwen на подписке alibabacloud
-  (Model Studio token plan), custom id через
-  `--provider qwen-token-plan-individual`
-- Транспорт: `knowledge-map/runner_pi.py` (pi -p --no-session per
-  клетка, `--mode json` отдаёт usage)
-- **Нюанс off (исправлено 2026-11-12)**: pi не передаёт alibabacloud
-  `enable_thinking:false` — запрошенный off эскалируется в low
-  (~39 reasoning-токенов на клетку); «off»-прогон от 2026-11-12
-  фактически был low и перенесён в run-02 этой серии. Нативная шкала
-  провайдера: off (enable_thinking:false) / low / medium / high —
-  будущие прогоны off/medium пойдут через прямой транспорт
-  runner_cloud.py
+- Транспорт: `knowledge-map/runner_cloud.py` (прямой API,
+  `enable_thinking + reasoning_effort low`) для run-03…05; run-01/02 —
+  старый `runner_pi.py` (run-02 изначально запускался как «off», pi
+  эскалировал его в low; relabel в session.json)
+- Нативная шкала alibabacloud: off (enable_thinking:false) /
+  low / medium / high(xhigh)
 
-## Карта знаний PHP (2026-11-12, 2 прогона low)
+## Карта знаний PHP (2026-11-13, полная матрица 5×3)
 
-- run-01 (low): база **224/240 = 93.3%**, Глубина **51/56 = 91.1%**,
-  всего **275/296 = 92.9%**; 55k вх + 68k вых; 24 мин
-- run-02 (low, изначально запущен как «off»): база **223/240 = 92.9%**,
-  Глубина **51/56 = 91.1%**, всего **274/296 = 92.6%**; 55k вх + 68k вых;
-  25.2 мин
-- Два прогона low совпадают в пределах шума (±0.4 п.п. база, Глубина
-  равная) — как и положено прогонам одного уровня; «off ≈ low» из
-  первого сравнения было сравнением двух прогонов low
+База L1–L8 (240) / Глубина L9·L10 (140·140), среднее за 5 прогонов:
 
-Любопытно: Глубина (91.1%) выше базы (93%) — flash на фронтире знаний
-удерживается близко к флагманам (qwen3.8:27b low на ru: Глубина 83.9,
-flash +7.2 п.п.).
+- ru: база 93.2, L9 97.9 / L10 85.7
+- en: база 93.8, L9 97.1 / L10 82.9
+- zh: база 92.8, L9 96.4 / L10 83.6
 
-Результаты: knowledge-map/run-01, run-02 (report.html, session.json,
-answers.csv).
+- **Мышление даёт огромный прирост глубины**: против off база +4.4,
+  L9 +6–9 п.п., L10 +4–14 п.п. (на ru 72.1 → 85.7)
+- Глубина на low держится на уровне флагманов: L9 96–98 (у
+  qwen4-max-preview low 96.4)
+- Стабильность: флипов 51–55 из 296
+- Скорость: 23–24 мин на прогон, ~70k выходных токенов (off 11 мин,
+  12–13k) — мышление в 6 раз дороже off
+
+Результаты: knowledge-map/run-01…15 по языкам.
