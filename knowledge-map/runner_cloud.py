@@ -63,7 +63,10 @@ AUTH_KEYS = {
 }
 THINK_PARAMS = {
     "zai": {
-        "off": {"thinking": {"type": "disabled"}},
+        # docs.z.ai (GLM-5.3/Flash): «thinking.type only supports
+        # enabled; thinking cannot be disabled» — off не существует,
+        # провайдер молча форсирует минимальное мышление
+        "off": None,
         "low": {"thinking": {"type": "enabled"}, "reasoning_effort": "low"},
         "medium": {"thinking": {"type": "enabled"},
                    "reasoning_effort": "medium"},
@@ -88,10 +91,16 @@ def cloud_once(provider: str, model: str, sysp: str, prompt: str,
                thinking: str, timeout: int) -> tuple[str | None, dict]:
     """Один запрос к chat/completions: (текст, usage). С 4 попытками и
     паузами 5/15/45 c на 429/5xx/сеть/таймаут."""
+    params = THINK_PARAMS[provider].get(thinking)
+    if params is None:
+        raise SystemExit(
+            f"СТОП: уровень «{thinking}» не поддерживается провайдером "
+            f"{provider} (документация: z.ai GLM-5.3/Flash — off нет, "
+            f"«thinking cannot be disabled»)")
     payload = {"model": model, "stream": False,
                "messages": [{"role": "system", "content": sysp},
                             {"role": "user", "content": prompt}],
-               **THINK_PARAMS[provider][thinking]}
+               **params}
     key = json.loads(AUTH_FILE.read_text())[AUTH_KEYS[provider]]["key"]
     last_err = None
     for attempt in range(4):
