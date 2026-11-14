@@ -1368,7 +1368,7 @@ def build_series_report(models_root: Path, questions_path: Path,
     Вся карта всегда одной строкой (горизонтальная прокрутка при узком
     экране), метки тем — общий блок слева."""
     think_order = {"off": 0, MERGED_THINK: 1.5, "low": 1, "medium": 2,
-                   "high": 3, "xhigh": 4}
+                   "high": 3, "xhigh": 4, "max": 5}
     sections = []
     metrics = []
     model_dirs = sorted(d for d in models_root.iterdir()
