@@ -5,12 +5,20 @@
 - Транспорт: `knowledge-map/runner_cloud.py` (прямой API);
   medium = `thinking enabled + reasoning_effort medium` — через pi
   этот уровень был недостижим (эскалировал в high)
+- **Уровень medium не документирован**: шкала модели по документации
+  z.ai — только low / high / max (дефолт max; [Core
+  Parameters](https://docs.z.ai/guides/overview/concept-param),
+  «GLM-5.3 and GLM-5.3-FLASH models only support max, high, low»).
+  Провайдер значение medium принял и отработал: проба на тех же
+  клетках показывает reasoning между low и high, документированный
+  high тяжелее на порядок (T14-L9: low 124 / medium 196 / high 1713
+  reasoning-токенов). high и max не измерены — по команде
 
 ## Карта знаний PHP (2026-11-13, полная матрица 5×3 ru/en/zh)
 
 База L1–L8 (240) / Глубина L9/L10 (280), среднее за 5 прогонов:
 
-- ru: база 96.5, Глубина 86.1 (L9 97.1 / L10 75.0)- ru: база 96.5, Глубина 86.1 (L9 97.1 / L10 75.0)
+- ru: база 96.5, Глубина 86.1 (L9 97.1 / L10 75.0)
 - en: база 96.7, L9 95.7 / L10 80.7
 - zh: база 96.3, L9 97.1 / L10 79.3
 
