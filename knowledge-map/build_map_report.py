@@ -205,8 +205,17 @@ def is_rumination(t: dict) -> bool:
     return bool(th) and len(th) >= RUMINATION_CHARS
 
 
-def rumination_share(turns: list) -> float | None:
-    """Доля клеток-руминаций в % (None — в серии нет данных мышления)."""
+def rum_s(v: float | None) -> str:
+    return "—" if v is None else f"{v:.1f}".replace(".", ",")
+
+
+def rumination_share(turns: list, deep: bool | None = None,
+                     ) -> float | None:
+    """Доля клеток-руминаций в % (None — данных мышления нет). deep:
+    None — все клетки, False — простые L1–L8, True — Глубина L9–L10."""
+    if deep is not None:
+        turns = [t for t in turns
+                 if (t.get("level", 0) >= 9) == deep]
     if not turns:
         return None
     have = any(t.get("reasoning_tokens") is not None or t.get("thinking")
@@ -1481,8 +1490,10 @@ def build_series_report(models_root: Path, questions_path: Path,
                            and is_correct(by_id[q["id"]])
                            for _rd, _s, by_id in items))
                 flips = sum(1 for q in questions if flip_by_id[q["id"]])
-                rum = rumination_share(
-                    [t for _rd, s, _b in items for t in s.get("turns", [])])
+                gturns = [t for _rd, s, _b in items
+                          for t in s.get("turns", [])]
+                rum = (rumination_share(gturns, deep=False),
+                       rumination_share(gturns, deep=True))
                 groups.append((think, think_disp, runs_list, flip_by_id,
                                fams_list, cost, stable_ok, flips, json_pct_,
                                n_app, rum))
@@ -1536,8 +1547,8 @@ def build_series_report(models_root: Path, questions_path: Path,
                     f'итог {total_s}% · '
                     f'стаб. {stab_s}'
                     + f' · время {tdisp}'
-                    + (f' · рум. {f"{rum:.1f}".replace(".", ",")}%'
-                       if rum is not None else '')
+                    + (f' · рум. {rum_s(rum[0])}/{rum_s(rum[1])}%'
+                       if any(x is not None for x in rum) else '')
                     + (f' · прим. {n_app}/{len(questions)}'
                        if n_app != len(questions) else '')
                     + '</span></div>')
@@ -1714,14 +1725,21 @@ def build_series_report(models_root: Path, questions_path: Path,
             cells.append(f'<td class="num" style="background:{heat_color(1 - fl / max(1, nq))}">{pct(nq - fl, nq)}%</td>')
         cells.append(f'<td class="num" style="background:{heat_color(jp / 100)}">{jp}%</td>'
                      if jp is not None else '<td class="num">—</td>')
-        cells.append(f'<td class="num">{rum:.1f}%</td>'
-                     if rum is not None else '<td class="num">—</td>')
+        cells.append(f'<td class="num">{rum[0]:.1f}%</td>'
+                     if rum[0] is not None else '<td class="num">—</td>')
+        cells.append(f'<td class="num">{rum[1]:.1f}%</td>'
+                     if rum[1] is not None else '<td class="num">—</td>')
         mrows.append(f'<tr data-src="{src}">' + "".join(cells) + "</tr>")
     cost_heads = [("Время", "Время"), ("Ток вх", "Ток вх"),
                   ("Ток вых", "Ток вых"), ("Цена", "Цена"),
-                  ("Стаб.", "Стаб."), ("JSON", "JSON"), ("Рум.", "Рум.")]
-    head_titles = {"Рум.": "Доля клеток-руминаций: reasoning ≥10k ток "
-                           "или thinking ≥50k симв"}
+                  ("Стаб.", "Стаб."), ("JSON", "JSON"),
+                  ("Рум. L1–8", "Рум. L1–8"), ("Рум. L9–10", "Рум. L9–10")]
+    head_titles = {
+        "Рум. L1–8": "Доля клеток-руминаций на простых вопросах L1–L8 "
+                     "(reasoning ≥10k ток или thinking ≥50k симв)",
+        "Рум. L9–10": "Доля клеток-руминаций на Глубине L9–L10 "
+                      "(«что вернёт этот код»); у уровней 9–10 усиление "
+                      "к базовой частоте в 2–7 раз"}
     head = ('<tr><th>Модель</th><th>think</th><th>Язык</th><th>Прог.</th>'
             + "".join(f'<th class="sortable" title="{fam_titles[k]}">{h}</th>'
                       if k in fam_titles else f'<th class="sortable">{h}</th>'
@@ -1891,9 +1909,10 @@ def build_series_report(models_root: Path, questions_path: Path,
         "<li>Время, Ток вх, Ток вых и Цена — средние затраты на один "
         "прогон; насыщенность янтарной подложки растёт с величиной;</li>"
         "<li>остальные числовые колонки — проценты верных ответов; "
-        "Рум. — доля клеток-руминаций (непропорционально долгое "
-        "размышление: reasoning ≥10k токенов или thinking ≥50k символов "
-        "на клетку); прочерк — серия без записи thinking;</li>"
+        "Рум. L1–8 / Рум. L9–10 — доля клеток-руминаций (непропорционально "
+        "долгое размышление: reasoning ≥10k токенов или thinking ≥50k "
+        "символов на клетку) отдельно на простых вопросах и на Глубине; "
+        "прочерк — серия без записи мышления;</li>"
         "<li>клик по названию модели (серая ссылка с \u2193) прокручивает к "
         "её карте; у серий из одного прогона Стаб. не измеряется — "
         "прочерк.</li>"
