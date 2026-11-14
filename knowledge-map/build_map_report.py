@@ -1722,12 +1722,12 @@ def build_series_report(models_root: Path, questions_path: Path,
         if n_runs == 1:
             cells.append('<td class="num">—</td>')
         else:
-            cells.append(f'<td class="num" style="background:{heat_color(1 - fl / max(1, nq))}">{pct(nq - fl, nq)}%</td>')
-        cells.append(f'<td class="num" style="background:{heat_color(jp / 100)}">{jp}%</td>'
+            cells.append(f'<td class="num" style="background:{heat_color(1 - fl / max(1, nq))}">{pct(nq - fl, nq)}</td>')
+        cells.append(f'<td class="num" style="background:{heat_color(jp / 100)}">{jp}</td>'
                      if jp is not None else '<td class="num">—</td>')
-        cells.append(f'<td class="num">{rum[0]:.1f}%</td>'
+        cells.append(f'<td class="num">{rum[0]:.1f}</td>'
                      if rum[0] is not None else '<td class="num">—</td>')
-        cells.append(f'<td class="num">{rum[1]:.1f}%</td>'
+        cells.append(f'<td class="num">{rum[1]:.1f}</td>'
                      if rum[1] is not None else '<td class="num">—</td>')
         mrows.append(f'<tr data-src="{src}">' + "".join(cells) + "</tr>")
     cost_heads = [("Время", "Время"), ("Ток вх", "Ток вх"),
