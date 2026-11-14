@@ -1691,6 +1691,12 @@ def build_series_report(models_root: Path, questions_path: Path,
     # максимум для монохрома затрат: насыщенность = доля от самого
     # дорогого/долгого прогона в таблице
     max_dur = max((m[4][0] / m[8] for m in metrics), default=1) or 1
+    # руминации — тот же монохром: насыщенность относительно максимума
+    # колонки (нулевые и прочерк — без подложки)
+    max_rum_b = max((m[11][0] for m in metrics
+                     if m[11][0] is not None), default=1) or 1
+    max_rum_d = max((m[11][1] for m in metrics
+                     if m[11][1] is not None), default=1) or 1
     max_cost = max((m[4][3] / m[8] for m in metrics if m[4][3]),
                    default=1) or 1
     mrows = []
@@ -1725,9 +1731,13 @@ def build_series_report(models_root: Path, questions_path: Path,
             cells.append(f'<td class="num" style="background:{heat_color(1 - fl / max(1, nq))}">{pct(nq - fl, nq)}</td>')
         cells.append(f'<td class="num" style="background:{heat_color(jp / 100)}">{jp}</td>'
                      if jp is not None else '<td class="num">—</td>')
-        cells.append(f'<td class="num">{rum[0]:.1f}</td>'
+        cells.append(f'<td class="num" '
+                     f'style="background:{cost_color(rum[0] / max_rum_b)}">'
+                     f'{rum[0]:.1f}</td>'
                      if rum[0] is not None else '<td class="num">—</td>')
-        cells.append(f'<td class="num">{rum[1]:.1f}</td>'
+        cells.append(f'<td class="num" '
+                     f'style="background:{cost_color(rum[1] / max_rum_d)}">'
+                     f'{rum[1]:.1f}</td>'
                      if rum[1] is not None else '<td class="num">—</td>')
         mrows.append(f'<tr data-src="{src}">' + "".join(cells) + "</tr>")
     cost_heads = [("Время", "Время"), ("Ток вх", "Ток вх"),
