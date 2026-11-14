@@ -1508,7 +1508,8 @@ def build_series_report(models_root: Path, questions_path: Path,
                                       for _rd, s, _b in items)
                        else "local")
                 metrics.append((model, think, lang, fams_list, cost, flips,
-                                n_app, json_pct_, n_runs, link, src))
+                                n_app, json_pct_, n_runs, link, src,
+                                groups[-1][-1]))
             if not groups:
                 continue
 
@@ -1682,8 +1683,8 @@ def build_series_report(models_root: Path, questions_path: Path,
     max_cost = max((m[4][3] / m[8] for m in metrics if m[4][3]),
                    default=1) or 1
     mrows = []
-    for model, think, lang, fams_list, cost, fl, nq, jp, n_runs, link, src \
-            in metrics:
+    for model, think, lang, fams_list, cost, fl, nq, jp, n_runs, link, \
+            src, rum in metrics:
         pm = dict(fams_list)
         model_cell = (f'<a class="anchor" href="{link}" '
                       f'title="к карте модели ниже">{esc(model)}</a>'
@@ -1713,10 +1714,14 @@ def build_series_report(models_root: Path, questions_path: Path,
             cells.append(f'<td class="num" style="background:{heat_color(1 - fl / max(1, nq))}">{pct(nq - fl, nq)}%</td>')
         cells.append(f'<td class="num" style="background:{heat_color(jp / 100)}">{jp}%</td>'
                      if jp is not None else '<td class="num">—</td>')
+        cells.append(f'<td class="num">{rum:.1f}%</td>'
+                     if rum is not None else '<td class="num">—</td>')
         mrows.append(f'<tr data-src="{src}">' + "".join(cells) + "</tr>")
     cost_heads = [("Время", "Время"), ("Ток вх", "Ток вх"),
                   ("Ток вых", "Ток вых"), ("Цена", "Цена"),
-                  ("Стаб.", "Стаб."), ("JSON", "JSON")]
+                  ("Стаб.", "Стаб."), ("JSON", "JSON"), ("Рум.", "Рум.")]
+    head_titles = {"Рум.": "Доля клеток-руминаций: reasoning ≥10k ток "
+                           "или thinking ≥50k симв"}
     head = ('<tr><th>Модель</th><th>think</th><th>Язык</th><th>Прог.</th>'
             + "".join(f'<th class="sortable" title="{fam_titles[k]}">{h}</th>'
                       if k in fam_titles else f'<th class="sortable">{h}</th>'
@@ -1724,6 +1729,8 @@ def build_series_report(models_root: Path, questions_path: Path,
             + "".join(f'<th class="sortable" '
                       f'title="{h} · среднее на 1 прогон">{h}</th>'
                       if h in ("Время", "Ток вх", "Ток вых", "Цена")
+                      else f'<th class="sortable" title="{head_titles[h]}">{h}</th>'
+                      if h in head_titles
                       else '<th class="sortable">{}</th>'.format(h)
                       for _k, h in cost_heads) + "</tr>")
     # сортировка таблицы: клик по шапке (числовые колонки), повторный —
@@ -1883,7 +1890,10 @@ def build_series_report(models_root: Path, questions_path: Path,
         "сборки; фильтр «модели» прячет локальные или облачные;</li>"
         "<li>Время, Ток вх, Ток вых и Цена — средние затраты на один "
         "прогон; насыщенность янтарной подложки растёт с величиной;</li>"
-        "<li>остальные числовые колонки — проценты верных ответов;</li>"
+        "<li>остальные числовые колонки — проценты верных ответов; "
+        "Рум. — доля клеток-руминаций (непропорционально долгое "
+        "размышление: reasoning ≥10k токенов или thinking ≥50k символов "
+        "на клетку); прочерк — серия без записи thinking;</li>"
         "<li>клик по названию модели (серая ссылка с \u2193) прокручивает к "
         "её карте; у серий из одного прогона Стаб. не измеряется — "
         "прочерк.</li>"
