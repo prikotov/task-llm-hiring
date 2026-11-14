@@ -76,7 +76,10 @@ THINK_PARAMS = {
                    "reasoning_effort": "medium"},
     },
     "xiaomi": {
-        "off": {"thinking": {"type": "disabled"}},
+        # none — документированный уровень отключения (проверено: none и
+        # thinking disabled дают одинаковый результат 0 reasoning); старые
+        # off-прогоны шли через thinking disabled — поведенческий эквивалент
+        "off": {"reasoning_effort": "none"},
         "low": {"reasoning_effort": "low"},
         "medium": {"reasoning_effort": "medium"},
         "high": {"reasoning_effort": "high"},
@@ -109,8 +112,8 @@ THINK_PARAMS = {
 DOCS_LEVELS = {
     ("zai", "glm-5.3-flash"): {"levels": ("low", "high", "max"),
         "src": "https://docs.z.ai/guides/overview/concept-param"},
-    ("xiaomi", "mimo-v2.6-flash"): {"levels": ("none", "low", "medium", "high"),
-        "src": "https://token-plan-sgp.xiaomimimo.com/v1 (400: reasoning_effort must be one of none/low/medium/high)"},
+    ("xiaomi", "mimo-v2.6-flash"): {"levels": ("off", "none", "low", "medium", "high"),
+        "src": "https://token-plan-sgp.xiaomimimo.com/v1 (400: reasoning_effort must be one of none/low/medium/high; off — алиас none, поведенческий эквивалент проверен: 0 reasoning и там и там)"},
     ("alibabacloud", "qwen3.8-flash"): {"levels": ("off", "low", "medium", "high", "xhigh"),
         "src": "https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-openai-chat-completions"},
 }
