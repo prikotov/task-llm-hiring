@@ -189,6 +189,34 @@ def pct(n: int, d: int) -> float:
     return round(100 * n / d, 1) if d else 0.0
 
 
+# Руминация — клетка с непропорционально длинным размышлением: облачные
+# серии меряем reasoning-токенами (≥10k; обычная клетка ~30–500), локальные
+# — символами thinking (≥50k; обычная клетка ~1–3k). Пороги от замера
+# серий: разделяют «подумал» и «пережёвывает по кругу» без пересечений
+RUMINATION_TOKENS = 10_000
+RUMINATION_CHARS = 50_000
+
+
+def is_rumination(t: dict) -> bool:
+    rt = t.get("reasoning_tokens")
+    if rt is not None:
+        return rt >= RUMINATION_TOKENS
+    th = t.get("thinking")
+    return bool(th) and len(th) >= RUMINATION_CHARS
+
+
+def rumination_share(turns: list) -> float | None:
+    """Доля клеток-руминаций в % (None — в серии нет данных мышления)."""
+    if not turns:
+        return None
+    have = any(t.get("reasoning_tokens") is not None or t.get("thinking")
+               for t in turns)
+    if not have:
+        return None
+    return round(100 * sum(1 for t in turns if is_rumination(t)) / len(turns),
+                 1)
+
+
 def heat_color(p: float) -> str:
     """Непрерывная шкала красный → янтарный → зелёный по доле верных."""
     a, b = (COLOR_BAD, COLOR_MID) if p < 0.5 else (COLOR_MID, COLOR_OK)
@@ -1283,6 +1311,10 @@ def protocol_tag(session: dict) -> str:
 # Короткие имена моделей в отчёте (полный тег — в аннотации на сайте)
 DISPLAY_NAMES = {
     "orcarouter/Qwen3.8-27B-Uncensored:ctx100k": "orca",
+    "zai/glm-5.3-flash": "glm-5.3-flash",
+    "alibabacloud/qwen3.8-flash": "qwen3.8-flash",
+    "alibabacloud/qwen4-max-preview": "qwen4-max-preview",
+    "xiaomi/mimo-v2.6-flash": "mimo-v2.6-flash",
 }
 
 BINARY_THINKING = {
@@ -1333,9 +1365,13 @@ def build_series_report(models_root: Path, questions_path: Path,
     model_dirs = sorted(d for d in models_root.iterdir()
                         if d.is_dir() and (d / "knowledge-map").is_dir())
     n_maps = 0
+    # прогоны группируются по имени модели из сессии: у облачных моделей
+    # каждый уровень мышления лежит в своём каталоге (<model>-<think>),
+    # но секция карты должна быть одна на модель × язык
+    all_runs: dict = {}
+    tag_order: list = []
     for md in model_dirs:
         km = md / "knowledge-map"
-        runs = []
         for rd in sorted(km.glob("run-*")):
             if not (rd / "session.json").exists():
                 continue
@@ -1348,10 +1384,15 @@ def build_series_report(models_root: Path, questions_path: Path,
             if session.get("protocol") == "decision":
                 session = {**session, "think": "decision"}
                 by_id = applicable_by_id(session, by_id)
-            runs.append((rd, session, by_id))
-        if not runs:
-            continue
-        model_tag = runs[0][1].get("model", md.name)
+            elif len(session.get("turns") or []) < 240:
+                continue  # прогон ещё пишется — в свод не попадает
+            model_tag = session.get("model", md.name)
+            if model_tag not in all_runs:
+                all_runs[model_tag] = []
+                tag_order.append(model_tag)
+            all_runs[model_tag].append((rd, session, by_id))
+    for model_tag in tag_order:
+        runs = all_runs[model_tag]
         model = esc(DISPLAY_NAMES.get(model_tag, model_tag))
         latest_qver = max((s.get("questionnaire") or 0 for _, s, _ in runs))
         # ряды: (версия вопросника, язык) → уровень → прогоны;
@@ -1401,9 +1442,11 @@ def build_series_report(models_root: Path, questions_path: Path,
             base_ids = [q["id"] for q in questions
                         if q.get("zone", "base") == "base"]
             groups = []
+            gdirs = {}  # уровень мышления → каталог серии (для ссылок)
             for think in sorted(think_map,
                                 key=lambda t: (think_order.get(t, 99), t)):
                 items = think_map[think]
+                gdirs[think] = items[0][0].parent.parent.name
                 # одиночные серии не выбрасываем: их Стаб. всегда 100%
                 # (флипов не бывает), число прогонов видно в таблице метрик
                 n_runs = len(items)
@@ -1438,13 +1481,15 @@ def build_series_report(models_root: Path, questions_path: Path,
                            and is_correct(by_id[q["id"]])
                            for _rd, _s, by_id in items))
                 flips = sum(1 for q in questions if flip_by_id[q["id"]])
+                rum = rumination_share(
+                    [t for _rd, s, _b in items for t in s.get("turns", [])])
                 groups.append((think, think_disp, runs_list, flip_by_id,
                                fams_list, cost, stable_ok, flips, json_pct_,
-                               n_app))
-                run_href = (f"{models_prefix}{esc(md.name)}/knowledge-map/"
+                               n_app, rum))
+                run_href = (f"{models_prefix}{esc(gdirs[think])}/knowledge-map/"
                             f"{runs_list[0][0]}/report.html"
                             if n_runs == 1 and
-                            (models_root / md.name / "knowledge-map"
+                            (models_root / gdirs[think] / "knowledge-map"
                              / runs_list[0][0] / "report.html").exists()
                             else "")
                 cmp_name_m = f"compare-{think}-{lang}-v{qver}.html"
@@ -1475,7 +1520,7 @@ def build_series_report(models_root: Path, questions_path: Path,
                 f"{sp_px}px"] * len(groups)
             cells = ['<div class="uhead"></div>']
             for think, think_disp, runs_list, flip_by_id, fams_list, cost, \
-                    sok, fl, _jp, n_app in groups:
+                    sok, fl, _jp, n_app, rum in groups:
                 total_s = next((p for name, p in fams_list
                                 if name == "Всего"), None)
                 dur_s = cost[0]
@@ -1490,6 +1535,8 @@ def build_series_report(models_root: Path, questions_path: Path,
                     f'итог {total_s}% · '
                     f'стаб. {stab_s}'
                     + f' · время {tdisp}'
+                    + (f' · рум. {f"{rum:.1f}".replace(".", ",")}%'
+                       if rum is not None else '')
                     + (f' · прим. {n_app}/{len(questions)}'
                        if n_app != len(questions) else '')
                     + '</span></div>')
@@ -1507,26 +1554,34 @@ def build_series_report(models_root: Path, questions_path: Path,
                 tq = sorted((q for q in questions if q["topic"] == topic),
                             key=lambda q: q["level"])
                 for gi, (t, _td, runs_list, flip_by_id, _fams, _cost, _sok,
-                         _fl, _jp, _na) in enumerate(groups):
+                         _fl, _jp, _na, _rum) in enumerate(groups):
                     cmp_name = f"compare-{t}-{lang}-v{qver}.html"
+                    gdir = gdirs[t]
                     cmp_href = ""
                     if n_runs == 1:
                         # одиночная серия — полный отчёт и есть отчёт прогона
-                        rp = (models_root / md.name / "knowledge-map"
+                        rp = (models_root / gdir / "knowledge-map"
                               / runs_list[0][0] / "report.html")
                         if rp.exists():
-                            cmp_href = (f"{models_prefix}{esc(md.name)}/"
+                            cmp_href = (f"{models_prefix}{esc(gdir)}/"
                                         f"knowledge-map/{runs_list[0][0]}/"
                                         f"report.html")
-                    elif (models_root / md.name / "knowledge-map"
+                    elif (models_root / gdir / "knowledge-map"
                           / cmp_name).exists():
-                        cmp_href = (f"{models_prefix}{esc(md.name)}/knowledge-map/"
+                        cmp_href = (f"{models_prefix}{esc(gdir)}/knowledge-map/"
                                     f"{cmp_name}")
+                    elif (models_root / gdir / "knowledge-map"
+                          / runs_list[0][0] / "report.html").exists():
+                        # сводные compare-файлы есть не у всех серий —
+                        # ведём в первый прогон, чтобы ссылка не была битой
+                        cmp_href = (f"{models_prefix}{esc(gdir)}/"
+                                    f"knowledge-map/{runs_list[0][0]}/"
+                                    f"report.html")
                     run_base = {}
                     for name, _b in runs_list:
-                        if (models_root / md.name / "knowledge-map" / name
+                        if (models_root / gdir / "knowledge-map" / name
                                 / "report.html").exists():
-                            run_base[name] = (f"{models_prefix}{esc(md.name)}/"
+                            run_base[name] = (f"{models_prefix}{esc(gdir)}/"
                                               f"knowledge-map/{name}/"
                                               f"report.html")
                     for lvl in range(1, max_level + 1):
@@ -1565,21 +1620,28 @@ def build_series_report(models_root: Path, questions_path: Path,
             levels_s = ", ".join(t for t, *_ in groups)
             # ссылка на полный отчёт — в сетке, под картой каждого уровня
             for gi, (t, _td, runs_list_g, _f, _fams, _cost, _sok, _fl, _jp,
-                     _na) in enumerate(groups):
+                     _na, _rum) in enumerate(groups):
                 cmp_name = f"compare-{t}-{lang}-v{qver}.html"
                 single = len(runs_list_g) == 1
-                if not single and not (
-                        models_root / md.name / "knowledge-map"
-                        / cmp_name).exists():
+                gdir = gdirs[t]
+                has_cmp = (models_root / gdir / "knowledge-map"
+                           / cmp_name).exists()
+                if not has_cmp and not (models_root / gdir / "knowledge-map"
+                                        / runs_list_g[0][0]
+                                        / "report.html").exists():
                     continue
                 if single:
-                    href_g = (f"{models_prefix}{esc(md.name)}/knowledge-map/"
+                    href_g = (f"{models_prefix}{esc(gdir)}/knowledge-map/"
                               f"{runs_list_g[0][0]}/report.html")
                     label_g = "Отчёт прогона (1 прогон)"
-                else:
-                    href_g = (f"{models_prefix}{esc(md.name)}/knowledge-map/"
+                elif has_cmp:
+                    href_g = (f"{models_prefix}{esc(gdir)}/knowledge-map/"
                               f"{cmp_name}")
                     label_g = "Полный отчёт серии"
+                else:
+                    href_g = (f"{models_prefix}{esc(gdir)}/knowledge-map/"
+                              f"{runs_list_g[0][0]}/report.html")
+                    label_g = "Отчёт прогона"
                 col0 = 2 + gi * (max_level + 2)
                 cells.append(
                     f'<div class="ulink" style="grid-column: {col0} / '
