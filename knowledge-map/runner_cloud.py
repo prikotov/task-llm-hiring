@@ -68,9 +68,12 @@ THINK_PARAMS = {
         # провайдер молча форсирует минимальное мышление
         "off": None,
         "low": {"thinking": {"type": "enabled"}, "reasoning_effort": "low"},
+        "high": {"thinking": {"type": "enabled"}, "reasoning_effort": "high"},
+        "max": {"thinking": {"type": "enabled"}, "reasoning_effort": "max"},
+        # medium НЕ в документированной шкале GLM-5.3/Flash (low/high/max)
+        # — поддержан legacy-серией, новые запуски отклоняются guard'ом
         "medium": {"thinking": {"type": "enabled"},
                    "reasoning_effort": "medium"},
-        "high": {"thinking": {"type": "enabled"}, "reasoning_effort": "high"},
     },
     "xiaomi": {
         "off": {"thinking": {"type": "disabled"}},
@@ -90,6 +93,42 @@ THINK_PARAMS = {
         "high": {"reasoning_effort": "high"},
     },
 }
+
+
+# Документированные шкалы мышления (проверено по документации провайдеров
+# 2026-11-13/14; каждая запись — с источником). Уровни вне списка guard
+# отклоняет ДО первого запроса — чтобы не жечь лимиты подписок на
+# недокументированных параметрах:
+#   zai: docs.z.ai/guides/overview/concept-param — «GLM-5.3 and
+#        GLM-5.3-FLASH models only support max, high, low» (дефолт max),
+#        off нет: «thinking.type only supports enabled»
+#   xiaomi: ошибка 400 API перечисляет reasoning_effort none/low/medium/high
+#   alibabacloud: help.aliyun.com (Model Studio, qwen3.8) — reasoning_effort
+#        low/medium/xhigh (дефолт xhigh; high/max→xhigh, minimal→low,
+#        none→enable_thinking=False); effort и thinking_budget нельзя вместе
+DOCS_LEVELS = {
+    ("zai", "glm-5.3-flash"): {"levels": ("low", "high", "max"),
+        "src": "https://docs.z.ai/guides/overview/concept-param"},
+    ("xiaomi", "mimo-v2.6-flash"): {"levels": ("none", "low", "medium", "high"),
+        "src": "https://token-plan-sgp.xiaomimimo.com/v1 (400: reasoning_effort must be one of none/low/medium/high)"},
+    ("alibabacloud", "qwen3.8-flash"): {"levels": ("off", "low", "medium", "high", "xhigh"),
+        "src": "https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-openai-chat-completions"},
+}
+
+
+def check_thinking_docs(provider: str, model: str, thinking: str) -> None:
+    key = (provider, model)
+    if key not in DOCS_LEVELS:
+        raise SystemExit(
+            f"СТОП: для {provider}/{model} документированная шкала мышления "
+            f"не внесена в DOCS_LEVELS — сначала сверить параметры с "
+            f"документацией провайдера и добавить запись с источником")
+    if thinking not in DOCS_LEVELS[key]["levels"]:
+        raise SystemExit(
+            f"СТОП: уровень «{thinking}» не входит в документированную "
+            f"шкалу {provider}/{model}: "
+            f"{', '.join(DOCS_LEVELS[key]['levels'])} — источник: "
+            f"{DOCS_LEVELS[key]['src']}")
 
 
 def cloud_once(provider: str, model: str, sysp: str, prompt: str,
@@ -260,6 +299,7 @@ def main() -> int:
     if args.questions is None:
         args.questions = str(
             SCRIPT_DIR / f"questions{'' if args.lang == 'ru' else '-' + args.lang}.json")
+    check_thinking_docs(args.provider, args.model, args.thinking)
 
     sysp, q_suf, a_suf = prompt_parts(args.lang)
     _qdata = json.loads(Path(args.questions).read_text(encoding="utf-8"))
