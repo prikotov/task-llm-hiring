@@ -30,3 +30,11 @@
 баг транспорта runner_cloud задавал русские вопросы при en/zh-рамке
 (фикс --lang → questions{,-en,-zh}.json не был перенесён из
 runner_map). Прогоны удалены и перегнаны заново на исправленном транспорте (проверено: вопросы en/zh).
+
+Примечание (2026-11-14): транспорт отправлял недокументированную
+комбинацию enable_thinking:true + reasoning_effort (документация
+Model Studio — reasoning_effort low/medium/xhigh, дефолт xhigh).
+Комбо проверено пробами на тех же клетках: effort учтён, low и
+medium — разные уровни (reasoning/клетка low ~100, medium ~120,
+xhigh ~500+). Прогоны не перегоняются; текущий транспорт шлёт
+только reasoning_effort.

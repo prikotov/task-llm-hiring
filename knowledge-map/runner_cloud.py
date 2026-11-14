@@ -79,10 +79,15 @@ THINK_PARAMS = {
         "high": {"reasoning_effort": "high"},
     },
     "alibabacloud": {
+        # docs (Model Studio, qwen3.8): reasoning_effort = low/medium/xhigh
+        # (дефолт xhigh; max/high→xhigh, minimal→low, none→enable_thinking
+        # =False); effort и thinking_budget mutually exclusive. Шкала —
+        # reasoning_effort без enable_thinking; off — enable_thinking=False
+        # (эквивалент documented none, проверено: 0% клеток с reasoning)
         "off": {"enable_thinking": False},
-        "low": {"enable_thinking": True, "reasoning_effort": "low"},
-        "medium": {"enable_thinking": True, "reasoning_effort": "medium"},
-        "high": {"enable_thinking": True, "reasoning_effort": "high"},
+        "low": {"reasoning_effort": "low"},
+        "medium": {"reasoning_effort": "medium"},
+        "high": {"reasoning_effort": "high"},
     },
 }
 
