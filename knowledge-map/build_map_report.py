@@ -712,7 +712,7 @@ def appendix_table_single(by_id: dict, questions: list,
 # по правилу telegram-preview картинка для превью отдаётся с зарубежного
 # зеркала — Telegram не подтягивает картинки с российского prikotov.pro
 OG_IMAGE = ("https://mirror4.prikotov.pro/raw/knowledge-map-20261111/"
-            "og-cover.png?tg=2026111501")
+            "og-cover.png?tg=2026111502")
 
 
 def page(title: str, protocol: str, chips: str, body: str, footer: str,
