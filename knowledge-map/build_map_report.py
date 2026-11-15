@@ -708,8 +708,15 @@ def appendix_table_single(by_id: dict, questions: list,
     return "\n".join(rows)
 
 
+# og-обложка кампании (мастер: _Хостинг/assets/knowledge-map-20261111/);
+# по правилу telegram-preview картинка для превью отдаётся с зарубежного
+# зеркала — Telegram не подтягивает картинки с российского prikotov.pro
+OG_IMAGE = ("https://mirror4.prikotov.pro/raw/knowledge-map-20261111/"
+            "og-cover.png?tg=2026111501")
+
+
 def page(title: str, protocol: str, chips: str, body: str, footer: str,
-         extra_css: str = "") -> str:
+         extra_css: str = "", seo: dict | None = None) -> str:
     # аналитика и шапка/подвал публичной версии — как в отчёте по найму
     # (prikotov.pro/raw/llm-hiring-20261014): счётчики безвредны и на
     # локальных копиях (не отдают события, счётчик не инициализируется
@@ -720,11 +727,31 @@ def page(title: str, protocol: str, chips: str, body: str, footer: str,
         f'<a href="https://prikotov.pro/leaderboards">Все лидерборды моделей</a>'
         f' · сессия ZCode: {session_url}'
         f' · <a href="https://prikotov.pro/">prikotov.pro</a></div>')
+    seo_html = ""
+    if seo:
+        d = seo.get("description")
+        og_t = seo.get("og_title", title)
+        og_d = seo.get("description", d)
+        og_img = seo.get("og_image", OG_IMAGE)
+        parts = [f'<meta name="description" content="{esc(d)}">'] if d else []
+        parts += [f'<meta property="og:title" content="{esc(og_t)}">',
+                  f'<meta property="og:description" content="{esc(og_d)}">',
+                  '<meta property="og:type" content="article">',
+                  f'<meta property="og:image" content="{esc(og_img)}">',
+                  '<meta property="og:image:width" content="1200">',
+                  '<meta property="og:image:height" content="630">',
+                  '<meta name="twitter:card" content="summary_large_image">',
+                  f'<meta name="twitter:title" content="{esc(og_t)}">',
+                  f'<meta name="twitter:description" content="{esc(og_d)}">']
+        if seo.get("canonical"):
+            parts += [f'<link rel="canonical" href="{esc(seo["canonical"])}">',
+                      f'<meta property="og:url" content="{esc(seo["canonical"])}">']
+        seo_html = "\n" + "\n".join(parts)
     return f"""<!doctype html>
 <html lang="ru">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{esc(title)}</title>
+<title>{esc(title)}</title>{seo_html}
 <style>{page_css()}{extra_css}</style>
 <p style="margin:0 0 6px"><a class="backlink" href="https://prikotov.pro/leaderboards">\u2190 Все лидерборды</a></p>
 <main>
@@ -759,6 +786,7 @@ def page(title: str, protocol: str, chips: str, body: str, footer: str,
 
    gtag('config', 'G-EFEV53WQWH');
 </script>
+<noscript><img src="https://mc.yandex.ru/watch/100353099" style="position:absolute;left:-9999px" alt=""></noscript>
 </html>
 """
 
@@ -865,8 +893,14 @@ def build_single(run_dir: Path, questions_path: Path) -> None:
         + mcq_for_run(questions_path, session)
     title, protocol, chips, body, footer = _render_single_body(
         session, by_id, questions, q_version, run_dir, questions_path)
+    think = session.get("think") or ""
+    lang = session.get("lang") or ""
+    desc = (f"Карта знаний PHP: {session.get('model', '')}, "
+            f"уровень мышления {think}, язык {lang} — "
+            f"296 вопросов с однозначным ответом, проверка машиной.")
     (run_dir / "report.html").write_text(
-        page(title, "", chips, body, footer), encoding="utf-8")
+        page(title, "", chips, body, footer,
+             seo={"description": desc}), encoding="utf-8")
     write_summary_single(run_dir, session, by_id, questions, q_version)
     print(f"отчёт: {run_dir / 'report.html'}")
 
@@ -1213,7 +1247,9 @@ def build_compare(model_dir: Path, questions_path: Path,
     tag = (think_filter or "mixed") + (f"-{lang_filter}" if lang_filter else "") \
         + (f"-v{qver_filter}" if qver_filter else "")
     (model_dir / f"compare-{tag}.html").write_text(
-        page(title, protocol, chips, body, footer), encoding="utf-8")
+        page(title, protocol, chips, body, footer,
+             seo={"description": f"Сравнение прогонов карты знаний PHP: "
+                                 f"{model_dir.name}"}), encoding="utf-8")
 
     lines = [
         f"# Карта знаний PHP — {sessions[0][1].get('model', '?')}: "
@@ -1975,11 +2011,21 @@ def build_series_report(models_root: Path, questions_path: Path,
              "vertical-align:middle; }"
              "button.srcseg.active { background:#e8ebf1; color:#3d4351; "
              "font-weight:600; }")
+    seo = {
+        "description": ("Карты знаний LLM по PHP: 296 вопросов с "
+                        "однозначным ответом (да/нет, число, строка) — "
+                        "26 тем × 8 уровней + 56 вопросов зоны «Глубина». "
+                        "17 моделей — локальные на ollama и облачные — 480 "
+                        "прогонов на трёх языках; эталоны проверяет машина: "
+                        "php 8.5, PostgreSQL 17, pinned Bootstrap."),
+        "canonical": "https://prikotov.pro/raw/knowledge-map-20261111/report.html",
+        "og_title": "Карты знаний LLM по PHP — 17 моделей, 95 карт",
+    }
     html = page(title, proto, "", intro + "\n".join(sections),
                 'построено <a href="https://github.com/prikotov/task-llm-hiring'
             f'/tree/feat/knowledge-map/knowledge-map">knowledge-map/build_map_report.py</a> · '
                 f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
-                extra_css=extra)
+                extra_css=extra, seo=seo)
     out_file.parent.mkdir(parents=True, exist_ok=True)
     out_file.write_text(html, encoding="utf-8")
     print(f"сводный отчёт серий: {out_file} ({n_maps} карт)")
