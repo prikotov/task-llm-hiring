@@ -1320,6 +1320,7 @@ def protocol_tag(session: dict) -> str:
 # Короткие имена моделей в отчёте (полный тег — в аннотации на сайте)
 DISPLAY_NAMES = {
     "orcarouter/Qwen3.8-27B-Uncensored:ctx100k": "orca",
+    "qwen3.8:latest": "qwen3.8:27B",
     "zai/glm-5.3-flash": "z.ai/glm-5.3-flash",
     "alibabacloud/qwen3.8-flash": "alibabacloud/qwen3.8-flash",
     "alibabacloud/qwen4-max-preview": "alibabacloud/qwen4-max-preview",
