@@ -1320,10 +1320,13 @@ def protocol_tag(session: dict) -> str:
 # Короткие имена моделей в отчёте (полный тег — в аннотации на сайте)
 DISPLAY_NAMES = {
     "orcarouter/Qwen3.8-27B-Uncensored:ctx100k": "orca",
-    "zai/glm-5.3-flash": "glm-5.3-flash",
-    "alibabacloud/qwen3.8-flash": "qwen3.8-flash",
-    "alibabacloud/qwen4-max-preview": "qwen4-max-preview",
-    "xiaomi/mimo-v2.6-flash": "mimo-v2.6-flash",
+    "zai/glm-5.3-flash": "glm-5.3-flash · z.ai/glm-5.3-flash",
+    "alibabacloud/qwen3.8-flash":
+        "qwen3.8-flash · alibabacloud/qwen3.8-flash",
+    "alibabacloud/qwen4-max-preview":
+        "qwen4-max-preview · alibabacloud/qwen4-max-preview",
+    "xiaomi/mimo-v2.6-flash": "mimo-v2.6-flash · xiaomi/mimo-v2.6-flash",
+    "deepseek-flash": "deepseek-flash · deepseek/deepseek-flash",
 }
 
 BINARY_THINKING = {
