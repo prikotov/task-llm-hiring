@@ -1,0 +1,2079 @@
+#!/usr/bin/env python3
+"""Сборка отчёта карты знаний PHP: HTML-карта + summary.md.
+
+Режимы:
+    --run-dir models/<модель>/knowledge-map/run-01
+        Карта одного прогона: зелёный — верно, красный — неверно,
+        серый — ответ не разобран. Пишет report.html и summary.md
+        в папку прогона.
+
+    --model-dir models/<модель>/knowledge-map
+        Тепловая карта по всем прогонам (этап «5 прогонов»): клетка —
+        доля верных ответов, маркер — нестабильные (флипующие) клетки.
+        Пишет compare.html и summary.md в папку модели.
+
+Серверы, адреса и ключи в отчёт не попадают (они в session.json).
+"""
+
+import argparse
+import html
+import re
+from collections import defaultdict
+import json
+import statistics
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+
+COLOR_OK = "#3aa25c"     # верно
+COLOR_BAD = "#d75f5f"    # неверно
+COLOR_NA = "#a9b0ba"     # не разобрано
+COLOR_MID = "#e8b64c"    # тепловая середина
+
+
+def esc(s) -> str:
+    return html.escape(str(s), quote=True)
+
+
+def cell_text(q: dict) -> str:
+    """Текст клетки: утверждение (verify) или вопрос (recall)."""
+    return q["text"] if "text" in q else q["prompt"]
+
+
+def load_questions(path: Path) -> tuple[int | None, list]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(data, dict):
+        return data.get("version"), data["questions"]
+    return None, data
+
+
+def load_run(run_dir: Path) -> dict:
+    session = json.loads((run_dir / "session.json").read_text(encoding="utf-8"))
+    by_id = {t["id"]: t for t in session.get("turns", [])}
+    return session, by_id
+
+
+def is_correct(turn: dict) -> bool:
+    if "is_correct" in turn:
+        return bool(turn["is_correct"])
+    a = turn.get("answer")
+    return a is not None and a == turn.get("correct_answer")
+
+
+def given_text(turn: dict, lang: str = "ru") -> str:
+    """Ответ модели в читаемом виде: да/нет для verify-клеток,
+    значение для recall-клеток."""
+    a = turn.get("answer")
+    if a is None:
+        return "— (нет ответа)"
+    if isinstance(a, bool):
+        return yes_no(a, lang)
+    return norm_display(str(a))
+
+
+def norm_display(s: str | None) -> str:
+    """Единый вид значения: нижний регистр, без кавычек, сжатые пробелы."""
+    if s is None:
+        return "—"
+    s = re.sub(r"\s+", " ", s.strip().lower())
+    return s.strip("«»\"' .") or (s or "—")
+
+
+YES_NO = {"ru": ("да", "нет"), "en": ("yes", "no"), "zh": ("是", "否")}
+
+
+# Семейства для рейтинга (решение владельца): PHP, PHP+его версии,
+# Symfony, Symfony+его версии и группы остального стека. Клетки
+# сопоставляются семейству по префиксу id. Клетки зоны «Глубина»
+# (L9/L10) не входят в семейства и в «Всего» — у них отдельная строка
+# «Глубина»: сравнимость серий v8 («Всего» всегда по стабильным клеткам
+# уровней L1–L8) и другой конструкт — исполнение семантики, а не узнавание.
+FAMILY_IDS = {
+    "PHP": [f"T{i:02d}" for i in range(1, 13)],
+    "Symfony": ["T13", "T22", "T23", "T16"],
+    "БД и ORM": ["T14", "T15", "T17"],
+    "Архитектура": ["T25", "T26"],
+    "Фронтенд": ["T21", "T24"],
+    "HTTP": ["T19"],
+    "Безопасность": ["T20"],
+    "Тесты": ["T18"],
+}
+def family_scores(questions: list, run_by_ids: list[dict]) -> list[tuple[str, float]]:
+    """Процент верных по семействам, агрегированный по прогонам.
+    Семейства пересекаются («PHP» входит и в «PHP+версии»); семейства
+    без клеток в вопроснике пропускаются, «Всего» — всегда (только
+    уровни L1–L8; зона «Глубина» — отдельной строкой). Глубина — по
+    kind=="deep" (не по level≥9: у версионной панели questions-versions
+    уровни 9–12, это не deep)."""
+    deep_qs = [q for q in questions if q.get("kind") == "deep"]
+    base = [q for q in questions if q.get("level", 0) <= 8]
+    defs = [("PHP", FAMILY_IDS["PHP"]),
+            ("PHP+версии", FAMILY_IDS["PHP"] + ["VC", "VF"]),
+            ("Symfony", FAMILY_IDS["Symfony"]),
+            ("Symfony+версии", FAMILY_IDS["Symfony"] + ["T28", "T29"]),
+            ("БД и ORM", FAMILY_IDS["БД и ORM"]),
+            ("Архитектура", FAMILY_IDS["Архитектура"]),
+            ("Фронтенд", FAMILY_IDS["Фронтенд"]),
+            ("HTTP", FAMILY_IDS["HTTP"]),
+            ("Безопасность", FAMILY_IDS["Безопасность"]),
+            ("Тесты", FAMILY_IDS["Тесты"])]
+    res = []
+    for name, ids in defs:
+        qs = [q for q in base if q["id"].split("-L")[0] in ids]
+        if not qs:
+            continue
+        # знаменатель — по фактически применимым (run, клетка) парам:
+        # в decision-протоколе recall-клетки не применимы (unsupported)
+        c = sum(1 for b in run_by_ids for q in qs
+                if q["id"] in b and is_correct(b[q["id"]]))
+        d = sum(1 for b in run_by_ids for q in qs if q["id"] in b)
+        res.append((name, pct(c, d)))
+    if deep_qs:
+        c = sum(1 for b in run_by_ids for q in deep_qs
+                if q["id"] in b and is_correct(b[q["id"]]))
+        d = sum(1 for b in run_by_ids for q in deep_qs if q["id"] in b)
+        res.append(("Глубина", pct(c, d)))
+    if base:
+        c = sum(1 for b in run_by_ids for q in base
+                if q["id"] in b and is_correct(b[q["id"]]))
+        d = sum(1 for b in run_by_ids for q in base if q["id"] in b)
+        res.append(("Всего", pct(c, d)))
+    return res
+
+
+def yes_no(v: bool, lang: str) -> str:
+    """Да/нет в языке вопросника: en — yes/no, zh — 是/否."""
+    y, n = YES_NO.get(lang, YES_NO["ru"])
+    return y if v else n
+
+
+_EXPECTED_CACHE: dict = {}
+
+
+def expected_of(q: dict) -> str:
+    """Эталон recall-клетки: вычисляется php-интерпретатором (grader.php)
+    или берётся из accept-списка — независимо от прогонов."""
+    g = q.get("grader", {})
+    if "accept" in g:
+        return g["accept"][0]
+    key = q["id"]
+    if key not in _EXPECTED_CACHE:
+        import subprocess
+        r = subprocess.run(["php", "-r", g["php"]], capture_output=True,
+                           text=True, timeout=30)
+        _EXPECTED_CACHE[key] = r.stdout.strip()
+    return _EXPECTED_CACHE[key]
+
+
+def correct_text(q: dict, turn: dict | None, lang: str = "ru") -> str:
+    """Эталон клетки: для recall — значение из грейдера, для да/нет — да/нет;
+    MCQ-клетки decision-моделей несут эталон в поле expected."""
+    if "expected" in q:
+        return norm_display(q["expected"])
+    if q.get("type") == "answer":
+        return norm_display(expected_of(q))
+    return yes_no(q["answer"], lang)
+
+
+def cell_class(turn: dict | None) -> str:
+    if turn is None:
+        return "na"
+    if turn.get("answer") is None:
+        return "na"
+    return "ok" if is_correct(turn) else "bad"
+
+
+def pct(n: int, d: int) -> float:
+    return round(100 * n / d, 1) if d else 0.0
+
+
+# Руминация — клетка с непропорционально длинным размышлением: облачные
+# серии меряем reasoning-токенами (≥10k; обычная клетка ~30–500), локальные
+# — символами thinking (≥50k; обычная клетка ~1–3k). Пороги от замера
+# серий: разделяют «подумал» и «пережёвывает по кругу» без пересечений
+RUMINATION_TOKENS = 10_000
+RUMINATION_CHARS = 50_000
+
+
+def is_rumination(t: dict) -> bool:
+    rt = t.get("reasoning_tokens")
+    if rt is not None:
+        return rt >= RUMINATION_TOKENS
+    th = t.get("thinking")
+    return bool(th) and len(th) >= RUMINATION_CHARS
+
+
+def rum_s(v: float | None) -> str:
+    return "—" if v is None else f"{v:.1f}".replace(".", ",")
+
+
+def rumination_share(turns: list, deep: bool | None = None,
+                     ) -> float | None:
+    """Доля клеток-руминаций в % (None — данных мышления нет). deep:
+    None — все клетки, False — простые L1–L8, True — Глубина L9–L10."""
+    if deep is not None:
+        turns = [t for t in turns
+                 if (t.get("level", 0) >= 9) == deep]
+    if not turns:
+        return None
+    have = any(t.get("reasoning_tokens") is not None or t.get("thinking")
+               for t in turns)
+    if not have:
+        return None
+    return round(100 * sum(1 for t in turns if is_rumination(t)) / len(turns),
+                 1)
+
+
+def heat_color(p: float) -> str:
+    """Непрерывная шкала красный → янтарный → зелёный по доле верных."""
+    a, b = (COLOR_BAD, COLOR_MID) if p < 0.5 else (COLOR_MID, COLOR_OK)
+    t = (p * 2) % 1 if p < 0.5 else (p - 0.5) * 2
+    rgb = []
+    for i, name in enumerate(("r", "g", "b")):
+        x = int(a[1 + 2 * i:3 + 2 * i], 16)
+        y = int(b[1 + 2 * i:3 + 2 * i], 16)
+        rgb.append(round(x + (y - x) * t))
+    return "#" + "".join(f"{v:02x}" for v in rgb)
+
+
+COST_AMBER = (217, 119, 6)  # тёплый янтарный для монохрома затрат
+
+
+def cost_color(frac: float, cap: float = 0.55) -> str:
+    """Монохромная подложка затрат: насыщенность = величина (frac 0–1
+    относительно максимума колонки). Одна краска — не путается с
+    красно-зелёной шкалой точности; потолок cap не давит текст."""
+    t = min(max(frac, 0.0), 1.0) ** 0.7 * cap
+    rgb = [round(255 + (c - 255) * t) for c in COST_AMBER]
+    return "#" + "".join(f"{v:02x}" for v in rgb)
+
+
+def tooltip(turn: dict | None, q: dict, runs: list[tuple] | None = None,
+            lang: str = "ru") -> str:
+    """Всплывающая подсказка клетки: утверждение, ответы, обоснование."""
+    parts = [f"<b>{esc(q['id'])} · {esc(q['topic'])}</b>",
+             esc(cell_text(q))]
+    right = correct_text(q, turn, lang)
+    if runs is not None:  # тепловая карта: вопрос, эталон, прогоны
+        # прогоны — без ссылок: тултип прозрачен для мыши
+        # (pointer-events: none), до ссылок не дотянуться
+        parts.append(f"Верный ответ: <b>{esc(right)}</b>")
+        lines = []
+        for run_name, ans, ok, _href in runs:
+            mark = "⬜" if ans is None else ("✓" if ok else "✗")
+            lines.append(f'<span class="nb">{esc(run_name)}:\u00a0{mark}</span>')
+        parts.append(" · ".join(lines))
+    elif turn is not None:
+        given = given_text(turn, lang)
+        if turn.get("p") is not None:
+            given += f" (p={turn['p']})"
+        parts.append(f"Модель: «{esc(given)}»")
+        parts.append(f"Верный ответ: <b>{esc(right)}</b>")
+    return "<br>".join(parts)
+
+
+def run_label(session: dict, run_dir: Path) -> str:
+    tag = esc(session.get("model", "?"))
+    no = session.get("run")
+    no = f", run-{no:02d}" if isinstance(no, int) else f", {esc(run_dir.name)}"
+    think = session.get("think")
+    think_s = f" · think: {esc(think)}" if think and not \
+        str(think).startswith("—") else ""
+    return tag + no + think_s
+
+
+def page_css() -> str:
+    css = """
+    :root { --fg:#1c2130; --mut:#6b7280; --line:#e3e6ea; }
+    * { box-sizing: border-box; }
+    body { font: 15px/1.5 system-ui, sans-serif; color: var(--fg);
+           background: #f6f7f9; margin: 0; padding: 28px 18px 60px; }
+    main { max-width: 1120px; margin: 0 auto; }
+    .backlink { display: inline-block; background: #edf1f7; color: #315f9e;
+                font-size: 13.5px; font-weight: 600; padding: 6px 14px;
+                border-radius: 8px; text-decoration: none; margin: 0 4px 14px; }
+    .backlink:hover { background: #dfe7f3; }
+    .publinks { margin-top: 10px; color: var(--mut); font-size: 12.5px; }
+    .publinks a { color: #5a7ec4; }
+    h1 { font-size: 24px; margin: 0 0 4px; }
+    h2 { font-size: 18px; margin: 34px 0 10px; }
+    .proto { color: var(--mut); margin: 0 0 18px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 6px; }
+    .chip { background: #fff; border: 1px solid var(--line); border-radius: 9px;
+            padding: 7px 12px; font-size: 14px; }
+    .chip b { font-size: 16px; }
+    .legend { display: flex; gap: 16px; align-items: center; margin: 10px 0 4px;
+              font-size: 13.5px; flex-wrap: wrap; }
+    .legend .hint { color: var(--mut); font-size: 12.5px; }
+    .sw { display: inline-block; width: 14px; height: 14px; border-radius: 4px;
+          margin-right: 6px; vertical-align: -2px; }
+    .mapwrap { overflow: visible; background: #fff; border: 1px solid var(--line);
+               border-radius: 12px; padding: 16px; width: fit-content;
+               max-width: 100%; }
+    .map { display: grid; gap: 3px;
+           grid-template-columns: minmax(190px, 250px) repeat(8, 46px) 84px; }
+    .hd { text-align: center; align-self: end; font-weight: 600; font-size: 13px;
+          color: var(--mut); padding-bottom: 4px; }
+    .rh { align-self: center; font-size: 13.5px; padding: 4px 8px 4px 0; }
+    .cell { height: 46px; border-radius: 7px; position: relative; }
+    a.cell { display: block; color: inherit; text-decoration: none; }
+    tr:target { outline: 2px solid #1c2130; background: #fffbe8; }
+    .cell.ok { background: @OK@; }
+    .cell.bad { background: @BAD@; }
+    .cell.na { background: @NA@; }
+    .cell:hover { outline: 2px solid #1c2130; }
+    .cell .tip { display: none; position: absolute; bottom: calc(100% + 8px);
+                 left: 50%; transform: translateX(-50%); width: 320px; z-index: 20;
+                 background: #202634; color: #eef1f6; padding: 10px 12px;
+                 border-radius: 9px; font-size: 12px; line-height: 1.45;
+                 text-align: left; white-space: normal;
+                 box-shadow: 0 6px 18px rgba(0,0,0,.35);
+                 /* прозрачен для мыши: не блокирует клетки выше,
+                    закрывается при уходе курсора с клетки */
+                 pointer-events: none; }
+    .cell:hover .tip { display: block; }
+    .tip .nb { white-space: nowrap; }
+    .tip a { color: #9ecbff; pointer-events: auto; }
+    /* клетка-контейнер с невидимой ссылкой-подложкой: клик по клетке
+       ведёт к таблице, а ссылки внутри тултипа не вкладываются в <a> */
+    .cell .fill { position: absolute; inset: 0; border-radius: inherit;
+                  color: inherit; text-decoration: none; }
+    .cell .num { pointer-events: none; }
+    .cell .num { position: absolute; inset: 0; display: flex; align-items: center;
+                 justify-content: center; font-weight: 700; font-size: 13px;
+                 color: rgba(20,24,32,.75); }
+    .flip { outline: 2px dashed #8a2d2d; outline-offset: -2px; }
+    .agg { align-self: center; text-align: center; font-weight: 700;
+           font-size: 13px; color: var(--mut); }
+    table.data { border-collapse: collapse; background: #fff; width: 100%;
+                 border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+    table.data th, table.data td { border-bottom: 1px solid var(--line);
+                 padding: 8px 12px; text-align: left; vertical-align: top; }
+    table.data th { background: #f0f2f5; font-size: 13px; color: var(--mut); }
+    .bar { background: #ececef; height: 12px; border-radius: 6px; width: 100%;
+           max-width: 260px; }
+    .bar > div { height: 100%; border-radius: 6px; background: var(--fg); }
+    .ok-t { color: #22834a; font-weight: 600; }
+    .bad-t { color: #b03a3a; font-weight: 600; }
+    td.bad-t small { color: var(--fg); font-weight: 400; }
+    .na-t { color: var(--mut); }
+    td.assert { font-size: 13.5px; }
+    code.id { font-size: 12.5px; background: #eef1f4; border-radius: 5px;
+              padding: 1px 6px; white-space: nowrap; }
+    footer { color: var(--mut); font-size: 12.5px; margin-top: 40px; }
+    .raw-details summary { cursor: pointer; color: var(--mut);
+                           font-size: 11.5px; user-select: none; }
+    .raw-details[open] summary { margin-bottom: 4px; }
+    .raw-sample { background: #f4f6f8; border: 1px solid var(--line);
+                  border-radius: 6px; padding: 6px 8px; margin: 4px 0 0;
+                  font: 11.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+                  white-space: pre-wrap; word-break: break-word; }
+    .compact-w { padding: 10px; }
+    .compact-w .map { gap: 2px; }
+    .map.compact .cell { height: 20px; border-radius: 3px; }
+    .map.compact .rh { font-size: 11px; white-space: nowrap; }
+    .map.compact .hd, .map.compact .agg { white-space: nowrap; }
+    .map.compact .hd { font-size: 10.5px; padding-bottom: 2px; }
+    .map.compact .agg { font-size: 10.5px; }
+    .map.compact .zonehdr { font-size: 11px; padding: 3px 8px; margin-top: 4px; }
+    .map.compact .cell .num { font-size: 9.5px; }
+    .unimap-wrap { overflow: visible; background: #fff;
+                   border: 1px solid var(--line); border-radius: 12px;
+                   padding: 12px; margin: 8px 0 30px; }
+    .unimap { display: grid; gap: 2px; width: max-content; }
+    .uhead { align-self: end; font-weight: 600; font-size: 12px;
+             padding: 4px 6px 6px; }
+    .umeta { display: block; font-weight: 400; color: var(--mut);
+             font-size: 11px; }
+    .unimap .rh { font-size: 11px; white-space: nowrap; align-self: center; }
+    .unimap .cell { height: 22px; border-radius: 5px; position: relative; }
+    .unimap .cell .num { font-size: 10.5px; }
+    .unimap .cell .tip { font-size: 12px; }
+    .unimap .agg { font-size: 11px; align-self: center;
+                   white-space: nowrap; }
+    .unimap .gsp { width: 16px; }
+    .ulink { font-size: 11px; padding: 5px 6px; text-align: center; }
+    .unimap .ph { width: 26px; }
+    .unimap .rh { font-size: 11.5px; }
+    .zonehdr { grid-column: 1 / -1; font-weight: 600; font-size: 13px;
+               color: var(--fg); background: #eef1f4; border-radius: 6px;
+               padding: 5px 10px; margin-top: 6px; }
+    .reqhead { color: var(--fg); font-size: 15px; margin: 14px 0 8px; }
+    .msg { margin: 0 0 10px; }
+    .msg:last-child { margin-bottom: 0; }
+    .role { display: inline-block; font-size: 11px; font-weight: 600;
+            letter-spacing: .04em; padding: 2px 8px; border-radius: 5px;
+            margin-bottom: 4px; background: #eef1f4; color: var(--mut); }
+    .prompt-sample { background: #f4f6f8; border: 1px solid var(--line);
+                     border-radius: 8px; padding: 10px 12px;
+                     font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+                     white-space: pre-wrap; margin: 0 0 6px; }
+    """
+    return (css.replace("@OK@", COLOR_OK)
+               .replace("@BAD@", COLOR_BAD)
+               .replace("@NA@", COLOR_NA))
+
+
+def applicable_by_id(session: dict, by_id: dict) -> dict:
+    """Decision-протокол: recall-клетки не применимы (unsupported) —
+    они не участвуют в подсчётах (ни как верные, ни как неверные)."""
+    if session.get("protocol") != "decision":
+        return by_id
+    return {qid: t for qid, t in by_id.items()
+            if t.get("done_reason") != "unsupported"}
+
+
+def chips_row_single(session: dict, by_id: dict, questions: list) -> str:
+    by_id = applicable_by_id(session, by_id)
+    qs = {q["id"]: q for q in questions}
+    turns = [by_id[q["id"]] for q in questions if q["id"] in by_id]
+    # «Точность» и зоны — по стабильным клеткам (L1–L8); зона «Глубина»
+    # (L9/L10) — отдельной величиной: сравнимость серий v8
+    base_qs = [q for q in questions if q.get("level", 0) <= 8]
+    deep_qs = [q for q in questions if q.get("kind") == "deep"]
+    deep_c = sum(1 for q in deep_qs
+                 if q["id"] in by_id and is_correct(by_id[q["id"]]))
+    correct = sum(1 for q in base_qs
+                  if q["id"] in by_id and is_correct(by_id[q["id"]]))
+    n = len(base_qs)
+    acc_s = f"{correct} / {n}"
+    if deep_qs:
+        acc_s += f" (+ глубина {deep_c} / {len(deep_qs)})"
+    parsed = [t for t in turns if t.get("answer") is not None]
+    late = sum(1 for t in turns if t.get("parsed") == "late")
+    grey = n - len(parsed)
+    bool_parsed = [t for t in parsed if isinstance(t.get("answer"), bool)]
+    yes_n = sum(1 for t in bool_parsed if t["answer"])
+    yes_share = pct(yes_n, len(bool_parsed) or 1)
+    strict_n = sum(1 for t in parsed if t.get("strict"))
+    total_s = sum(t.get("duration_s") or 0 for t in turns)
+    if total_s < 90:
+        time_s = f"{total_s:.0f} c"
+    else:
+        time_s = f"{total_s / 60:.1f} мин"
+    totals = session.get("totals") or {
+        "prompt_tokens": sum(t.get("prompt_eval_count") or 0 for t in turns),
+        "output_tokens": sum(t.get("eval_count") or 0 for t in turns),
+        "cached_tokens": sum(t.get("prompt_eval_cached_count") or 0 for t in turns),
+    }
+    ver = session.get("questionnaire")
+    ver_s = f"вопросник v{ver}" if ver else "вопросник"
+    deep_stamp = session.get("deep") or {}
+    if deep_stamp.get("version"):
+        ver_s += f" + deep v{deep_stamp['version']} (L9/L10)"
+    applicable_s = ""
+    if session.get("protocol") == "decision":
+        applicable_s = (f"<br><small>decision-протокол: применимо {len(turns)} "
+                        f"из {len(questions)} клеток — recall «что вернёт код / "
+                        f"какая версия» не применим (noul — вероятность "
+                        f"утверждения)</small>")
+    # оценка по семействам: PHP, PHP+версии, Symfony, …, Всего
+    fam_line = " · ".join(f"{name} <b>{p}%</b>" for name, p in
+                          family_scores(questions, [by_id]))
+    score_chip = f'<div class="chip">Оценка: {fam_line}</div>'
+    if session.get("protocol") != "decision":
+        json_n = sum(1 for t in turns if t.get("json_ok"))
+        score_chip += (f'<div class="chip">Разобрано JSON: <b>{pct(json_n, len(turns))}%</b>'
+                       f' ({json_n} из {len(turns)})</div>')
+    fam_line_s = " · ".join(f"{name} {p}%" for name, p in
+                            family_scores(questions, [by_id]))
+    zone_stats = []
+    for zl, zk in (("База", "base"), ("PHP 8.4–8.5", "current"),
+                   ("Будущее", "future")):
+        zq = [q for q in base_qs if q.get("zone", "base") == zk]
+        if not zq:
+            continue
+        zc = sum(1 for q in zq if q["id"] in by_id and is_correct(by_id[q["id"]]))
+        zone_stats.append(f"{zl} {pct(zc, len(zq))}%")
+    if deep_qs:
+        zone_stats.append(f"Глубина {pct(deep_c, len(deep_qs))}%")
+    if bool_parsed:
+        bias_chip = (f'<div class="chip">Ответов «да»: <b>{yes_share}%</b>\n'
+                     '           (баланс вопросника 50/50, базлайн константного '
+                     'ответа — 50%)</div>')
+    else:
+        bias_chip = ('<div class="chip">Формат: <b>recall</b> — эталон входит в '
+                     'ответ (нормализация без кавычек/регистра); строгих '
+                     f'совпадений: <b>{strict_n} / {len(parsed)}</b></div>')
+    # отклонения показываем только когда они есть
+    parse_extras = " · ".join(f"{lbl}: {cnt}" for lbl, cnt in
+                              (("не по JSON-формату", late), ("без вердикта", grey))
+                              if cnt)
+    parse_extra_s = f" ({parse_extras})" if parse_extras else ""
+    return f"""
+    <div class="chips">
+      {score_chip}
+      <div class="chip">По зонам: <b>{esc(" · ".join(zone_stats))}</b></div>
+      <div class="chip">Точность: <b>{acc_s}</b>{applicable_s}</div>
+      <div class="chip">Разобрано ответов: <b>{len(parsed)} / {n}</b>{parse_extra_s}</div>
+      {bias_chip}
+      <div class="chip">Время: <b>{time_s}</b>
+           ({statistics.median(t.get('duration_s') or 0 for t in turns):.2f} c на клетку — медиана)</div>
+      {f'<div class="chip">Цена: <b>${session.get("cost_usd"):.3f}</b></div>' if session.get("cost_usd") else ''}
+      <div class="chip">Токены: <b>{totals.get('prompt_tokens', 0)} вх /
+           {totals.get('output_tokens', 0)} вых</b> (кэш: {totals.get('cached_tokens', 0)})</div>
+      <div class="chip">{esc(ver_s)}</div>
+    </div>"""
+
+
+def map_grid_single(by_id: dict, questions: list,
+                    anchor_prefix: str = "", lang: str = "ru") -> str:
+    topics = []
+    for q in questions:
+        if q["topic"] not in topics:
+            topics.append(q["topic"])
+    max_level = max(q["level"] for q in questions)
+    by_topic_level = defaultdict(dict)
+    for q in questions:
+        if q["id"].endswith("-mc") and q.get("level", 0) <= 8:
+            continue  # base-mcq дублирует слот verify-клетки — плейсхолдер
+        by_topic_level[q["topic"]][q["level"]] = q
+    # плотная сетка всегда: отсутствующие уровни (например L9/L10 у зоны
+    # «будущее») рисуются прозрачными плейсхолдерами — сетка не едет
+    cells = ['<div class="hd"></div>']
+    cells += [f'<div class="hd">L{i}</div>' for i in range(1, max_level + 1)]
+    cells.append('<div class="hd">итог</div>')
+    # зонные полосы не рисуются: порядок тем кластерный (версии прилегают
+    # к своим семействам), перемежающиеся полосы только ломают карту;
+    # проценты по зонам — в чипе «По зонам»
+    for topic in topics:
+        cells.append(f'<div class="rh">{esc(topic)}</div>')
+        tq = sorted((q for q in questions if q["topic"] == topic),
+                    key=lambda q: q["level"])
+        for lvl in range(1, max_level + 1):
+            q = by_topic_level[topic].get(lvl)
+            if q is None:
+                # клетка без вопроса: прозрачный плейсхолдер — сетка не едет
+                cells.append('<div class="ph"></div>')
+                continue
+            t = by_id.get(q["id"])
+            tip = tooltip(t, q, lang=lang)
+            cells.append(f'<a class="cell {cell_class(t)}" '
+                         f'href="#{anchor_prefix}row-{esc(q["id"])}">'
+                         f'<div class="tip">{tip}</div></a>')
+        correct = sum(1 for q in tq if q["id"] in by_id and is_correct(by_id[q["id"]]))
+        cells.append(f'<div class="agg">{correct}/{len(tq)}</div>')
+    # строка агрегатов по уровням
+
+    return ('<div class="mapwrap"><div class="map" '
+            f'style="grid-template-columns: minmax(190px, 250px) '
+            f'repeat({max_level}, 46px) 84px;">{"".join(cells)}</div></div>')
+
+
+def map_grid_compare(questions: list, runs: list[tuple[str, dict]],
+                     flip_by_id: dict[str, bool],
+                     compact: bool = False,
+                     show_labels: bool = True,
+                     run_hrefs: dict[str, str] | None = None,
+                     lang: str = "ru") -> str:
+    """Тепловая карта: клетка = доля верных по прогонам; флип — пунктир."""
+    topics = []
+    for q in questions:
+        if q["topic"] not in topics:
+            topics.append(q["topic"])
+    max_level = max(q["level"] for q in questions)
+    by_topic_level = defaultdict(dict)
+    for q in questions:
+        if q["id"].endswith("-mc") and q.get("level", 0) <= 8:
+            continue  # base-mcq дублирует слот verify-клетки — плейсхолдер
+        by_topic_level[q["topic"]][q["level"]] = q
+    cells = []
+    if show_labels:
+        cells.append('<div class="hd"></div>')
+    cells += [f'<div class="hd">L{i}</div>' for i in range(1, max_level + 1)]
+    cells.append('<div class="hd">итог</div>')
+    for topic in topics:
+        if show_labels:
+            cells.append(f'<div class="rh">{esc(topic)}</div>')
+        tq = sorted((q for q in questions if q["topic"] == topic),
+                    key=lambda q: q["level"])
+        for lvl in range(1, max_level + 1):
+            q = by_topic_level[topic].get(lvl)
+            if q is None:
+                cells.append('<div class="ph"></div>')
+                continue
+            answers = []
+            for name, by_id in runs:
+                href = ""
+                base = (run_hrefs or {}).get(name)
+                if base:
+                    href = f'{base}#row-{esc(q["id"])}'
+                answers.append((name, by_id.get(q["id"], {}).get("answer"),
+                                is_correct(by_id.get(q["id"], {})), href))
+            p = sum(1 for _, by_id in runs
+                    if q["id"] in by_id and is_correct(by_id[q["id"]])) / len(runs)
+            cls = "flip" if flip_by_id.get(q["id"]) else ""
+            tip = tooltip(None, q, runs=answers, lang=lang)
+            cells.append(
+                f'<div class="cell {cls}" style="background:{heat_color(p)}">'
+                f'<a class="fill" href="#row-{esc(q["id"])}" '
+                f'aria-label="строка клетки в таблице"></a>'
+                f'<div class="num">{round(p * 100)}</div>'
+                f'<div class="tip">{tip}</div></div>')
+        correct = sum(1 for q in tq for _, by_id in runs
+                      if q["id"] in by_id and is_correct(by_id[q["id"]]))
+        cells.append(f'<div class="agg">{pct(correct, len(tq) * len(runs))}%</div>')
+
+    cell_px = 20 if compact else 46
+    agg_px = 48 if compact else 84
+    cols = []
+    if show_labels:
+        cols.append("170px" if compact else "minmax(190px, 250px)")
+    cols.append(f"repeat({max_level}, {cell_px}px)")
+    cols.append(f"{agg_px}px")
+    cls = "map compact" if compact else "map"
+    wrap_cls = "mapwrap compact-w" if compact else "mapwrap"
+    return ('<div class="' + wrap_cls + '"><div class="' + cls + '" '
+            f'style="grid-template-columns: {" ".join(cols)};">'
+            f'{"".join(cells)}</div></div>')
+
+
+def topic_rows(by_id: dict, questions: list) -> str:
+    topics = []
+    for q in questions:
+        if q["topic"] not in topics:
+            topics.append(q["topic"])
+    rows = []
+    for topic in topics:
+        tq = [q for q in questions if q["topic"] == topic]
+        correct = sum(1 for q in tq if q["id"] in by_id and is_correct(by_id[q["id"]]))
+        share = pct(correct, len(tq))
+        rows.append(f'<tr><td>{esc(topic)}</td><td>{correct} / {len(tq)}</td>'
+                    f'<td><div class="bar"><div style="width:{share}%"></div></div></td>'
+                    f'<td>{share}%</td></tr>')
+    return "\n".join(rows)
+
+
+def level_rows(by_id: dict, questions: list) -> str:
+    max_level = max(q["level"] for q in questions)
+    rows = []
+    for lvl in range(1, max_level + 1):
+        lq = [q for q in questions if q["level"] == lvl]
+        correct = sum(1 for q in lq if q["id"] in by_id and is_correct(by_id[q["id"]]))
+        share = pct(correct, len(lq))
+        rows.append(f'<tr><td>L{lvl}</td><td>{correct} / {len(lq)}</td>'
+                    f'<td><div class="bar"><div style="width:{share}%"></div></div></td>'
+                    f'<td>{share}%</td></tr>')
+    return "\n".join(rows)
+
+
+def appendix_table_single(by_id: dict, questions: list,
+                          anchor_prefix: str = "",
+                          lang: str = "ru") -> str:
+    rows = []
+    for q in questions:
+        t = by_id.get(q["id"])
+        if t is None:
+            given, verdict, parsed = "—", "нет данных", "—"
+            cls = "na-t"
+            raw = ""
+        else:
+            given = given_text(t, lang)
+            if is_correct(t):
+                verdict, cls = "верно", "ok-t"
+            elif t.get("answer") is None:
+                verdict, cls = "не разобрано", "na-t"
+            else:
+                verdict, cls = "неверно", "bad-t"
+            parsed_raw = t.get("parsed") or "none"
+            parsed = {"ok": "текст", "late": "текст (фолбэк)",
+                      "none": "нет"}.get(parsed_raw, "—")
+            # пометка видна только на отклонениях: «json» в каждой строке — шум
+            parsed_html = (f'<br><small>парсинг: {esc(parsed)}</small>'
+                           if parsed_raw != "json" else "")
+            raw = (t.get("answer_raw") or "").strip().replace("\n", " ⏎ ")
+        right = correct_text(q, t, lang)
+        dur = f'{t.get("duration_s", 0)} c' if t else "—"
+        expl = ((t or {}).get("explanation") or "").strip()
+        expl_html = (f'<br><small>Пояснение: {esc(expl)}</small>' if expl else "")
+        raw_html = ""
+        if raw:
+            raw_html = (f'<br><details class="raw-details"><summary>Raw</summary>'
+                        f'<pre class="raw-sample">{esc(raw)}</pre></details>')
+        # у неверных клеток в «Результате» рядом — верный ответ
+        wrong = t is not None and not is_correct(t)
+        wrong_html = (f'<br><small>верный: «{esc(right)}»</small>' if wrong else "")
+        rows.append(
+            f'<tr id="{anchor_prefix}row-{esc(q["id"])}">'
+            f'<td><code class="id">{esc(q["id"])}</code>'
+            f'<br><small>{dur}</small></td>'
+            f'<td>{esc(q["topic"])}</td>'
+            f'<td class="assert">{esc(cell_text(q))}</td>'
+            f'<td>«{esc(given)}»{expl_html}{raw_html}'
+            f'</td>'
+            f'<td class="{cls}">{esc(verdict)}{wrong_html}{parsed_html}</td>'
+            f'<td class="assert"><small><i>{esc(q["note"])}</i></small></td></tr>')
+    return "\n".join(rows)
+
+
+# og-обложка кампании (мастер: _Хостинг/assets/knowledge-map-20261111/);
+# по правилу telegram-preview картинка для превью отдаётся с зарубежного
+# зеркала — Telegram не подтягивает картинки с российского prikotov.pro
+OG_IMAGE = ("https://mirror4.prikotov.pro/raw/knowledge-map-20261111/"
+            "og-cover.png?tg=2026111503")
+
+
+def page(title: str, protocol: str, chips: str, body: str, footer: str,
+         extra_css: str = "", seo: dict | None = None) -> str:
+    # аналитика и шапка/подвал публичной версии — как в отчёте по найму
+    # (prikotov.pro/raw/llm-hiring-20261014): счётчики безвредны и на
+    # локальных копиях (не отдают события, счётчик не инициализируется
+    # без сети)
+    session_url = "sess_544c5df1-8772-4bd1-bcc2-cccdf38f232a"
+    footer2 = (
+        f'{footer}<div class="publinks">'
+        f'<a href="https://prikotov.pro/leaderboards">Все лидерборды моделей</a>'
+        f' · сессия ZCode: {session_url}'
+        f' · <a href="https://prikotov.pro/">prikotov.pro</a></div>')
+    seo_html = ""
+    if seo:
+        d = seo.get("description")
+        og_t = seo.get("og_title", title)
+        og_d = seo.get("description", d)
+        og_img = seo.get("og_image", OG_IMAGE)
+        parts = [f'<meta name="description" content="{esc(d)}">'] if d else []
+        parts += [f'<meta property="og:title" content="{esc(og_t)}">',
+                  f'<meta property="og:description" content="{esc(og_d)}">',
+                  '<meta property="og:type" content="article">',
+                  f'<meta property="og:image" content="{esc(og_img)}">',
+                  '<meta property="og:image:width" content="1200">',
+                  '<meta property="og:image:height" content="630">',
+                  '<meta name="twitter:card" content="summary_large_image">',
+                  f'<meta name="twitter:title" content="{esc(og_t)}">',
+                  f'<meta name="twitter:description" content="{esc(og_d)}">']
+        if seo.get("canonical"):
+            parts += [f'<link rel="canonical" href="{esc(seo["canonical"])}">',
+                      f'<meta property="og:url" content="{esc(seo["canonical"])}">']
+        seo_html = "\n" + "\n".join(parts)
+    return f"""<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{esc(title)}</title>{seo_html}
+<style>{page_css()}{extra_css}</style>
+<p style="margin:0 0 6px"><a class="backlink" href="https://prikotov.pro/leaderboards">\u2190 Все лидерборды</a></p>
+<main>
+<h1>{esc(title)}</h1>
+<p class="proto">{protocol}</p>
+{chips}
+{body}
+<footer>{footer2}</footer>
+</main>
+<script>
+(function(m,e,t,r,i,k,a){{m[i]=m[i]||function(){{(m[i].a=m[i].a||[]).push(arguments)}};
+   m[i].l=1*new Date();
+   for (var j = 0; j < document.scripts.length; j++) {{if (document.scripts[j].src === r) {{ return; }}}}
+   k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)}})
+   (window, document, "script", "https://mc.yandex.ru/metrika/tag.js", "ym");
+
+   ym(100353099, "init", {{
+        clickmap:true,
+        trackLinks:true,
+        accurateTrackBounce:true
+   }});
+
+/* Google tag (gtag.js) */
+   var gaScript = document.createElement('script');
+   gaScript.async = true;
+   gaScript.src = 'https://www.googletagmanager.com/gtag/js?id=G-EFEV53WQWH';
+   document.head.appendChild(gaScript);
+
+   window.dataLayer = window.dataLayer || [];
+   function gtag(){{dataLayer.push(arguments);}}
+   gtag('js', new Date());
+
+   gtag('config', 'G-EFEV53WQWH');
+</script>
+<noscript><img src="https://mc.yandex.ru/watch/100353099" style="position:absolute;left:-9999px" alt=""></noscript>
+</html>
+"""
+
+
+def questions_for_run(questions_path: Path, session: dict) -> Path:
+    """Файл вопросника для сессии: questionnaire_file, иначе замороженная
+    questions.v{N}.json (сессии старых версий не должны читать v2)."""
+    qfile = session.get("questionnaire_file")
+    qver = session.get("questionnaire")
+
+    def file_version(cand: Path):
+        try:
+            return json.loads(cand.read_text(encoding="utf-8")).get("version")
+        except (OSError, json.JSONDecodeError):
+            return None
+
+    # 1) файл из сессии, если его версия совпадает с версией сессии
+    if qfile:
+        cand = questions_path.parent / qfile
+        if cand.exists() and (qver is None or file_version(cand) == qver):
+            return cand
+    # 2) замороженная questions.v{N}.json (точная версия сессии); для
+    #    en/zh — сначала языковая заморозка questions.v{N}-{lang}.json
+    if qver:
+        lang = session.get("lang", "ru")
+        stems = ([f"questions.v{qver}-{lang}", f"questions.v{qver}"]
+                 if lang != "ru" else [f"questions.v{qver}"])
+        for stem in stems:
+            cand = questions_path.parent / f"{stem}.json"
+            if cand.exists() and file_version(cand) == qver:
+                return cand
+    # 3) файл из сессии без сверки версии, 4) текущий вопросник
+    if qfile:
+        cand = questions_path.parent / qfile
+        if cand.exists():
+            return cand
+    return questions_path
+
+
+def deep_for_run(questions_path: Path, session: dict) -> list:
+    """Клетки зоны «Глубина» (L9/L10) прогона: questions-deep{-lang}.json
+    по штампу session['deep'] со строгой сверкой версии; [] — если прогон
+    не дополнен."""
+    deep = session.get("deep")
+    if not deep:
+        return []
+    lang = session.get("lang", "ru")
+    stem = deep.get("file") or \
+        f"questions-deep{'' if lang == 'ru' else '-' + lang}.json"
+    cand = questions_path.parent / stem
+    if not cand.exists():
+        return []
+    try:
+        data = json.loads(cand.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    if deep.get("version") is not None and \
+            data.get("version") != deep.get("version"):
+        return []
+    return data.get("questions", [])
+
+
+def mcq_for_run(questions_path: Path, session: dict) -> list:
+    """MCQ-клетки decision-прогона (штамп deep_mc): questions-mcq{-lang}.json
+    со сверкой версии; [] — если штампа нет."""
+    stamp = session.get("deep_mc")
+    if not stamp:
+        return []
+    lang = session.get("lang", "ru")
+    stem = stamp.get("file") or \
+        f"questions-mcq{'' if lang == 'ru' else '-' + lang}.json"
+    cand = questions_path.parent / stem
+    if not cand.exists():
+        return []
+    try:
+        data = json.loads(cand.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    if stamp.get("version") is not None and \
+            data.get("version") != stamp.get("version"):
+        return []
+    return data.get("cells", [])
+
+
+def skip_base_mcq(questions: list) -> list:
+    """MCQ-клетки уровней 1–8 дублируют (тема, уровень) verify-клеток —
+    в сетке карты их рисуем как плейсхолдеры; в таблицах и семействах
+    они участвуют. Глубина (L9/L10) — остаётся: у verify там клеток нет."""
+    return [q for q in questions
+            if not (q["id"].endswith("-mc") and q.get("level", 0) <= 8)]
+
+
+def build_single(run_dir: Path, questions_path: Path) -> None:
+    try:
+        session_probe = json.loads(
+            (run_dir / "session.json").read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        session_probe = {}
+    questions_path = questions_for_run(questions_path, session_probe)
+    q_version, questions = load_questions(questions_path)
+    session, by_id = load_run(run_dir)
+    by_id = applicable_by_id(session, by_id)
+    questions = questions + deep_for_run(questions_path, session) \
+        + mcq_for_run(questions_path, session)
+    title, protocol, chips, body, footer = _render_single_body(
+        session, by_id, questions, q_version, run_dir, questions_path)
+    think = session.get("think") or ""
+    lang = session.get("lang") or ""
+    desc = (f"Карта знаний PHP: {session.get('model', '')}, "
+            f"уровень мышления {think}, язык {lang} — "
+            f"296 вопросов с однозначным ответом, проверка машиной.")
+    (run_dir / "report.html").write_text(
+        page(title, "", chips, body, footer,
+             seo={"description": desc}), encoding="utf-8")
+    write_summary_single(run_dir, session, by_id, questions, q_version)
+    print(f"отчёт: {run_dir / 'report.html'}")
+
+
+def _render_single_body(session, by_id, questions, q_version,
+                        run_dir: Path, questions_path: Path,
+                        anchor_prefix: str = ""):
+    ver = session.get("questionnaire")
+    if ver and q_version and ver != q_version:
+        print(f"⚠️ вопросник прогона: v{ver}, в репозитории: v{q_version} — "
+              f"карта построена по текущему вопроснику", file=sys.stderr)
+    lang = session.get("lang", "ru")
+
+    n = len(questions)
+    correct = sum(1 for q in questions
+                  if q["id"] in by_id and is_correct(by_id[q["id"]]))
+    n_recall = sum(1 for q in questions if q.get("type") == "answer")
+    as_of = ""
+    try:
+        as_of = json.loads(questions_path.read_text(encoding="utf-8")).get("as_of") or ""
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+    layer = {
+        "questions.json": f"полная матрица v5: {n} клеток в 3 зонах "
+                          f"(база / PHP 8.4–8.5 / будущее)",
+        "questions.v2.json": f"слои A+B (v2): {n} клеток "
+                             f"(72 да/нет + 24 recall)",
+        "questions.v3.json": f"матрица v3: {n} клеток (да/нет + recall + версии)",
+        "questions.v4.json": f"матрица v4: {n} клеток в 4 зонах",
+        "questions.v1.json": f"слой A (v1): да/нет ({n} утверждений, "
+                             f"темы × уровни L1–L8)",
+        "questions-recall.json": "слой B: recall-пилот (24 клетки «что выведет», "
+                                 "эталон — php 8.5)",
+        "questions-versions.json": f"версионная панель, as_of {as_of} "
+                                   f"({n} клеток «версии PHP»)",
+    }.get(questions_path.name,
+          f"вопросник {esc(questions_path.name)} ({n} клеток)")
+    title = f"Карта знаний PHP — {run_label(session, run_dir)}"
+    chips = chips_row_single(session, by_id, questions)
+    n_recall = sum(1 for q in questions if q.get("type") == "answer")
+    na_legend = ('<span><span class="sw" style="background:{0}"></span>ответ не '
+                 'разобран («да»/«нет» первым словом)</span>'
+                 .format(COLOR_NA))
+
+    protocol_kind = session.get("protocol", "chat")
+    if protocol_kind == "decision":
+        prompts_html = ('<pre class="prompt-sample">Реальный запрос (decision-протокол '
+                        '/v1/systemone): state = «Ты проверяешь утверждение о PHP на верность.» + '
+                        'текст клетки; ответ — вероятность верности (noul), клетка «да» при '
+                        'p ≥ 0.5. Меток и шаблонов в запросе нет.</pre>')
+    else:
+        # реальный запрос первой клетки — байт в байт, как ушло по HTTP
+        first = next((t for t in by_id.values() if t.get("prompt")), None)
+        sysp = session.get("system_prompt")
+        uprompt = (first or {}).get("prompt") or \
+            ("<текст клетки>" + (session.get("prompt_suffix") or ""))
+        msg_html = []
+        if sysp:
+            msg_html.append(
+                '<div class="msg"><span class="role">system</span>'
+                f'<pre class="prompt-sample">{esc(sysp)}</pre></div>')
+        msg_html.append(
+            '<div class="msg"><span class="role">user</span>'
+            f'<pre class="prompt-sample">{esc(uprompt)}</pre></div>')
+        prompts_html = (
+            '<div class="reqhead">Пример запроса (первая клетка). System '
+            'одинаковый во всех запросах прогона, user — свой вопрос для '
+            'каждой клетки:</div>'
+            + "".join(msg_html))
+    body = prompts_html + f"""
+<h2>Карта</h2>
+<div class="legend">
+  <span><span class="sw" style="background:{COLOR_OK}"></span>верно</span>
+  <span><span class="sw" style="background:{COLOR_BAD}"></span>неверно</span>
+  {na_legend if not n_recall else ''}
+</div>
+<div class="legend"><span class="hint">наведите — вопрос и ответ модели · клик — строка с деталями в «Все утверждения»</span></div>
+{map_grid_single(by_id, questions, anchor_prefix, lang=lang)}
+<h2>Все утверждения</h2>
+<table class="data">
+<tr><th>Клетка</th><th>Тема</th><th>Утверждение</th><th>Ответ</th>
+    <th>Результат</th><th>Обоснование</th></tr>
+{appendix_table_single(by_id, questions, anchor_prefix, lang=lang)}
+</table>"""
+    footer = (f'построено <a href="https://github.com/prikotov/task-llm-hiring'
+            f'/tree/feat/knowledge-map/knowledge-map">knowledge-map/build_map_report.py</a> · '
+              f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} · "
+              f"данные прогона: session.json, answers.csv")
+    return title, "", chips, body, footer
+
+
+def write_summary_single(run_dir: Path, session: dict, by_id: dict,
+                         questions: list, q_version) -> None:
+    n = len(questions)
+    correct = sum(1 for q in questions
+                  if q["id"] in by_id and is_correct(by_id[q["id"]]))
+    fam_line_s = " · ".join(f"{name} {p}%" for name, p in
+                            family_scores(questions, [by_id]))
+    parsed = [t for t in (by_id.get(q["id"]) for q in questions)
+              if t and t.get("answer") is not None]
+    bool_parsed = [t for t in parsed if isinstance(t.get("answer"), bool)]
+    yes_n = sum(1 for t in bool_parsed if t["answer"])
+    strict_n = sum(1 for t in parsed if t.get("strict"))
+    topics = []
+    for q in questions:
+        if q["topic"] not in topics:
+            topics.append(q["topic"])
+    per_topic = []
+    for topic in topics:
+        tq = [q for q in questions if q["topic"] == topic]
+        c = sum(1 for q in tq if q["id"] in by_id and is_correct(by_id[q["id"]]))
+        per_topic.append((topic, c, len(tq)))
+    ranked = sorted(per_topic, key=lambda x: x[1] / x[2], reverse=True)
+    if len(ranked) > 1:
+        top = " · ".join(f"{t} {c}/{k}" for t, c, k in ranked[:3])
+        bottom = " · ".join(f"{t} {c}/{k}" for t, c, k in ranked[-3:])
+        theme_lines = [f"- Сильные темы: {top}", f"- Слабые темы: {bottom}"]
+    else:
+        theme_lines = []
+    totals = session.get("totals") or {}
+    if not totals:
+        all_turns = list(by_id.values())
+        totals = {
+            "duration_s": round(sum(t.get("duration_s") or 0 for t in all_turns), 1),
+            "prompt_tokens": sum(t.get("prompt_eval_count") or 0 for t in all_turns),
+            "output_tokens": sum(t.get("eval_count") or 0 for t in all_turns),
+            "cached_tokens": sum(t.get("prompt_eval_cached_count") or 0 for t in all_turns),
+        }
+    n_recall = sum(1 for q in questions if q.get("type") == "answer")
+    deep_n = sum(1 for q in questions if q.get("kind") == "deep")
+    n_base = n - deep_n
+    n_recall_base = sum(1 for q in questions
+                        if q.get("type") == "answer"
+                        and q.get("level", 0) <= 8)
+    deep_s = (f" + deep v{(session.get('deep') or {}).get('version')} "
+              f"({deep_n} клеток L9/L10)" if deep_n else "")
+    recall_strict = sum(1 for t in parsed
+                        if t.get("strict") and isinstance(t.get("answer"), str))
+    if n_recall_base and n_base > n_recall_base:
+        bank_line = (f"вопросник v{q_version} ({n_base} клеток: "
+                     f"{n_base - n_recall_base} да/нет + {n_recall_base} recall; "
+                     f"эталон recall — php 8.5/accept, полярность verify "
+                     f"сбалансирована).{deep_s}")
+        bias_line = (f"ответов «да»: {pct(yes_n, len(bool_parsed))}% при балансе "
+                     f"verify 50/50; строгих совпадений recall: "
+                     f"{recall_strict} / {n_recall}.")
+    elif n_recall_base or deep_n:
+        bank_line = (f"вопросник v{q_version} ({n_base} recall-клеток: "
+                     f"эталон — php 8.5/accept-список, ответ без рассуждений)."
+                     f"{deep_s}")
+        bias_line = (f"Строгих совпадений (ответ равен эталону): {recall_strict} / "
+                     f"{len(parsed)}; у остальных верных эталон входит в ответ.")
+    else:
+        bank_line = f"вопросник v{q_version} ({n} утверждений, 50/50)."
+        bias_line = (f"ответов «да»: {pct(yes_n, len(parsed))}% при балансе "
+                     f"50/50.")
+    base_q = [q for q in questions if q.get("zone", "base") == "base"]
+    base_c = sum(1 for q in base_q
+                 if q["id"] in by_id and is_correct(by_id[q["id"]]))
+    base_pct_s = (f"{pct(base_c, len(base_q))}% по базе"
+                  if base_q else f"{pct(correct, n)}%")
+    lines = [
+        f"# Карта знаний PHP — {session.get('model', '?')}, "
+        f"run-{session.get('run', '?'):02d}",
+        "",
+        f"- Протокол: одна клетка = один независимый запрос; "
+        f"think: {session.get('think')}; {bank_line}",
+        f"- **Оценка:** {fam_line_s}; разобрано "
+        f"{len(parsed)} (серых: {n - len(parsed)}); {bias_line}",
+        f"- Стоимость: {totals['duration_s']} c, {totals['prompt_tokens']} вх. ток, "
+        f"{totals['output_tokens']} вых. ток (кэш: {totals['cached_tokens']}).",
+        *theme_lines,
+        "",
+        "Карта с подсказками по клеткам: [report.html](report.html). "
+        "Сырые данные: session.json, answers.csv.",
+    ]
+    (run_dir / "summary.md").write_text("\n".join(lines), encoding="utf-8")
+
+
+def build_compare(model_dir: Path, questions_path: Path,
+                  think_filter: str | None = None,
+                  qver_filter: int | None = None,
+                  lang_filter: str | None = None) -> None:
+    run_dirs = sorted(p for p in model_dir.glob("run-*") if p.is_dir())
+    sessions = []
+    for rd in run_dirs:
+        try:
+            sessions.append((rd.name, *load_run(rd)))
+        except FileNotFoundError:
+            print(f"  пропускаю {rd.name}: нет session.json", file=sys.stderr)
+    # decision-прогоны (noul-вероятность, без think) — метка 'decision'
+    sessions = [(n, {**s, "think": "decision"}
+                 if s.get("protocol") == "decision" else s, b)
+                for n, s, b in sessions]
+    # фильтр по версии вопросника (серии разных версий не смешиваются)
+    if qver_filter:
+        sessions = [(n, s, b) for n, s, b in sessions
+                    if s.get("questionnaire") == qver_filter]
+    if lang_filter:
+        sessions = [(n, s, b) for n, s, b in sessions
+                    if s.get("lang", "ru") == lang_filter]
+    if not sessions:
+        raise SystemExit(f"в {model_dir} нет прогонов (run-*/session.json)")
+    # вопросник — по сессии (язык и версия): EN-серии читают questions-en.json
+    langs = {s.get("lang", "ru") for _, s, _ in sessions}
+    if len(langs) > 1:
+        raise SystemExit(
+            "в папке прогоны разных языков: "
+            f"{sorted(langs)}. Смешивать нельзя — укажите --lang <ru|en>")
+    lang = sessions[0][1].get("lang", "ru")
+    sessions = [(n, s, applicable_by_id(s, b)) for n, s, b in sessions]
+    q_version, questions = load_questions(
+        questions_for_run(questions_path, sessions[0][1]))
+    # зоны «Глубина» (штамп deep) и MCQ decision-моделей (штамп deep_mc)
+    deep_qs = next((deep_for_run(questions_path, s)
+                    for _n, s, _b in sessions if s.get("deep")), [])
+    mcq_qs = next((mcq_for_run(questions_path, s)
+                   for _n, s, _b in sessions if s.get("deep_mc")), [])
+    questions = questions + deep_qs + mcq_qs
+    base_questions = skip_base_mcq(
+        [q for q in questions if q.get("level", 0) <= 8])
+
+    # Прогоны разных уровней рассуждений нельзя смешивать: «флипы» тогда
+    # меряют смену режима, а не устойчивость знания. Карта — только внутри
+    # одного think (правило в blueprint.md). Исключение — think=on для
+    # бинарно-мыслящих моделей (BINARY_THINKING): low/medium по /api/show
+    # механически неотличимы, это один режим, карта честно строится по
+    # всем его прогонам.
+    levels = {s.get("think") for _, s, _ in sessions}
+    if think_filter == MERGED_THINK:
+        model_tag = sessions[0][1].get("model", model_dir.name)
+        wanted = ("low", "medium") if model_tag in BINARY_THINKING else ()
+        sessions = [(n, s, b) for n, s, b in sessions
+                    if s.get("think") in wanted]
+        if not sessions:
+            raise SystemExit(
+                f"think=on допустим только для моделей из BINARY_THINKING "
+                f"с прогонами low/medium ({model_tag}: "
+                f"{sorted(l for l in levels if l)})")
+    elif think_filter:
+        sessions = [(n, s, b) for n, s, b in sessions
+                    if s.get("think") == think_filter]
+        if not sessions:
+            raise SystemExit(f"нет прогонов с think={think_filter!r}; "
+                             f"в папке есть уровни: {sorted(l for l in levels if l)}")
+    elif len(levels) > 1:
+        raise SystemExit(
+            "в папке прогоны разных уровней рассуждений: "
+            f"{sorted(l for l in levels if l)}. Смешивать нельзя — укажите "
+            "--think <уровень> (тепловая карта строится внутри одного уровня; "
+            "сравнение уровней — по метрикам из summary каждого прогона)")
+    if len(sessions) == 1:
+        print("прогон один на этом уровне — тепловая карта требует ≥2, "
+              "строю карту прогона")
+        build_single(model_dir / sessions[0][0], questions_path)
+        return
+
+    runs = [(name, by_id) for name, _session, by_id in sessions]
+    # ссылки на отчёты прогонов (report.html внутри папки прогона)
+    report_href = {name: (f"{name}/report.html"
+                          if (model_dir / name / "report.html").exists()
+                          else "")
+                   for name, _ in runs}
+    # флип = клетка, где разобранные ответы прогонов не совпали
+    flip_by_id: dict[str, bool] = {}
+    for q in questions:
+        answers = {by_id[q["id"]].get("answer") for _, by_id in runs
+                   if q["id"] in by_id and by_id[q["id"]].get("answer") is not None}
+        flip_by_id[q["id"]] = len(answers) > 1
+    flips_total = sum(1 for q in base_questions if flip_by_id.get(q["id"]))
+
+    def run_totals(sess: dict, by_id: dict) -> dict:
+        t = sess.get("totals")
+        if t:
+            return t
+        turns = list(by_id.values())
+        return {
+            "duration_s": round(sum(x.get("duration_s") or 0 for x in turns), 1),
+            "prompt_tokens": sum(x.get("prompt_eval_count") or 0 for x in turns),
+            "output_tokens": sum(x.get("eval_count") or 0 for x in turns),
+            "cached_tokens": sum(x.get("prompt_eval_cached_count") or 0 for x in turns),
+        }
+
+    accs = []
+    for name, sess, by_id in sessions:
+        c = sum(1 for q in base_questions
+                if q["id"] in by_id and is_correct(by_id[q["id"]]))
+        accs.append({"name": name, "think": sess.get("think"), "correct": c,
+                     "n": len(base_questions), **run_totals(sess, by_id)})
+    mean = statistics.mean(a["correct"] for a in accs)
+    tot_in = sum(a["prompt_tokens"] for a in accs)
+    tot_out = sum(a["output_tokens"] for a in accs)
+    n_runs = len(sessions)
+    runs_word = "прогон" if n_runs == 1 else \
+        ("прогона" if 2 <= n_runs % 10 <= 4 and n_runs % 100 not in (12, 13, 14)
+         else "прогонов")
+    title = (f"Карта знаний PHP — {esc(sessions[0][1].get('model', '?'))}: "
+             f"{n_runs} {runs_word}")
+    protocol = ("тепловая карта: клетка = доля верных ответов по прогонам "
+                "(0% красная → 100% зелёная, число внутри — % верных); пунктир — "
+                "нестабильная клетка (флип: ответы прогонов не совпали); "
+                "протокол клетки как в одиночной карте.")
+    chips = f"""
+    <div class="chips">
+      <div class="chip">Прогонов: <b>{len(sessions)}</b></div>
+      <div class="chip">Средняя точность: <b>{pct(int(round(mean)), len(base_questions))}%</b>
+           (разброс {min(a['correct'] for a in accs)}–{max(a['correct'] for a in accs)} из {len(base_questions)})</div>
+      <div class="chip">Семейства: {" · ".join(f"{n} <b>{p}%</b>" for n, p in family_scores(questions, [b for _n, b in runs]))}</div>
+      <div class="chip">Токены по всем прогонам: <b>{tot_in} вх / {tot_out} вых</b></div>
+      <div class="chip">Флипующих клеток: <b>{flips_total} / {len(base_questions)}</b></div>
+      <div class="chip">Разобрано JSON: <b>{pct(sum(1 for _n, _s, b in sessions for t in b.values() if t.get("json_ok")), sum(len(b) for _n, _s, b in sessions))}%</b>
+           (не-JSON: {sum(1 for _n, _s, b in sessions for t in b.values() if not t.get("json_ok"))} из {sum(len(b) for _n, _s, b in sessions)})</div>
+      <div class="chip">Стабильность = доля клеток, где все прогоны ответили
+           одинаково; флип (ответы расходятся) — знание под вопросом</div>
+    </div>"""
+    body = f"""
+<h2>Тепловая карта</h2>
+<div class="legend">
+  <span><span class="sw" style="background:{COLOR_BAD}"></span>0% верных</span>
+  <span><span class="sw" style="background:{COLOR_MID}"></span>50%</span>
+  <span><span class="sw" style="background:{COLOR_OK}"></span>100%</span>
+  <span><span class="sw" style="background:#fff;outline:2px dashed #8a2d2d"></span>
+        флип (ответы прогонов расходятся)</span>
+</div>
+{map_grid_compare(questions, runs, flip_by_id, run_hrefs=report_href, lang=lang)}
+<h2>Прогоны: точность и стоимость</h2>
+<table class="data"><tr><th>Прогон</th><th>think</th><th>Верно</th><th>%</th>
+<th>Время</th><th>Токены (вх / вых / кэш)</th></tr>
+{"\n".join(f'<tr><td>{run_link(a["name"], report_href.get(a["name"], ""))}</td>'
+           f'<td>{esc(a["think"])}</td>'
+           f'<td>{a["correct"]} / {a["n"]}</td><td>{pct(a["correct"], a["n"])}%</td>'
+           f'<td>{a["duration_s"]} c</td>'
+           f'<td>{a["prompt_tokens"]} / {a["output_tokens"]} / {a["cached_tokens"]}</td></tr>'
+           for a in accs)}
+</table>
+<h2>Флипующие клетки</h2>
+{flips_table(questions, runs, flip_by_id, report_href, lang)}
+<h2>Все клетки</h2>
+{compare_appendix_table(questions, runs, report_href, lang)}"""
+    footer = (f'построено <a href="https://github.com/prikotov/task-llm-hiring'
+            f'/tree/feat/knowledge-map/knowledge-map">knowledge-map/build_map_report.py</a> · '
+              f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} · "
+              f"данные: run-*/session.json")
+    tag = (think_filter or "mixed") + (f"-{lang_filter}" if lang_filter else "") \
+        + (f"-v{qver_filter}" if qver_filter else "")
+    (model_dir / f"compare-{tag}.html").write_text(
+        page(title, protocol, chips, body, footer,
+             seo={"description": f"Сравнение прогонов карты знаний PHP: "
+                                 f"{model_dir.name}"}), encoding="utf-8")
+
+    lines = [
+        f"# Карта знаний PHP — {sessions[0][1].get('model', '?')}: "
+        f"{len(sessions)} прогонов",
+        "",
+        f"- Точность по прогонам: "
+        + ", ".join(f"{a['name']} {a['correct']}/{a['n']} ({pct(a['correct'], a['n'])}%, "
+                    f"{a['duration_s']} c, {a['prompt_tokens']}+{a['output_tokens']} ток, "
+                    f"think {a['think']})" for a in accs),
+        f"- Средняя: {pct(int(round(mean)), len(questions))}%, "
+        f"токены по всем прогонам: {tot_in} вх / {tot_out} вых, "
+        f"флипующих клеток: {flips_total} / {len(questions)}.",
+        "",
+        f"Тепловая карта: [compare-{tag}.html](compare-{tag}.html). "
+        "Карты отдельных прогонов: run-*/report.html.",
+    ]
+    (model_dir / f"compare-{tag}.md").write_text("\n".join(lines), encoding="utf-8")
+    print(f"отчёт: {model_dir / f'compare-{tag}.html'}")
+
+
+def run_link(name: str, href: str) -> str:
+    """Имя прогона как ссылка на его отчёт (или просто имя, если отчёта нет)."""
+    return f'<a href="{href}">{esc(name)}</a>' if href else esc(name)
+
+
+def compare_appendix_table(questions: list,
+                           runs_list: list[tuple[str, dict]],
+                           report_href: dict[str, str] | None = None,
+                           lang: str = "ru") -> str:
+    """Таблица всех клеток compare-отчёта с якорями строк: ответы каждого
+    прогона пометками ✓/✗/—, эталон справа. Имя прогона ведёт к строке
+    этого вопроса в отчёте прогона."""
+    rows = []
+    for q in questions:
+        marks = []
+        for name, by_id in runs_list:
+            t = by_id.get(q["id"], {})
+            a = t.get("answer")
+            mark = "—" if a is None else ("✓" if is_correct(t) else "✗")
+            base = (report_href or {}).get(name) or ""
+            href = f'{base}#row-{esc(q["id"])}' if base else ""
+            marks.append(f"{run_link(name, href)}: {mark}")
+        right = correct_text(q, None, lang)
+        rows.append(
+            f'<tr id="row-{esc(q["id"])}">'
+            f'<td><code class="id">{esc(q["id"])}</code><br>'
+            f'<small>{esc(q["topic"])}</small></td>'
+            f'<td class="assert">{esc(cell_text(q))}</td>'
+            f'<td class="assert"><small>{" · ".join(marks)}</small></td>'
+            f'<td>{esc(right)}</td></tr>')
+    return ('<table class="data">'
+            '<tr><th>Клетка</th><th>Вопрос</th><th>Ответы по прогонам</th>'
+            '<th>Верный ответ</th></tr>\n' + "\n".join(rows) + "</table>")
+
+
+def flips_table(questions: list, runs: list[tuple[str, dict]],
+                flip_by_id: dict[str, bool],
+                report_href: dict[str, str] | None = None,
+                lang: str = "ru") -> str:
+    """Таблица нестабильных клеток: утверждение и ответы каждого прогона
+    в отдельных колонках (заголовок колонки — ссылка на отчёт прогона)."""
+    flipped = [q for q in questions if flip_by_id.get(q["id"])]
+    if not flipped:
+        return ("<p>Ни одна клетка не флипует: все 96 ответов одинаковы во "
+                "всех прогонах.</p>")
+    names = [run_link(n, (report_href or {}).get(n) or "") for n, _ in runs]
+    head = ('<tr><th>Клетка</th><th>Утверждение</th>'
+            + "".join(f"<th>{n}</th>" for n in names) + "</tr>")
+    rows = []
+    for q in flipped:
+        cells = [f'<td><code class="id">{esc(q["id"])}</code></td>',
+                 f'<td class="assert">{esc(cell_text(q))}</td>']
+        for _name, by_id in runs:
+            a = by_id.get(q["id"], {}).get("answer")
+            v = "—" if a is None else yes_no(a, lang)
+            cells.append(f"<td>{esc(v)}</td>")
+        rows.append("<tr>" + "".join(cells) + "</tr>")
+    return ('<table class="data">' + head + "\n".join(rows) + "</table>")
+
+
+def protocol_tag(session: dict) -> str:
+    """Поколение протокола запроса: system+JSON / JSON-суффикс / текст /
+    decision — видно в таблице прогонов полного отчёта."""
+    if session.get("protocol") == "decision":
+        return "decision"
+    if session.get("system_prompt"):
+        return "system+JSON"
+    if "JSON" in (session.get("prompt_suffix") or ""):
+        return "JSON-суффикс"
+    return "текст"
+
+
+# Модели с бинарным мышлением — по /api/show сервера (поле thinking
+# верхнего уровня, проверено 2026-11-11): шкала уровней [false, true]
+# или вовсе null (ornith — capability есть, значений не декларировано,
+# Go-шаблон умеет только enable_thinking true/false). ollama переводит
+# любой запрошенный low/medium/high в «включено», градиента бюджетов
+# нет — серии low и medium таких моделей неотличимы по механике и
+# объединяются в один режим on (данные честные: 10 независимых
+# прогонов одного режима; в отчёте запрос уровней не показывается —
+# механика модели описана в её model.md). Модели с настоящими шкалами
+# (qwen3.8, bonsai-2, huihui, muse-glimmer: [false, low, medium,
+# xhigh…]; облачные — reasoning effort API) не объединяются.
+# Короткие имена моделей в отчёте (полный тег — в аннотации на сайте)
+DISPLAY_NAMES = {
+    "orcarouter/Qwen3.8-27B-Uncensored:ctx100k":
+        "orcarouter/Qwen3.8-27B-Uncensored",
+    "qwen3.8:latest": "qwen3.8:27B",
+    "huihui-ai:pi-100k": "huihui_ai/Qwen3.8-abliterated",
+    "zai/glm-5.3-flash": "z.ai/glm-5.3-flash",
+    "alibabacloud/qwen3.8-flash": "alibabacloud/qwen3.8-flash",
+    "alibabacloud/qwen4-max-preview": "alibabacloud/qwen4-max-preview",
+    "xiaomi/mimo-v2.6-flash": "xiaomi/mimo-v2.6-flash",
+    "deepseek-flash": "deepseek/deepseek-flash",
+}
+
+BINARY_THINKING = {
+    "ornith-1.5:35b", "ornith-1.5:35b-ctx100k", "ornith-1.5:35b-ctx100k-tuned",
+    "ornith-1.5:9b",
+    "gemma4:26b", "gemma4:26b-pi-100k",
+    "gemma4:31b-it-qat", "gemma4:31b-it-qat-pi-100k",
+    "gemma4:e2b",
+    "orcarouter/Qwen3.8-27B-Uncensored:latest",
+    "orcarouter/Qwen3.8-27B-Uncensored:iq4_xs",
+    "orcarouter/Qwen3.8-27B-Uncensored:ctx100k",  # проверка 2026-11-11: [false, true]
+}
+MERGED_THINK = "on"
+
+
+def merge_binary_thinking(model: str, think_map: dict) -> dict:
+    """Свести запрошенные уровни low/medium/high в on для моделей с
+    бинарным мышлением — независимо от того, был ли запрошен один
+    уровень или несколько: «low» у бинарной модели — то же «включено»."""
+    if model not in BINARY_THINKING:
+        return think_map
+    on_keys = [k for k in ("low", "medium", "high") if k in think_map]
+    if not on_keys:
+        return think_map
+    merged = {k: v for k, v in think_map.items() if k not in on_keys}
+    on_items = [x for k in on_keys for x in think_map[k]]
+    merged[MERGED_THINK] = on_items
+    levels = "+".join(on_keys)
+    print(f"  {model}: {levels} объединены в on "
+          f"({len(on_items)} прогонов) — мышление бинарное по /api/show")
+    return merged
+
+
+def build_series_report(models_root: Path, questions_path: Path,
+                        out_file: Path, public: bool = False) -> None:
+    # публичная сборка: отчёт лежит рядом с models/, а не уровнем выше —
+    # ссылки на карты серий без "../"
+    models_prefix = "models/" if public else "../models/"
+    """Сводный отчёт по всем моделям: единая карта серий — строки тем,
+    колонки сгруппированы по (язык × уровень рассуждений); группы разделены
+    границами. Клетка = доля верных ответов по серии, пунктир = флип.
+    Вся карта всегда одной строкой (горизонтальная прокрутка при узком
+    экране), метки тем — общий блок слева."""
+    think_order = {"off": 0, MERGED_THINK: 1.5, "low": 1, "medium": 2,
+                   "high": 3, "xhigh": 4, "max": 5}
+    sections = []
+    metrics = []
+    model_dirs = sorted(d for d in models_root.iterdir()
+                        if d.is_dir() and (d / "knowledge-map").is_dir())
+    n_maps = 0
+    # прогоны группируются по имени модели из сессии: у облачных моделей
+    # каждый уровень мышления лежит в своём каталоге (<model>-<think>),
+    # но секция карты должна быть одна на модель × язык
+    all_runs: dict = {}
+    tag_order: list = []
+    for md in model_dirs:
+        km = md / "knowledge-map"
+        for rd in sorted(km.glob("run-*")):
+            if not (rd / "session.json").exists():
+                continue
+            try:
+                session, by_id = load_run(rd)
+            except FileNotFoundError:
+                continue
+            if session.get("protocol", "chat") not in ("chat", "decision"):
+                continue
+            if session.get("protocol") == "decision":
+                session = {**session, "think": "decision"}
+                by_id = applicable_by_id(session, by_id)
+            elif len(session.get("turns") or []) < 240:
+                continue  # прогон ещё пишется — в свод не попадает
+            model_tag = session.get("model", md.name)
+            if model_tag not in all_runs:
+                all_runs[model_tag] = []
+                tag_order.append(model_tag)
+            all_runs[model_tag].append((rd, session, by_id))
+    for model_tag in tag_order:
+        runs = all_runs[model_tag]
+        model = esc(DISPLAY_NAMES.get(model_tag, model_tag))
+        latest_qver = max((s.get("questionnaire") or 0 for _, s, _ in runs))
+        # ряды: (версия вопросника, язык) → уровень → прогоны;
+        # показываем только последнюю версию вопросника модели
+        rows_map = defaultdict(lambda: defaultdict(list))
+        for rd, session, by_id in runs:
+            qver = session.get("questionnaire") or 0
+            if qver != latest_qver:
+                continue
+            rows_map[(qver, session.get("lang", "ru"))][
+                session.get("think")].append((rd, session, by_id))
+        if model_tag in BINARY_THINKING:
+            # механика модели: уровней нет — low/medium один режим on
+            rows_map = {k: merge_binary_thinking(model_tag, v)
+                        for k, v in rows_map.items()}
+
+        for (qver, lang), think_map in sorted(
+                rows_map.items(),
+                key=lambda kv: (kv[0][1] != "ru", kv[0][1])):
+            # одинаковый вопросник для всех уровней ряда
+            any_session = next(iter(think_map.values()))[0][1]
+            qpath = questions_for_run(questions_path, any_session)
+            q_version, questions = load_questions(qpath)
+            # зона «Глубина»: если прогоны ряда дополнены (штамп deep) —
+            # клетки L9/L10 добавляются к карте ряда
+            all_items = (x for items in think_map.values() for x in items)
+            deep_qs = next((deep_for_run(questions_path, s)
+                            for _rd, s, _b in all_items if s.get("deep")), [])
+            if deep_qs:
+                questions = questions + deep_qs
+            all_items = (x for items in think_map.values() for x in items)
+            mcq_qs = next((mcq_for_run(questions_path, s)
+                           for _rd, s, _b in all_items if s.get("deep_mc")), [])
+            if mcq_qs:
+                questions = questions + mcq_qs
+            topics = []
+            for q in questions:
+                if q["topic"] not in topics:
+                    topics.append(q["topic"])
+            max_level = max(q["level"] for q in questions)
+            by_topic_level = defaultdict(dict)
+            for q in questions:
+                if q["id"].endswith("-mc") and q.get("level", 0) <= 8:
+                    continue
+                by_topic_level[q["topic"]][q["level"]] = q
+
+            base_ids = [q["id"] for q in questions
+                        if q.get("zone", "base") == "base"]
+            groups = []
+            gdirs = {}  # уровень мышления → каталог серии (для ссылок)
+            for think in sorted(think_map,
+                                key=lambda t: (think_order.get(t, 99), t)):
+                items = think_map[think]
+                gdirs[think] = items[0][0].parent.parent.name
+                # одиночные серии не выбрасываем: их Стаб. всегда 100%
+                # (флипов не бывает), число прогонов видно в таблице метрик
+                n_runs = len(items)
+                think_disp = think
+                runs_list = [(rd.name, by_id) for rd, _s, by_id in items]
+                flip_by_id = {}
+                for q in questions:
+                    answers = {by_id.get(q["id"], {}).get("answer")
+                               for _n, by_id in runs_list}
+                    answers.discard(None)
+                    flip_by_id[q["id"]] = len(answers) > 1
+                fams_list = family_scores(questions, [b for _n, b in runs_list])
+                n_app = len({q["id"] for q in questions
+                             if any(q["id"] in b for _n, b in runs_list)})
+                turns_all = [t for _n, b in runs_list for t in b.values()]
+                dur_total = sum(t.get("duration_s") or 0 for t in turns_all)
+                tin_total = sum(t.get("prompt_eval_count") or 0
+                                for t in turns_all)
+                tout_total = sum(t.get("eval_count") or 0
+                                 for t in turns_all)
+                cloud_cost = sum(s.get("cost_usd") or 0 for _, s, _ in items)
+                cost = (dur_total, tin_total, tout_total, cloud_cost)
+                # decision-модели работают без JSON-контракта — прочерк
+                is_decision = all(
+                    s.get("protocol") == "decision" for _rd, s, _b in items)
+                json_pct_ = None if is_decision else \
+                    pct(sum(1 for t in turns_all if t.get("json_ok")),
+                        max(1, len(turns_all)))
+                stable_ok = sum(
+                    1 for q in questions
+                    if all(by_id.get(q["id"], {}).get("answer") is not None
+                           and is_correct(by_id[q["id"]])
+                           for _rd, _s, by_id in items))
+                flips = sum(1 for q in questions if flip_by_id[q["id"]])
+                gturns = [t for _rd, s, _b in items
+                          for t in s.get("turns", [])]
+                rum = (rumination_share(gturns, deep=False),
+                       rumination_share(gturns, deep=True))
+                groups.append((think, think_disp, runs_list, flip_by_id,
+                               fams_list, cost, stable_ok, flips, json_pct_,
+                               n_app, rum))
+                run_href = (f"{models_prefix}{esc(gdirs[think])}/knowledge-map/"
+                            f"{runs_list[0][0]}/report.html"
+                            if n_runs == 1 and
+                            (models_root / gdirs[think] / "knowledge-map"
+                             / runs_list[0][0] / "report.html").exists()
+                            else "")
+                cmp_name_m = f"compare-{think}-{lang}-v{qver}.html"
+                # клик по модели из таблицы метрик — к карте этой модели
+                # и языка на этой же странице (полный отчёт серии по-прежнему
+                # доступен из карты: ulink и клики по клеткам)
+                anchor = ("map-"
+                          + re.sub(r"[^A-Za-z0-9]+", "-", model_tag).strip("-")
+                          + f"-{lang}")
+                link = f"#{anchor}"
+                # локальные (ollama) против облачных (openrouter/deepseek):
+                # по provider сессий группы
+                src = ("cloud" if any(s.get("provider") in
+                                      ("openrouter", "deepseek",
+                                       "zai", "alibabacloud", "xiaomi")
+                                      for _rd, s, _b in items)
+                       else "local")
+                metrics.append((model, think, lang, fams_list, cost, flips,
+                                n_app, json_pct_, n_runs, link, src,
+                                groups[-1][-1]))
+            if not groups:
+                continue
+
+            # единая сетка: метки тем + группы (max_level клеток + итог +
+            # граница); с зоной «Глубина» уровней 10, без неё — 8
+            cell_px, agg_px, label_px, sp_px = 26, 52, 200, 16
+            cols = [f"{label_px}px"] + [
+                f"repeat({max_level}, {cell_px}px) {agg_px}px "
+                f"{sp_px}px"] * len(groups)
+            cells = ['<div class="uhead"></div>']
+            for think, think_disp, runs_list, flip_by_id, fams_list, cost, \
+                    sok, fl, _jp, n_app, rum in groups:
+                total_s = next((p for name, p in fams_list
+                                if name == "Всего"), None)
+                dur_s = cost[0]
+                tdisp = f"{dur_s / 60:.1f} мин"
+                # у серии из одного прогона стабильность не измеряется
+                stab_s = ("—" if len(runs_list) == 1
+                          else f"{pct(n_app - fl, n_app)}%")
+                cells.append(
+                    f'<div class="uhead" style="grid-column: '
+                    f'span {max_level + 1}">'
+                    f'think: {esc(think_disp)}<span class="umeta">'
+                    f'итог {total_s}% · '
+                    f'стаб. {stab_s}'
+                    + f' · время {tdisp}'
+                    + (f' · рум. {rum_s(rum[0])}/{rum_s(rum[1])}%'
+                       if any(x is not None for x in rum) else '')
+                    + (f' · прим. {n_app}/{len(questions)}'
+                       if n_app != len(questions) else '')
+                    + '</span></div>')
+                cells.append('<div class="uhead"></div>')
+            # подписи уровней сложности над колонками каждой группы:
+            # L1–L8 — основной вопросник, L9/L10 — зона «Глубина»
+            cells.append('<div class="dhead"></div>')
+            for _g in groups:
+                for lvl in range(1, max_level + 1):
+                    cells.append(f'<div class="dhead">L{lvl}</div>')
+                cells.append('<div class="dhead"></div>')
+                cells.append('<div class="dhead"></div>')
+            for topic in topics:
+                cells.append(f'<div class="rh">{esc(topic)}</div>')
+                tq = sorted((q for q in questions if q["topic"] == topic),
+                            key=lambda q: q["level"])
+                for gi, (t, _td, runs_list, flip_by_id, _fams, _cost, _sok,
+                         _fl, _jp, _na, _rum) in enumerate(groups):
+                    cmp_name = f"compare-{t}-{lang}-v{qver}.html"
+                    gdir = gdirs[t]
+                    cmp_href = ""
+                    if n_runs == 1:
+                        # одиночная серия — полный отчёт и есть отчёт прогона
+                        rp = (models_root / gdir / "knowledge-map"
+                              / runs_list[0][0] / "report.html")
+                        if rp.exists():
+                            cmp_href = (f"{models_prefix}{esc(gdir)}/"
+                                        f"knowledge-map/{runs_list[0][0]}/"
+                                        f"report.html")
+                    elif (models_root / gdir / "knowledge-map"
+                          / cmp_name).exists():
+                        cmp_href = (f"{models_prefix}{esc(gdir)}/knowledge-map/"
+                                    f"{cmp_name}")
+                    elif (models_root / gdir / "knowledge-map"
+                          / runs_list[0][0] / "report.html").exists():
+                        # сводные compare-файлы есть не у всех серий —
+                        # ведём в первый прогон, чтобы ссылка не была битой
+                        cmp_href = (f"{models_prefix}{esc(gdir)}/"
+                                    f"knowledge-map/{runs_list[0][0]}/"
+                                    f"report.html")
+                    run_base = {}
+                    for name, _b in runs_list:
+                        if (models_root / gdir / "knowledge-map" / name
+                                / "report.html").exists():
+                            run_base[name] = (f"{models_prefix}{esc(gdir)}/"
+                                              f"knowledge-map/{name}/"
+                                              f"report.html")
+                    for lvl in range(1, max_level + 1):
+                        q = by_topic_level[topic].get(lvl)
+                        if q is None:
+                            cells.append('<div class="ph"></div>')
+                            continue
+                        answers = []
+                        for name, by_id in runs_list:
+                            href = (f'{run_base[name]}#row-{esc(q["id"])}'
+                                    if name in run_base else "")
+                            answers.append(
+                                (name, by_id.get(q["id"], {}).get("answer"),
+                                 is_correct(by_id.get(q["id"], {})), href))
+                        p_share = (sum(1 for _n, _a, ok, _h in answers if ok)
+                                   / max(1, len(runs_list)))
+                        tip = tooltip(None, q, runs=answers, lang=lang)
+                        flip_cls = " flip" if flip_by_id.get(q["id"]) else ""
+                        fill = (f'<a class="fill" href="{cmp_href}'
+                                f'#row-{esc(q["id"])}" '
+                                f'aria-label="строка клетки в таблице"></a>'
+                                if cmp_href else "")
+                        cells.append(
+                            f'<div class="cell{flip_cls}" '
+                            f'style="background:{heat_color(p_share)}">'
+                            f'{fill}'
+                            f'<div class="num">{round(p_share * 100)}</div>'
+                            f'<div class="tip">{tip}</div></div>')
+                    correct = sum(1 for q in tq for _n, by_id in runs_list
+                                  if q["id"] in by_id
+                                  and is_correct(by_id[q["id"]]))
+                    cells.append(f'<div class="agg">'
+                                 f'{pct(correct, len(tq) * len(runs_list))}%</div>')
+                    cells.append('<div class="gsp"></div>')
+
+            levels_s = ", ".join(t for t, *_ in groups)
+            # ссылка на полный отчёт — в сетке, под картой каждого уровня
+            for gi, (t, _td, runs_list_g, _f, _fams, _cost, _sok, _fl, _jp,
+                     _na, _rum) in enumerate(groups):
+                cmp_name = f"compare-{t}-{lang}-v{qver}.html"
+                single = len(runs_list_g) == 1
+                gdir = gdirs[t]
+                has_cmp = (models_root / gdir / "knowledge-map"
+                           / cmp_name).exists()
+                if not has_cmp and not (models_root / gdir / "knowledge-map"
+                                        / runs_list_g[0][0]
+                                        / "report.html").exists():
+                    continue
+                if single:
+                    href_g = (f"{models_prefix}{esc(gdir)}/knowledge-map/"
+                              f"{runs_list_g[0][0]}/report.html")
+                    label_g = "Отчёт прогона (1 прогон)"
+                elif has_cmp:
+                    href_g = (f"{models_prefix}{esc(gdir)}/knowledge-map/"
+                              f"{cmp_name}")
+                    label_g = "Полный отчёт серии"
+                else:
+                    href_g = (f"{models_prefix}{esc(gdir)}/knowledge-map/"
+                              f"{runs_list_g[0][0]}/report.html")
+                    label_g = "Отчёт прогона"
+                col0 = 2 + gi * (max_level + 2)
+                cells.append(
+                    f'<div class="ulink" style="grid-column: {col0} / '
+                    f'span {max_level + 1}">'
+                    f'<a href="{href_g}">{label_g}</a></div>')
+                cells.append('<div class="gsp"></div>')
+            sections.append(
+                f'<h2 id="{anchor}">{model} · язык: {esc(lang)}</h2>\n'
+                f'<div class="unimap-wrap"><div class="unimap" '
+                f'style="grid-template-columns: {" ".join(cols)};">'
+                f'{"".join(cells)}</div></div>')
+            n_maps += len(groups)
+
+    if not sections:
+        raise SystemExit("нет серий: ни у одной модели нет ≥2 прогонов "
+                         "на одной версии вопросника")
+
+    # таблица метрик серий: строки = модель × think × язык,
+    # колонки = семейства, затраты, стабильность
+    fam_heads = [("PHP", "PHP"), ("PHP+версии", "PHP+"),
+                 ("Symfony", "Symfony"), ("Symfony+версии", "Symfony+"),
+                 ("БД и ORM", "БД и ORM"),
+                 ("Архитектура", "Арх."),
+                 ("Фронтенд", "Фронт."),
+                 ("HTTP", "HTTP"), ("Безопасность", "Безоп."),
+                 ("Тесты", "Тесты"), ("Глубина", "Глубина"),
+                 ("Всего", "Всего")]
+    fam_titles = {"БД и ORM": "Doctrine, PostgreSQL, транзакции и индексы",
+                  "HTTP": "HTTP и REST API",
+                  "Безопасность": "Безопасность и OAuth",
+                  "Тесты": "Тестирование: PHPUnit",
+                  "Глубина": "Зона глубины: уровни L9–L10, "
+                             "26 тем × 2 (машинно проверяемые эталоны)"}
+    metrics.sort(key=lambda m: (m[0], think_order.get(m[1], 99), m[2]))
+    # максимум для монохрома затрат: насыщенность = доля от самого
+    # дорогого/долгого прогона в таблице
+    max_dur = max((m[4][0] / m[8] for m in metrics), default=1) or 1
+    # руминации — тот же монохром: насыщенность относительно максимума
+    # колонки (нулевые и прочерк — без подложки)
+    max_rum_b = max((m[11][0] for m in metrics
+                     if m[11][0] is not None), default=1) or 1
+    max_rum_d = max((m[11][1] for m in metrics
+                     if m[11][1] is not None), default=1) or 1
+    max_cost = max((m[4][3] / m[8] for m in metrics if m[4][3]),
+                   default=1) or 1
+    mrows = []
+    for model, think, lang, fams_list, cost, fl, nq, jp, n_runs, link, \
+            src, rum in metrics:
+        pm = dict(fams_list)
+        model_cell = (f'<a class="anchor" href="{link}" '
+                      f'title="к карте модели ниже">{esc(model)}</a>'
+                      if link else esc(model))
+        cells = [f'<td>{model_cell}</td>', f'<td>{esc(think)}</td>',
+                 f'<td>{esc(lang)}</td>', f'<td class="num">{n_runs}</td>']
+        for key, _h in fam_heads:
+            p_ = pm.get(key)
+            cells.append(f'<td class="num" style="background:{heat_color(p_ / 100)}">{p_}</td>'
+                         if p_ is not None else '<td class="num">—</td>')
+        dur, tin, tout, ccost = cost
+        # затраты — среднее на прогон: серии по 5/10 прогонов сравнимы;
+        # Время и Цена — монохромная подложка (насыщенность = величина)
+        cells.append(f'<td class="num" '
+                     f'style="background:{cost_color(dur / n_runs / max_dur)}">'
+                     f'{dur / n_runs:.0f}с</td>')
+        cells.append(f'<td class="num">{tin / n_runs / 1000:.1f}k</td>')
+        cells.append(f'<td class="num">{tout / n_runs / 1000:.1f}k</td>')
+        cells.append(f'<td class="num" '
+                     f'style="background:{cost_color(ccost / n_runs / max_cost)}">'
+                     f'${ccost / n_runs:.2f}</td>'
+                     if ccost else '<td class="num">—</td>')
+        # стабильность для серий из одного прогона не измеряется — прочерк
+        if n_runs == 1:
+            cells.append('<td class="num">—</td>')
+        else:
+            cells.append(f'<td class="num" style="background:{heat_color(1 - fl / max(1, nq))}">{pct(nq - fl, nq)}</td>')
+        cells.append(f'<td class="num" style="background:{heat_color(jp / 100)}">{jp}</td>'
+                     if jp is not None else '<td class="num">—</td>')
+        cells.append(f'<td class="num" '
+                     f'style="background:{cost_color(rum[0] / max_rum_b)}">'
+                     f'{rum[0]:.1f}</td>'
+                     if rum[0] is not None else '<td class="num">—</td>')
+        cells.append(f'<td class="num" '
+                     f'style="background:{cost_color(rum[1] / max_rum_d)}">'
+                     f'{rum[1]:.1f}</td>'
+                     if rum[1] is not None else '<td class="num">—</td>')
+        mrows.append(f'<tr data-src="{src}">' + "".join(cells) + "</tr>")
+    cost_heads = [("Время", "Время"), ("Ток вх", "Ток вх"),
+                  ("Ток вых", "Ток вых"), ("Цена", "Цена"),
+                  ("Стаб.", "Стаб."), ("JSON", "JSON"),
+                  ("Рум. L1–8", "Рум. L1–8"), ("Рум. L9–10", "Рум. L9–10")]
+    head_titles = {
+        "Рум. L1–8": "Доля клеток-руминаций на простых вопросах L1–L8 "
+                     "(reasoning ≥10k ток или thinking ≥50k симв)",
+        "Рум. L9–10": "Доля клеток-руминаций на Глубине L9–L10 "
+                      "(«что вернёт этот код»); у уровней 9–10 усиление "
+                      "к базовой частоте в 2–7 раз"}
+    head = ('<tr><th>Модель</th><th>think</th><th>Язык</th><th>Прог.</th>'
+            + "".join(f'<th class="sortable" title="{fam_titles[k]}">{h}</th>'
+                      if k in fam_titles else f'<th class="sortable">{h}</th>'
+                      for k, h in fam_heads)
+            + "".join(f'<th class="sortable" '
+                      f'title="{h} · среднее на 1 прогон">{h}</th>'
+                      if h in ("Время", "Ток вх", "Ток вых", "Цена")
+                      else f'<th class="sortable" title="{head_titles[h]}">{h}</th>'
+                      if h in head_titles
+                      else '<th class="sortable">{}</th>'.format(h)
+                      for _k, h in cost_heads) + "</tr>")
+    # сортировка таблицы: клик по шапке (числовые колонки), повторный —
+    # смена направления, кнопка — сброс к порядку сборки; прочерки всегда
+    # внизу; для семейств/Стаб./JSON первый клик — по убыванию, для затрат
+    # (дешевле/быстрее = лучше) — по возрастанию. Маркеры направления —
+    # через CSS-классы (::after): у несортируемых щелчков виден серый «↕»,
+    # у активной колонки — «▲/▼»; кнопка сброса активна только когда
+    # сортировка применена. Фильтр моделей (все/локальные/облачные по
+    # data-src строки) скрывает строки; сортировка применяется к видимым
+    sort_js = """
+<script>
+(function () {
+  var tbl = document.querySelector("table.data.metrics");
+  if (!tbl) return;
+  var tbody = tbl.tBodies[0];
+  var orig = Array.prototype.slice.call(tbody.rows);
+  var heads = Array.prototype.slice.call(tbl.tHead.rows[0].cells);
+  var reset = document.getElementById("sort-reset");
+  var cur = -1, dir = 1, filter = "all";
+  function val(cell) {
+    var t = cell.textContent.trim();
+    if (!t || t === "\\u2014") return null;
+    var f = parseFloat(t.replace("$", ""));
+    return isNaN(f) ? null : f;
+  }
+  function match(r) {
+    return filter === "all" || r.getAttribute("data-src") === filter;
+  }
+  function clearMarks() {
+    heads.forEach(function (th) {
+      th.classList.remove("sorted-asc", "sorted-desc");
+    });
+  }
+  function render() {
+    var vis = orig.filter(match);
+    orig.forEach(function (r) {
+      r.style.display = match(r) ? "" : "none";
+    });
+    var rows = vis.slice();
+    if (cur >= 0) {
+      rows.sort(function (a, b) {
+        var va = val(a.cells[cur]), vb = val(b.cells[cur]);
+        if (va === null && vb === null) return 0;
+        if (va === null) return 1;
+        if (vb === null) return -1;
+        return dir * (va - vb);
+      });
+    }
+    rows.forEach(function (r) { tbody.appendChild(r); });
+  }
+  heads.forEach(function (th, idx) {
+    if (!th.classList.contains("sortable")) return;
+    th.title = (th.title ? th.title + " · " : "") +
+        "клик — сортировка, повторный — смена направления";
+    th.addEventListener("click", function () {
+      if (cur === idx) { dir = -dir; }
+      else { cur = idx; dir = (idx >= 16 && idx <= 19) ? 1 : -1; }
+      clearMarks();
+      th.classList.add(dir === 1 ? "sorted-asc" : "sorted-desc");
+      reset.disabled = false;
+      render();
+    });
+  });
+  reset.addEventListener("click", function () {
+    cur = -1; dir = 1;
+    clearMarks();
+    reset.disabled = true;
+    render();
+  });
+  Array.prototype.forEach.call(
+      document.querySelectorAll("button.srcseg"), function (b) {
+    b.addEventListener("click", function () {
+      filter = b.getAttribute("data-src");
+      Array.prototype.forEach.call(
+          document.querySelectorAll("button.srcseg"), function (x) {
+        x.classList.toggle("active", x === b);
+      });
+      render();
+    });
+  });
+})();
+</script>
+"""
+    sections.insert(0, '<h2>Метрики серий '
+                     '<button id="sort-reset" type="button" disabled '
+                     'style="font-size:12px;padding:2px 10px;cursor:pointer;'
+                     'border:1px solid #c9ced8;border-radius:6px;'
+                     'background:#fff;color:#5a6270;'
+                     'vertical-align:middle">сброс сортировки</button>'
+                     '<span style="font-size:12px;font-weight:normal;'
+                     'color:#8b909b;margin-left:10px">сортировка: клик по '
+                     'заголовку колонки, повторный клик — смена '
+                     'направления</span>'
+                     '<span style="font-size:12px;font-weight:normal;'
+                     'color:#8b909b;margin-left:16px">модели:</span>'
+                     '<button class="srcseg active" data-src="all" '
+                     'type="button">все</button>'
+                     '<button class="srcseg" data-src="local" '
+                     'type="button">локальные</button>'
+                     '<button class="srcseg" data-src="cloud" '
+                     'type="button">облачные</button></h2>\n'
+                     '<table class="data metrics"><thead>'
+                     + head + '</thead><tbody>' + "".join(mrows)
+                     + "</tbody></table>\n" + sort_js)
+
+    title = "Карты знаний LLM по PHP"
+    n_models = len({m[0] for m in metrics})
+    built = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    # строка фактов под заголовком (как в статье benchgecko: «Latest run …
+    # · N models · 1800 points each») — сразу объём теста
+    proto = (f"сборка {built} · {n_models} моделей · {n_maps} карт · "
+             f"296 клеток · языки ru / en / zh")
+    intro = (
+        "<p>Каждая клетка карты — один вопрос к модели: без "
+        "system-промпта, инструментов и диалога, ответ строго в JSON. "
+        "Вопросник состоит из 240 вопросов — 26 тем по 8 уровней "
+        "сложности (L1–L8). Темы — язык PHP и стек проекта: Symfony, "
+        "Doctrine, "
+        "PostgreSQL, Twig, HTTP и OAuth, PHPUnit, архитектура. Кроме "
+        "основного вопросника есть зона «Глубина»: по каждой из тех же "
+        "26 тем добавлены два вопроса формата «что вернёт этот код» — "
+        "всего 56. Девятый уровень (L9) — на уровне опытного "
+        "разработчика, десятый (L10) — на границе знаний, где ошибаются "
+        "даже сильные модели. "
+        "Всего модель отвечает на 296 "
+        "вопросов. Эталонный ответ для каждого вопроса формирует машина: "
+        "код вопросов исполняет интерпретатор PHP 8.5, "
+        "вопросы по стеку проекта проверяются на реальных библиотеках "
+        "проекта (Symfony, Doctrine ORM, Twig, PHPUnit), база данных — "
+        "PostgreSQL 17 в docker, стили сверяются с закреплённой версией "
+        "bootstrap.css 5.3.3, OAuth — с RFC 6749. Одна серия — это 5 "
+        "прогонов "
+        "вопросника с нуля на одном языке и одном уровне мышления; "
+        "каждая модель снимается на трёх языках (ru, en, zh) и нескольких "
+        "уровнях мышления. Затраты локальных моделей считаются по "
+        "<a href=\"https://prikotov.pro/raw/llm-hiring-20261014/report.html"
+        "#economics\">методике §8</a> — электричество и амортизация, "
+        "₽35.85 за час чистой генерации; затраты облачных — по "
+        "фактическим счетам API.</p>"
+        "<div class='plainwords'><b>Простыми словами.</b> Одни и те же "
+        "вопросы задают модели несколько раз (в отдельных прогонах) и "
+        "считают, в скольких из них ответ оказался правильным. Зелёная "
+        "клетка — модель отвечает правильно почти всегда: это устойчивое "
+        "знание. Красная — почти никогда: этого знания нет. Пунктирная "
+        "рамка — ответы расходятся от прогона к прогону: модель иногда "
+        "права, иногда нет, то есть не знает, а угадывает. Зона "
+        "«Глубина» показывает край того, что модель успела выучить из "
+        "обучающих текстов: вопросы уровня L9 опытный разработчик решает "
+        "уверенно, а на уровне L10 ошибается большинство моделей, "
+        "включая сильные.</div>"
+        "<div class='howto'><b>Как читать.</b>"
+        "<p style='margin:6px 0 2px'><b>Таблица «Метрики серий»:</b></p>"
+        "<ul>"
+        "<li>клик по заголовку колонки — сортировка (повторный клик — "
+        "смена направления), кнопка «сброс сортировки» возвращает порядок "
+        "сборки; фильтр «модели» прячет локальные или облачные;</li>"
+        "<li>Время, Ток вх, Ток вых и Цена — средние затраты на один "
+        "прогон; насыщенность янтарной подложки растёт с величиной;</li>"
+        "<li>остальные числовые колонки — проценты верных ответов; "
+        "Рум. L1–8 / Рум. L9–10 — доля клеток-руминаций (непропорционально "
+        "долгое размышление: reasoning ≥10k токенов или thinking ≥50k "
+        "символов на клетку) отдельно на простых вопросах и на Глубине; "
+        "прочерк — серия без записи мышления;</li>"
+        "<li>клик по названию модели (серая ссылка с \u2193) прокручивает к "
+        "её карте; у серий из одного прогона Стаб. не измеряется — "
+        "прочерк.</li>"
+        "</ul>"
+        "<p style='margin:10px 0 2px'><b>Карты знаний:</b></p>"
+        "<ul>"
+        "<li>строка карты — модель и язык, группы колонок — уровни "
+        "мышления; клетка = доля верных ответов по серии (число — %), "
+        "пунктирная рамка — ответы модели расходятся между прогонами;</li>"
+        "<li>колонки карты подписаны уровнями сложности: L1–L8 — основной "
+        "вопросник, L9 и L10 — зона «Глубина» из введения;</li>"
+        "<li>в шапке группы: «итог» — доля верных ответов по всему "
+        "вопроснику, «стаб.» — доля клеток без расхождений, «время» — "
+        "суммарное время генерации серии;</li>"
+        "<li>под картой — ссылка на полный отчёт серии: тепловая карта по "
+        "клеткам с ответами каждого прогона и таблицей флипов.</li>"
+        "</ul></div>")
+    extra = ("html { scroll-behavior: smooth; }"
+             "main { max-width: 100%; padding: 28px 22px 60px; }"
+             ".unimap .dhead { font-size: 9.5px; color: #8b909b; "
+             "text-align: center; align-self: end; padding-bottom: 2px; }"
+             ".plainwords { background: #eef3ea; border-left: 3px solid "
+             "#6f9e63; padding: 10px 14px; border-radius: 4px; "
+             "margin: 14px 0; }"
+             ".howto { color: #5a6270; font-size: 13.5px; }"
+             ".howto ul { margin: 6px 0 0 18px; padding: 0; }"
+             ".howto li { margin: 2px 0; }"
+             "table.metrics a.anchor { color: #8b909b; }"
+             "table.metrics a.anchor::after { content: '\\2193'; "
+             "font-size: 11px; margin-left: 2px; }"
+             "table.metrics a.anchor:hover { color: #5a6270; }"
+             "table.metrics td.num { text-align: right; font-variant-numeric: tabular-nums; }"
+             "table.metrics th { white-space: nowrap; }"
+             "table.metrics td:first-child { white-space: nowrap; }"
+             "table.metrics th.sortable { cursor: pointer; user-select: none; }"
+             "table.metrics th.sortable:hover { background: #eef1f6; }"
+             "table.metrics th.sortable::after { content: '\\2195'; "
+             "color: #b6bcc8; margin-left: 4px; font-size: 11px; }"
+             "table.metrics th.sortable.sorted-asc::after { content: "
+             "'\\25b2'; color: #3d4351; }"
+             "table.metrics th.sortable.sorted-desc::after { content: "
+             "'\\25bc'; color: #3d4351; }"
+             "button.srcseg { font-size:12px; padding:2px 10px; "
+             "cursor:pointer; border:1px solid #c9ced8; background:#fff; "
+             "color:#5a6270; border-radius:6px; margin-left:4px; "
+             "vertical-align:middle; }"
+             "button.srcseg.active { background:#e8ebf1; color:#3d4351; "
+             "font-weight:600; }")
+    seo = {
+        "description": ("Карты знаний LLM по PHP: 296 вопросов с "
+                        "однозначным ответом (да/нет, число, строка) — "
+                        "26 тем × 8 уровней + 56 вопросов зоны «Глубина». "
+                        "17 моделей — локальные на ollama и облачные — 480 "
+                        "прогонов на трёх языках; эталоны проверяет машина: "
+                        "php 8.5, PostgreSQL 17, pinned Bootstrap."),
+        "canonical": "https://prikotov.pro/raw/knowledge-map-20261111/report.html",
+        "og_title": "Карты знаний LLM по PHP — 17 моделей, 95 карт",
+    }
+    html = page(title, proto, "", intro + "\n".join(sections),
+                'построено <a href="https://github.com/prikotov/task-llm-hiring'
+            f'/tree/feat/knowledge-map/knowledge-map">knowledge-map/build_map_report.py</a> · '
+                f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
+                extra_css=extra, seo=seo)
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+    out_file.write_text(html, encoding="utf-8")
+    print(f"сводный отчёт серий: {out_file} ({n_maps} карт)")
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(description=__doc__,
+                                formatter_class=argparse.RawDescriptionHelpFormatter)
+    g = p.add_mutually_exclusive_group(required=False)
+    g.add_argument("--run-dir", help="папка прогона (карта зелёный/красный)")
+    g.add_argument("--model-dir", help="папка модели: полный отчёт модели (report.html); с --think — тепловая карта уровня (compare.html)")
+    p.add_argument("--think", default=None,
+                   help="уровень рассуждений для тепловой карты; обязателен, "
+                        "когда в папке прогоны нескольких think — смешивать "
+                        "уровни нельзя; on — объединённый режим "
+                        "бинарно-мыслящих моделей (low+medium)")
+    p.add_argument("--models-root", default=None,
+                   help="сводный отчёт по всем моделям: карты серий "
+                        "модель → уровень размышлений (out: reports/)")
+    p.add_argument("--public", action="store_true",
+                   help="публичная сборка: ссылки models/… без „../“ — report.html лежит рядом с models/ (layout публикации)")
+    p.add_argument("--version", type=int, default=None,
+                   help="версия вопросника для тепловой карты (серии разных "
+                        "версий не смешиваются)")
+    p.add_argument("--lang", choices=["ru", "en", "zh"], default=None,
+                   help="язык прогона для тепловой карты (серии разных "
+                        "языков не смешиваются)")
+    p.add_argument("--questions", default=str(SCRIPT_DIR / "questions.json"))
+    args = p.parse_args()
+
+    questions_path = Path(args.questions)
+    if args.models_root:
+        out = Path(args.models_root).parent / "reports" / "knowledge-map-series.html"
+        build_series_report(Path(args.models_root), questions_path, out,
+                            public=args.public)
+        return 0
+    if args.run_dir:
+        build_single(Path(args.run_dir), questions_path)
+    elif args.think:
+        build_compare(Path(args.model_dir), questions_path, args.think,
+                      args.version, args.lang)
+    else:
+        print("--model-dir без --think не поддерживается: тепловая карта "
+              "серии — с --think <уровень> (и при необходимости --version N); "
+              "сводный отчёт по всем моделям — --models-root", file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,241 @@
+id,topic,level,type,answer,expected,parsed,correct_answer,is_correct,strict,explanation,duration_s,prompt_tokens,output_tokens,cached_tokens
+T01-L1,Syntax and operators,1,yesno,нет,,json,нет,1,1,"Double-quoted strings process escape sequences and variable interpolation, while single-quoted strings are treated as literal text.",2.45,114,35,64
+T01-L2,Syntax and operators,2,yesno,да,,json,да,1,1,"The null coalescing operator (??) uses isset-like behavior, returning the right operand if the left is null/undefined without emitting notices.",19.49,108,42,64
+T01-L3,Syntax and operators,3,answer,ab,ab,json,ab,1,1,"The echo statement outputs multiple comma-separated strings without any separator, so it prints 'ab'.",2.56,117,32,64
+T01-L4,Syntax and operators,4,yesno,нет,,json,да,0,0,"print returns 1 but it is a language construct, not a function, and cannot be used inside an expression in older PHP versions (though it can be used with parentheses in some contexts).",3.42,108,51,
+T01-L5,Syntax and operators,5,yesno,нет,,json,нет,1,1,"The elvis operator ?: returns its left operand when it is truthy, and its right operand otherwise.",2.25,111,34,64
+T01-L6,Syntax and operators,6,yesno,да,,json,да,1,1,"In PHP 8, the precedence of the concatenation operator (.) was changed to be lower than + and -, matching other languages.",3.54,113,40,
+T01-L7,Syntax and operators,7,yesno,нет,,json,нет,1,1,"PHP's ** operator is right-associative, so 2 ** 3 ** 2 evaluates as 2 ** (3 ** 2) = 2 ** 9 = 512.",5.99,125,55,64
+T01-L8,Syntax and operators,8,answer,5,sum: 5,json,sum: 5,0,0,"Due to operator precedence, 'sum: ' . 2 evaluates first to 'sum: 2', which is then cast to the number 2 and added to 3, giving 5.",3.12,128,53,64
+T02-L1,Types and comparisons,1,yesno,нет,,json,нет,1,1,Strict comparison (===) of arrays requires the same key/value pairs in the same order with the same types.,6.02,109,35,0
+T02-L2,Types and comparisons,2,yesno,нет,,json,нет,1,1,"0 == false is a loose comparison that returns true, since false converts to 0 in loose comparison.",2.53,109,34,64
+T02-L3,Types and comparisons,3,yesno,нет,,json,нет,1,1,"In PHP 8, comparing a non-numeric string to 0 uses string comparison rules, so ""abc"" == 0 is false (it was true in PHP 7).",3.19,110,50,64
+T02-L4,Types and comparisons,4,yesno,да,,json,да,1,1,"Under loose (==) comparison, null == 0, null == '', and null == false all evaluate to true.",2.72,114,37,64
+T02-L5,Types and comparisons,5,answer,42,42,json,42,1,1,"The (int) cast parses leading numeric characters from the string, stopping at the first non-numeric character.",2.73,119,36,64
+T02-L6,Types and comparisons,6,answer,10,10,json,10,1,1,"The string '5' is numerically coerced to the integer 5, so the addition yields 10.",2.6,117,38,64
+T02-L7,Types and comparisons,7,yesno,да,,json,нет,0,0,"In PHP, casting false to string yields an empty string, not ""0""; but note (string)false === """" — however, echoing false directly outputs empty string. Wait: actually (string)false is """", so the statement is false.",4.15,104,76,64
+T02-L8,Types and comparisons,8,yesno,да,,json,да,1,1,"0.1 + 0.2 produces 0.30000000000000004 due to floating-point precision, so it's not strictly equal to 0.3.",2.96,113,60,64
+T03-L1,Strings,1,yesno,нет,,json,нет,1,1,"strrev() operates on bytes, not Unicode code points, so it can break UTF-8 multibyte characters.",2.37,106,37,
+T03-L2,Strings,2,yesno,да,,json,да,1,1,str_contains checks if the needle is present in the haystack and returns true here.,2.02,106,29,
+T03-L3,Strings,3,yesno,нет,,json,нет,1,1,"str_pad() can pad on the left (STR_PAD_LEFT), right (STR_PAD_RIGHT), or both sides (STR_PAD_BOTH).",2.65,107,40,64
+T03-L4,Strings,4,yesno,нет,,json,нет,1,1,"By default, trim() strips spaces, tabs, newlines, NUL-byte, and other whitespace characters.",2.31,109,35,64
+T03-L5,Strings,5,answer,6,6,json,6,1,1,"The é character takes 2 bytes in UTF-8, so strlen counts 6 bytes total.",2.53,124,33,64
+T03-L6,Strings,6,answer,def,def,json,def,1,1,The substr function with a negative start position extracts characters from that offset to the end of the string.,6.39,116,33,0
+T03-L7,Strings,7,yesno,нет,,json,нет,1,1,ucfirst() returns a new string with the first character capitalized; strings are immutable in PHP and cannot be modified in place.,2.34,106,38,64
+T03-L8,Strings,8,yesno,да,,json,да,1,1,"Heredoc (<<<) expands variables while nowdoc (<<<') treats content as a literal string, like single quotes.",3.22,107,38,64
+T04-L1,Arrays,1,yesno,нет,,json,нет,1,1,"sort() reindexes the array with numeric keys starting from 0, so original keys are lost; use asort() or ksort() to preserve keys.",4.06,108,45,64
+T04-L2,Arrays,2,yesno,нет,,json,да,0,0,"String numeric keys in PHP arrays are cast to integers only when they are valid decimal integer strings (like '5'), so '5' is actually stored as int 5 — making the statement true.",2.86,111,53,64
+T04-L3,Arrays,3,yesno,нет,,json,нет,1,1,in_array() uses loose comparison by default; pass true as the third argument to enable strict (===) comparison.,2.13,108,36,64
+T04-L4,Arrays,4,yesno,да,,json,да,1,1,"When no callback is provided, array_filter() removes elements that evaluate to false, keeping only truthy values.",2.27,115,35,64
+T04-L5,Arrays,5,yesno,нет,,json,нет,1,1,array_slice() reindexes numeric keys by default; set preserve_keys to true to keep them.,2.44,109,32,64
+T04-L6,Arrays,6,answer,"[20, 30]","[20,30]",json,"[20,30]",1,0,"array_slice starts at offset 1 and returns 2 elements: [20, 30].",2.37,133,39,64
+T04-L7,Arrays,7,answer,2,2,json,2,1,1,"The union operator keeps the left array's value for key 'a' and adds 'b', resulting in two keys.",2.88,134,37,64
+T04-L8,Arrays,8,yesno,да,,json,да,1,1,"As of PHP 8.1, the spread operator can unpack arrays with string keys, merging them with later arrays taking precedence for duplicate keys.",2.49,118,42,64
+T05-L1,Functions and closures,1,yesno,да,,json,нет,0,0,PHP throws an error when named arguments are used together with argument unpacking in the same function call.,9.77,111,33,64
+T05-L2,Functions and closures,2,yesno,нет,,json,нет,1,1,Anonymous functions only inherit variables from the outer scope that are explicitly passed via the `use` keyword (or the arrow function `fn()` syntax).,2.74,106,43,64
+T05-L3,Functions and closures,3,answer,3,3,json,3,1,1,"func_num_args() returns the number of arguments passed to the function, which is 3.",2.37,138,32,64
+T05-L4,Functions and closures,4,yesno,да,,json,нет,0,0,"Arrow functions can have a block body in curly braces containing multiple statements, with an explicit return needed for a value.",2.2,110,36,64
+T05-L5,Functions and closures,5,yesno,да,,json,нет,0,0,Arrow functions in PHP use automatic (lazy) variable binding by reference to the parent scope's variables.,7.48,112,33,0
+T05-L6,Functions and closures,6,yesno,да,,json,да,1,1,"Static closures in PHP cannot bind $this, so they don't capture it.",2.3,108,29,64
+T05-L7,Functions and closures,7,answer,5,5,json,5,1,1,"Closures capture variables by value at definition time, so $x is 5 when the closure is created.",2.48,141,35,64
+T05-L8,Functions and closures,8,yesno,да,,json,да,1,1,"PHP's weak (non-strict) type coercion converts the string ""5"" to an integer when passed to an int parameter.",2.34,116,39,64
+T06-L1,OOP: classes and inheritance,1,yesno,да,,json,да,1,1,"Constructor property promotion was introduced in PHP 8.0, allowing visibility and type declarations on constructor parameters to auto-create properties.",3.16,111,38,64
+T06-L2,OOP: classes and inheritance,2,answer,final,final,json,final,1,1,The final keyword on a method prevents it from being overridden in subclasses.,2.06,116,27,64
+T06-L3,OOP: classes and inheritance,3,yesno,да,,json,да,1,1,The final modifier prevents any subclass from overriding the method.,2.06,105,24,64
+T06-L4,OOP: classes and inheritance,4,yesno,нет,,json,нет,1,1,Private properties are not accessible in a subclass because they are only visible within the class that defines them.,2.07,105,33,64
+T06-L5,OOP: classes and inheritance,5,answer,class@anonymous,class@anonymous,json,class@anonymous,1,1,"Anonymous classes are named class@anonymous followed by the file path and NUL byte, so the part before the NUL is class@anonymous.",2.84,132,48,64
+T06-L6,OOP: classes and inheritance,6,yesno,да,,json,да,1,1,"Private methods are invisible to subclasses, so a child can redefine a method with the same name without any conflict or override semantics.",2.65,120,38,64
+T06-L7,OOP: classes and inheritance,7,yesno,да,,json,нет,0,0,__get() is invoked when accessing inaccessible or undefined properties.,2.12,108,24,64
+T06-L8,OOP: classes and inheritance,8,answer,error,error,json,error,1,1,Attempting to modify a readonly property after initialization throws an Error (specifically an Error subclass like Error in PHP 8.2+).,6.85,119,153,64
+T07-L1,"Interfaces, traits, enum",1,yesno,да,,json,да,1,1,"PHP interfaces can declare constants (public, implicitly final) that implementers must define or inherit, though methods cannot have implementations.",2.79,100,38,64
+T07-L2,"Interfaces, traits, enum",2,answer,instanceof,instanceof,json,instanceof,1,1,The instanceof operator checks whether an object is an instance of a specified class or interface.,2.5,120,31,64
+T07-L3,"Interfaces, traits, enum",3,yesno,да,,json,да,1,1,"Since PHP 8.0, interfaces can declare static methods, though they cannot have static method implementations.",3.49,101,34,64
+T07-L4,"Interfaces, traits, enum",4,yesno,нет,,json,нет,1,1,instanceof checks both class inheritance and interface implementation.,1.98,106,23,64
+T07-L5,"Interfaces, traits, enum",5,yesno,да,,json,нет,0,0,"Since PHP 8.0, interfaces can define methods with a default implementation using the 'default' keyword.",2.71,108,35,64
+T07-L6,"Interfaces, traits, enum",6,yesno,да,,json,да,1,1,"PHP allows abstract methods to be declared public, protected, or (since PHP 8.0) private, so protected visibility is valid.",3.02,106,41,64
+T07-L7,"Interfaces, traits, enum",7,answer,3,3,json,3,1,1,"Foo::cases() returns an array containing all defined cases, which are A, B, and C.",2.47,129,34,64
+T07-L8,"Interfaces, traits, enum",8,yesno,да,,json,да,1,1,"Traits in PHP can declare constants (since PHP 8.2, class constants in traits are allowed, and even earlier they could be used indirectly via methods).",2.73,100,45,64
+T08-L1,Exceptions and errors,1,yesno,да,,json,да,1,1,"In PHP 7+, Throwable is the root interface implemented by both Exception and Error classes.",3.38,107,31,64
+T08-L2,Exceptions and errors,2,yesno,нет,,json,нет,1,1,"TypeError inherits from Error (both implement Throwable), not from Exception, so catch(Exception $e) won't catch it.",2.79,114,37,64
+T08-L3,Exceptions and errors,3,yesno,нет,,json,нет,1,1,The @ operator suppresses errors/warnings/notices but not exceptions.,2.1,102,27,64
+T08-L4,Exceptions and errors,4,answer,divisionbyzeroerror,divisionbyzeroerror,late,divisionbyzeroerror,1,1,,1.65,119,5,64
+T08-L5,Exceptions and errors,5,yesno,нет,,json,нет,1,1,The finally block runs whether or not an exception was caught (or even thrown).,2.69,109,29,64
+T08-L6,Exceptions and errors,6,yesno,нет,,json,нет,1,1,"An exception thrown in a finally block will replace/override any exception or return value from the try block, propagating it outward.",5.21,112,39,0
+T08-L7,Exceptions and errors,7,answer,yes,true,json,true,1,0,Casting an object to boolean always evaluates to true since Exception is a non-null object.,2.13,119,31,64
+T08-L8,Exceptions and errors,8,yesno,да,,json,да,1,1,Shutdown functions registered with register_shutdown_function() execute when exit/die is called or script ends.,8.22,107,32,0
+T09-L1,Namespaces and autoloading,1,yesno,нет,,json,нет,1,1,"In PHP, a `use` statement only creates an alias for the namespace and does not load or require the class file; the file is loaded only when the class is actually instantiated or referenced at runtime.",5.38,108,54,64
+T09-L2,Namespaces and autoloading,2,answer,function,function,json,function,1,1,"In PHP, 'function' is used to import a function (e.g., in use function statements), while 'const' imports a constant.",3.46,123,42,0
+T09-L3,Namespaces and autoloading,3,answer,src/controller/api/usercontroller.php,src/controller/api/usercontroller.php,json,src/controller/api/usercontroller.php,1,1,PSR-4 strips the App\ prefix and converts the rest to a path with directory separators and a .php extension.,2.81,135,45,64
+T09-L4,Namespaces and autoloading,4,yesno,да,,json,да,1,1,Composer's autoloader internally uses spl_autoload_register() to register its class-loading functions.,2.37,108,32,64
+T09-L5,Namespaces and autoloading,5,yesno,да,,json,да,1,1,"__NAMESPACE__ is a magic constant that returns the name of the current namespace, and 'none' (an empty string) when in the global namespace.",3.78,108,43,64
+T09-L6,Namespaces and autoloading,6,yesno,нет,,json,нет,1,1,"Unqualified class names in new are resolved relative to the current namespace, not the global root, unless preceded by a backslash.",5.43,114,39,0
+T09-L7,Namespaces and autoloading,7,yesno,да,,json,да,1,1,"PSR-4 maps the namespace prefix App\ to src/, so App\Model\User resolves to src/Model/User.php.",2.81,122,40,64
+T09-L8,Namespaces and autoloading,8,yesno,нет,,json,нет,1,1,use statements are only allowed in the global scope of a file (namespace level) and cannot appear inside function bodies.,2.69,114,36,64
+T10-L1,References and scope,1,yesno,да,,json,да,1,1,"In PHP, arrays are value types and assigned by copy, unlike objects which are assigned by reference.",5.8,105,33,0
+T10-L2,References and scope,2,answer,2,2,json,2,1,1,"Arrays are assigned by copy, so adding an element to $b doesn't affect $a.",2.33,137,32,64
+T10-L3,References and scope,3,yesno,да,,json,да,1,1,"Variables defined outside a function aren't in the function's local scope unless accessed via global, $GLOBALS, or passed as parameters.",2.38,116,39,64
+T10-L4,References and scope,4,yesno,нет,,json,нет,1,1,"unset($GLOBALS['x']) removes the global variable itself, not just a local copy, since $GLOBALS references the actual global symbol table.",2.74,112,41,64
+T10-L5,References and scope,5,answer,6,6,json,6,1,1,"The function takes a reference to $n and increments it, so the original variable becomes 6.",3.6,134,33,0
+T10-L6,References and scope,6,yesno,нет,,json,нет,1,1,"foreach by value operates on a copy of the array, so modifications inside the loop are not reflected during the same pass.",2.99,125,37,64
+T10-L7,References and scope,7,yesno,нет,,json,нет,1,1,"Static properties belong to the class itself, shared across all instances, not to each instance separately.",2.37,113,32,64
+T10-L8,References and scope,8,yesno,нет,,json,нет,1,1,PHP converts boolean array keys true and false to integers 1 and 0 respectively.,2.38,111,30,64
+T11-L1,"Generators, iterators, SPL",1,yesno,да,,json,да,1,1,"PHP generators support `return $value;` to terminate the generator, and the returned value can be retrieved with `$gen->getReturn()`.",6.74,118,42,0
+T11-L2,"Generators, iterators, SPL",2,yesno,да,,json,нет,0,0,"The rewind() method resets the generator's pointer to the beginning, allowing it to be traversed again as long as it hasn't been closed after full consumption.",3.65,110,45,0
+T11-L3,"Generators, iterators, SPL",3,yesno,да,,json,да,1,1,"yield from delegates iteration to a sub-generator or iterable, yielding its values directly.",2.99,106,29,64
+T11-L4,"Generators, iterators, SPL",4,answer,generator,generator,json,generator,1,1,A function containing yield returns a Generator object when called.,2.71,123,24,0
+T11-L5,"Generators, iterators, SPL",5,answer,3,3,json,3,1,1,"The generator yields 3 elements, iterator_to_array converts them to an array, and count returns 3.",4.5,132,35,64
+T11-L6,"Generators, iterators, SPL",6,yesno,нет,,json,нет,1,1,"SplStack implements a LIFO stack, not a FIFO queue (which would be SplQueue).",3.82,103,32,64
+T11-L7,"Generators, iterators, SPL",7,yesno,да,,json,да,1,1,"ArrayIterator implements the Iterator interface, allowing arrays to be traversed as objects.",2.47,109,29,64
+T11-L8,"Generators, iterators, SPL",8,yesno,нет,,json,нет,1,1,"ArrayObject implements IteratorAggregate, so it can be traversed with foreach.",3.28,105,28,0
+T12-L1,Configuration and security,1,yesno,да,,json,да,1,1,"Since PHP 5.5, password_hash() automatically generates a secure random salt, so no manual salt parameter is needed.",5.19,109,38,0
+T12-L2,Configuration and security,2,yesno,нет,,json,нет,1,1,"In PHP 8, PASSWORD_DEFAULT uses bcrypt, not md5.",7.06,110,27,0
+T12-L3,Configuration and security,3,answer,true,true,json,true,1,1,password_verify returns true because the password matches the generated hash.,11.46,122,25,0
+T12-L4,Configuration and security,4,yesno,нет,,json,нет,1,1,strip_tags() removes HTML/PHP tags but does not sanitize input for SQL queries; use prepared statements or proper escaping to prevent SQL injection.,7.52,102,41,0
+T12-L5,Configuration and security,5,yesno,да,,json,да,1,1,"session_regenerate_id() creates a new session ID, which prevents attackers from exploiting a pre-set session ID (session fixation) after login.",6.7,110,41,0
+T12-L6,Configuration and security,6,answer,php_sapi_name(),php_sapi_name,json,php_sapi_name,1,0,"The php_sapi_name() function returns the name of the PHP Server API in use, such as 'cli' or 'apache2handler'.",5.59,120,46,0
+T12-L7,Configuration and security,7,yesno,да,,json,да,1,1,session_destroy() only destroys the session data on the server; the session cookie must be deleted separately using setcookie() or equivalent.,10.01,113,39,0
+T12-L8,Configuration and security,8,yesno,нет,,json,нет,1,1,The session must be started with session_start() before $_SESSION can be accessed or populated.,4.34,110,31,0
+VC-L1,PHP 8.4–8.5,1,answer,8.4,8.4,json,8.4,1,1,The array_find() function was introduced in PHP 8.4.,4.31,117,29,0
+VC-L2,PHP 8.4–8.5,2,yesno,да,,json,да,1,1,"PHP 8.4 introduced property hooks, allowing get and set logic to be defined directly within the property declaration.",6.98,113,36,0
+VC-L3,PHP 8.4–8.5,3,yesno,да,,json,да,1,1,PHP 8.4 introduced asymmetric visibility allowing properties like `public private(set) string $name`.,6.51,114,34,0
+VC-L4,PHP 8.4–8.5,4,answer,8.5,8.5,json,8.5,1,1,The #[\NoDiscard] attribute was introduced in PHP 8.5 to warn when a function's return value is ignored.,7.59,126,42,0
+VC-L5,PHP 8.4–8.5,5,answer,8.5,8.5,json,8.5,1,1,The pipe operator |> was introduced in PHP 8.5.,3.2,123,28,0
+VC-L6,PHP 8.4–8.5,6,answer,8.5,8.5,json,8.5,1,1,Clone-with syntax was introduced in PHP 8.5.,3.31,135,27,0
+VC-L7,PHP 8.4–8.5,7,answer,none,8.5,json,8.5,0,0,array_first() and array_last() are not native PHP functions; they are commonly found in userland helper libraries or frameworks like Laravel.,5.1,121,40,0
+VC-L8,PHP 8.4–8.5,8,answer,8.4,8.6,json,8.6,0,0,The Partial Function Application RFC was adopted for PHP 8.4.,2.37,138,29,0
+VF-L1,PHP: 8.6+ and the future,1,answer,8.5,8.6,json,8.6,0,0,The clamp() function RFC was accepted for PHP 8.5.,8.67,143,29,0
+VF-L2,PHP: 8.6+ and the future,2,yesno,нет,,json,нет,1,1,"As of my knowledge, context managers are not part of PHP core; only proposals like pipes and other RFCs have been adopted.",8.15,120,39,0
+VF-L3,PHP: 8.6+ and the future,3,yesno,нет,,json,да,0,0,"Generics were never proposed as an RFC named 'Bound-Erased Generic Types' nor declined in 2026, as this is a fabricated scenario.",3.6,114,46,0
+VF-L4,PHP: 8.6+ and the future,4,yesno,нет,,json,нет,1,1,There is no accepted RFC making ZTS the default in PHP as of 2026-11-07; threaded builds remain opt-in.,3.96,127,45,0
+VF-L5,PHP: 8.6+ and the future,5,yesno,да,,json,да,1,1,PHP 8.5 does not introduce built-in generics support; generics remain absent natively as of this version.,2.41,112,36,0
+VF-L6,PHP: 8.6+ and the future,6,yesno,да,,json,да,1,1,"PHP 8.5 was released in November 2025, so as of 2026-11-07 it is the latest stable version, and PHP 8.6's GA date of 2026-11-19 has not yet occurred.",5.13,145,75,0
+VF-L7,PHP: 8.6+ and the future,7,yesno,да,,json,да,1,1,"PHP 6 was cancelled during development, so PHP 5.6 was followed directly by PHP 7.0.",4.86,116,37,0
+VF-L8,PHP: 8.6+ and the future,8,yesno,да,,json,да,1,1,The #[\Deprecated] attribute RFC was accepted for PHP 8.4.,5.74,109,29,0
+T25-L1,Clean architecture,1,yesno,да,,json,да,1,1,"Both clean and onion architecture require dependencies to point inward, so inner layers never depend on outer layers.",3.57,117,33,0
+T25-L2,Clean architecture,2,yesno,да,,json,да,1,1,"Domain entities in a layered or hexagonal architecture depend only on the language and standard library, remaining framework-agnostic.",3.82,113,36,0
+T25-L3,Clean architecture,3,yesno,нет,,json,нет,1,1,"Controllers and presentation templates belong to the presentation/UI layer, not the business-logic layer, even though they may invoke use cases.",2.54,114,39,0
+T25-L4,Clean architecture,4,answer,entities,domain model,json,domain model,0,0,"In onion architecture, the domain entities (or business entities) sit at the very center, independent of any other layers.",6.36,116,37,0
+T25-L5,Clean architecture,5,yesno,да,,json,да,1,1,"Tools like Deptrac analyze code to detect and report forbidden dependencies between layers, failing the build when violations occur.",2.92,121,36,0
+T25-L6,Clean architecture,6,yesno,нет,,json,нет,1,1,"In clean architecture, use cases should not depend on delivery mechanisms like HTTP or infrastructure like EntityManager; dependencies should be abstracted via interfaces and passed through proper boundary objects.",4.49,118,46,0
+T25-L7,Clean architecture,7,answer,repository,repository,json,repository,1,1,A Repository pattern encapsulates the logic for accessing aggregates/entities while hiding the storage details behind an interface.,5.71,126,33,0
+T25-L8,Clean architecture,8,yesno,да,,json,да,1,1,"In clean architecture, the database is an outer-layer dependency (frameworks/drivers), so swapping it shouldn't affect the domain or use-case layers.",8.47,117,42,0
+T26-L1,DDD,1,yesno,нет,,json,нет,1,1,"An aggregate is a cluster of domain objects treated as a single unit for data changes, not equivalent to a database table.",3.65,109,37,0
+T26-L2,DDD,2,yesno,да,,json,да,1,1,Value Objects are by definition immutable and use structural equality (value comparison) rather than identity comparison.,2.86,112,32,0
+T26-L3,DDD,3,answer,aggregate root,aggregate root,json,aggregate root,1,1,"In domain-driven design, all external changes to an aggregate must go through its aggregate root, the single entry point.",7.16,125,37,0
+T26-L4,DDD,4,yesno,да,,json,да,1,1,"In Domain-Driven Design, repositories manage aggregate roots to maintain transactional consistency, so they are defined only for aggregates rather than individual entities.",3.79,114,41,0
+T26-L5,DDD,5,yesno,да,,json,да,1,1,Ubiquitous language is indeed the shared language between developers and domain experts in domain-driven design.,6.63,111,32,0
+T26-L6,DDD,6,answer,interpretation,bounded context,json,bounded context,0,0,It refers to the interpretation (or model-theoretic boundary/domain) within which the model and language are consistent.,2.97,129,37,0
+T26-L7,DDD,7,yesno,нет,,json,нет,1,1,DDD recommends rich domain models where objects encapsulate their own business logic and invariants rather than relying on anemic models.,3.12,117,37,0
+T26-L8,DDD,8,yesno,да,,json,да,1,1,"In domain-driven design, each bounded context maintains its own model, so the same concept can be represented by different classes in different contexts.",3.88,116,40,0
+T13-L1,Symfony,1,yesno,нет,,json,да,0,0,Services are created eagerly by default; only services tagged or configured otherwise are created lazily.,4.85,111,31,0
+T13-L2,Symfony,2,answer,debug:router,debug:router,json,debug:router,1,1,The debug:router command lists all registered routes in a Symfony application.,3.58,114,29,0
+T13-L3,Symfony,3,yesno,нет,,json,нет,1,1,"Autowiring automatically resolves dependencies, so most services don't need manual declaration.",3.49,107,29,0
+T13-L4,Symfony,4,yesno,да,,json,да,1,1,Twig compiles templates into PHP classes and caches them for performance between requests.,2.9,106,28,0
+T13-L5,Symfony,5,yesno,да,,json,да,1,1,"In dev mode, Symfony rebuilds the container only when tracked source files change, not on every request.",3.26,115,34,0
+T13-L6,Symfony,6,answer,app_env,app_env,json,app_env,1,1,"The APP_ENV environment variable determines the active Symfony environment, such as dev or prod.",4.01,118,31,0
+T13-L7,Symfony,7,yesno,нет,,json,нет,1,1,"Symfony controllers must have public methods to be callable by the routing system, as private methods cannot be invoked externally.",7.24,111,35,0
+T13-L8,Symfony,8,yesno,нет,,json,нет,1,1,Event subscribers and listeners share the same priority system; subscribers don't inherently receive events first unless assigned a higher priority.,3.54,109,36,0
+T22-L1,Symfony: Security and forms,1,yesno,да,,json,да,1,1,"Symfony 6 removed the legacy guard authentication system, replacing it with the new authenticator-based system introduced in Symfony 5.1.",3.26,122,40,0
+T22-L2,Symfony: Security and forms,2,answer,isgranted,isgranted,json,isgranted,1,1,The IsGranted attribute checks authorization and throws an AccessDeniedHttpException (403) if the check fails.,5.97,125,36,0
+T22-L3,Symfony: Security and forms,3,yesno,да,,json,да,1,1,Symfony's security voters are used with isGranted() to check permissions against specific objects.,4.42,116,30,0
+T22-L4,Symfony: Security and forms,4,yesno,да,,json,да,1,1,"In Symfony 6+ and 7+, validation constraints are declared as PHP attributes and doctrine annotations were deprecated and removed in favor of attributes.",4.04,120,41,0
+T22-L5,Symfony: Security and forms,5,yesno,да,,json,да,1,1,Symfony forms generate and validate a CSRF token by default when the `csrf_protection` option is enabled (which it is unless explicitly disabled).,5.16,113,41,0
+T22-L6,Symfony: Security and forms,6,yesno,да,,json,да,1,1,Symfony always revalidates submitted data server-side regardless of any client-side validation.,4.55,113,29,0
+T22-L7,Symfony: Security and forms,7,answer,make:form,make:form,json,make:form,1,1,The Symfony MakerBundle command 'make:form' generates a new FormType class.,4.12,117,32,0
+T22-L8,Symfony: Security and forms,8,yesno,нет,,json,нет,1,1,"Symfony stores the user's serialized security token (with the hashed password or none at all), never the plain-text password, and modern sessions may use attributes rather than the full token.",7.05,107,49,0
+T23-L1,Symfony: configuration and services,1,yesno,да,,json,да,1,1,"In Symfony, bundle and application configuration files are typically placed in config/packages, usually one file per bundle or topic (e.g., cache.yaml, framework.yaml).",4.46,109,45,0
+T23-L2,Symfony: configuration and services,2,yesno,нет,,json,да,0,0,"By convention, .env contains real/production secrets and is gitignored, while .env.local or .env.example with dev defaults is committed.",6.87,120,42,0
+T23-L3,Symfony: configuration and services,3,answer,debug:container,debug:container,json,debug:container,1,1,The debug:container command lists all registered services and their aliases in the Symfony dependency injection container.,4.78,118,34,0
+T23-L4,Symfony: configuration and services,4,yesno,да,,json,нет,0,0,"ContainerBuilder::setParameter() works at runtime, though in production Symfony typically uses a compiled, read-only ContainerInterface where setParameter may throw or be unavailable depending on implementation.",5.09,113,47,0
+T23-L5,Symfony: configuration and services,5,yesno,нет,,json,нет,1,1,"By default, Symfony services are private since Symfony 4, meaning they cannot be fetched directly from the container.",2.96,116,35,0
+T23-L6,Symfony: configuration and services,6,yesno,нет,,json,нет,1,1,Bundles can work without a config file as most have sensible default configuration or optional settings.,8.39,114,31,0
+T23-L7,Symfony: configuration and services,7,yesno,да,,json,да,1,1,Symfony uses the %env(VAR)% syntax to reference environment variables in configuration files like services.yaml.,9.17,111,33,0
+T23-L8,Symfony: configuration and services,8,answer,app_debug,app_debug,json,app_debug,1,1,"APP_DEBUG is the Symfony environment variable that toggles debug mode, enabling the profiler and Twig debugging when set to true.",7.36,121,38,0
+T16-L1,Symfony: Messenger,1,yesno,нет,,json,нет,1,1,"A single message in Symfony Messenger can have multiple handlers registered, and all of them will be invoked.",4.11,106,33,0
+T16-L2,Symfony: Messenger,2,yesno,нет,,json,нет,1,1,The sync transport in Messenger immediately handles the message in the same process rather than queuing it for a worker like async transports do.,8.58,110,39,0
+T16-L3,Symfony: Messenger,3,answer,messenger:consume,messenger:consume,json,messenger:consume,1,1,The messenger:consume command starts the worker that processes queued messages.,6.6,117,29,0
+T16-L4,Symfony: Messenger,4,yesno,да,,json,да,1,1,Messenger transport configuration supports a retry_strategy option that defines how many times and with what delays failed messages should be retried.,5.48,109,37,0
+T16-L5,Symfony: Messenger,5,yesno,нет,,json,нет,1,1,"By default, Symfony Messenger uses a PHP serialization-based format (native serialize) rather than JSON.",2.28,104,32,0
+T16-L6,Symfony: Messenger,6,yesno,да,,json,да,1,1,Symfony Scheduler generates scheduled messages and dispatches them to the Messenger component for handling.,3.48,108,29,0
+T16-L7,Symfony: Messenger,7,answer,doctrine transport,doctrine,late,doctrine,1,0,transport,1.82,118,3,0
+T16-L8,Symfony: Messenger,8,yesno,да,,json,да,1,1,Messenger allows custom middleware to be added to the stack before or after built-in middleware.,4.71,113,30,0
+T28-L1,Symfony: versions,1,yesno,да,,json,да,1,1,Symfony follows this release schedule with major releases every two years and minor releases every six months.,5.97,113,31,0
+T28-L2,Symfony: versions,2,answer,8.4,8.4,json,8.4,1,1,Symfony 8 requires PHP 8.4 as its minimum version.,3.41,117,29,0
+T28-L3,Symfony: versions,3,yesno,нет,,json,нет,1,1,Symfony 7.0 removed support for docblock annotations in favor of PHP attributes.,3.29,110,30,0
+T28-L4,Symfony: versions,4,yesno,да,,json,да,1,1,Symfony's AssetMapper uses an importmap.php file to manage JavaScript and CSS assets without requiring Node.js or Webpack.,3.75,110,37,0
+T28-L5,Symfony: versions,5,yesno,нет,,json,нет,1,1,"Symfony 6.4 is an LTS (Long-Term Support) release, with bug fixes for 8 months and security fixes for 3 years.",3.81,108,44,0
+T28-L6,Symfony: versions,6,yesno,нет,,json,нет,1,1,"Major releases do remove deprecations from the previous branch, unlike minor releases which keep them working.",3.69,120,33,0
+T28-L7,Symfony: versions,7,yesno,да,,json,да,1,1,Symfony publishes an UPGRADE-*.md file for each major version detailing breaking changes and migration steps.,7.73,111,35,0
+T28-L8,Symfony: versions,8,answer,assetmapper,asset-mapper,json,asset-mapper,1,0,The Symfony AssetMapper component provides importmap and asset management without Node.js or Webpack.,2.68,119,32,64
+T29-L1,Symfony: 8.2 and beyond,1,yesno,нет,,json,нет,1,1,"Symfony 8.2 has not been released as of 2026-11-07; Symfony typically releases major versions every November, so 8.0 would be expected around November 2025 and 8.2 later.",4.04,118,66,64
+T29-L2,Symfony: 8.2 and beyond,2,yesno,нет,,json,да,0,0,"Symfony follows an annual major release cycle (e.g., 7.0 in Nov 2023, 8.0 expected Nov 2025), not six-month majors, so 8.2 wouldn't be scheduled for Nov 2026.",9.57,130,70,0
+T29-L3,Symfony: 8.2 and beyond,3,answer,8.2,8.2,json,8.2,1,1,"Following the standard Symfony release cadence, 8.1.x patch releases would be followed by the next minor release, 8.2.",5.63,129,44,0
+T29-L4,Symfony: 8.2 and beyond,4,yesno,нет,,json,нет,1,1,"Symfony follows a continuous release model without major version jumps, and version 8.2 would be a minor release, not a major one.",5.19,112,41,0
+T29-L5,Symfony: 8.2 and beyond,5,yesno,да,,json,да,1,1,PHP semantic versioning within a major branch guarantees backward compatibility.,4.22,120,25,64
+T29-L6,Symfony: 8.2 and beyond,6,answer,8.4,8.4,json,8.4,1,1,The last minor version of the 8.x branch before Symfony 9.0 is 8.4.,3.21,125,37,0
+T29-L7,Symfony: 8.2 and beyond,7,yesno,нет,,json,нет,1,1,"Symfony 8.x requires PHP 8.4 as the minimum version, not PHP 8.5.",3.78,117,35,0
+T29-L8,Symfony: 8.2 and beyond,8,yesno,да,,json,да,1,1,Symfony follows semantic versioning where deprecations are only removed in the next major version.,6.69,115,31,0
+T21-L1,Twig,1,yesno,нет,,json,нет,1,1,"Twig's {{ }} syntax only allows calling functions and filters whitelisted in the environment, not arbitrary PHP code.",2.62,106,36,0
+T21-L2,Twig,2,yesno,да,,json,да,1,1,"In Twig, auto-escaping is enabled by default so that printed variables are HTML-escaped unless explicitly disabled.",2.22,105,35,64
+T21-L3,Twig,3,yesno,да,,json,да,1,1,"The Twig |e filter (alias for escape) converts special characters to their HTML entity equivalents, making the output safe for HTML contexts.",2.93,110,40,64
+T21-L4,Twig,4,answer,number_format,format_number,json,format_number,0,0,The number_format filter formats a number according to the given locale.,2.51,120,27,64
+T21-L5,Twig,5,yesno,да,,json,да,1,1,"The |raw filter tells Twig to output the value without HTML-escaping it, effectively disabling auto-escaping for that value.",3.53,106,38,0
+T21-L6,Twig,6,yesno,да,,json,да,1,1,"Twig uses {{ }} for outputting expressions and {% %} for control tags like if, for, and set.",2.41,117,36,64
+T21-L7,Twig,7,yesno,нет,,json,нет,1,1,"Twig lets you set variables inside templates with the set tag, so values don't only come from the controller.",5.46,112,35,64
+T21-L8,Twig,8,answer,dump,dump,json,dump,1,1,The `dump()` Twig function outputs the debug structure of a variable.,4.76,120,27,64
+T24-L1,Bootstrap,1,yesno,да,,json,да,1,1,"Bootstrap is primarily a CSS/JS component library for styling and UI elements, not a single-page application framework like Angular or React.",2.64,112,39,64
+T24-L2,Bootstrap,2,answer,.container,container,json,container,1,0,The Bootstrap .container class applies a responsive fixed max width that changes at each breakpoint.,4.45,120,30,64
+T24-L3,Bootstrap,3,yesno,нет,,json,нет,1,1,"The Bootstrap grid is built on CSS floats, but it splits a row into 12 columns, not 16.",3.11,112,38,64
+T24-L4,Bootstrap,4,yesno,да,,json,да,1,1,"Bootstrap's five named breakpoints are sm, md, lg, xl, and xxl, used as infixes in class names.",2.31,122,39,0
+T24-L5,Bootstrap,5,yesno,да,,json,нет,0,0,"In Bootstrap, spacing utilities like .mt-3 and .px-2 are based on the $spacer variable multiplied by the number.",3.2,119,40,64
+T24-L6,Bootstrap,6,answer,data-bs-*,data-bs-toggle,json,data-bs-toggle,0,0,"Bootstrap 5 uses data-bs- prefixed attributes (e.g., data-bs-toggle=""dropdown"") instead of the Bootstrap 4 data- attributes.",2.86,125,44,64
+T24-L7,Bootstrap,7,yesno,да,,json,да,1,1,Bootstrap 5 dropped its jQuery dependency and components are implemented using vanilla JavaScript.,3.21,107,28,64
+T24-L8,Bootstrap,8,yesno,нет,,json,нет,1,1,"Bootstrap 5 enables dark mode via data-bs-theme=""dark"" attribute on the root element, not a .dark class.",2.39,110,38,64
+T14-L1,Doctrine,1,yesno,нет,,json,нет,1,1,Doctrine does not create tables automatically at runtime; schema must be created explicitly via commands like doctrine:schema:create or migrations.,2.12,112,37,0
+T14-L2,Doctrine,2,answer,persist,persist,json,persist,1,1,"persist() marks a new object as managed and schedules it for insertion, deferring SQL execution until flush() is called.",2.58,121,37,64
+T14-L3,Doctrine,3,yesno,нет,,json,нет,1,1,"EntityManager::merge() was removed in Doctrine ORM 3.0 (deprecated since 2.5), and it never made the passed object managed but returned a managed copy.",2.66,114,48,64
+T14-L4,Doctrine,4,yesno,да,,json,да,1,1,DQL (Doctrine Query Language) abstracts queries to work with entity classes and their fields rather than raw database tables and columns.,2.82,112,39,64
+T14-L5,Doctrine,5,answer,null,null,json,null,1,1,Repository find methods return null when no matching record is found.,2.14,128,25,64
+T14-L6,Doctrine,6,yesno,нет,,json,нет,1,1,Doctrine does not automatically flush changes; you must explicitly call flush() on the EntityManager to persist changes.,2.71,109,33,64
+T14-L7,Doctrine,7,yesno,да,,json,да,1,1,"In Doctrine, managed entities are tracked by the Unit of Work, so flush() detects and commits property changes without needing a separate persist() call.",3.46,123,42,64
+T14-L8,Doctrine,8,yesno,нет,,json,нет,1,1,remove() queues the entity for deletion; the SQL DELETE is only executed when flush() (or commit) is called.,3.07,108,37,64
+T15-L1,PostgreSQL,1,yesno,нет,,json,нет,1,1,MVCC allows readers and writers to work concurrently without blocking each other.,4.84,109,27,64
+T15-L2,PostgreSQL,2,answer,explain,explain,json,explain,1,1,EXPLAIN shows the execution plan without running the query.,2.28,119,25,64
+T15-L3,PostgreSQL,3,yesno,нет,,json,нет,1,1,"SERIAL is a PostgreSQL shorthand that creates a sequence-backed column, while GENERATED ... AS IDENTITY is the standard SQL syntax for identity columns, and they differ in underlying implementation.",5.02,111,48,0
+T15-L4,PostgreSQL,4,yesno,нет,,json,нет,1,1,"In PostgreSQL, a UNIQUE constraint treats NULLs as distinct by default, so multiple rows with NULL are allowed.",3.34,111,35,64
+T15-L5,PostgreSQL,5,answer,string_agg,string_agg,json,string_agg,1,1,PostgreSQL's string_agg function concatenates strings with a specified separator.,4.28,116,28,64
+T15-L6,PostgreSQL,6,yesno,нет,,json,нет,1,1,Plain VACUUM only marks dead tuple space as reusable for future transactions within the database; only VACUUM FULL or VACUUM FULL FREEZES returns space to the OS.,3.26,111,53,64
+T15-L7,PostgreSQL,7,answer,partition by,partition by,json,partition by,1,1,The PARTITION BY clause in a window function divides rows into groups over which the function is computed.,2.53,122,35,64
+T15-L8,PostgreSQL,8,yesno,да,,json,нет,0,0,"READ COMMITTED isolation level only guarantees reading committed data at the moment of each query, so values can change between reads within the same transaction, leading to non-repeatable reads.",2.94,107,48,64
+T17-L1,PostgreSQL: transactions and indexes,1,yesno,да,,json,да,1,1,"In PostgreSQL's default autocommit mode, each statement is automatically committed unless explicitly wrapped in BEGIN/COMMIT.",3.31,113,36,64
+T17-L2,PostgreSQL: transactions and indexes,2,answer,commit,commit,json,commit,1,1,COMMIT ends a transaction and permanently saves all changes made within it to the database.,2.57,117,31,64
+T17-L3,PostgreSQL: transactions and indexes,3,yesno,да,,json,да,1,1,"Indexes speed up WHERE clause matching for SELECT, UPDATE, and DELETE operations alike.",2.33,114,29,64
+T17-L4,PostgreSQL: transactions and indexes,4,yesno,да,,json,да,1,1,PostgreSQL supports SAVEPOINT to allow rolling back to a point within a transaction without aborting the whole transaction.,2.32,110,35,64
+T17-L5,PostgreSQL: transactions and indexes,5,yesno,нет,,json,нет,1,1,EXPLAIN ANALYZE actually executes the query and shows the plan along with actual execution times and row counts.,8.22,108,35,64
+T17-L6,PostgreSQL: transactions and indexes,6,answer,pgvector,vector,json,vector,1,0,pgvector is the PostgreSQL extension that adds vector types and indexes (like HNSW and IVFFlat) for embedding similarity search.,5.4,117,41,64
+T17-L7,PostgreSQL: transactions and indexes,7,yesno,да,,json,да,1,1,A partial index is created only on the subset of rows matching the WHERE clause condition.,2.89,112,30,64
+T17-L8,PostgreSQL: transactions and indexes,8,yesno,нет,,json,нет,1,1,"SERIALIZABLE in PostgreSQL uses predicate locks (SSI, Serializable Snapshot Isolation) rather than simply locking the rows read.",2.92,111,37,64
+T19-L1,HTTP and REST API,1,yesno,да,,json,да,1,1,HTTP 201 Created indicates the request has been fulfilled and resulted in a new resource being created.,2.4,111,34,64
+T19-L2,HTTP and REST API,2,answer,204,204,json,204,1,1,"HTTP 204 No Content indicates success with no body to return, commonly used after DELETE operations.",2.82,124,36,64
+T19-L3,HTTP and REST API,3,yesno,да,,json,да,1,1,The HTTP specification defines DELETE as idempotent because repeating the request results in the same server state (the resource remains deleted).,3.09,119,38,64
+T19-L4,HTTP and REST API,4,yesno,нет,,json,нет,1,1,"The Access-Control-Allow-Origin header is sent by the server, not the client, to indicate which origins are allowed.",2.38,117,36,64
+T19-L5,HTTP and REST API,5,yesno,да,,json,да,1,1,HTTP 429 Too Many Requests indicates the client has sent more requests in a given time period than allowed by the server's rate limit policy.,3.58,112,43,64
+T19-L6,HTTP and REST API,6,yesno,нет,,json,нет,1,1,It's the opposite: 4xx codes are client errors and 5xx codes are server-side errors.,4.9,112,35,64
+T19-L7,HTTP and REST API,7,answer,content-type,content-type,json,content-type,1,1,The Content-Type header specifies the MIME type of the body in both requests and responses.,4.4,119,31,64
+T19-L8,HTTP and REST API,8,yesno,нет,,json,да,0,0,"RFC 5789 explicitly requires PATCH to be idempotent, as it defines PATCH in terms of PUT-like semantics where applying the same patch repeatedly should yield the same result.",4.42,114,50,64
+T20-L1,Security and OAuth,1,yesno,нет,,json,нет,1,1,Using == for hash comparison is vulnerable to timing attacks and type juggling; password_verify() or hash_equals() should be used instead.,5.54,112,40,64
+T20-L2,Security and OAuth,2,yesno,да,,json,да,1,1,"CSRF tokens are generated server-side, tied to the user's session, and validated on the server for state-changing requests like POST.",2.86,119,40,64
+T20-L3,Security and OAuth,3,answer,content-security-policy,content-security-policy,json,content-security-policy,1,1,The Content-Security-Policy HTTP response header is used to enable and configure CSP.,2.55,118,34,64
+T20-L4,Security and OAuth,4,yesno,нет,,json,нет,1,1,"OAuth 2.0 is an authorization framework, not an authentication protocol; access tokens grant access to resources, and OpenID Connect is used on top of OAuth for authentication.",3.18,114,48,64
+T20-L5,Security and OAuth,5,yesno,нет,,json,нет,1,1,"Input validation alone doesn't prevent XSS; proper output encoding/escaping when rendering is the primary defense, as validated data can still be dangerous in other contexts.",3.56,111,44,64
+T20-L6,Security and OAuth,6,answer,code,code,json,code,1,1,The authorization server redirects with a 'code' parameter (authorization code) which the client exchanges for an access token.,2.56,131,36,64
+T20-L7,Security and OAuth,7,yesno,да,,json,да,1,1,Refresh tokens are long-lived credentials used to obtain new access tokens without re-authenticating.,9.81,117,31,0
+T20-L8,Security and OAuth,8,yesno,нет,,json,нет,1,1,Salts are stored alongside the hash and are not meant to be secret; their purpose is to prevent rainbow table attacks and ensure identical passwords produce different hashes.,2.53,110,44,64
+T18-L1,Testing: PHPUnit,1,yesno,нет,,json,нет,1,1,PHPUnit only runs methods in classes that extend PHPUnit\Framework\TestCase.,2.36,108,27,64
+T18-L2,Testing: PHPUnit,2,yesno,нет,,json,нет,1,1,setUp() runs before each test method; setUpBeforeClass() runs once before all tests in the class.,2.61,108,34,64
+T18-L3,Testing: PHPUnit,3,yesno,нет,,json,нет,1,1,"A data provider lets a test run with multiple sets of arguments, one for each dataset provided.",3.97,108,32,0
+T18-L4,Testing: PHPUnit,4,answer,expectexception,expectexception,json,expectexception,1,1,The expectException() method declares that a test expects an exception of the specified class to be thrown.,4.19,121,33,64
+T18-L5,Testing: PHPUnit,5,yesno,нет,,json,нет,1,1,It's the opposite: a stub provides canned data while a mock verifies method calls and interactions.,5.23,114,32,64
+T18-L6,Testing: PHPUnit,6,yesno,да,,json,да,1,1,"PHPUnit 10+ uses the #[DataProvider] attribute, while the @dataProvider annotation was deprecated.",2.67,123,33,64
+T18-L7,Testing: PHPUnit,7,yesno,да,,json,нет,0,0,"PHPUnit treats each test as independent, so tests must not rely on the outcome or side effects of other tests.",2.57,108,35,64
+T18-L8,Testing: PHPUnit,8,answer,--order-by=random,--order-by=random,json,--order-by=random,1,1,The --order-by=random option tells PHPUnit to run tests in a randomized order.,2.34,117,31,64

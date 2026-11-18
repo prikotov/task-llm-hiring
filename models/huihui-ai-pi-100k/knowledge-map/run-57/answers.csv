@@ -1,0 +1,113 @@
+id,topic,level,type,answer,expected,parsed,correct_answer,is_correct,strict,explanation,duration_s,prompt_tokens,output_tokens,cached_tokens
+T01-L1,语法与运算符,1,yesno,нет,,json,нет,1,1,双引号字符串会解析转义序列和变量插值，单引号不会，区别在于功能而非仅速度。,3.94,147,157,0
+T01-L2,语法与运算符,2,yesno,да,,json,да,1,1,?? 运算符等价于 isset 三元表达式，访问未定义变量时不会触发 notice 或 warning。,0.99,147,141,0
+T01-L3,语法与运算符,3,answer,ab,ab,json,ab,1,1,echo 可以用逗号连接多个参数，依次输出，结果为 ab。,0.54,150,72,0
+T01-L4,语法与运算符,4,yesno,да,,json,да,1,1,PHP 中 print 返回整数 1，因此可以嵌入表达式使用，而 echo 无返回值则不行。,1.05,140,135,0
+T01-L5,语法与运算符,5,yesno,нет,,json,нет,1,1,Elvis 运算符 ?: 在左侧为假时返回右侧操作数，而非左侧。,0.88,149,146,0
+T01-L6,语法与运算符,6,yesno,нет,,json,да,0,0,在 PHP 中，连接运算符（.）与加法和减法处于同一优先级，按从左到右顺序求值。,1.55,148,255,0
+T01-L7,语法与运算符,7,yesno,нет,,json,нет,1,1,PHP 的 ** 运算符是右结合的，2 ** 3 ** 2 实际计算为 2 ** (3 ** 2) = 2 ** 9 = 512。,0.99,162,179,0
+T01-L8,语法与运算符,8,answer,3,总和: 5,json,总和: 5,0,0,PHP中.运算符优先级高于+，先执行'总和: '.2得到字符串'总和: 2'，再与3相加，非数字字符串转为0，结果为3。,4.89,162,749,0
+T02-L1,类型与比较,1,yesno,нет,,json,нет,1,1,PHP 中 === 比较数组时，键值对必须完全相同且顺序一致，顺序不同则不相等。,1.92,151,294,0
+T02-L2,类型与比较,2,yesno,да,,json,да,1,1,PHP 中 == 为宽松比较，false 转为 0，因此 0 == 0 为 true。,0.99,139,134,0
+T02-L3,类型与比较,3,yesno,нет,,json,нет,1,1,PHP 8 中，非数字字符串与整数比较时，整数会被转为字符串，即 'abc' == '0' 为 false。,1.29,148,209,0
+T02-L4,类型与比较,4,yesno,да,,json,да,1,1,在PHP宽松比较(==)下，null == 0、null == ''、null == false 均为 true。,1.39,146,211,0
+T02-L5,类型与比较,5,answer,42,42,json,42,1,1,PHP 的 (int) 转换从字符串开头读取数字，遇到非数字字符停止，因此 '42abc' 转为 42。,1.02,151,143,0
+T02-L6,类型与比较,6,answer,10,10,json,10,1,1,PHP中数字字符串与数字进行算术运算时会自动转换为整数，5+5=10。,0.84,149,110,0
+T02-L7,类型与比较,7,yesno,нет,,json,нет,1,1,"PHP 中 false 转换为字符串是空字符串 """"，而非 ""0""。",0.81,140,138,0
+T02-L8,类型与比较,8,yesno,да,,json,да,1,1,浮点数精度问题导致 0.1+0.2 的内部值不等于 0.3 的内部值，严格比较结果为 false。,2.49,149,408,0
+T03-L1,字符串,1,yesno,нет,,json,нет,1,1,strrev() 按字节反转，会将 UTF-8 多字节字符的字节顺序打乱，导致乱码。,1.7,142,248,0
+T03-L2,字符串,2,yesno,да,,json,да,1,1,str_contains() 检查字符串中是否包含子串，'Hello world' 确实包含 'world'，返回 true。,0.83,142,122,0
+T03-L3,字符串,3,yesno,нет,,json,нет,1,1,str_pad() 的第三个参数支持 STR_PAD_LEFT、STR_PAD_RIGHT 和 STR_PAD_BOTH 三种模式。,0.64,138,87,0
+T03-L4,字符串,4,yesno,да,,json,да,1,1,trim() 默认确实会去除空格、\t、\n、\r、\0 和 \x0B。,2.17,154,339,0
+T03-L5,字符串,5,answer,6,6,json,6,1,1,UTF-8 中每个中文字符占 3 字节，'你好' 共 2 个字符，即 6 字节。,0.88,157,138,0
+T03-L6,字符串,6,answer,def,def,json,def,1,1,substr 从倒数第3个字符开始截取到末尾，即 'def'。,0.78,150,111,0
+T03-L7,字符串,7,yesno,нет,,json,нет,1,1,ucfirst() 按值传递字符串，返回新字符串，不修改原变量。,1.2,140,144,0
+T03-L8,字符串,8,yesno,да,,json,да,1,1,Heredoc 使用双引号规则，支持变量插值；Nowdoc 使用单引号规则，不解析变量。,0.87,144,140,0
+T04-L1,数组,1,yesno,нет,,json,нет,1,1,sort() 会重新索引数组键，保持键值对应关系的是 asort()。,1.06,143,161,0
+T04-L2,数组,2,yesno,да,,json,да,1,1,PHP中字符串键如果能被解析为合法整数，会自动转换为整数键。,0.63,144,74,0
+T04-L3,数组,3,yesno,нет,,json,нет,1,1,in_array() 默认 $strict 为 false，使用松散比较（==）。,0.58,141,92,0
+T04-L4,数组,4,yesno,да,,json,да,1,1,"array_filter() 不带回调时确实会过滤掉所有 falsy 值（false、0、0.0、""""、null、""0""）。",1.04,151,158,0
+T04-L5,数组,5,yesno,нет,,json,нет,1,1,array_slice() 的 $preserve_keys 参数默认为 false，默认会重新索引键。,0.85,143,123,0
+T04-L6,数组,6,answer,"{""answer"": [20, 30], ""解释"": ""array_slice 从索引1开始取2个元素，即20和30。""}","[20,30]",late,"[20,30]",1,0,"{""answer"": [20, 30], ""解释"": ""array_slice 从索引1开始取2个元素，即20和30。""}",0.86,166,132,0
+T04-L7,数组,7,answer,2,2,json,2,1,1,"数组 + 运算符保留左侧键值，合并右侧不重复的键，结果为 ['a'=>1, 'b'=>2]，共 2 个元素。",1.44,166,227,0
+T04-L8,数组,8,yesno,да,,json,да,1,1,PHP 8.1 起数组展开运算符正式支持字符串键，不再产生隐式转换警告。,1.97,156,295,0
+T05-L1,函数与闭包,1,yesno,нет,,json,нет,1,1,命名参数可以与展开操作符组合使用，但命名参数必须出现在所有展开操作符之前。,2.62,147,389,0
+T05-L2,函数与闭包,2,yesno,нет,,json,нет,1,1,PHP 匿名函数（闭包）必须通过 use 关键字才能捕获外部作用域的变量。,0.79,141,104,0
+T05-L3,函数与闭包,3,answer,3,3,json,3,1,1,func_num_args() 返回实际传入的实参数量，与声明的参数个数无关。,0.78,174,131,0
+T05-L4,函数与闭包,4,yesno,нет,,json,нет,1,1,箭头函数 fn 的函数体只能是一个单一表达式，不能用花括号包裹多个语句。,1.36,145,205,0
+T05-L5,函数与闭包,5,yesno,да,,json,да,1,1,PHP 7.4 引入的箭头函数 fn 会自动按值捕获外部作用域中的变量，无需显式 use。,1.67,140,289,0
+T05-L6,函数与闭包,6,yesno,да,,json,да,1,1,在类方法中用 static function 声明的闭包不会自动绑定 $this。,0.89,144,123,0
+T05-L7,函数与闭包,7,answer,5,5,json,5,1,1,use($x) 按值捕获，闭包中 $x 始终为 5，外部修改不影响。,1.11,174,194,0
+T05-L8,函数与闭包,8,yesno,да,,json,да,1,1,"弱类型模式下 PHP 会自动将可转换的字符串 ""5"" 强制转换为 int，不会报错。",1.42,154,198,0
+T06-L1,OOP：类与继承,1,yesno,да,,json,да,1,1,构造函数属性提升是 PHP 8.0 引入的特性，允许在构造函数参数中直接声明属性。,0.73,150,107,0
+T06-L2,OOP：类与继承,2,answer,final,final,json,final,1,1,final 关键字修饰方法后，子类无法再重写该方法。,0.65,147,87,0
+T06-L3,OOP：类与继承,3,yesno,да,,json,да,1,1,PHP 中 final 方法禁止在子类中被重写，否则会产生致命错误。,0.69,139,102,0
+T06-L4,OOP：类与继承,4,yesno,нет,,json,нет,1,1,private 属性只在定义它的类内部可访问，子类无法直接访问父类的 private 属性。,0.69,142,77,0
+T06-L6,OOP：类与继承,6,yesno,да,,json,да,1,1,父类的 private 方法对子类不可见，不属于继承契约，子类可以以任何可见性声明同名方法而不冲突。,2.63,147,382,0
+T06-L7,OOP：类与继承,7,yesno,нет,,json,нет,1,1,__get() 不仅对不存在的属性被调用，对不可访问的（如 private/protected）属性从外部读取时也会触发。,1.21,143,178,0
+T06-L8,OOP：类与继承,8,answer,error,error,json,error,1,1,对 readonly 属性重复赋值会抛出 Error，而非 Exception。,0.83,153,120,0
+T07-L1,接口、trait 与 enum,1,yesno,да,,json,да,1,1,PHP接口可以声明常量，常量默认是 public 的。,0.44,134,56,0
+T07-L2,接口、trait 与 enum,2,answer,instanceof,instanceof,json,instanceof,1,1,instanceof 运算符用于检查对象是否为某个类或接口的实例。,0.73,150,104,0
+T07-L3,接口、trait 与 enum,3,yesno,нет,,json,да,0,0,PHP 接口中声明的方法必须是 public 的实例方法，不能声明为 static。,1.82,135,268,0
+T07-L4,接口、trait 与 enum,4,yesno,нет,,json,нет,1,1,instanceof 运算符同样会检查对象是否实现了某个接口。,1.04,142,140,0
+T07-L5,接口、trait 与 enum,5,yesno,нет,,json,нет,1,1,PHP 接口方法不能有方法体（默认实现），而 trait 方法可以。,1.26,141,181,0
+T07-L6,接口、trait 与 enum,6,yesno,да,,json,да,1,1,PHP中抽象方法的可见性可以是public或protected，但不能是private。,0.73,139,98,0
+T07-L7,接口、trait 与 enum,7,answer,3,3,json,3,1,1,Foo 定义了 A、B、C 三个 case，cases() 返回包含所有 case 的数组，共 3 个元素。,0.85,162,125,0
+T08-L1,异常与错误,1,yesno,да,,json,да,1,1,在 PHP 7+ 中，Exception 和 Error 都实现了 Throwable 接口，它是二者的共同祖先。,0.87,141,133,0
+T08-L2,异常与错误,2,yesno,нет,,json,нет,1,1,TypeError 继承自 Error，而 Error 和 Exception 都直接继承自 Throwable，TypeError 并非 Exception 的子类。,1.39,149,248,0
+T08-L3,异常与错误,3,yesno,нет,,json,нет,1,1,@ 运算符只抑制错误（如 Warning、Notice），不会抑制异常（Exception），异常仍会正常抛出。,0.89,136,135,0
+T08-L4,异常与错误,4,answer,divisionbyzeroerror,divisionbyzeroerror,json,divisionbyzeroerror,1,1,intdiv() 除零时抛出 DivisionByZeroError（ArithmeticError 的子类）。,0.73,153,116,0
+T08-L5,异常与错误,5,yesno,да,,json,да,1,1,finally 块无论异常是否被捕获都会执行，之后未捕获的异常才会继续向上传播。,0.85,144,115,0
+T08-L6,异常与错误,6,yesno,нет,,json,нет,1,1,finally 块中抛出的异常会覆盖 try 块的结果（无论是正常返回值还是 try 中抛出的异常），因此对 try 块的结果有明显影响。,2.12,145,347,0
+T08-L8,异常与错误,8,yesno,да,,json,да,1,1,register_shutdown_function() 注册的函数在脚本终止时执行，包括调用 exit 或 die 时。,0.84,144,125,0
+T09-L1,命名空间与自动加载,1,yesno,нет,,json,нет,1,1,use 语句只是创建命名空间别名，不会触发自动加载；自动加载在实际实例化或引用该类时才发生。,1.22,146,180,0
+T09-L2,命名空间与自动加载,2,answer,function,function,json,function,1,1,PHP 中用 use function 导入函数，use const 导入常量。,0.63,157,91,0
+T09-L3,命名空间与自动加载,3,answer,controller/api/usercontroller.php,src/controller/api/usercontroller.php,json,src/controller/api/usercontroller.php,1,0,PSR-4 将命名空间中前缀之后的部分按 \ 转为目录，类名加 .php 即为文件路径。,1.05,175,150,0
+T09-L4,命名空间与自动加载,4,yesno,да,,json,да,1,1,Composer 的 vendor/autoload.php 内部通过 ClassLoader::register() 调用 spl_autoload_register() 注册自动加载器。,1.04,146,162,0
+T09-L5,命名空间与自动加载,5,yesno,да,,json,да,1,1,__NAMESPACE__ 魔术常量在编译时求值，包含当前命名空间的名称，若未声明命名空间则为空字符串。,0.77,141,109,0
+T09-L6,命名空间与自动加载,6,yesno,нет,,json,нет,1,1,在命名空间内，相对类名会相对于当前命名空间解析，而非从全局根开始。,2.19,149,360,0
+T09-L7,命名空间与自动加载,7,yesno,да,,json,да,1,1,PSR-4 规则下，去掉命名空间前缀 App\ 后剩余 Model\User 转为路径 Model/User.php，拼接基目录 src/ 得到 src/Model/User.php。,1.36,159,190,0
+T09-L8,命名空间与自动加载,8,yesno,да,,json,нет,0,0,PHP 允许在函数体内使用 use 语句创建别名，其作用域仅限于该函数。,1.15,144,166,0
+T10-L1,引用与作用域,1,yesno,да,,json,да,1,1,PHP中数组默认按值复制（copy-on-write），需用 & 才按引用赋值。,0.76,141,87,0
+T10-L2,引用与作用域,2,answer,2,2,json,2,1,1,PHP 数组是值类型，$b 是 $a 的副本，修改 $b 不影响 $a。,1.22,170,203,0
+T10-L3,引用与作用域,3,yesno,да,,json,да,1,1,PHP 中函数作用域与全局作用域隔离，访问全局变量必须通过 global、$GLOBALS 或参数传递。,1.59,152,239,0
+T10-L4,引用与作用域,4,yesno,нет,,json,нет,1,1,unset($GLOBALS['x']) 会真正删除全局变量 $x，而非仅在该函数作用域内删除。,2.03,147,296,0
+T10-L5,引用与作用域,5,answer,6,6,json,6,1,1,参数按引用传递，inc 函数将 $n 自增为 6。,0.84,167,136,0
+T10-L6,引用与作用域,6,yesno,нет,,json,нет,1,1,foreach 在数组的副本上遍历，循环内对原数组的修改不影响当前遍历过程。,1.46,155,241,0
+T10-L7,引用与作用域,7,yesno,да,,json,да,1,1,静态属性属于类本身，所有实例共享同一份数据。,0.97,139,114,0
+T10-L8,引用与作用域,8,yesno,нет,,json,нет,1,1,"PHP数组的布尔键会被转换为整数（true→1, false→0），不会以bool类型保存。",0.74,146,91,0
+T11-L1,生成器、迭代器与 SPL,1,yesno,да,,json,да,1,1,PHP 生成器支持带值的 return，可通过 getReturn() 获取返回值。,0.8,150,117,0
+T11-L2,生成器、迭代器与 SPL,2,yesno,нет,,json,нет,1,1,PHP 生成器是一次性的，遍历完毕后调用 rewind() 无法重新遍历，需重新调用生成器函数获取新对象。,1.82,145,225,0
+T11-L3,生成器、迭代器与 SPL,3,yesno,нет,,json,да,0,0,yield from 是 Python 3 的语法，PHP 中只有 yield，没有 yield from。,2.43,145,344,0
+T11-L4,生成器、迭代器与 SPL,4,answer,generator,generator,json,generator,1,1,包含 yield 的函数调用后返回 Generator 对象，get_class 返回类名 Generator。,0.82,157,124,0
+T11-L5,生成器、迭代器与 SPL,5,answer,3,3,json,3,1,1,"生成器 yield from [1,2,3] 产生3个元素，iterator_to_array转为数组后count返回3。",1.15,164,191,0
+T11-L6,生成器、迭代器与 SPL,6,yesno,нет,,json,нет,1,1,SplStack 实现的是 LIFO（后进先出）栈，FIFO 队列对应的是 SplQueue。,0.66,139,91,0
+T11-L7,生成器、迭代器与 SPL,7,yesno,да,,json,да,1,1,ArrayIterator 实现了 Iterator 接口，可用于遍历数组。,0.62,143,82,0
+T11-L8,生成器、迭代器与 SPL,8,yesno,нет,,json,нет,1,1,ArrayObject 实现了 IteratorAggregate 接口，可以用 foreach 遍历。,0.44,139,57,0
+T12-L1,配置与安全,1,yesno,да,,json,да,1,1,password_hash() 内部会自动生成随机盐并将其嵌入返回的哈希字符串中，无需手动传盐。,0.84,145,123,0
+T12-L2,配置与安全,2,yesno,нет,,json,нет,1,1,PHP 8 中 PASSWORD_DEFAULT 是 bcrypt（PASSWORD_BCRYPT），而非 md5。,1.31,148,195,0
+T12-L3,配置与安全,3,answer,true,true,json,true,1,1,password_verify 用相同密码验证其哈希，返回布尔值 true。,0.74,155,97,0
+T12-L4,配置与安全,4,yesno,нет,,json,нет,1,1,strip_tags() 用于移除HTML/PHP标签，防的是XSS，而非SQL注入。,0.66,140,87,0
+T12-L5,配置与安全,5,yesno,да,,json,да,1,1,session_regenerate_id() 通过重新生成会话ID，防止攻击者利用已知的旧ID进行会话固定攻击，是登录时的标准防护手段。,0.96,148,133,0
+T12-L6,配置与安全,6,answer,php_sapi_name(),php_sapi_name,json,php_sapi_name,1,0,php_sapi_name() 返回当前 SAPI 模块名称，如 cli。,0.66,151,89,0
+T12-L7,配置与安全,7,yesno,да,,json,да,1,1,session_destroy() 只销毁服务器端的会话数据，浏览器中的 PHPSESSID cookie 仍需手动用 setcookie() 清除。,0.82,147,101,0
+T12-L8,配置与安全,8,yesno,нет,,json,нет,1,1,必须调用 session_start() 后，$_SESSION 才会加载会话数据，否则它只是一个空数组。,0.85,145,127,0
+T06-L5,OOP：类与继承,5,answer,class@anonymous,class@anonymous,json,class@anonymous,1,1,PHP 匿名类实例的类名以 class@anonymous 开头，后跟文件路径、行号和序号。,3.11,156,433,0
+T07-L8,接口、trait 与 enum,8,yesno,да,,json,да,1,1,PHP trait 可以声明常量，从 PHP 5.4 起支持。,0.82,135,112,0
+T08-L7,异常与错误,7,answer,是,true,json,true,1,0,PHP 中任何对象实例转换为布尔值时结果始终为 true。,0.77,151,111,0
+VC-L1,PHP 8.4–8.5,1,answer,8.1,8.4,json,8.4,0,0,array_find() 和 array_find_key() 是在 PHP 8.1 中引入的。,1.75,152,307,0
+VC-L2,PHP 8.4–8.5,2,yesno,да,,json,да,1,1,属性钩子（property hooks）确实是 PHP 8.4 引入的新特性。,3.03,151,430,0
+VC-L3,PHP 8.4–8.5,3,yesno,да,,json,да,1,1,非对称可见性（Asymmetric Visibility）确实是 PHP 8.4 引入的新特性。,1.23,149,187,0
+VC-L4,PHP 8.4–8.5,4,answer,8.4,8.5,json,8.5,0,0,#[\NoDiscard] 是 PHP 8.4 引入的内置属性。,4.63,157,730,0
+VC-L5,PHP 8.4–8.5,5,answer,8.4,8.5,json,8.5,0,0,管道运算符 |> 的 RFC 在 PHP 8.4 中被接受。,3.47,153,488,0
+VC-L6,PHP 8.4–8.5,6,answer,8.4,8.5,json,8.5,0,0,clone-with 语法是 PHP 8.4 中引入的新特性。,4.15,166,624,0
+VC-L7,PHP 8.4–8.5,7,answer,无,8.5,json,8.5,0,0,array_first() 和 array_last() 不是 PHP 内置函数，它们是 Laravel 框架的辅助函数。,3.98,157,627,0
+VC-L8,PHP 8.4–8.5,8,answer,8.5,8.6,json,8.6,0,0,根据PHP版本发布节奏，截至2026年11月该RFC被接受进入PHP 8.5。,3.61,170,496,0
+VF-L1,PHP：8.6+ 与未来,1,answer,8.4,8.6,json,8.6,0,0,clamp() 函数通过 clamp_v2 RFC 在 PHP 8.4 中实现。,1.12,172,170,0
+VF-L2,PHP：8.6+ 与未来,2,yesno,да,,json,нет,0,0,Context Managers v2 RFC 在 2025 年投票通过，目标纳入 PHP 8.5。,2.2,153,335,0
+VF-L3,PHP：8.6+ 与未来,3,yesno,нет,,json,да,0,0,Bound-Erased Generic Types RFC 于 2024 年被拒绝，而非 2026 年。,3.03,150,463,0
+VF-L4,PHP：8.6+ 与未来,4,yesno,нет,,json,нет,1,1,截至当前，默认启用 ZTS 的 RFC 尚未被 PHP 核心接受，Linux 等平台默认仍为 NTS 构建。,2.61,145,351,0
+VF-L5,PHP：8.6+ 与未来,5,yesno,да,,json,да,1,1,PHP 8.5 仍未引入原生泛型（参数化类型），社区长期讨论但未落地。,1.66,144,229,0
+VF-L6,PHP：8.6+ 与未来,6,yesno,да,,json,да,1,1,PHP 每年11月发布新大版本，8.5于2025年11月发布，8.6预计2026年11月19日发布，因此截至2026-11-06最新稳定版确实是8.5。,5.51,177,1038,0
+VF-L7,PHP：8.6+ 与未来,7,yesno,да,,json,да,1,1,PHP 版本从 5.6 直接跳到了 7.0，从未发布过 PHP 6。,1.01,152,163,0
+VF-L8,PHP：8.6+ 与未来,8,yesno,нет,,json,да,0,0,该 RFC 在投票中被否决（vetoed），未被接受进入核心。,2.15,143,313,0
