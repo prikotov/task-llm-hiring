@@ -986,7 +986,7 @@ def _render_single_body(session, by_id, questions, q_version,
 {appendix_table_single(by_id, questions, anchor_prefix, lang=lang)}
 </table>"""
     footer = (f'построено <a href="https://github.com/prikotov/task-llm-hiring'
-            f'/tree/feat/knowledge-map/knowledge-map">knowledge-map/build_map_report.py</a> · '
+            f'/tree/main/knowledge-map">knowledge-map/build_map_report.py</a> · '
               f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} · "
               f"данные прогона: session.json, answers.csv")
     return title, "", chips, body, footer
@@ -1241,7 +1241,7 @@ def build_compare(model_dir: Path, questions_path: Path,
 <h2>Все клетки</h2>
 {compare_appendix_table(questions, runs, report_href, lang)}"""
     footer = (f'построено <a href="https://github.com/prikotov/task-llm-hiring'
-            f'/tree/feat/knowledge-map/knowledge-map">knowledge-map/build_map_report.py</a> · '
+            f'/tree/main/knowledge-map">knowledge-map/build_map_report.py</a> · '
               f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} · "
               f"данные: run-*/session.json")
     tag = (think_filter or "mixed") + (f"-{lang_filter}" if lang_filter else "") \
@@ -2023,7 +2023,7 @@ def build_series_report(models_root: Path, questions_path: Path,
     }
     html = page(title, proto, "", intro + "\n".join(sections),
                 'построено <a href="https://github.com/prikotov/task-llm-hiring'
-            f'/tree/feat/knowledge-map/knowledge-map">knowledge-map/build_map_report.py</a> · '
+            f'/tree/main/knowledge-map">knowledge-map/build_map_report.py</a> · '
                 f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
                 extra_css=extra, seo=seo)
     out_file.parent.mkdir(parents=True, exist_ok=True)
